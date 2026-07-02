@@ -9,7 +9,11 @@ import {
   type TaskStatus,
 } from "@que/core";
 import { changeTaskStatusAction } from "@/app/(app)/today/actions";
+import { moveTaskToDateAction } from "@/app/(app)/calendar/actions";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Field, FieldLabel } from "@/components/ui/field";
+import { Separator } from "@/components/ui/separator";
 import {
   Sheet,
   SheetContent,
@@ -39,6 +43,8 @@ export interface TaskRowData {
   status: TaskStatus;
   timeText: string;
   metaText?: string;
+  /** 일정 변경 폼 프리필용 시작 시각 (ISO) */
+  startAt?: string;
 }
 
 /** 작업 row 클릭 → 상세 Sheet에서 원터치 상태 변경. 문제발생/홀드는 사유 입력. */
@@ -131,7 +137,87 @@ export function TaskStatusSheet({
             />
           </div>
         )}
+
+        <Separator className="my-5" />
+        <ScheduleMoveForm
+          taskId={task.id}
+          taskTitle={task.title}
+          startAt={task.startAt}
+          onDone={() => {
+            setOpen(false);
+            router.refresh();
+          }}
+        />
       </SheetContent>
     </Sheet>
+  );
+}
+
+/** 드래그가 어려운 터치 환경용 날짜/시간 변경 폼 (DESIGN.md 11장). */
+function ScheduleMoveForm({
+  taskId,
+  taskTitle,
+  startAt,
+  onDone,
+}: {
+  taskId: string;
+  taskTitle: string;
+  startAt?: string;
+  onDone: () => void;
+}) {
+  const initial = startAt ? new Date(startAt) : new Date();
+  const [date, setDate] = useState(
+    `${initial.getFullYear()}-${String(initial.getMonth() + 1).padStart(2, "0")}-${String(initial.getDate()).padStart(2, "0")}`,
+  );
+  const [time, setTime] = useState(
+    `${String(initial.getHours()).padStart(2, "0")}:${String(initial.getMinutes()).padStart(2, "0")}`,
+  );
+  const [pending, startTransition] = useTransition();
+
+  const submit = () => {
+    const hour = Number(time.split(":")[0]);
+    startTransition(async () => {
+      const result = await moveTaskToDateAction({ taskId, date, hour });
+      if (result.ok) {
+        toast.success(`"${taskTitle}" 일정이 변경되어 로그에 기록됐습니다.`);
+        onDone();
+      } else {
+        toast.error(result.error);
+      }
+    });
+  };
+
+  return (
+    <div>
+      <h3 className="mb-2 text-sm font-medium">날짜/시간 변경</h3>
+      <div className="grid grid-cols-2 gap-3">
+        <Field>
+          <FieldLabel htmlFor="move-date">날짜</FieldLabel>
+          <Input
+            id="move-date"
+            type="date"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+          />
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="move-time">시작 시간</FieldLabel>
+          <Input
+            id="move-time"
+            type="time"
+            value={time}
+            onChange={(e) => setTime(e.target.value)}
+          />
+        </Field>
+      </div>
+      <Button
+        variant="secondary"
+        className="mt-3 h-10 w-full"
+        disabled={pending || !date}
+        onClick={submit}
+      >
+        {pending ? "변경 중…" : "일정 변경"}
+      </Button>
+    </div>
   );
 }

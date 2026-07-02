@@ -140,6 +140,7 @@ function TimelineRow({ item }: { item: TodayTimelineItem }) {
     status: task.status,
     timeText,
     metaText: task.description,
+    startAt: task.startAt,
   };
 
   return (

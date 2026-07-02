@@ -291,6 +291,39 @@ export class MockQueDb implements QueDb {
     return item;
   }
 
+  /** 마일스톤 이동 (dueAt 변경). 프로젝트 담당자 또는 관리자만 가능.
+   *  연결 작업 동반 이동 확인 플로우는 후속 단계에서 다룬다 (HANDOFF 참고). */
+  moveMilestone(ctx: ActorContext, input: { milestoneId: string; dueAt: string }): Milestone {
+    const actor = this.requireUser(ctx.actorId);
+    const milestone = this.milestones.find((m) => m.id === input.milestoneId);
+    if (!milestone) {
+      throw new QueRuleError("NOT_FOUND", `마일스톤 없음: ${input.milestoneId}`);
+    }
+    const project = this.projects.find((p) => p.id === milestone.projectId);
+    if (actor.role !== "admin" && project?.ownerId !== actor.id) {
+      throw new QueRuleError(
+        "NOT_AUTHORIZED",
+        "마일스톤은 프로젝트 담당자 또는 관리자만 이동할 수 있다",
+      );
+    }
+    // dueAt 단일 시점도 range 파서로 검증한다 (ISO 형식 강제)
+    const range = parseScheduleRange({ startAt: input.dueAt, endAt: input.dueAt });
+
+    const before = milestone.dueAt;
+    milestone.dueAt = range.startAt;
+    milestone.lastChangedBy = actor.id;
+    milestone.lastChangedAt = this.now();
+
+    this.logChange(ctx, {
+      entityType: "milestone",
+      entityId: milestone.id,
+      changeType: "move",
+      beforeValue: before,
+      afterValue: range.startAt,
+    });
+    return milestone;
+  }
+
   /** 자동 체크인 응답. 담당자(또는 관리자)만 응답할 수 있고,
    *  응답에 따라 작업 상태를 함께 갱신한다. `later`는 상태를 바꾸지 않고 후속 확인만 남긴다. */
   answerCheckIn(
@@ -304,7 +337,7 @@ export class MockQueDb implements QueDb {
       throw new QueRuleError("NOT_AUTHORIZED", "체크인은 담당자만 응답할 수 있다");
     }
     if (checkIn.answeredAt && checkIn.response !== "later") {
-      throw new QueRuleError("NOT_AUTHORIZED", "이미 응답한 체크인이다");
+      throw new QueRuleError("ALREADY_ANSWERED", "이미 응답한 체크인이다");
     }
 
     // 응답 → 작업 상태 매핑. 상태 변경은 changeTaskStatus를 거쳐 규칙/로그가 동일 적용된다.

@@ -265,6 +265,41 @@ describe("결제 상태 변경", () => {
   });
 });
 
+describe("마일스톤 이동", () => {
+  it("무관한 팀원은 마일스톤을 이동할 수 없다", () => {
+    const d = db();
+    // ms-payment-qa는 prj-payment(담당 오승훈) 소속
+    expect(() =>
+      d.moveMilestone(
+        { actorId: "song-suyong", via: "web" },
+        { milestoneId: "ms-payment-qa", dueAt: "2026-07-10T09:00:00.000Z" },
+      ),
+    ).toThrowError(/프로젝트 담당자 또는 관리자만/);
+  });
+
+  it("프로젝트 담당자는 이동할 수 있고 ChangeLog가 남는다", () => {
+    const d = db();
+    const moved = d.moveMilestone(
+      { actorId: "oh-seunghoon", via: "web" },
+      { milestoneId: "ms-payment-qa", dueAt: "2026-07-10T09:00:00.000Z" },
+    );
+    expect(moved.dueAt).toBe("2026-07-10T09:00:00.000Z");
+    const clog = d.changeLogs.at(-1)!;
+    expect(clog.entityType).toBe("milestone");
+    expect(clog.changeType).toBe("move");
+  });
+
+  it("잘못된 날짜로는 이동할 수 없다", () => {
+    const d = db();
+    expect(() =>
+      d.moveMilestone(
+        { actorId: "hwang-sunghyeon", via: "cli" },
+        { milestoneId: "ms-payment-qa", dueAt: "durian" },
+      ),
+    ).toThrowError(/유효하지 않은 일정 범위/);
+  });
+});
+
 describe("체크인 응답", () => {
   it("담당자가 아니면 응답할 수 없다", () => {
     const d = db();
