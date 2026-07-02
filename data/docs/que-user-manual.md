@@ -117,6 +117,7 @@ QUE_TOKEN=que_pat_oh-seunghoon que today
 | `task-status <taskId> <to>` | `--reason <reason>` `--next <nextAction>` `--help-from <userId>` `--recheck <iso>` | 작업 상태 변경. `issue`/`on_hold`는 `--reason` 필수 |
 | `move <taskId> <startAt> <endAt>` | — | 작업 일정 이동 (ISO 8601) |
 | `checkin <checkInId> <response>` | `--reason <reason>` | 자동 체크인 응답. `issue` 응답 시 `--reason` 필수 |
+| `comment <taskId> <내용...>` | `--help-from <userId>` | 작업에 댓글/도움 요청 등록. 타인 작업에도 가능 |
 | `action list` | `--note <meetingNoteId>` | 회의록 Action 후보 목록 |
 | `action assign <actionItemId>` | `--assignee <userId>` `--due <iso>` | 후보에 담당자/마감 지정 |
 | `action confirm <actionItemId>` | — | 후보를 Task로 확정 (담당자·마감 필수) |
@@ -185,6 +186,9 @@ QUE_TOKEN=que_pat_oh-seunghoon que today
 - **Action 확정(`action confirm`)**: 담당자·마감일이 둘 다 있어야 함. 처리(확정/보류/무시)는 담당자, 회의록 업로더, 관리자만 가능.
 - **결제 상태 변경**: 완료 처리는 관리자만. 취소는 관리자 또는 요청자 본인도 가능.
 - **일정(ISO 8601) 값**: `startAt`/`endAt`/`--due`/`--recheck` 모두 **타임존 오프셋을 포함**해야 한다 (`2026-07-03T14:00:00+09:00` 또는 `...Z`). 오프셋이 없으면 거부된다.
+- **댓글**: 수정 권한과 무관하게 **팀 누구나** 작업에 댓글을 남길 수 있다. `--help-from`(도움 요청)을 지정하면 대상자의 오늘 화면·팀 현황에 노출되고 ChangeLog에도 남는다 — 도움 요청이 아닌 일반 댓글은 조용히 기록만 된다.
+- **`merged`(병합) 전환**: 대상 작업(`mergedIntoTaskId`)이 필수다. 자기 자신이나 존재하지 않는 작업으로는 병합할 수 없다. **CLI `task-status`에는 대상 작업을 넘길 옵션이 없어** 병합 전환은 CLI로 할 수 없다 — 웹 작업 Sheet의 "병합" 버튼이나 MCP `change_task_status`(`mergedIntoTaskId`)를 쓴다.
+- **체크인 생성**: 사람이 수동으로 만드는 게 아니라, **오늘 날짜의 예정(`scheduled`) 작업**이 시작 시간을 지나면 서버가 자동 생성한다 (작업당 1회, 이미 상태가 바뀐 작업은 제외).
 
 ---
 
@@ -220,6 +224,8 @@ que today
 
 `today`에 뜬 대로 `chk-detail-qa`에 응답해보자.
 
+> 참고: 체크인은 누가 등록하는 게 아니라 **작업 시작 시간이 지나면 자동 생성된다** (오늘 날짜의 예정 작업만 대상이고, 이미 상태가 바뀐 작업은 제외된다). `today`를 다시 조회했을 때 새로 뜬 체크인이 있다면 그 사이 시작 시간이 지난 작업이 생겼다는 뜻이다.
+
 > 참고: **하나의 체크인에는 한 번만 응답할 수 있다** (다시 응답하면 `오류 [ALREADY_ANSWERED]`). 아래 세 예시는 순서대로 이어지는 게 아니라 각각 별개 상황이다. 예외적으로 `later`(나중에 답변)로 응답한 체크인은 이후 실제 응답이 가능하다.
 
 먼저 `--reason` 없이 `issue`로 답하면 거부된다. 거부된 경우 체크인은 미응답으로 남으므로 다시 응답할 수 있다.
@@ -249,6 +255,16 @@ que checkin chk-detail-qa working
 ```
 
 체크인 응답은 내부적으로 연결된 작업 상태도 함께 바꾼다 (`working` → `진행중`, `issue` → `문제발생` 등).
+
+`merged`(병합)도 응답 선택지에 있지만, 병합에는 대상 작업이 필요한데 `checkin` 명령에는 이를 넘길 옵션이 없다. CLI로 시도하면 다음처럼 거부된다 — 이 경우 웹 작업 Sheet에서 작업을 열어 병합 대상을 고르거나, MCP `change_task_status`(`mergedIntoTaskId`)를 써야 한다.
+
+```bash
+que checkin chk-detail-qa merged
+```
+
+```
+오류 [INVALID_INPUT]: 병합에는 대상 작업(mergedIntoTaskId)이 필요하다
+```
 
 ### 케이스 3: 작업이 막혔을 때 (task-status)
 
@@ -400,13 +416,100 @@ que task-status task-landing-copy done
 오류 [NOT_AUTHORIZED]: 송수용은(는) 이 작업을 수정할 수 없다. 댓글/도움 요청/상태 확인 요청만 가능하다.
 ```
 
-`task-landing-copy`는 황성현이 소유/담당하는 작업이라 송수용은 상태를 바꿀 수 없다. 이런 경우 담당자 본인이나 관리자에게 변경을 요청해야 한다. (댓글/도움 요청 기능은 기획에 있으나 아직 구현 전이다.)
+`task-landing-copy`는 황성현이 소유/담당하는 작업이라 송수용은 상태를 바꿀 수 없다. 이런 경우 담당자 본인이나 관리자에게 변경을 요청해야 한다. 상태는 못 바꿔도 댓글이나 도움 요청은 남길 수 있다 — [케이스 9](#케이스-9-타인-작업에-댓글-남기기도움-요청-comment) 참고.
+
+### 케이스 8: 자연어로 작업 등록하기 (웹 오늘 화면)
+
+오늘 화면 상단 빠른 입력에 문장을 그대로 치면 해석 → 확인 카드 → 등록 순으로 작업이 만들어진다. **CLI에는 이 기능이 없다** — 웹 화면과 MCP(`parse_task_input` → `create_task`, [6.2](#62-자연어-사용-예) 참고)에서만 쓸 수 있다.
+
+지원하는 표현:
+
+| 구분 | 인식하는 표현 | 예시 |
+| --- | --- | --- |
+| 날짜 | 오늘/내일/모레/글피, `N월 M일`, `M/D`, `(다음 주\|이번 주)? 요일` | "내일", "7월 5일", "7/5", "금요일", "다음주 화요일" |
+| 시간 | 오전·오후 `H시`(반 / `M분`), `HH:MM` | "오후 2시", "오후 2시 반", "오전 9시 30분", "14:30" |
+| 담당자 | 팀원 이름 + (선택) 씨/님 | "황성현씨", "이예진님" |
+
+인식하지 못한 단어는 지워지지 않고 **작업명에 그대로 남는다** — 확정 전 확인 카드에서 고치면 된다.
+
+입력창에 다음을 치고 [해석]을 누른다.
+
+```
+다음주 화요일 오후 2시 회의 준비 등록해줘
+```
+
+"이렇게 등록할까요?" 확인 카드가 뜨고, 해석된 값이 필드에 채워진다. 담당자 이름이 문장에 없었으므로 카드에 안내 문구도 함께 뜬다.
+
+```
+이렇게 등록할까요?
+· 담당자가 없어 본인 작업으로 등록됩니다.
+```
+
+- 작업명: `회의 준비`
+- 담당자: (본인)
+- 날짜: `2026-07-07`
+- 시작 시간: `14:00`
+
+("다음주 화요일"은 실행 시점(2026-07-02, 목요일)의 다음 주 월요일을 기준으로 계산되어 화요일인 2026-07-07로 해석된다.)
+
+내용이 맞으면 [등록]을 누른다. 다음 토스트가 뜨고 카드는 닫힌다.
+
+```
+"회의 준비" 작업이 등록되어 캘린더와 담당자 오늘 화면에 표시됩니다.
+```
+
+담당자 이름이 문장에 있었으면(예: "황성현씨 회의 준비 등록해줘") 확인 카드의 담당자 칸이 처음부터 그 사람으로 채워져 있고, 담당자 관련 안내 문구는 뜨지 않는다.
+
+### 케이스 9: 타인 작업에 댓글 남기기·도움 요청 (comment)
+
+케이스 7에서 송수용은 `task-landing-copy`의 상태를 바꿀 수 없었다. 하지만 상태 변경 권한이 없어도 **댓글은 팀 누구나** 남길 수 있고, 담당자 대신 다른 사람에게 도움을 요청할 수도 있다.
+
+```bash
+que login que_pat_song-suyong
+que comment task-landing-copy "카피 톤이 살짝 안 맞는 것 같아요, 확인 부탁드려요" --help-from hwang-sunghyeon
+```
+
+```
+도움 요청을 남겼습니다.
+```
+
+(`--help-from` 없이 의견만 남기면 `댓글을 남겼습니다.`가 출력된다.)
+
+이 도움 요청은 대상으로 지정한 황성현의 **오늘 화면 "주의 필요"**와 **팀 현황 Attention Queue**에 노출된다. 도움 요청이 아닌 일반 댓글은 조용히 기록만 되고 ChangeLog에는 남지 않는다.
+
+웹에서는 작업 Sheet 하단 "댓글 · 도움 요청" 섹션에서 같은 일을 할 수 있다. 팀 현황 화면에서 타인의 작업 칩을 클릭해도 같은 Sheet가 열리는데, 이때는 열람과 댓글만 가능하고 상태/일정을 바꾸는 UI는 숨겨진다 (수정 권한은 여전히 서버가 최종 판단한다). MCP에서는 `list_task_comments`/`add_task_comment` 도구를 쓴다.
+
+### 케이스 10: 하루 마감 정리 ([내일로] 이월)
+
+오늘 화면 "하루 마감" 카드는 오늘 완료한 작업 수와 미완료 목록을 보여준다. 미완료 작업마다 "내일로" 버튼이 있어 눌러주면 같은 시간대·같은 소요시간으로 내일로 옮겨준다(일반 일정 이동과 동일한 권한·로그 적용).
+
+미완료 작업 옆 "내일로"를 누르면 다음 토스트가 뜬다.
+
+```
+"상세페이지 QA" 작업을 내일로 옮기고 변경 로그에 기록했습니다.
+```
+
+오늘 몫을 전부 끝냈다면 카드에는 다음 문구만 남는다.
+
+```
+오늘 몫을 전부 끝냈습니다. 수고하셨어요.
+```
+
+이 기능도 웹 전용이다. CLI/MCP로 같은 결과를 내려면 `move`/`move_task`로 시작·종료 시각을 내일 날짜로 직접 계산해 넘겨야 한다 (자동으로 "내일"을 계산해주는 명령은 없다).
+
+### 참고: 웹 화면에만 있는 그 외 기능
+
+아래는 CLI/MCP로는 조작할 수 없고 웹 화면에서만 보이는 기능이다.
+
+- **일정 충돌 제안** — 시작 전(예정 상태)인 내 작업이 회사 일정과 겹치면 오늘 화면 상단에 "OO가 OO(10:00–11:00)와 겹칩니다. 11:00로 변경할까요?" 카드가 뜨고, 버튼 한 번으로 그 시간대로 옮길 수 있다. 진행중인 작업이나 작업 간 충돌은 제안하지 않고 개수만 집계된다.
+- **스탠드업 뷰** — 팀 현황 상단의 [운영 보드]/[스탠드업] 전환(`/team?view=standup`)에서 멤버별 어제(완료/미완)·오늘 예정·막힘(문제·홀드)을 한 화면에서 훑을 수 있다. 아침 회의용 화면이다.
+- **수정됨 배지** — 캘린더(기본형/전체 멤버/월간 어느 뷰든)에서 최근 24시간 안에 상태·일정이 바뀐 항목에 "수정됨" 배지가 붙는다.
 
 ---
 
 ## 6. Claude Code에서 사용하기 (MCP)
 
-Que는 15개의 MCP 도구를 제공한다. 조회 도구(`get_me`, `get_my_day`, `get_now_board`, `get_team_status`, `list_tasks`, `list_action_candidates`, `list_payment_requests`)와 변경 도구(`change_task_status`, `move_task`, `respond_checkin`, `update_action_item`, `confirm_action`, `resolve_action`, `create_payment_request`, `update_payment_status`)로 나뉜다.
+Que는 19개의 MCP 도구를 제공한다. 조회 도구 9개(`get_me`, `get_my_day`, `get_now_board`, `get_team_status`, `list_tasks`, `list_action_candidates`, `list_payment_requests`, `list_task_comments`, `parse_task_input`)와 변경 도구 10개(`create_task`, `change_task_status`, `move_task`, `respond_checkin`, `update_action_item`, `confirm_action`, `resolve_action`, `create_payment_request`, `update_payment_status`, `add_task_comment`)로 나뉜다. `parse_task_input`은 실제로는 아무것도 저장하지 않고 해석 초안만 반환하기 때문에 조회 도구로 분류된다 — 저장은 뒤이은 `create_task` 호출에서 일어난다.
 
 ### 6.1 연결하기
 
@@ -435,12 +538,14 @@ Que는 15개의 MCP 도구를 제공한다. 조회 도구(`get_me`, `get_my_day`
 - **"상세페이지 QA 문제발생으로 바꿔줘. API 오류 때문이고 오승훈 도움 필요해"** → `change_task_status`를 `to: "issue"`, `detail: { reason: "API 오류", helpUserId: "oh-seunghoon" }`로 호출한다.
 - **"팀에서 지금 막힌 거 뭐 있어?"** → `get_team_status` 호출. 진행중/문제/홀드/마감 임박/응답 대기 현황과 사람별 오늘 시간표, 일정 충돌을 정리해 보여준다.
 - **"회의록 Action 중 확인 필요한 것 정리해줘"** → `list_action_candidates` 호출 후 `needs_review` 상태만 골라 정리해 보여준다.
+- **"내일 3시에 회의 준비 잡아줘"** → 곧바로 저장하지 않는다. 먼저 `parse_task_input`으로 초안(제목/담당자/일시)을 만들어 사용자에게 "이렇게 등록할까요?"로 확인받고, 승인하면 그 값으로 `create_task`를 호출한다. 담당자를 지정하지 않으면 본인 작업으로 등록된다.
+- **"그 작업에 댓글 남겨줘. 황성현한테 도움 요청도 걸어줘"** → `add_task_comment`를 `helpUserId: "hwang-sunghyeon"`로 호출한다. 타인의 작업(수정 권한이 없는 작업)에도 쓸 수 있다 — 댓글은 수정 대신 의견을 전달하는 통로다.
 
 권한·마스킹·변경 로그는 웹/CLI와 동일하게 서버(core)에서 강제되고, MCP를 거친 변경은 `via: mcp`로 기록된다.
 
 ### 6.3 안전장치
 
-AI가 되돌리기 어려운 작업(Action **무시**, 결제 **상태 변경** 등)을 하기 전에는 사용자에게 먼저 확인을 구하도록 설계되어 있다 (`resolve_action`, `update_payment_status`에는 `destructiveHint` 표시가 붙어 있다). 사유가 필요한 상태 전환(`issue`/`on_hold`)도 사유를 먼저 물어본 뒤에 호출하게 되어 있다.
+AI가 되돌리기 어려운 작업(Action **무시**, 결제 **상태 변경** 등)을 하기 전에는 사용자에게 먼저 확인을 구하도록 설계되어 있다 (`resolve_action`, `update_payment_status`에는 `destructiveHint` 표시가 붙어 있다). 사유가 필요한 상태 전환(`issue`/`on_hold`)도 사유를 먼저 물어본 뒤에 호출하게 되어 있다. 자연어 작업 생성(`parse_task_input`→`create_task`)도 같은 원칙이다 — 초안을 저장 전에 반드시 사용자에게 보여주고 확인받도록 도구 설명에 명시되어 있다. 병합(`change_task_status`의 `to: "merged"`)처럼 대상 작업 선택이 필요한 경우도 `list_tasks`로 후보를 찾아 사용자 확인을 거친 뒤 `mergedIntoTaskId`를 채워 호출하게 되어 있다.
 
 ---
 
@@ -470,3 +575,4 @@ env = { QUE_TOKEN = "que_pat_<본인 userId>", QUE_API_URL = "http://localhost:3
 | `오류 [STATUS_DETAIL_REQUIRED]: ...` | `issue`/`on_hold`로 바꾸면서 `--reason`을 안 붙임 | `--reason "사유"`를 추가 (필요하면 `--next`, `--help-from`, `--recheck`도) |
 | 어제 등록한 데이터가 사라짐 | mock 단계라 데이터가 서버 인메모리에만 있고, `pnpm dev`를 재시작하면 시드로 초기화됨 | 정상 동작이다. 영구 저장이 필요하면 별도 안내 예정(DB 연동 전) |
 | Claude Code에서 Que 도구가 안 보임 | `.mcp.json`이 없거나 위치가 잘못됐거나, 설정 후 재시작을 안 함 | `.mcp.json`이 **프로젝트 루트**에 있는지 확인, 저장 후 Claude Code 재시작(또는 MCP 재연결) |
+| 체크인이 안 보여요 | 체크인은 **오늘 날짜의 예정(`scheduled`) 작업**이 시작 시간을 지나야 자동 생성된다 — 아직 시작 전이거나, 오늘 날짜가 아니거나, 이미 상태가 바뀐(진행중/완료 등) 작업은 대상이 아니다 | 정상 동작이다. 시작 시간이 지날 때까지 기다리면 다음 `today`/`get_my_day` 조회 때 생긴다. 급하면 [케이스 3](#케이스-3-작업이-막혔을-때-task-status)처럼 `task-status`로 직접 상태를 바꾼다 |
