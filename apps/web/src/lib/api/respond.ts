@@ -1,4 +1,4 @@
-import { QueRuleError, type QueRuleCode } from "@que/core";
+import { isQueRuleError, type QueRuleCode } from "@que/core";
 import { ZodError } from "zod";
 import { ApiAuthError, authenticate, type ApiContext } from "./auth";
 
@@ -40,7 +40,7 @@ export async function withApi(
     if (error instanceof ApiAuthError) {
       return apiError(error.status, "UNAUTHORIZED", error.message);
     }
-    if (error instanceof QueRuleError) {
+    if (isQueRuleError(error)) {
       return apiError(STATUS_BY_CODE[error.code] ?? 400, error.code, error.message);
     }
     if (error instanceof ZodError) {

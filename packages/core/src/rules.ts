@@ -36,6 +36,18 @@ export class QueRuleError extends Error {
   }
 }
 
+/** QueRuleError 판별 — `instanceof`만 쓰면 dev(HMR/Turbopack)에서 모듈이 이중 로딩될 때
+ *  클래스 정체성이 갈라져 규칙 에러가 500으로 새는 결함이 있었다 (글래도스 발견).
+ *  덕 타이핑을 병행해 모듈 경계와 무관하게 안전하게 잡는다. */
+export function isQueRuleError(error: unknown): error is QueRuleError {
+  if (error instanceof QueRuleError) return true;
+  return (
+    error instanceof Error &&
+    error.name === "QueRuleError" &&
+    typeof (error as { code?: unknown }).code === "string"
+  );
+}
+
 /** 문제발생/홀드는 사유 등 추가 정보를 반드시 받는다. */
 export const STATUS_REQUIRES_DETAIL: readonly TaskStatus[] = ["issue", "on_hold"];
 

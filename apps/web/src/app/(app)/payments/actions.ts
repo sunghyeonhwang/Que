@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { QueRuleError, type PaymentStatus } from "@que/core";
+import { isQueRuleError, type PaymentStatus } from "@que/core";
 import { getDb } from "@/lib/db";
 import { getCurrentUser } from "@/lib/current-user";
 import type { ActionResult } from "@/app/(app)/today/actions";
@@ -12,7 +12,7 @@ function toResult(fn: () => void): ActionResult {
     revalidatePath("/payments");
     return { ok: true };
   } catch (error) {
-    if (error instanceof QueRuleError) return { ok: false, error: error.message };
+    if (isQueRuleError(error)) return { ok: false, error: error.message };
     throw error;
   }
 }

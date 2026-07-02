@@ -2,8 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import {
+  isQueRuleError,
   parseTaskInput,
-  QueRuleError,
   USERS,
   type CheckInResponse,
   type StatusDetail,
@@ -21,7 +21,7 @@ function toResult(fn: () => void): ActionResult {
     revalidatePath("/today");
     return { ok: true };
   } catch (error) {
-    if (error instanceof QueRuleError) return { ok: false, error: error.message };
+    if (isQueRuleError(error)) return { ok: false, error: error.message };
     throw error;
   }
 }

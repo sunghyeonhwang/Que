@@ -132,6 +132,9 @@ data/
     - 캘린더 칩에 "수정됨" 배지 — `lastChangedAt` 최근 24시간(기획 "일정 시간 표시"의 해석) 이내인 작업/Que 일정. `calendar-data.ts` `recentlyChanged`.
     - 오늘 화면 충돌 변경 제안 — **시작 전(scheduled) 내 작업**이 고정 일정(event)과 겹치면 "X가 Y(10:00–11:00)와 겹칩니다. 11:00로 변경할까요?" 카드 + 원클릭 이동(`acceptConflictSuggestionAction` → moveTask, 지속시간 유지). 진행중 작업이나 작업↔작업 충돌은 제안하지 않음(카운트만) — 의도적 결정. 기획서 "추가 아이디어 3" 구현.
 
+27. **API 규칙 에러 500 결함 수정 (2026-07-02, 글래도스 발견)**: dev(Turbopack/HMR)에서 @que/core 모듈이 이중 로딩되면 `instanceof QueRuleError`가 false가 되어 규칙 에러가 403/422 대신 **빈 500**으로 새는 잠복 결함 (비결정적 — 첫 로드에선 정상, 재컴파일 후 발생). core에 `isQueRuleError()` 덕 타이핑 판별자(instanceof + name/code 병행) 신설, 웹의 catch 6곳(respond.ts + 서버 액션 5파일) 전부 교체. HMR 2회 강제 유발 후에도 403/422 유지 실측(글래도스 재검증).
+    - **규칙**: 웹 계층에서 core 에러 판별은 `instanceof` 금지 — 반드시 `isQueRuleError()` 사용. core 내부(mock-db 등 같은 모듈 사본 안)는 instanceof 허용.
+
 ## 남은 작업 / 오픈 질문
 
 - ~~알림 채널 결정~~ → **Slack 확정** (2026-07-02): 1단계 Incoming Webhook+딥링크, 2단계 Bot 인터랙티브 버튼으로 Slack 안에서 체크인 응답(`answerCheckIn` 경유, via 기록). 기획서 "알림 정책 > 알림 채널"과 MCP/CLI 계획 Phase E에 반영됨.
