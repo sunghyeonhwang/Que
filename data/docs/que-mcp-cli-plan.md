@@ -98,7 +98,7 @@ que pay add / list / done <id> / cancel <id>
 | B. MCP 조회 | read-only 도구 8종 | Claude에서 "오늘 내 일정" 질의가 동작 | 웹 MVP 핵심 화면 완성 후 |
 | C. MCP 쓰기 | parse/commit 2단계, 상태 변경, 체크인 응답 | 자연어 작업 생성과 체크인 응답이 대화로 완결. ChangeLog에 `via: mcp` 기록 | B 직후 |
 | D. CLI | core 재사용, 대화형 확인 프롬프트 | 위 명령 세트 동작 | C 직후 (공수 낮음) |
-| E. 원격/알림 연계 | Streamable HTTP, 체크인 알림 채널 연동 | 알림 채널 결정(오픈 질문) 이후 | 미정 |
+| E. 원격/알림 연계 | Streamable HTTP, Slack 체크인 알림 연동 (채널 확정됨 — Webhook → Bot 인터랙티브 순) | Slack 발송 + 딥링크 동작, 2단계에서 Slack 내 응답이 `answerCheckIn` 경유 | D 이후 |
 
 ## 7. 리스크와 대응
 
