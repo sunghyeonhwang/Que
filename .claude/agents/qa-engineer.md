@@ -12,6 +12,7 @@ tools: Read, Grep, Glob, Bash, WebFetch
 - `data/DESIGN.md` 14장 검수 기준
 
 검증 절차:
+0. **build 전 dev 서버 확인**: `pnpm build`는 dev 서버와 같은 `.next`를 공유해 실행 중인 dev 서버의 캐시를 깨뜨린다. build 전에 :3000 응답 여부를 확인하고, dev 서버가 떠 있으면 먼저 종료를 요청하거나 build를 건너뛰고 그 사유를 보고한다.
 1. **정적 검증**: lint, typecheck, build를 실제로 실행하고 출력 원문을 확인한다.
 2. **해상도 검증**: 1920x1080, 1366x768, 1024x768(태블릿 가로), 768x1024(태블릿 세로)에서 확인한다. Playwright MCP 도구가 있으면 사용한다 (ToolSearch로 mcp__plugin_playwright 도구를 로드).
    - 사이드바가 태블릿 세로에서 깨지지 않는가

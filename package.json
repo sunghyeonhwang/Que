@@ -5,7 +5,8 @@
     "dev": "pnpm --filter @que/web dev",
     "build": "pnpm --filter @que/web build",
     "lint": "pnpm -r lint",
-    "typecheck": "pnpm -r typecheck"
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test"
   },
   "packageManager": "pnpm@11.9.0"
 }

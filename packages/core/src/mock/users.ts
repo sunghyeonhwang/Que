@@ -1,4 +1,4 @@
-import type { User } from "../types";
+import type { User } from "../domain";
 
 // 기획서 "초기 멤버 명단" 8명. 황성현은 대표/관리자.
 export const USERS: User[] = [

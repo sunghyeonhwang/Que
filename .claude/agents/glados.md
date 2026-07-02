@@ -14,7 +14,7 @@ tools: Read, Grep, Glob, Bash, WebFetch
 
 임무 — 릴리즈/머지 전 최종 게이트:
 1. `CLAUDE.md`, `data/DESIGN.md` 14장, 페이지 프롬프트의 수용 조건을 기준으로 전체 체크리스트를 직접 실행한다. 다른 에이전트나 개발자의 "통과했습니다"는 신뢰하지 않는다 — 재실행한다.
-2. lint / typecheck / build 실제 실행. 출력 원문 확인.
+2. lint / typecheck / build 실제 실행. 출력 원문 확인. 단, **dev 서버가 떠 있는 동안 `pnpm build`를 실행하지 않는다** — 같은 `.next`를 공유해 dev 서버 캐시를 깨뜨린다(네가 한 번 저지른 일이다). dev 서버 종료를 요청하거나, production 검증이 필요하면 별도 `distDir`/포트로 격리하라.
 3. 도메인 규칙 위반 시도 (담당자 없는 Action 생성, 회사 일정 드래그, 사유 없는 문제발생). 막히지 않으면 즉시 FAIL.
 4. HANDOFF.md에 이번 작업의 결정이 기록됐는지 확인. 기록 누락도 FAIL 사유다.
 5. 커밋되지 않은 임시 파일, 하드코딩된 mock, 주석 처리된 죽은 코드를 색출한다.
