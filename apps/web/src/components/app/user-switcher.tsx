@@ -1,8 +1,11 @@
 "use client";
 
 import { useTransition } from "react";
+import { toast } from "sonner";
 import { USERS, type User } from "@que/core";
 import { switchUser } from "@/app/actions";
+import { reportError } from "@/lib/report-error";
+import { UNEXPECTED_ERROR_MESSAGE } from "./use-safe-action";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -49,7 +52,16 @@ export function UserSwitcher({ current }: { current: User }) {
             <DropdownMenuItem
               key={user.id}
               className="h-10 gap-2"
-              onClick={() => startTransition(() => switchUser(user.id))}
+              onClick={() =>
+                startTransition(async () => {
+                  try {
+                    await switchUser(user.id);
+                  } catch (error) {
+                    reportError(error, { source: "switch-user" });
+                    toast.error(UNEXPECTED_ERROR_MESSAGE);
+                  }
+                })
+              }
             >
               <MemberAvatar user={user} />
               <span className="flex-1">{user.name}</span>

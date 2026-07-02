@@ -1,11 +1,9 @@
 "use client";
 
-import { useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { format } from "date-fns";
-import { toast } from "sonner";
 import { PAYMENT_STATUS_LABELS, type PaymentStatus } from "@que/core";
 import { updatePaymentStatusAction } from "@/app/(app)/payments/actions";
+import { useSafeAction } from "@/components/app/use-safe-action";
 import type { PaymentRow } from "@/lib/payment-data";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -31,18 +29,11 @@ export function PaymentList({ rows }: { rows: PaymentRow[] }) {
 }
 
 function PaymentRowView({ row }: { row: PaymentRow }) {
-  const router = useRouter();
-  const [pending, startTransition] = useTransition();
+  const { run, pending } = useSafeAction();
 
   const change = (to: PaymentStatus) => {
-    startTransition(async () => {
-      const result = await updatePaymentStatusAction({ paymentId: row.id, to });
-      if (result.ok) {
-        toast.success(`"${row.title}" → ${PAYMENT_STATUS_LABELS[to]}`);
-        router.refresh();
-      } else {
-        toast.error(result.error);
-      }
+    run(() => updatePaymentStatusAction({ paymentId: row.id, to }), {
+      success: `"${row.title}" → ${PAYMENT_STATUS_LABELS[to]}`,
     });
   };
 

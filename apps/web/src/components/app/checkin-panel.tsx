@@ -1,8 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
-import { toast } from "sonner";
+import { useState } from "react";
 import {
   CHECK_IN_RESPONSE_LABELS,
   type CheckInResponse,
@@ -11,6 +9,7 @@ import {
 import { answerCheckInAction } from "@/app/(app)/today/actions";
 import { Button } from "@/components/ui/button";
 import { StatusDetailForm } from "./status-detail-form";
+import { useSafeAction } from "./use-safe-action";
 
 const CHOICES: CheckInResponse[] = [
   "working",
@@ -30,20 +29,13 @@ export function CheckInPanel({
   checkInId: string;
   question: string;
 }) {
-  const router = useRouter();
-  const [pending, startTransition] = useTransition();
+  const { run, pending } = useSafeAction();
   const [issueOpen, setIssueOpen] = useState(false);
 
   const respond = (response: CheckInResponse, detail?: StatusDetail) => {
-    startTransition(async () => {
-      const result = await answerCheckInAction({ checkInId, response, detail });
-      if (result.ok) {
-        toast.success(`체크인 응답 완료: ${CHECK_IN_RESPONSE_LABELS[response]}`);
-        setIssueOpen(false);
-        router.refresh();
-      } else {
-        toast.error(result.error);
-      }
+    run(() => answerCheckInAction({ checkInId, response, detail }), {
+      success: `체크인 응답 완료: ${CHECK_IN_RESPONSE_LABELS[response]}`,
+      onSuccess: () => setIssueOpen(false),
     });
   };
 

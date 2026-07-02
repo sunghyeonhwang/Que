@@ -1,8 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
-import { toast } from "sonner";
+import { useState } from "react";
 import {
   TASK_STATUS_LABELS,
   type StatusDetail,
@@ -24,6 +22,7 @@ import {
 } from "@/components/ui/sheet";
 import { StatusBadge } from "./status-badge";
 import { StatusDetailForm } from "./status-detail-form";
+import { useSafeAction } from "./use-safe-action";
 
 /** 상태 변경 버튼 순서 — 기획서 "작업 상세 패널"의 주요 상태 버튼 기준 */
 const STATUS_CHOICES: TaskStatus[] = [
@@ -55,22 +54,17 @@ export function TaskStatusSheet({
   task: TaskRowData;
   children: React.ReactNode;
 }) {
-  const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [pending, startTransition] = useTransition();
+  const { run, pending } = useSafeAction();
   const [detailFor, setDetailFor] = useState<TaskStatus | null>(null);
 
   const change = (to: TaskStatus, detail?: StatusDetail) => {
-    startTransition(async () => {
-      const result = await changeTaskStatusAction({ taskId: task.id, to, detail });
-      if (result.ok) {
-        toast.success(`"${task.title}" → ${TASK_STATUS_LABELS[to]}`);
+    run(() => changeTaskStatusAction({ taskId: task.id, to, detail }), {
+      success: `"${task.title}" → ${TASK_STATUS_LABELS[to]}`,
+      onSuccess: () => {
         setDetailFor(null);
         setOpen(false);
-        router.refresh();
-      } else {
-        toast.error(result.error);
-      }
+      },
     });
   };
 
@@ -143,10 +137,7 @@ export function TaskStatusSheet({
           taskId={task.id}
           taskTitle={task.title}
           startAt={task.startAt}
-          onDone={() => {
-            setOpen(false);
-            router.refresh();
-          }}
+          onDone={() => setOpen(false)}
         />
       </SheetContent>
     </Sheet>
@@ -172,18 +163,13 @@ function ScheduleMoveForm({
   const [time, setTime] = useState(
     `${String(initial.getHours()).padStart(2, "0")}:${String(initial.getMinutes()).padStart(2, "0")}`,
   );
-  const [pending, startTransition] = useTransition();
+  const { run, pending } = useSafeAction();
 
   const submit = () => {
     const hour = Number(time.split(":")[0]);
-    startTransition(async () => {
-      const result = await moveTaskToDateAction({ taskId, date, hour });
-      if (result.ok) {
-        toast.success(`"${taskTitle}" 일정이 변경되어 로그에 기록됐습니다.`);
-        onDone();
-      } else {
-        toast.error(result.error);
-      }
+    run(() => moveTaskToDateAction({ taskId, date, hour }), {
+      success: `"${taskTitle}" 일정이 변경되어 로그에 기록됐습니다.`,
+      onSuccess: onDone,
     });
   };
 

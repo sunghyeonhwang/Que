@@ -1,10 +1,9 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
-import { toast } from "sonner";
+import { useRef, useState } from "react";
 import { USERS, type Project } from "@que/core";
 import { uploadMeetingNoteAction } from "@/app/(app)/meeting-notes/actions";
+import { useSafeAction } from "@/components/app/use-safe-action";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -20,9 +19,8 @@ import {
 
 /** Plaud Note MD 업로드 폼. 파일 내용은 클라이언트에서 읽어 서버 액션으로 넘긴다. */
 export function UploadNoteForm({ projects }: { projects: Project[] }) {
-  const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
-  const [pending, startTransition] = useTransition();
+  const { run, pending } = useSafeAction();
   const [title, setTitle] = useState("");
   const [projectId, setProjectId] = useState("");
   const [meetingDate, setMeetingDate] = useState(() => {
@@ -43,27 +41,27 @@ export function UploadNoteForm({ projects }: { projects: Project[] }) {
   const canSubmit = title.trim() && fileName && markdownBody && !pending;
 
   const submit = () => {
-    startTransition(async () => {
-      const result = await uploadMeetingNoteAction({
-        title,
-        projectId: projectId || undefined,
-        meetingDate,
-        attendeeIds,
-        fileName,
-        markdownBody,
-      });
-      if (result.ok) {
-        toast.success(`"${title}" 회의록이 업로드됐습니다. Action 추출 대기 상태입니다.`);
-        setTitle("");
-        setFileName("");
-        setMarkdownBody("");
-        setAttendeeIds([]);
-        if (fileRef.current) fileRef.current.value = "";
-        router.refresh();
-      } else {
-        toast.error(result.error);
-      }
-    });
+    run(
+      () =>
+        uploadMeetingNoteAction({
+          title,
+          projectId: projectId || undefined,
+          meetingDate,
+          attendeeIds,
+          fileName,
+          markdownBody,
+        }),
+      {
+        success: `"${title}" 회의록이 업로드됐습니다. Action 추출 대기 상태입니다.`,
+        onSuccess: () => {
+          setTitle("");
+          setFileName("");
+          setMarkdownBody("");
+          setAttendeeIds([]);
+          if (fileRef.current) fileRef.current.value = "";
+        },
+      },
+    );
   };
 
   return (

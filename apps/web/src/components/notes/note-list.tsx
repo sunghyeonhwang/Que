@@ -1,11 +1,9 @@
 "use client";
 
-import { useTransition } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { format } from "date-fns";
-import { toast } from "sonner";
 import { extractActionsAction } from "@/app/(app)/meeting-notes/actions";
+import { useSafeAction } from "@/components/app/use-safe-action";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
@@ -48,18 +46,11 @@ export function NoteList({ notes }: { notes: NoteListItem[] }) {
 }
 
 function NoteRow({ note }: { note: NoteListItem }) {
-  const router = useRouter();
-  const [pending, startTransition] = useTransition();
+  const { run, pending } = useSafeAction();
 
   const extract = () => {
-    startTransition(async () => {
-      const result = await extractActionsAction(note.id);
-      if (result.ok) {
-        toast.success("Action 후보를 추출했습니다. Action 화면에서 확정해주세요.");
-        router.refresh();
-      } else {
-        toast.error(result.error);
-      }
+    run(() => extractActionsAction(note.id), {
+      success: "Action 후보를 추출했습니다. Action 화면에서 확정해주세요.",
     });
   };
 

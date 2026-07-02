@@ -1,9 +1,8 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
-import { toast } from "sonner";
+import { useState } from "react";
 import { createPaymentRequestAction } from "@/app/(app)/payments/actions";
+import { useSafeAction } from "@/components/app/use-safe-action";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, FieldLabel } from "@/components/ui/field";
@@ -22,8 +21,7 @@ const CATEGORY_ITEMS = Object.fromEntries(CATEGORIES.map((c) => [c, c]));
 
 /** 결제 요청 등록 폼. */
 export function PaymentForm() {
-  const router = useRouter();
-  const [pending, startTransition] = useTransition();
+  const { run, pending } = useSafeAction();
   const [title, setTitle] = useState("");
   const [bankName, setBankName] = useState("");
   const [accountNumber, setAccountNumber] = useState("");
@@ -36,29 +34,29 @@ export function PaymentForm() {
     title.trim() && bankName.trim() && accountNumber.trim() && Number(amount) > 0 && !pending;
 
   const submit = () => {
-    startTransition(async () => {
-      const result = await createPaymentRequestAction({
-        title,
-        bankName,
-        accountNumber,
-        amount: Number(amount),
-        description: description || undefined,
-        dueDate: dueDate || undefined,
-        category,
-      });
-      if (result.ok) {
-        toast.success("결제 요청이 대기 상태로 등록됐습니다.");
-        setTitle("");
-        setBankName("");
-        setAccountNumber("");
-        setAmount("");
-        setDescription("");
-        setDueDate("");
-        router.refresh();
-      } else {
-        toast.error(result.error);
-      }
-    });
+    run(
+      () =>
+        createPaymentRequestAction({
+          title,
+          bankName,
+          accountNumber,
+          amount: Number(amount),
+          description: description || undefined,
+          dueDate: dueDate || undefined,
+          category,
+        }),
+      {
+        success: "결제 요청이 대기 상태로 등록됐습니다.",
+        onSuccess: () => {
+          setTitle("");
+          setBankName("");
+          setAccountNumber("");
+          setAmount("");
+          setDescription("");
+          setDueDate("");
+        },
+      },
+    );
   };
 
   return (

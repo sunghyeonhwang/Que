@@ -1,9 +1,8 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
-import { toast } from "sonner";
+import { useState } from "react";
 import { ACTION_ITEM_STATUS_LABELS, USERS, type ActionItemStatus } from "@que/core";
+import { useSafeAction } from "@/components/app/use-safe-action";
 import {
   confirmActionItemAction,
   setActionItemStatusAction,
@@ -44,22 +43,13 @@ const STATUS_VARIANT: Record<ActionItemStatus, "default" | "secondary" | "outlin
 
 /** Action 후보 한 줄 — 담당자/마감일 지정과 생성/보류/무시 처리. */
 export function ActionRow({ item }: { item: ActionRowData }) {
-  const router = useRouter();
-  const [pending, startTransition] = useTransition();
+  const { run: runAction, pending } = useSafeAction();
   const [assigneeId, setAssigneeId] = useState(item.assigneeId ?? "");
   const [dueDate, setDueDate] = useState(item.dueDate ?? "");
   const resolved = item.status === "created" || item.status === "ignored";
 
-  const run = (fn: () => Promise<{ ok: boolean; error?: string }>, successMessage: string) => {
-    startTransition(async () => {
-      const result = await fn();
-      if (result.ok) {
-        toast.success(successMessage);
-        router.refresh();
-      } else {
-        toast.error(result.error);
-      }
-    });
+  const run = (fn: Parameters<typeof runAction>[0], successMessage: string) => {
+    runAction(fn, { success: successMessage });
   };
 
   const dirty = assigneeId !== (item.assigneeId ?? "") || dueDate !== (item.dueDate ?? "");

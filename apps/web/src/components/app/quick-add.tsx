@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { toast } from "sonner";
 import { USERS, type TaskDraft } from "@que/core";
 import { createTaskAction, parseTaskAction } from "@/app/(app)/today/actions";
+import { reportError } from "@/lib/report-error";
+import { UNEXPECTED_ERROR_MESSAGE, useSafeAction } from "./use-safe-action";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Field, FieldLabel } from "@/components/ui/field";
@@ -33,8 +34,7 @@ function toLocalTime(iso?: string): string {
 
 /** 자연어 빠른 입력 + 확인 카드 (기획: 등록 전 확인 단계를 반드시 둔다). */
 export function QuickAdd({ currentUserId }: { currentUserId: string }) {
-  const router = useRouter();
-  const [pending, startTransition] = useTransition();
+  const { run, pending, startTransition } = useSafeAction();
   const [text, setText] = useState("");
   const [draft, setDraft] = useState<TaskDraft | null>(null);
   const [title, setTitle] = useState("");
@@ -45,35 +45,36 @@ export function QuickAdd({ currentUserId }: { currentUserId: string }) {
   const parse = () => {
     if (!text.trim()) return;
     startTransition(async () => {
-      const result = await parseTaskAction(text);
-      setDraft(result);
-      setTitle(result.title);
-      setAssigneeId(result.assigneeId ?? currentUserId);
-      setDate(toLocalDate(result.startAt));
-      setTime(toLocalTime(result.startAt));
+      try {
+        const result = await parseTaskAction(text);
+        setDraft(result);
+        setTitle(result.title);
+        setAssigneeId(result.assigneeId ?? currentUserId);
+        setDate(toLocalDate(result.startAt));
+        setTime(toLocalTime(result.startAt));
+      } catch (error) {
+        reportError(error, { source: "parse-task" });
+        toast.error(UNEXPECTED_ERROR_MESSAGE);
+      }
     });
   };
 
   const register = () => {
-    startTransition(async () => {
-      let startAt: string | undefined;
-      let endAt: string | undefined;
-      if (date) {
-        const [y, m, d] = date.split("-").map(Number);
-        const [hh, mm] = (time || "09:00").split(":").map(Number);
-        const start = new Date(y, m - 1, d, hh, mm);
-        startAt = start.toISOString();
-        endAt = new Date(start.getTime() + 60 * 60 * 1000).toISOString();
-      }
-      const result = await createTaskAction({ title, assigneeId, startAt, endAt });
-      if (result.ok) {
-        toast.success(`"${title}" 작업이 등록되어 캘린더와 담당자 오늘 화면에 표시됩니다.`);
+    let startAt: string | undefined;
+    let endAt: string | undefined;
+    if (date) {
+      const [y, m, d] = date.split("-").map(Number);
+      const [hh, mm] = (time || "09:00").split(":").map(Number);
+      const start = new Date(y, m - 1, d, hh, mm);
+      startAt = start.toISOString();
+      endAt = new Date(start.getTime() + 60 * 60 * 1000).toISOString();
+    }
+    run(() => createTaskAction({ title, assigneeId, startAt, endAt }), {
+      success: `"${title}" 작업이 등록되어 캘린더와 담당자 오늘 화면에 표시됩니다.`,
+      onSuccess: () => {
         setDraft(null);
         setText("");
-        router.refresh();
-      } else {
-        toast.error(result.error);
-      }
+      },
     });
   };
 
