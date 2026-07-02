@@ -32,6 +32,8 @@ export interface TodayData {
   dueSoon: Task[];
   attention: AttentionTask[];
   conflictCount: number;
+  /** 하루 마감 요약 (기획서 "추가 아이디어 4") */
+  wrapUp: { doneToday: Task[]; unfinished: Task[] };
 }
 
 const ACTIVE_STATUSES = new Set(["scheduled", "in_progress", "needs_reschedule", "on_hold", "issue"]);
@@ -146,7 +148,14 @@ export function getTodayData(user: User, now: Date = new Date()): TodayData {
     }
   }
 
-  return { myTasks, timeline, pendingCheckIns, dueSoon, attention, conflictCount };
+  // 하루 마감: 오늘 완료한 것 / 오늘 시작했지만 끝나지 않은 것 (내일로 넘길 후보)
+  const UNFINISHED = new Set(["scheduled", "in_progress", "needs_reschedule"]);
+  const wrapUp = {
+    doneToday: myTasks.filter((t) => t.status === "done"),
+    unfinished: myTasks.filter((t) => UNFINISHED.has(t.status)),
+  };
+
+  return { myTasks, timeline, pendingCheckIns, dueSoon, attention, conflictCount, wrapUp };
 }
 
 function byStart(a: Task, b: Task): number {

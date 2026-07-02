@@ -33,6 +33,7 @@
    | `SUPABASE_SERVICE_ROLE_KEY` | service_role 키 | **서버 전용 — `NEXT_PUBLIC_` 금지** |
    | `QUE_ALLOW_MOCK_AUTH` | (제거) | 실 인증 도입 후 제거 |
 4. ⏳ **실 인증** — Auth.js 도입, mock 쿠키 전환기 제거, PAT를 무작위 발급 + `personal_access_tokens` 테이블(해시 저장)로 교체 (`core/mock/tokens.ts` 폐기)
+4-1. ⏳ **체크인 스케줄러 Cron 전환** — 현재는 `getDb()` 접근 시 lazy 실행(`syncCheckIns`). 서버리스에서는 아무도 접근하지 않는 시간대에 체크인이 늦게 생성되므로, Vercel Cron(`vercel.json`의 crons, 예: 10분 간격)으로 `/api/cron/sync-checkins` 엔드포인트를 호출하게 전환한다 (lazy 실행은 이중 안전망으로 유지 — 멱등이므로 충돌 없음).
 5. ⏳ MCP/CLI 전환 — `.mcp.json`/`~/.que/config.json`의 `QUE_API_URL`을 배포 URL로
 
 ### 배포 후 검증 (글래도스 게이트 항목)

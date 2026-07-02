@@ -585,6 +585,45 @@ describe("마일스톤 이동", () => {
   });
 });
 
+describe("체크인 스케줄러 (syncCheckIns)", () => {
+  it("시작 시간이 지난 예정 작업에만 생성하고, 멱등하다", () => {
+    const d = db();
+    // NOW=09:00 기준: 시작 지난 scheduled 작업은 아직 없음 (13:00 상세페이지 QA는 시드 체크인 보유)
+    const at14 = new Date("2026-07-02T14:00:00+09:00");
+    const created = d.syncCheckIns(at14);
+
+    // 11:30 광고 소재 검수(scheduled, 체크인 없음)가 생성 대상
+    expect(created.some((c) => c.taskId === "task-ad-review")).toBe(true);
+    // 13:00 상세페이지 QA는 시드 체크인이 있어 중복 생성 안 됨
+    expect(created.some((c) => c.taskId === "task-detail-qa")).toBe(false);
+    // 09:30 랜딩페이지(in_progress — 이미 상태 업데이트됨), 10:00 결제 QA(issue)는 묻지 않음
+    expect(created.some((c) => c.taskId === "task-landing-copy")).toBe(false);
+    expect(created.some((c) => c.taskId === "task-payment-qa")).toBe(false);
+    // 15:30 주간 리포트는 아직 시작 전
+    expect(created.some((c) => c.taskId === "task-weekly-report")).toBe(false);
+
+    // 멱등성: 다시 호출해도 추가 생성 없음
+    expect(d.syncCheckIns(at14)).toHaveLength(0);
+  });
+
+  it("과거 날짜 작업에는 뒤늦게 묻지 않고, 생성된 체크인은 응답 가능하다", () => {
+    const d = db();
+    const nextDay = new Date("2026-07-03T18:00:00+09:00");
+    const created = d.syncCheckIns(nextDay);
+    // 7/3 기준: 어제(7/2) 작업들은 dayStart 이전이라 제외, 7/3 작업(CS FAQ 초안 등)만 생성
+    expect(created.some((c) => c.taskId === "task-ad-review")).toBe(false);
+    const faq = created.find((c) => c.taskId === "task-faq-draft");
+    expect(faq).toBeDefined();
+
+    const answered = d.answerCheckIn(
+      { actorId: "lee-yejin", via: "web" },
+      { checkInId: faq!.id, response: "working" },
+    );
+    expect(answered.response).toBe("working");
+    expect(d.requireTask("task-faq-draft").status).toBe("in_progress");
+  });
+});
+
 describe("체크인 응답", () => {
   it("담당자가 아니면 응답할 수 없다", () => {
     const d = db();

@@ -1,6 +1,7 @@
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 import { TASK_STATUS_LABELS } from "@que/core";
+import { DayWrap } from "@/components/app/day-wrap";
 import { PageHeader } from "@/components/app/page-header";
 import { QuickAdd } from "@/components/app/quick-add";
 import { StatusBadge } from "@/components/app/status-badge";
@@ -82,6 +83,15 @@ export default async function TodayPage() {
                   question={`${user.name}님, ${format(new Date(checkIn.scheduledAt), "HH:mm")} 예정된 "${task.title}" 상태를 알려주세요.`}
                 />
               ))}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">하루 마감</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <DayWrap doneToday={data.wrapUp.doneToday} unfinished={data.wrapUp.unfinished} />
             </CardContent>
           </Card>
 

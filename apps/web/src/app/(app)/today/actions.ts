@@ -57,6 +57,32 @@ export async function createTaskAction(input: {
   );
 }
 
+/** 하루 마감 — 미완료 작업을 내일 같은 시간으로 이동한다 (드래그 이동과 동일 규칙/로그). */
+export async function deferTaskToTomorrowAction(taskId: string): Promise<ActionResult> {
+  const user = await getCurrentUser();
+  const db = getDb();
+  const task = db.tasks.find((t) => t.id === taskId);
+  if (!task) return { ok: false, error: `작업 없음: ${taskId}` };
+  if (!task.startAt) return { ok: false, error: "시작 시간이 없는 작업은 이동할 수 없다" };
+
+  const start = new Date(task.startAt);
+  start.setDate(start.getDate() + 1);
+  const durationMs = task.endAt
+    ? new Date(task.endAt).getTime() - new Date(task.startAt).getTime()
+    : 60 * 60 * 1000;
+
+  return toResult(() =>
+    db.moveTask(
+      { actorId: user.id, via: "web" },
+      {
+        taskId,
+        startAt: start.toISOString(),
+        endAt: new Date(start.getTime() + durationMs).toISOString(),
+      },
+    ),
+  );
+}
+
 export async function answerCheckInAction(input: {
   checkInId: string;
   response: CheckInResponse;

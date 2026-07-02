@@ -542,6 +542,36 @@ export class MockQueDb implements QueDb {
     return milestone;
   }
 
+  /** 체크인 스케줄러 — 시작 시간이 지난 "예정" 작업에 체크인을 생성한다 (멱등).
+   *  기획서 체크인 정책: Que 작업에만 묻고, 이미 상태가 업데이트된 작업(진행중/완료 등)은
+   *  묻지 않으며, 회의/휴가(CalendarEvent)는 대상이 아니다.
+   *  mock 단계에서는 조회 시점에 lazy 실행하고, 배포 후 Vercel Cron으로 전환한다.
+   *  시스템 동작이므로 ChangeLog를 남기지 않는다 (업무 내용 변경이 아님). */
+  syncCheckIns(now: Date = this.clock()): CheckIn[] {
+    const dayStart = new Date(now);
+    dayStart.setHours(0, 0, 0, 0);
+    const created: CheckIn[] = [];
+
+    for (const task of this.tasks) {
+      if (task.status !== "scheduled" || !task.startAt) continue;
+      const start = new Date(task.startAt);
+      // 오늘 시작해서 이미 시작 시간이 지난 작업만 — 과거 날짜 작업에 뒤늦게 묻지 않는다
+      if (start > now || start < dayStart) continue;
+      if (this.checkIns.some((c) => c.taskId === task.id)) continue; // 작업당 1회
+
+      const checkIn: CheckIn = {
+        id: this.nextId("chk"),
+        taskId: task.id,
+        assigneeId: task.assigneeId,
+        scheduledAt: task.startAt,
+        followUpRequired: false,
+      };
+      this.checkIns.push(checkIn);
+      created.push(checkIn);
+    }
+    return created;
+  }
+
   /** 자동 체크인 응답. 담당자(또는 관리자)만 응답할 수 있고,
    *  응답에 따라 작업 상태를 함께 갱신한다. `later`는 상태를 바꾸지 않고 후속 확인만 남긴다. */
   answerCheckIn(
