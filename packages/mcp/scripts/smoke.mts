@@ -26,11 +26,28 @@ function check(name: string, condition: boolean, detail?: string) {
 
 // 1) 도구 목록
 const { tools } = await client.listTools();
-check("도구 개수 17", tools.length === 17, `실제 ${tools.length}`);
+check("도구 개수 19", tools.length === 19, `실제 ${tools.length}`);
 check(
   "조회 도구 readOnlyHint",
-  tools.filter((t) => t.annotations?.readOnlyHint).length === 8,
+  tools.filter((t) => t.annotations?.readOnlyHint).length === 9,
 );
+
+// 댓글: 타인 작업에도 가능 + 도움 요청
+const commented = await client.callTool({
+  name: "add_task_comment",
+  arguments: {
+    taskId: "task-payment-qa", // 박승환 작업 — 관리자 토큰이지만 팀 누구나 가능
+    body: "MCP 스모크 — 로그 확인 부탁드립니다",
+    helpUserId: "oh-seunghoon",
+  },
+});
+check("add_task_comment (도움 요청)", !commented.isError);
+const commentList = await client.callTool({
+  name: "list_task_comments",
+  arguments: { taskId: "task-payment-qa" },
+});
+const commentText = (commentList.content as { text: string }[])[0]?.text ?? "";
+check("list_task_comments 반영", commentText.includes("MCP 스모크"));
 
 // parse → 저장 안 됨 확인
 const parsed = await client.callTool({

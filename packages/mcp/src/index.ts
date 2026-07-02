@@ -129,6 +129,16 @@ server.registerTool(
 );
 
 server.registerTool(
+  "list_task_comments",
+  {
+    description: "작업의 댓글/도움 요청 목록을 조회한다.",
+    inputSchema: { taskId: z.string() },
+    annotations: { readOnlyHint: true },
+  },
+  ({ taskId }) => run(() => api.get(`/api/tasks/${taskId}/comments`)),
+);
+
+server.registerTool(
   "parse_task_input",
   {
     description:
@@ -232,6 +242,20 @@ server.registerTool(
     annotations: { destructiveHint: true },
   },
   ({ actionItemId, to }) => run(() => api.post(`/api/action-items/${actionItemId}/status`, { to })),
+);
+
+server.registerTool(
+  "add_task_comment",
+  {
+    description:
+      "작업에 댓글을 남긴다. 타인의 작업(수정 권한 없음)에도 가능 — 수정 대신 의견을 전달하는 통로다. helpUserId를 지정하면 도움 요청이 되어 대상자의 오늘 화면과 팀 현황에 노출된다.",
+    inputSchema: {
+      taskId: z.string(),
+      body: z.string().min(1).max(1000),
+      helpUserId: z.string().optional().describe("도움을 요청할 사용자 id"),
+    },
+  },
+  ({ taskId, ...input }) => run(() => api.post(`/api/tasks/${taskId}/comments`, input)),
 );
 
 server.registerTool(

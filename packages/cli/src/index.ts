@@ -191,6 +191,24 @@ program
     }
   });
 
+program
+  .command("comment")
+  .argument("<taskId>")
+  .argument("<body...>", "댓글 내용")
+  .option("--help-from <userId>", "도움을 요청할 사용자")
+  .description("작업에 댓글/도움 요청 — 타인 작업에도 가능")
+  .action(async (taskId: string, bodyWords: string[], opts: { helpFrom?: string }) => {
+    try {
+      await client().post(`/api/tasks/${taskId}/comments`, {
+        body: bodyWords.join(" "),
+        helpUserId: opts.helpFrom,
+      });
+      console.log(opts.helpFrom ? "도움 요청을 남겼습니다." : "댓글을 남겼습니다.");
+    } catch (error) {
+      fail(error);
+    }
+  });
+
 const action = program.command("action").description("회의록 Action 후보 관리");
 
 action
