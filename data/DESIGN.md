@@ -280,9 +280,9 @@ Que 상태별 권장:
 | App Shell | Sidebar, ScrollArea, Button, Badge, Tooltip, Avatar |
 | Now | Table, Badge, Card, Tabs, Sheet, ScrollArea |
 | 오늘 | Input, Button, Card, Badge, Alert, Sheet, Sonner |
-| 캘린더 | Tabs, ScrollArea, Sheet, Badge, Tooltip, custom grid |
-| 전체 캘린더 | Tabs, ScrollArea, Badge, custom grid |
-| 가로 캘린더 | ScrollArea, Badge, Tooltip, custom timeline |
+| 캘린더 (단일 메뉴, 뷰 스위처) | Tabs, ScrollArea, Sheet, Badge, Tooltip, custom grid |
+| 캘린더 — 전체 멤버 뷰 | Tabs, ScrollArea, Badge, custom grid |
+| 캘린더 — 타임라인 뷰 | ScrollArea, Badge, Tooltip, custom timeline |
 | 팀 현황 | Table, Card, Badge, Sheet, Avatar |
 | 히트맵 | Card, Badge, Progress, Tooltip, Sheet, custom grid |
 | 회의록 | Form, Input, Select, Textarea, Card, Badge, ScrollArea |
