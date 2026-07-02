@@ -9,6 +9,7 @@ import { CheckInPanel } from "@/components/app/checkin-panel";
 import { TaskStatusSheet, type TaskRowData } from "@/components/app/task-status-sheet";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { getCommentViewsByTask } from "@/lib/comments";
 import { getCurrentUser } from "@/lib/current-user";
 import { getTodayData, type TodayTimelineItem } from "@/lib/today-data";
 
@@ -18,6 +19,7 @@ export default async function TodayPage() {
   const user = await getCurrentUser();
   const now = new Date();
   const data = getTodayData(user, now);
+  const commentsByTask = getCommentViewsByTask();
 
   const metrics = [
     { value: data.myTasks.length, label: "오늘 내 작업" },
@@ -62,7 +64,11 @@ export default async function TodayPage() {
               </p>
             )}
             {data.timeline.map((item) => (
-              <TimelineRow key={`${item.kind}-${item.id}`} item={item} />
+              <TimelineRow
+                key={`${item.kind}-${item.id}`}
+                item={item}
+                comments={item.kind === "task" ? (commentsByTask.get(item.id) ?? []) : []}
+              />
             ))}
           </CardContent>
         </Card>
@@ -105,6 +111,20 @@ export default async function TodayPage() {
                   내가 관련된 문제/홀드가 없습니다.
                 </p>
               )}
+              {data.helpRequests.map((request) => (
+                <div key={request.id} className="rounded-md border p-3">
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline">도움 요청</Badge>
+                    <p className="min-w-0 flex-1 truncate text-sm font-medium">
+                      {request.taskTitle}
+                    </p>
+                  </div>
+                  <p className="mt-1 text-sm text-muted-foreground">“{request.body}”</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {request.authorName} · {format(new Date(request.createdAt), "M/d HH:mm")}
+                  </p>
+                </div>
+              ))}
               {data.attention.map(({ task, reason, helpUserName, nextCheckAt }) => (
                 <div key={task.id} className="rounded-md border p-3">
                   <div className="flex items-center gap-2">
@@ -129,7 +149,13 @@ export default async function TodayPage() {
   );
 }
 
-function TimelineRow({ item }: { item: TodayTimelineItem }) {
+function TimelineRow({
+  item,
+  comments = [],
+}: {
+  item: TodayTimelineItem;
+  comments?: TaskRowData["comments"];
+}) {
   const timeText = item.startAt
     ? `${format(new Date(item.startAt), "HH:mm")}${item.endAt ? `–${format(new Date(item.endAt), "HH:mm")}` : ""}`
     : "시간 미정";
@@ -154,6 +180,7 @@ function TimelineRow({ item }: { item: TodayTimelineItem }) {
     timeText,
     metaText: task.description,
     startAt: task.startAt,
+    comments,
   };
 
   return (

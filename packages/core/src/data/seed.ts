@@ -9,6 +9,7 @@ import type {
   Project,
   StatusLog,
   Task,
+  TaskComment,
 } from "../domain";
 import { USERS } from "../mock/users";
 
@@ -26,6 +27,7 @@ export interface QueSeed {
   statusLogs: StatusLog[];
   changeLogs: ChangeLog[];
   checkIns: CheckIn[];
+  taskComments: TaskComment[];
 }
 
 export function createSeed(now: Date): QueSeed {
@@ -527,6 +529,16 @@ export function createSeed(now: Date): QueSeed {
     },
   ];
 
+  const taskComments: TaskComment[] = [
+    {
+      id: "cmt-payment-qa-log",
+      taskId: "task-payment-qa",
+      authorId: oh.id,
+      body: "재현되는 요청/응답 로그를 스레드에 공유해주시면 바로 확인하겠습니다.",
+      createdAt: at(0, 11, 5),
+    },
+  ];
+
   return {
     projects,
     milestones,
@@ -538,5 +550,6 @@ export function createSeed(now: Date): QueSeed {
     statusLogs,
     changeLogs,
     checkIns,
+    taskComments,
   };
 }

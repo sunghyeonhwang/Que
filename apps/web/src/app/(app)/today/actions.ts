@@ -57,6 +57,16 @@ export async function createTaskAction(input: {
   );
 }
 
+/** 작업 댓글/도움 요청 — 타인 작업에도 가능 (수정 불가 팀원의 의사 전달 통로). */
+export async function addTaskCommentAction(input: {
+  taskId: string;
+  body: string;
+  helpUserId?: string;
+}): Promise<ActionResult> {
+  const user = await getCurrentUser();
+  return toResult(() => getDb().addTaskComment({ actorId: user.id, via: "web" }, input));
+}
+
 /** 하루 마감 — 미완료 작업을 내일 같은 시간으로 이동한다 (드래그 이동과 동일 규칙/로그). */
 export async function deferTaskToTomorrowAction(taskId: string): Promise<ActionResult> {
   const user = await getCurrentUser();

@@ -186,6 +186,20 @@ export const paymentRequestSchema = z.object({
 });
 export type PaymentRequest = z.infer<typeof paymentRequestSchema>;
 
+// ---------- 댓글 ----------
+
+/** 작업 댓글 — 타인의 작업을 수정할 수 없는 팀원이 의사를 전달하는 통로.
+ *  helpUserId를 지정하면 "도움 요청"이 되어 대상자의 오늘 화면과 팀 현황에 노출된다. */
+export const taskCommentSchema = z.object({
+  id: z.string().min(1),
+  taskId: z.string().min(1),
+  authorId: z.string().min(1),
+  body: z.string().trim().min(1).max(1000),
+  helpUserId: z.string().optional(),
+  createdAt: isoDateTime,
+});
+export type TaskComment = z.infer<typeof taskCommentSchema>;
+
 // ---------- 로그 / 체크인 / 작업량 ----------
 
 export const statusLogSchema = z.object({

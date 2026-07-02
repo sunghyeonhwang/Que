@@ -1,4 +1,4 @@
-import type { CheckIn, Task, User } from "@que/core";
+import { canEditTask, type CheckIn, type Task, type User } from "@que/core";
 import { getDb } from "./db";
 
 // 팀 현황 데이터 조합 (기획서 "팀 현황판").
@@ -12,6 +12,9 @@ export interface TeamScheduleItem {
   endAt: string;
   taskStatus?: Task["status"];
   readonly?: boolean;
+  /** kind가 task일 때 — Sheet 표시용 원본과 뷰어 편집 가능 여부 */
+  task?: Task;
+  canEdit?: boolean;
 }
 
 export interface TeamMemberRow {
@@ -21,7 +24,7 @@ export interface TeamMemberRow {
 }
 
 export interface AttentionEntry {
-  type: "issue" | "on_hold" | "awaiting_response";
+  type: "issue" | "on_hold" | "awaiting_response" | "help_request";
   taskId: string;
   title: string;
   assigneeName: string;
@@ -101,6 +104,12 @@ export function getTeamData(viewer: User, now: Date = new Date()): TeamData {
         startAt: t.startAt!,
         endAt: t.endAt ?? t.startAt!,
         taskStatus: t.status,
+        task: t,
+        canEdit: canEditTask(
+          viewer,
+          t,
+          db.projects.find((p) => p.id === t.projectId),
+        ),
       }));
 
     const eventItems: TeamScheduleItem[] = db.calendarEvents
@@ -171,6 +180,20 @@ export function getTeamData(viewer: User, now: Date = new Date()): TeamData {
       title: task.title,
       assigneeName: userById.get(task.assigneeId)?.name ?? task.assigneeId,
       detail: "자동 체크인 응답 대기",
+    });
+  }
+  // 도움 요청 댓글 — 요청받은 사람이 팀 전체에 보이게 (기획: Attention Queue에 도움 요청 포함)
+  for (const comment of db.taskComments.filter((c) => c.helpUserId)) {
+    const task = taskById.get(comment.taskId);
+    if (!task) continue;
+    attention.push({
+      type: "help_request",
+      taskId: `${task.id}-${comment.id}`,
+      title: task.title,
+      // "담당"은 다른 항목들과 동일하게 작업 담당자 — 작성자는 detail에 표시
+      assigneeName: userById.get(task.assigneeId)?.name ?? task.assigneeId,
+      detail: `${userById.get(comment.authorId)?.name ?? comment.authorId}: “${comment.body}”`,
+      helpUserName: userById.get(comment.helpUserId!)?.name,
     });
   }
 

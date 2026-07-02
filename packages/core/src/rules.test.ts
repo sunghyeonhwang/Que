@@ -585,6 +585,47 @@ describe("마일스톤 이동", () => {
   });
 });
 
+describe("작업 댓글 / 도움 요청", () => {
+  it("팀원은 타인의 작업에도 댓글을 남길 수 있고, 도움 요청은 ChangeLog에 남는다", () => {
+    const d = db();
+    // task-landing-copy는 황성현 작업 — 송수용(무관 팀원)이 댓글 (수정은 불가하지만 댓글은 가능)
+    const plain = d.addTaskComment(
+      { actorId: "song-suyong", via: "web" },
+      { taskId: "task-landing-copy", body: "문구 시안 B가 더 좋아 보여요" },
+    );
+    expect(plain.authorId).toBe("song-suyong");
+    const logCountAfterPlain = d.changeLogs.length;
+
+    const help = d.addTaskComment(
+      { actorId: "park-seunghwan", via: "web" },
+      { taskId: "task-payment-qa", body: "스테이징 API 키 확인 부탁드립니다", helpUserId: "oh-seunghoon" },
+    );
+    expect(help.helpUserId).toBe("oh-seunghoon");
+    // 일반 댓글은 조용히, 도움 요청만 ChangeLog
+    expect(d.changeLogs.length).toBe(logCountAfterPlain + 1);
+    expect(d.changeLogs.at(-1)!.afterValue).toContain("오승훈");
+  });
+
+  it("빈 본문, 1000자 초과, 유령 도움 대상은 거부된다", () => {
+    const d = db();
+    expect(() =>
+      d.addTaskComment({ actorId: "song-suyong", via: "web" }, { taskId: "task-landing-copy", body: "  " }),
+    ).toThrowError(/댓글 내용은 필수/);
+    expect(() =>
+      d.addTaskComment(
+        { actorId: "song-suyong", via: "web" },
+        { taskId: "task-landing-copy", body: "가".repeat(1001) },
+      ),
+    ).toThrowError(/1000자 이내/);
+    expect(() =>
+      d.addTaskComment(
+        { actorId: "song-suyong", via: "web" },
+        { taskId: "task-landing-copy", body: "b", helpUserId: "ghost" },
+      ),
+    ).toThrowError(/사용자 없음/);
+  });
+});
+
 describe("체크인 스케줄러 (syncCheckIns)", () => {
   it("시작 시간이 지난 예정 작업에만 생성하고, 멱등하다", () => {
     const d = db();

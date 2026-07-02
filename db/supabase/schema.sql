@@ -145,6 +145,15 @@ create table if not exists change_logs (
   created_at   timestamptz not null default now()
 );
 
+create table if not exists task_comments (
+  id           text primary key,
+  task_id      text not null references tasks(id),
+  author_id    text not null references users(id),
+  body         text not null check (char_length(body) <= 1000),
+  help_user_id text references users(id),
+  created_at   timestamptz not null default now()
+);
+
 create table if not exists check_ins (
   id                 text primary key,
   task_id            text not null references tasks(id),
@@ -174,3 +183,5 @@ create index if not exists idx_action_items_note on action_items (meeting_note_i
 create index if not exists idx_status_logs_task on status_logs (task_id, created_at desc);
 create index if not exists idx_change_logs_created on change_logs (created_at desc);
 create index if not exists idx_check_ins_assignee on check_ins (assignee_id, answered_at);
+create index if not exists idx_task_comments_task on task_comments (task_id, created_at);
+create index if not exists idx_task_comments_help on task_comments (help_user_id, created_at desc);

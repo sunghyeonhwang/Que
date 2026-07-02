@@ -13,6 +13,7 @@ import type {
   StatusDetail,
   StatusLog,
   Task,
+  TaskComment,
   TaskStatus,
   User,
 } from "../domain";
@@ -44,6 +45,7 @@ export interface QueDb {
   statusLogs: StatusLog[];
   changeLogs: ChangeLog[];
   checkIns: CheckIn[];
+  taskComments: TaskComment[];
 }
 
 interface ActorContext {
@@ -63,6 +65,7 @@ export class MockQueDb implements QueDb {
   statusLogs: StatusLog[];
   changeLogs: ChangeLog[];
   checkIns: CheckIn[];
+  taskComments: TaskComment[];
 
   private seq = 0;
   private readonly clock: () => Date;
@@ -81,6 +84,7 @@ export class MockQueDb implements QueDb {
     this.statusLogs = seed.statusLogs;
     this.changeLogs = seed.changeLogs;
     this.checkIns = seed.checkIns;
+    this.taskComments = seed.taskComments;
   }
 
   // ---------- 조회 ----------
@@ -507,6 +511,42 @@ export class MockQueDb implements QueDb {
       afterValue: item.status,
     });
     return item;
+  }
+
+  /** 작업 댓글 — 팀 누구나 타인의 작업에도 남길 수 있다 (수정 불가 팀원의 의사 전달 통로).
+   *  helpUserId 지정 시 "도움 요청"이 되어 대상자 오늘 화면과 팀 현황 Attention에 노출된다. */
+  addTaskComment(
+    ctx: ActorContext,
+    input: { taskId: string; body: string; helpUserId?: string },
+  ): TaskComment {
+    const actor = this.requireUser(ctx.actorId);
+    const task = this.requireTask(input.taskId);
+    const body = input.body.trim();
+    if (!body) throw new QueRuleError("INVALID_INPUT", "댓글 내용은 필수다");
+    if (body.length > 1000) throw new QueRuleError("INVALID_INPUT", "댓글은 1000자 이내다");
+    if (input.helpUserId) this.requireUser(input.helpUserId);
+
+    const comment: TaskComment = {
+      id: this.nextId("cmt"),
+      taskId: task.id,
+      authorId: actor.id,
+      body,
+      helpUserId: input.helpUserId,
+      createdAt: this.now(),
+    };
+    this.taskComments.push(comment);
+
+    // 도움 요청은 업무에 영향을 주는 변경 — ChangeLog로 팀에 보인다. 일반 댓글은 조용히 기록.
+    if (input.helpUserId) {
+      this.logChange(ctx, {
+        entityType: "task",
+        entityId: task.id,
+        changeType: "update",
+        afterValue: `도움 요청 → ${this.requireUser(input.helpUserId).name}`,
+        reason: body.slice(0, 100),
+      });
+    }
+    return comment;
   }
 
   /** 마일스톤 이동 (dueAt 변경). 프로젝트 담당자 또는 관리자만 가능.

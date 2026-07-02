@@ -1,11 +1,13 @@
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
-import { AlertTriangle, Clock, Pause } from "lucide-react";
+import { AlertTriangle, Clock, HandHelping, Pause } from "lucide-react";
 import { PageHeader } from "@/components/app/page-header";
 import { StatusBadge } from "@/components/app/status-badge";
+import { TaskStatusSheet, type TaskRowData } from "@/components/app/task-status-sheet";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getCurrentUser } from "@/lib/current-user";
+import { getCommentViewsByTask } from "@/lib/comments";
 import { getRecentChangeLogs } from "@/lib/calendar-data";
 import { getTeamData, type AttentionEntry } from "@/lib/team-data";
 import { josa } from "@/lib/korean";
@@ -17,6 +19,7 @@ export default async function TeamPage() {
   const now = new Date();
   const data = getTeamData(user, now);
   const logs = getRecentChangeLogs(6);
+  const commentsByTask = getCommentViewsByTask();
 
   const metrics = [
     { value: data.summary.inProgress, label: "진행중" },
@@ -75,22 +78,46 @@ export default async function TeamPage() {
                   {items.length === 0 && (
                     <span className="text-xs text-muted-foreground">오늘 일정 없음</span>
                   )}
-                  {items.map((item) => (
-                    <span
-                      key={`${item.kind}-${item.id}`}
-                      className={
-                        item.readonly
-                          ? "flex items-center gap-1 rounded-md border border-dashed px-2 py-1 text-xs text-muted-foreground"
-                          : "flex items-center gap-1 rounded-md border px-2 py-1 text-xs"
-                      }
-                    >
-                      <span className="tabular-nums text-muted-foreground">
-                        {format(new Date(item.startAt), "HH:mm")}
+                  {items.map((item) => {
+                    const chip = (
+                      <span
+                        className={
+                          item.readonly
+                            ? "flex items-center gap-1 rounded-md border border-dashed px-2 py-1 text-xs text-muted-foreground"
+                            : "flex min-h-10 items-center gap-1 rounded-md border px-2 py-1 text-xs transition-colors hover:bg-accent/50"
+                        }
+                      >
+                        <span className="tabular-nums text-muted-foreground">
+                          {format(new Date(item.startAt), "HH:mm")}
+                        </span>
+                        <span className="max-w-40 truncate">{item.title}</span>
+                        {item.taskStatus && <StatusBadge status={item.taskStatus} />}
                       </span>
-                      <span className="max-w-40 truncate">{item.title}</span>
-                      {item.taskStatus && <StatusBadge status={item.taskStatus} />}
-                    </span>
-                  ))}
+                    );
+                    if (item.kind !== "task" || !item.task) {
+                      return <span key={`${item.kind}-${item.id}`}>{chip}</span>;
+                    }
+                    // 타인 작업도 열람·댓글이 가능하다 — 수정 UI는 canEdit에 따라 Sheet가 숨긴다
+                    const row: TaskRowData = {
+                      id: item.task.id,
+                      title: item.task.title,
+                      status: item.task.status,
+                      timeText: `${format(new Date(item.startAt), "HH:mm")}–${format(new Date(item.endAt), "HH:mm")}`,
+                      metaText: item.task.description,
+                      startAt: item.task.startAt,
+                      comments: commentsByTask.get(item.task.id) ?? [],
+                      canEdit: item.canEdit,
+                    };
+                    return (
+                      <TaskStatusSheet
+                        key={`${item.kind}-${item.id}`}
+                        task={row}
+                        triggerClassName="rounded-md text-left focus-visible:outline-2 focus-visible:outline-ring"
+                      >
+                        {chip}
+                      </TaskStatusSheet>
+                    );
+                  })}
                 </span>
               </div>
             ))}
@@ -159,6 +186,7 @@ function AttentionRow({ entry }: { entry: AttentionEntry }) {
     issue: { icon: AlertTriangle, label: "문제발생", variant: "destructive" as const },
     on_hold: { icon: Pause, label: "홀드", variant: "secondary" as const },
     awaiting_response: { icon: Clock, label: "응답대기", variant: "outline" as const },
+    help_request: { icon: HandHelping, label: "도움 요청", variant: "outline" as const },
   }[entry.type];
   const Icon = config.icon;
 

@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/sheet";
 import { StatusBadge } from "./status-badge";
 import { StatusDetailForm } from "./status-detail-form";
+import { TaskComments, type TaskCommentView } from "./task-comments";
 import { useSafeAction } from "./use-safe-action";
 
 /** 상태 변경 버튼 순서 — 기획서 "작업 상세 패널"의 주요 상태 버튼 기준 */
@@ -44,15 +45,21 @@ export interface TaskRowData {
   metaText?: string;
   /** 일정 변경 폼 프리필용 시작 시각 (ISO) */
   startAt?: string;
+  comments?: TaskCommentView[];
+  /** 뷰어가 이 작업을 수정할 수 있는가 (본인/프로젝트 담당자/관리자 — 서버가 최종 강제).
+   *  false면 상태 변경·일정 변경 UI를 숨기고 댓글만 노출한다. 기본 true. */
+  canEdit?: boolean;
 }
 
 /** 작업 row 클릭 → 상세 Sheet에서 원터치 상태 변경. 문제발생/홀드는 사유 입력. */
 export function TaskStatusSheet({
   task,
   children,
+  triggerClassName = "w-full rounded-md text-left focus-visible:outline-2 focus-visible:outline-ring",
 }: {
   task: TaskRowData;
   children: React.ReactNode;
+  triggerClassName?: string;
 }) {
   const [open, setOpen] = useState(false);
   const { run, pending } = useSafeAction();
@@ -80,7 +87,7 @@ export function TaskStatusSheet({
         render={
           <button
             type="button"
-            className="w-full rounded-md text-left focus-visible:outline-2 focus-visible:outline-ring"
+            className={triggerClassName}
             aria-label={`${task.title} 상세 열기`}
           />
         }
@@ -100,45 +107,57 @@ export function TaskStatusSheet({
           현재 상태 <StatusBadge status={task.status} />
         </div>
 
-        <div className="grid grid-cols-3 gap-2" role="group" aria-label="상태 변경">
-          {STATUS_CHOICES.map((status) => (
-            <Button
-              key={status}
-              variant={
-                status === "issue" || status === "cancelled" ? "destructive" : "outline"
-              }
-              className="h-10"
-              disabled={pending || status === task.status}
-              onClick={() => {
-                if (NEEDS_DETAIL.includes(status)) {
-                  setDetailFor((current) => (current === status ? null : status));
-                } else {
-                  change(status);
-                }
-              }}
-            >
-              {TASK_STATUS_LABELS[status]}
-            </Button>
-          ))}
-        </div>
+        {task.canEdit === false ? (
+          <p className="rounded-md border border-dashed p-3 text-sm text-muted-foreground">
+            이 작업은 본인, 프로젝트 담당자, 관리자만 수정할 수 있습니다. 아래 댓글로 의견을
+            남기거나 도움을 요청해주세요.
+          </p>
+        ) : (
+          <>
+            <div className="grid grid-cols-3 gap-2" role="group" aria-label="상태 변경">
+              {STATUS_CHOICES.map((status) => (
+                <Button
+                  key={status}
+                  variant={
+                    status === "issue" || status === "cancelled" ? "destructive" : "outline"
+                  }
+                  className="h-10"
+                  disabled={pending || status === task.status}
+                  onClick={() => {
+                    if (NEEDS_DETAIL.includes(status)) {
+                      setDetailFor((current) => (current === status ? null : status));
+                    } else {
+                      change(status);
+                    }
+                  }}
+                >
+                  {TASK_STATUS_LABELS[status]}
+                </Button>
+              ))}
+            </div>
 
-        {detailFor && (
-          <div className="mt-4 rounded-md border p-3">
-            <StatusDetailForm
-              submitLabel={`${TASK_STATUS_LABELS[detailFor]}(으)로 변경`}
-              pending={pending}
-              onSubmit={(detail) => change(detailFor, detail)}
+            {detailFor && (
+              <div className="mt-4 rounded-md border p-3">
+                <StatusDetailForm
+                  submitLabel={`${TASK_STATUS_LABELS[detailFor]}(으)로 변경`}
+                  pending={pending}
+                  onSubmit={(detail) => change(detailFor, detail)}
+                />
+              </div>
+            )}
+
+            <Separator className="my-5" />
+            <ScheduleMoveForm
+              taskId={task.id}
+              taskTitle={task.title}
+              startAt={task.startAt}
+              onDone={() => setOpen(false)}
             />
-          </div>
+          </>
         )}
 
         <Separator className="my-5" />
-        <ScheduleMoveForm
-          taskId={task.id}
-          taskTitle={task.title}
-          startAt={task.startAt}
-          onDone={() => setOpen(false)}
-        />
+        <TaskComments taskId={task.id} comments={task.comments ?? []} />
       </SheetContent>
     </Sheet>
   );

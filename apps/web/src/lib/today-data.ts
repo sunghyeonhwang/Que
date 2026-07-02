@@ -1,4 +1,4 @@
-import type { CalendarEvent, CheckIn, Task, User } from "@que/core";
+import type { CalendarEvent, CheckIn, Task, TaskComment, User } from "@que/core";
 import { getDb } from "./db";
 
 // 오늘 화면 데이터 조합. 조회 로직은 화면이 아니라 여기 모아 재사용한다.
@@ -34,6 +34,8 @@ export interface TodayData {
   conflictCount: number;
   /** 하루 마감 요약 (기획서 "추가 아이디어 4") */
   wrapUp: { doneToday: Task[]; unfinished: Task[] };
+  /** 나에게 온 도움 요청 댓글 (최근 순) */
+  helpRequests: (TaskComment & { taskTitle: string; authorName: string })[];
 }
 
 const ACTIVE_STATUSES = new Set(["scheduled", "in_progress", "needs_reschedule", "on_hold", "issue"]);
@@ -155,7 +157,26 @@ export function getTodayData(user: User, now: Date = new Date()): TodayData {
     unfinished: myTasks.filter((t) => UNFINISHED.has(t.status)),
   };
 
-  return { myTasks, timeline, pendingCheckIns, dueSoon, attention, conflictCount, wrapUp };
+  // 나에게 온 도움 요청 + 작업별 댓글 뷰
+  const helpRequests = db.taskComments
+    .filter((c) => c.helpUserId === user.id)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .map((c) => ({
+      ...c,
+      taskTitle: taskById.get(c.taskId)?.title ?? c.taskId,
+      authorName: userById.get(c.authorId)?.name ?? c.authorId,
+    }));
+
+  return {
+    myTasks,
+    timeline,
+    pendingCheckIns,
+    dueSoon,
+    attention,
+    conflictCount,
+    wrapUp,
+    helpRequests,
+  };
 }
 
 function byStart(a: Task, b: Task): number {
