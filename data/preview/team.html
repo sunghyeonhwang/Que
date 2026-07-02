@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Que Team Board Preview</title>
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <div class="app">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="mark">Q</div>
+          <div>
+            <h1 class="brand-title">Que</h1>
+            <p class="brand-subtitle">Team work calendar</p>
+          </div>
+        </div>
+        <nav class="nav" aria-label="Preview navigation">
+          <a href="./index.html">프리뷰 맵 <span class="nav-count">12</span></a>
+          <a href="./now.html">Now <span class="nav-count">9</span></a>
+          <a href="./today.html">오늘 <span class="nav-count">3</span></a>
+          <a href="./calendar.html">캘린더 <span class="nav-count">12</span></a>
+          <a href="./all-calendar.html">전체 캘린더 <span class="nav-count">8</span></a>
+          <a href="./horizontal-calendar.html">가로 캘린더 <span class="nav-count">14</span></a>
+          <a class="active" href="./team.html">팀 현황 <span class="nav-count">2</span></a>
+          <a href="./heatmap.html">히트맵 <span class="nav-count">8</span></a>
+          <a href="./meeting-notes.html">회의록 <span class="nav-count">4</span></a>
+          <a href="./action.html">Action <span class="nav-count">6</span></a>
+          <a href="./project.html">프로젝트 <span class="nav-count">4</span></a>
+          <a href="./payment.html">결제 <span class="nav-count">5</span></a>
+        </nav>
+        <div class="sidebar-note">
+          <strong>운영 관점</strong>
+          <p>개인이 바꾼 업무 일정은 팀에 공유하고, 비공개 일정의 상세 내용은 보호합니다.</p>
+        </div>
+      </aside>
+
+      <main class="main">
+        <header class="topbar">
+          <div>
+            <p class="page-kicker">Team board</p>
+            <h1 class="page-title">팀 현황판</h1>
+            <p class="page-desc">사람별 시간표, Attention Queue, 최근 변경 내역을 같이 보여줘 일정 충돌과 병목을 빠르게 찾습니다.</p>
+          </div>
+          <div class="toolbar">
+            <button class="btn">필터</button>
+            <button class="btn primary">문제만 보기</button>
+          </div>
+        </header>
+
+        <section class="metric-row" aria-label="Team summary">
+          <div class="metric"><strong>5</strong><span>진행중</span></div>
+          <div class="metric"><strong>2</strong><span>문제발생</span></div>
+          <div class="metric"><strong>1</strong><span>홀드</span></div>
+          <div class="metric"><strong>3</strong><span>마감 임박</span></div>
+          <div class="metric"><strong>4</strong><span>최근 변경</span></div>
+        </section>
+
+        <div class="grid two">
+          <section class="panel pad">
+            <div class="panel-title">
+              <h2>사람별 오늘 작업</h2>
+              <small>09:00-15:00</small>
+            </div>
+            <div class="team-board" aria-label="People by time board">
+              <div class="head"></div>
+              <div class="head">09시</div>
+              <div class="head">10시</div>
+              <div class="head">11시</div>
+              <div class="head">12시</div>
+              <div class="head">13시</div>
+              <div class="head">14시</div>
+
+              <div class="person"><span class="avatar">성현</span>황성현</div>
+              <div><span class="block green">문구 수정</span></div>
+              <div><span class="block green">문구 수정</span></div>
+              <div><span class="block blue">소재 검수</span></div>
+              <div></div>
+              <div><span class="block red">상세 QA 응답대기</span></div>
+              <div><span class="block red">결제 QA 문제</span></div>
+
+              <div class="person"><span class="avatar">승훈</span>오승훈</div>
+              <div><span class="block green">프론트 수정</span></div>
+              <div><span class="block green">프론트 수정</span></div>
+              <div><span class="block blue">리뷰 대기</span></div>
+              <div></div>
+              <div><span class="block green">개발 리뷰</span></div>
+              <div><span class="block amber">도움 요청</span></div>
+
+              <div class="person"><span class="avatar">성진</span>황성진</div>
+              <div><span class="block">회의</span></div>
+              <div><span class="block amber">카피 홀드</span></div>
+              <div><span class="block amber">카피 홀드</span></div>
+              <div></div>
+              <div><span class="block blue">기획 정리</span></div>
+              <div><span class="block blue">기획 정리</span></div>
+
+              <div class="person"><span class="avatar">승환</span>박승환</div>
+              <div></div>
+              <div><span class="block blue">디자인 수정</span></div>
+              <div><span class="block blue">콘텐츠 업로드</span></div>
+              <div></div>
+              <div><span class="block">브랜드 회의</span></div>
+              <div><span class="block green">수정 반영</span></div>
+
+              <div class="person"><span class="avatar">수용</span>송수용</div>
+              <div></div>
+              <div><span class="block blue">데이터 취합</span></div>
+              <div><span class="block blue">리포트 초안</span></div>
+              <div></div>
+              <div><span class="block green">성과 분석</span></div>
+              <div><span class="block amber">리포트 마감</span></div>
+
+              <div class="person"><span class="avatar">예진</span>이예진</div>
+              <div><span class="block">CS 이슈</span></div>
+              <div><span class="block">문의 분류</span></div>
+              <div></div>
+              <div></div>
+              <div><span class="block blue">정책 확인</span></div>
+              <div><span class="block green">FAQ 업데이트</span></div>
+
+              <div class="person"><span class="avatar">리원</span>김리원</div>
+              <div><span class="block blue">SNS 예약</span></div>
+              <div><span class="block blue">이미지 검수</span></div>
+              <div></div>
+              <div></div>
+              <div><span class="block">자리비움</span></div>
+              <div><span class="block green">반응 모니터링</span></div>
+
+              <div class="person"><span class="avatar">혜진</span>이혜진</div>
+              <div></div>
+              <div><span class="block blue">상품 정보</span></div>
+              <div><span class="block blue">재고 체크</span></div>
+              <div></div>
+              <div><span class="block">협력사 콜</span></div>
+              <div><span class="block green">오픈 승인</span></div>
+            </div>
+          </section>
+
+          <aside class="grid">
+            <section class="panel pad">
+              <div class="panel-title">
+                <h2>Attention Queue</h2>
+                <small>우선 확인</small>
+              </div>
+              <div class="attention-list">
+                <div class="attention-item">
+                  <span class="chip red">문제발생</span>
+                  <strong>결제 페이지 QA가 API 응답 오류로 멈춤</strong>
+                  <p>황성현 담당 · 오승훈 도움 필요 · 다음 확인 14:30</p>
+                </div>
+                <div class="attention-item">
+                  <span class="chip violet">응답대기</span>
+                  <strong>상세페이지 QA 체크인 미응답</strong>
+                  <p>13:00 시작 작업 · 황성현이 종료 시간을 15:00로 변경</p>
+                </div>
+                <div class="attention-item">
+                  <span class="chip amber">홀드</span>
+                  <strong>카피 검토가 승인 대기 상태</strong>
+                  <p>황성진 담당 · 프로젝트 담당자 확인 필요</p>
+                </div>
+              </div>
+            </section>
+
+            <section class="panel pad">
+              <div class="panel-title">
+                <h2>최근 변경 내역</h2>
+                <small>팀 공유</small>
+              </div>
+              <div class="timeline">
+                <div class="log">
+                  <span class="dot"></span>
+                  <p><strong>13:02 · 황성현</strong><br>상세페이지 QA 종료 시간을 14:30에서 15:00로 변경</p>
+                </div>
+                <div class="log">
+                  <span class="dot"></span>
+                  <p><strong>12:44 · 박승환</strong><br>수정 반영 작업을 브랜드 회의 이후로 이동</p>
+                </div>
+                <div class="log">
+                  <span class="dot"></span>
+                  <p><strong>12:20 · 황성진</strong><br>상세 카피 검토를 홀드로 변경하고 승인 요청</p>
+                </div>
+              </div>
+            </section>
+
+            <section class="panel pad">
+              <div class="panel-title">
+                <h2>충돌 감지</h2>
+                <small>자동 제안</small>
+              </div>
+              <div class="attention-item">
+                <strong>박승환 13:00 브랜드 회의와 수정 작업이 겹칩니다.</strong>
+                <p>수정 반영 작업을 14:00로 이동할까요?</p>
+                <div class="choice-row">
+                  <button class="choice">14:00로 이동</button>
+                  <button class="choice">담당자 변경</button>
+                  <button class="choice">무시</button>
+                </div>
+              </div>
+            </section>
+          </aside>
+        </div>
+      </main>
+    </div>
+  </body>
+</html>

@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Que Workload Heatmap Preview</title>
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <div class="app">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="mark">Q</div>
+          <div>
+            <h1 class="brand-title">Que</h1>
+            <p class="brand-subtitle">Team work calendar</p>
+          </div>
+        </div>
+        <nav class="nav" aria-label="Preview navigation">
+          <a href="./index.html">프리뷰 맵 <span class="nav-count">12</span></a>
+          <a href="./now.html">Now <span class="nav-count">9</span></a>
+          <a href="./today.html">오늘 <span class="nav-count">3</span></a>
+          <a href="./calendar.html">캘린더 <span class="nav-count">12</span></a>
+          <a href="./all-calendar.html">전체 캘린더 <span class="nav-count">8</span></a>
+          <a href="./horizontal-calendar.html">가로 캘린더 <span class="nav-count">14</span></a>
+          <a href="./team.html">팀 현황 <span class="nav-count">2</span></a>
+          <a class="active" href="./heatmap.html">히트맵 <span class="nav-count">8</span></a>
+          <a href="./meeting-notes.html">회의록 <span class="nav-count">4</span></a>
+          <a href="./action.html">Action <span class="nav-count">6</span></a>
+          <a href="./project.html">프로젝트 <span class="nav-count">4</span></a>
+          <a href="./payment.html">결제 <span class="nav-count">5</span></a>
+        </nav>
+        <div class="sidebar-note">
+          <strong>작업량 기준</strong>
+          <p>작업 개수, 예상 시간, 마감 임박, 문제발생 가중치를 함께 반영합니다.</p>
+        </div>
+      </aside>
+
+      <main class="main">
+        <header class="topbar">
+          <div>
+            <p class="page-kicker">Workload heatmap</p>
+            <h1 class="page-title">작업량 히트맵</h1>
+            <p class="page-desc">멤버별 작업량이 어느 날짜에 몰려 있는지 색상과 그래프로 확인하는 업무량 현황판입니다.</p>
+          </div>
+          <div class="toolbar">
+            <div class="segmented" aria-label="Heatmap range">
+              <button class="active">이번 주</button>
+              <button>다음 주</button>
+              <button>월간</button>
+            </div>
+            <button class="btn">분류</button>
+          </div>
+        </header>
+
+        <section class="metric-row" aria-label="Heatmap summary">
+          <div class="metric"><strong>2</strong><span>과부하 멤버</span></div>
+          <div class="metric"><strong>3</strong><span>여유 멤버</span></div>
+          <div class="metric"><strong>42h</strong><span>총 예상 시간</span></div>
+          <div class="metric"><strong>6</strong><span>마감 임박</span></div>
+          <div class="metric"><strong>2</strong><span>문제/홀드</span></div>
+        </section>
+
+        <section class="heatmap-layout">
+          <section class="panel pad">
+            <div class="panel-title">
+              <h2>멤버별 작업량</h2>
+              <small>작업 수 + 예상 시간 + 위험 가중치</small>
+            </div>
+            <div class="heatmap-grid" aria-label="Member workload heatmap">
+              <div class="heat-head"></div>
+              <div class="heat-head">월 7/1</div>
+              <div class="heat-head">화 7/2</div>
+              <div class="heat-head">수 7/3</div>
+              <div class="heat-head">목 7/4</div>
+              <div class="heat-head">금 7/5</div>
+              <div class="heat-head">토 7/6</div>
+              <div class="heat-head">일 7/7</div>
+
+              <div class="heat-person"><span class="avatar">성현</span>황성현</div>
+              <div class="heat-cell heat-4">7.5h <span>5건</span></div>
+              <div class="heat-cell heat-5">9h <span>문제 1</span></div>
+              <div class="heat-cell heat-3">6h <span>3건</span></div>
+              <div class="heat-cell heat-2">4h <span>2건</span></div>
+              <div class="heat-cell heat-1">2h <span>1건</span></div>
+              <div class="heat-cell heat-0">0h <span>-</span></div>
+              <div class="heat-cell heat-0">0h <span>-</span></div>
+
+              <div class="heat-person"><span class="avatar">승훈</span>오승훈</div>
+              <div class="heat-cell heat-3">6h <span>4건</span></div>
+              <div class="heat-cell heat-4">7h <span>도움 1</span></div>
+              <div class="heat-cell heat-2">4h <span>2건</span></div>
+              <div class="heat-cell heat-2">3.5h <span>2건</span></div>
+              <div class="heat-cell heat-3">5h <span>배포</span></div>
+              <div class="heat-cell heat-0">0h <span>-</span></div>
+              <div class="heat-cell heat-0">0h <span>-</span></div>
+
+              <div class="heat-person"><span class="avatar">성진</span>황성진</div>
+              <div class="heat-cell heat-2">4h <span>2건</span></div>
+              <div class="heat-cell heat-3">5h <span>홀드</span></div>
+              <div class="heat-cell heat-3">5h <span>3건</span></div>
+              <div class="heat-cell heat-1">2h <span>1건</span></div>
+              <div class="heat-cell heat-1">2h <span>1건</span></div>
+              <div class="heat-cell heat-0">0h <span>-</span></div>
+              <div class="heat-cell heat-0">0h <span>-</span></div>
+
+              <div class="heat-person"><span class="avatar">승환</span>박승환</div>
+              <div class="heat-cell heat-1">2h <span>1건</span></div>
+              <div class="heat-cell heat-2">4h <span>회의</span></div>
+              <div class="heat-cell heat-4">7h <span>QA</span></div>
+              <div class="heat-cell heat-3">5h <span>3건</span></div>
+              <div class="heat-cell heat-2">4h <span>2건</span></div>
+              <div class="heat-cell heat-0">0h <span>-</span></div>
+              <div class="heat-cell heat-0">0h <span>-</span></div>
+
+              <div class="heat-person"><span class="avatar">수용</span>송수용</div>
+              <div class="heat-cell heat-1">2h <span>1건</span></div>
+              <div class="heat-cell heat-2">4h <span>2건</span></div>
+              <div class="heat-cell heat-2">3h <span>1건</span></div>
+              <div class="heat-cell heat-3">5h <span>분석</span></div>
+              <div class="heat-cell heat-4">7h <span>마감</span></div>
+              <div class="heat-cell heat-0">0h <span>-</span></div>
+              <div class="heat-cell heat-0">0h <span>-</span></div>
+
+              <div class="heat-person"><span class="avatar">예진</span>이예진</div>
+              <div class="heat-cell heat-1">2h <span>CS</span></div>
+              <div class="heat-cell heat-1">2.5h <span>문의</span></div>
+              <div class="heat-cell heat-1">2h <span>정책</span></div>
+              <div class="heat-cell heat-2">3h <span>FAQ</span></div>
+              <div class="heat-cell heat-1">1h <span>공유</span></div>
+              <div class="heat-cell heat-0">0h <span>-</span></div>
+              <div class="heat-cell heat-0">0h <span>-</span></div>
+
+              <div class="heat-person"><span class="avatar">리원</span>김리원</div>
+              <div class="heat-cell heat-2">4h <span>SNS</span></div>
+              <div class="heat-cell heat-2">3h <span>검수</span></div>
+              <div class="heat-cell heat-1">2h <span>등록</span></div>
+              <div class="heat-cell heat-0">0h <span>자리비움</span></div>
+              <div class="heat-cell heat-2">3h <span>모니터</span></div>
+              <div class="heat-cell heat-0">0h <span>-</span></div>
+              <div class="heat-cell heat-0">0h <span>-</span></div>
+
+              <div class="heat-person"><span class="avatar">혜진</span>이혜진</div>
+              <div class="heat-cell heat-1">2h <span>상품</span></div>
+              <div class="heat-cell heat-2">4h <span>재고</span></div>
+              <div class="heat-cell heat-3">5h <span>가격</span></div>
+              <div class="heat-cell heat-2">3h <span>협력사</span></div>
+              <div class="heat-cell heat-3">5h <span>승인</span></div>
+              <div class="heat-cell heat-0">0h <span>-</span></div>
+              <div class="heat-cell heat-0">0h <span>-</span></div>
+            </div>
+            <div class="heat-legend" aria-label="Heatmap legend">
+              <span class="heat-key"><span class="heat-swatch heat-0"></span>없음</span>
+              <span class="heat-key"><span class="heat-swatch heat-1"></span>낮음</span>
+              <span class="heat-key"><span class="heat-swatch heat-2"></span>보통</span>
+              <span class="heat-key"><span class="heat-swatch heat-3"></span>많음</span>
+              <span class="heat-key"><span class="heat-swatch heat-4"></span>높음</span>
+              <span class="heat-key"><span class="heat-swatch heat-5"></span>과부하</span>
+            </div>
+          </section>
+
+          <aside class="grid">
+            <section class="panel pad">
+              <div class="panel-title">
+                <h2>주간 총 작업량</h2>
+                <small>예상 시간</small>
+              </div>
+              <div class="workload-bars">
+                <div class="bar-row"><span>황성현</span><div class="bar-track"><span class="bar-fill red" style="width: 100%;"></span></div><span>28h</span></div>
+                <div class="bar-row"><span>오승훈</span><div class="bar-track"><span class="bar-fill amber" style="width: 84%;"></span></div><span>23h</span></div>
+                <div class="bar-row"><span>박승환</span><div class="bar-track"><span class="bar-fill amber" style="width: 78%;"></span></div><span>22h</span></div>
+                <div class="bar-row"><span>송수용</span><div class="bar-track"><span class="bar-fill" style="width: 74%;"></span></div><span>21h</span></div>
+                <div class="bar-row"><span>이혜진</span><div class="bar-track"><span class="bar-fill" style="width: 67%;"></span></div><span>19h</span></div>
+                <div class="bar-row"><span>황성진</span><div class="bar-track"><span class="bar-fill" style="width: 64%;"></span></div><span>18h</span></div>
+                <div class="bar-row"><span>김리원</span><div class="bar-track"><span class="bar-fill green" style="width: 43%;"></span></div><span>12h</span></div>
+                <div class="bar-row"><span>이예진</span><div class="bar-track"><span class="bar-fill green" style="width: 37%;"></span></div><span>10h</span></div>
+              </div>
+            </section>
+
+            <section class="panel pad">
+              <div class="panel-title">
+                <h2>조정 제안</h2>
+                <small>Workload balance</small>
+              </div>
+              <div class="attention-list">
+                <div class="load-card">
+                  <span class="chip red">과부하</span>
+                  <strong>황성현은 화요일 9h로 가장 높습니다.</strong>
+                  <p>상세페이지 QA 일부를 김리원 또는 이예진에게 나누면 균형이 맞습니다.</p>
+                </div>
+                <div class="load-card">
+                  <span class="chip amber">주의</span>
+                  <strong>송수용은 금요일 리포트 마감이 몰려 있습니다.</strong>
+                  <p>목요일 데이터 취합을 앞당기거나 검수자를 지정하는 편이 좋습니다.</p>
+                </div>
+                <div class="load-card">
+                  <span class="chip green">여유</span>
+                  <strong>이예진과 김리원은 후반부 여유가 있습니다.</strong>
+                  <p>마감 임박 작업의 보조 담당자로 지정하기 적합합니다.</p>
+                </div>
+              </div>
+            </section>
+          </aside>
+        </section>
+      </main>
+    </div>
+  </body>
+</html>

@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Que Calendar Preview</title>
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <div class="app">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="mark">Q</div>
+          <div>
+            <h1 class="brand-title">Que</h1>
+            <p class="brand-subtitle">Team work calendar</p>
+          </div>
+        </div>
+        <nav class="nav" aria-label="Preview navigation">
+          <a href="./index.html">프리뷰 맵 <span class="nav-count">12</span></a>
+          <a href="./now.html">Now <span class="nav-count">9</span></a>
+          <a href="./today.html">오늘 <span class="nav-count">3</span></a>
+          <a class="active" href="./calendar.html">캘린더 <span class="nav-count">12</span></a>
+          <a href="./all-calendar.html">전체 캘린더 <span class="nav-count">8</span></a>
+          <a href="./horizontal-calendar.html">가로 캘린더 <span class="nav-count">14</span></a>
+          <a href="./team.html">팀 현황 <span class="nav-count">2</span></a>
+          <a href="./heatmap.html">히트맵 <span class="nav-count">8</span></a>
+          <a href="./meeting-notes.html">회의록 <span class="nav-count">4</span></a>
+          <a href="./action.html">Action <span class="nav-count">6</span></a>
+          <a href="./project.html">프로젝트 <span class="nav-count">4</span></a>
+          <a href="./payment.html">결제 <span class="nav-count">5</span></a>
+        </nav>
+        <div class="sidebar-note">
+          <strong>표시 기준</strong>
+          <p>각자 관리한 업무 변경은 팀 캘린더와 변경 내역에 함께 표시됩니다.</p>
+        </div>
+      </aside>
+
+      <main class="main">
+        <header class="topbar">
+          <div>
+            <p class="page-kicker">Calendar</p>
+            <h1 class="page-title">팀 캘린더</h1>
+            <p class="page-desc">회사 캘린더, 개인 작업, 프로젝트 마일스톤을 주간 시간축에서 함께 확인하고 변경 내역을 공유합니다.</p>
+          </div>
+          <div class="toolbar">
+            <button class="btn icon" aria-label="이전">‹</button>
+            <div class="segmented" aria-label="Calendar layout" data-view-group>
+              <button class="active" data-view-switch="classic">기본형</button>
+              <button data-view-switch="horizontal">가로형</button>
+            </div>
+            <div class="segmented" aria-label="Range mode">
+              <button>일간</button>
+              <button class="active">주간</button>
+              <button>월간</button>
+            </div>
+            <button class="btn icon" aria-label="다음">›</button>
+          </div>
+        </header>
+
+        <section class="panel view-pane" data-view-pane="classic" aria-label="Weekly calendar">
+          <div class="calendar-shell">
+            <div class="cal-head"></div>
+            <div class="cal-head">월 <span>7.1</span></div>
+            <div class="cal-head">화 <span>7.2</span></div>
+            <div class="cal-head">수 <span>7.3</span></div>
+            <div class="cal-head">목 <span>7.4</span></div>
+            <div class="cal-head">금 <span>7.5</span></div>
+            <aside class="detail-rail">
+              <h3>작업 상세</h3>
+              <p>캘린더에서 작업을 선택하면 페이지 이동 없이 상태 변경과 메모를 처리합니다.</p>
+              <div class="attention-item">
+                <span class="chip violet">응답대기</span>
+                <strong>상세페이지 QA</strong>
+                <p>황성현 · 여름 프로모션 · 13:00-15:00 · 팀 전체 공개</p>
+                <div class="choice-row">
+                  <button class="choice">진행중</button>
+                  <button class="choice">완료</button>
+                  <button class="choice">시간변경</button>
+                  <button class="choice">문제발생</button>
+                  <button class="choice">홀드</button>
+                </div>
+              </div>
+              <div class="timeline" style="margin-top: 16px;" data-change-log>
+                <div class="log">
+                  <span class="dot"></span>
+                  <p><strong>13:02</strong><br>황성현이 종료 시간을 14:30에서 15:00로 변경 · 팀 현황판에 표시됨</p>
+                </div>
+                <div class="log">
+                  <span class="dot"></span>
+                  <p><strong>12:55</strong><br>자동 체크인 발송 예정</p>
+                </div>
+                <div class="log">
+                  <span class="dot"></span>
+                  <p><strong>09:40</strong><br>오승훈이 QA 체크리스트를 추가함</p>
+                </div>
+              </div>
+            </aside>
+
+            <div class="cal-time">09:00</div>
+            <div class="cal-cell"><div class="event blue"><strong>랜딩페이지 문구 수정</strong><span>황성현 · 진행중</span></div></div>
+            <div class="cal-cell"><div class="event"><strong>주간 스탠드업</strong><span>회사 캘린더</span></div></div>
+            <div class="cal-cell"><div class="event green"><strong>프론트 수정</strong><span>오승훈 · 작업</span></div></div>
+            <div class="cal-cell"></div>
+            <div class="cal-cell"><div class="milestone">◇ 광고 소재 완료</div></div>
+
+            <div class="cal-time">10:00</div>
+            <div class="cal-cell"><div class="event"><strong>클라이언트 미팅</strong><span>회사 캘린더</span></div></div>
+            <div class="cal-cell"></div>
+            <div class="cal-cell"><div class="event amber"><strong>카피 검토</strong><span>황성진 · 홀드</span></div></div>
+            <div class="cal-cell"><div class="event blue"><strong>콘텐츠 업로드</strong><span>박승환 · 예정</span></div></div>
+            <div class="cal-cell"></div>
+
+            <div class="cal-time">11:00</div>
+            <div class="cal-cell"><div class="event green"><strong>광고 소재 검수</strong><span>황성현 · 예정</span></div></div>
+            <div class="cal-cell"><div class="event blue"><strong>데이터 취합</strong><span>송수용 · 예정</span></div></div>
+            <div class="cal-cell"></div>
+            <div class="cal-cell"><div class="event"><strong>외부 콜</strong><span>회사 캘린더</span></div></div>
+            <div class="cal-cell"></div>
+
+            <div class="cal-time">12:00</div>
+            <div class="cal-cell"></div>
+            <div class="cal-cell"></div>
+            <div class="cal-cell"></div>
+            <div class="cal-cell"></div>
+            <div class="cal-cell"></div>
+
+            <div class="cal-time">13:00</div>
+            <div class="cal-cell"><div class="event red"><strong>상세페이지 QA</strong><span>황성현 · 응답대기 · 수정됨</span></div></div>
+            <div class="cal-cell"><div class="event green"><strong>개발 리뷰</strong><span>오승훈 · 진행중</span></div></div>
+            <div class="cal-cell"><div class="event"><strong>브랜드 회의</strong><span>회사 캘린더</span></div></div>
+            <div class="cal-cell"><div class="milestone">◇ 상세페이지 완료</div></div>
+            <div class="cal-cell"><div class="event blue"><strong>오픈 체크</strong><span>전체 · 예정</span></div></div>
+
+            <div class="cal-time">14:00</div>
+            <div class="cal-cell"><div class="event red"><strong>결제 페이지 QA</strong><span>문제발생 · 오승훈 도움 필요</span></div></div>
+            <div class="cal-cell"></div>
+            <div class="cal-cell"><div class="event blue"><strong>리포트 초안</strong><span>송수용 · 예정</span></div></div>
+            <div class="cal-cell"></div>
+            <div class="cal-cell"></div>
+
+            <div class="cal-time">15:00</div>
+            <div class="cal-cell"><div class="event amber"><strong>주간 리포트 정리</strong><span>마감임박</span></div></div>
+            <div class="cal-cell"></div>
+            <div class="cal-cell"></div>
+            <div class="cal-cell"><div class="event green"><strong>수정 반영</strong><span>박승환 · 작업</span></div></div>
+            <div class="cal-cell"><div class="event"><strong>운영 회고</strong><span>회사 캘린더</span></div></div>
+          </div>
+        </section>
+
+        <section class="view-pane" data-view-pane="horizontal" hidden aria-label="Horizontal calendar option">
+          <section class="horizontal-summary" aria-label="Horizontal calendar summary">
+            <div class="summary-strip">
+              <strong>기본형 유지</strong>
+              <span>기존 주간 캘린더는 옵션에서 언제든 다시 선택</span>
+            </div>
+            <div class="summary-strip">
+              <strong>가로축 일정</strong>
+              <span>날짜를 왼쪽에서 오른쪽으로 보며 기간형 작업 확인</span>
+            </div>
+            <div class="summary-strip">
+              <strong>멤버 + 캘린더</strong>
+              <span>팀원 일정과 프로젝트 마일스톤을 같은 축에서 비교</span>
+            </div>
+            <div class="summary-strip">
+              <strong>드래그 반영</strong>
+              <span>Que 작업과 마일스톤은 날짜 칸으로 이동 가능</span>
+            </div>
+          </section>
+
+          <section class="panel" aria-label="Horizontal timeline calendar">
+            <div class="horizontal-board">
+              <div class="timeline-header">
+                <div class="timeline-corner">멤버 / 캘린더</div>
+                <div class="timeline-days">
+                  <div class="timeline-day">7/1 수 <span>오늘</span></div>
+                  <div class="timeline-day">7/2 목 <span>D+1</span></div>
+                  <div class="timeline-day">7/3 금 <span>D+2</span></div>
+                  <div class="timeline-day">7/4 토 <span>주말</span></div>
+                  <div class="timeline-day">7/5 일 <span>주말</span></div>
+                  <div class="timeline-day">7/6 월 <span>D+5</span></div>
+                  <div class="timeline-day">7/7 화 <span>D+6</span></div>
+                </div>
+              </div>
+
+              <div class="timeline-row">
+                <div class="timeline-label">
+                  <strong>황성현</strong>
+                  <span>QA · 콘텐츠 검수</span>
+                </div>
+                <div class="timeline-track">
+                  <div class="timeline-now" style="left: 7%;"></div>
+                  <div class="timeline-cell" style="grid-column: 1;"></div>
+                  <div class="timeline-cell" style="grid-column: 2;"></div>
+                  <div class="timeline-cell" style="grid-column: 3;"></div>
+                  <div class="timeline-cell weekend" style="grid-column: 4;"></div>
+                  <div class="timeline-cell weekend" style="grid-column: 5;"></div>
+                  <div class="timeline-cell" style="grid-column: 6;"></div>
+                  <div class="timeline-cell" style="grid-column: 7;"></div>
+                  <div class="timeline-bar blue" data-span="2" data-row="2" style="grid-column: 1 / span 2; grid-row: 2;">상세페이지 QA <span>13:00 · 수정됨</span></div>
+                  <div class="timeline-bar red" data-span="1" data-row="3" style="grid-column: 3 / span 1; grid-row: 3;">결제 QA 문제 <span>오승훈 도움</span></div>
+                </div>
+              </div>
+
+              <div class="timeline-row">
+                <div class="timeline-label">
+                  <strong>오승훈</strong>
+                  <span>개발 · 배포</span>
+                </div>
+                <div class="timeline-track">
+                  <div class="timeline-now" style="left: 7%;"></div>
+                  <div class="timeline-cell" style="grid-column: 1;"></div>
+                  <div class="timeline-cell" style="grid-column: 2;"></div>
+                  <div class="timeline-cell" style="grid-column: 3;"></div>
+                  <div class="timeline-cell weekend" style="grid-column: 4;"></div>
+                  <div class="timeline-cell weekend" style="grid-column: 5;"></div>
+                  <div class="timeline-cell" style="grid-column: 6;"></div>
+                  <div class="timeline-cell" style="grid-column: 7;"></div>
+                  <div class="timeline-bar green" data-span="2" data-row="2" style="grid-column: 1 / span 2; grid-row: 2;">프론트 수정 <span>진행중</span></div>
+                  <div class="timeline-bar green" data-span="1" data-row="3" style="grid-column: 6 / span 1; grid-row: 3;">배포 준비 <span>체크리스트</span></div>
+                </div>
+              </div>
+
+              <div class="timeline-row">
+                <div class="timeline-label">
+                  <strong>여름 프로모션</strong>
+                  <span>캘린더 · 오픈 D-7</span>
+                </div>
+                <div class="timeline-track">
+                  <div class="timeline-now" style="left: 7%;"></div>
+                  <div class="timeline-cell" style="grid-column: 1;"></div>
+                  <div class="timeline-cell" style="grid-column: 2;"></div>
+                  <div class="timeline-cell" style="grid-column: 3;"></div>
+                  <div class="timeline-cell weekend" style="grid-column: 4;"></div>
+                  <div class="timeline-cell weekend" style="grid-column: 5;"></div>
+                  <div class="timeline-cell" style="grid-column: 6;"></div>
+                  <div class="timeline-cell" style="grid-column: 7;"></div>
+                  <div class="timeline-bar milestone-bar" data-span="1" data-row="2" style="grid-column: 3 / span 1; grid-row: 2;">◇ 상세페이지 완료 <span>마일스톤</span></div>
+                  <div class="timeline-bar milestone-bar" data-span="1" data-row="3" style="grid-column: 6 / span 1; grid-row: 3;">◇ 광고 소재 완료 <span>마일스톤</span></div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel pad" style="margin-top: 14px;">
+            <div class="panel-title">
+              <h2>가로형 변경 내역</h2>
+              <small>Drag updates</small>
+            </div>
+            <div class="timeline" data-change-log>
+              <div class="log">
+                <span class="dot"></span>
+                <p><strong>13:02</strong><br>황성현이 상세페이지 QA 종료일을 7/2까지 확장</p>
+              </div>
+            </div>
+          </section>
+        </section>
+      </main>
+    </div>
+    <script src="./app.js"></script>
+  </body>
+</html>

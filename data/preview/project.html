@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Que Project Preview</title>
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <div class="app">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="mark">Q</div>
+          <div>
+            <h1 class="brand-title">Que</h1>
+            <p class="brand-subtitle">Team work calendar</p>
+          </div>
+        </div>
+        <nav class="nav" aria-label="Preview navigation">
+          <a href="./index.html">프리뷰 맵 <span class="nav-count">12</span></a>
+          <a href="./now.html">Now <span class="nav-count">9</span></a>
+          <a href="./today.html">오늘 <span class="nav-count">3</span></a>
+          <a href="./calendar.html">캘린더 <span class="nav-count">12</span></a>
+          <a href="./all-calendar.html">전체 캘린더 <span class="nav-count">8</span></a>
+          <a href="./horizontal-calendar.html">가로 캘린더 <span class="nav-count">14</span></a>
+          <a href="./team.html">팀 현황 <span class="nav-count">2</span></a>
+          <a href="./heatmap.html">히트맵 <span class="nav-count">8</span></a>
+          <a href="./meeting-notes.html">회의록 <span class="nav-count">4</span></a>
+          <a href="./action.html">Action <span class="nav-count">6</span></a>
+          <a class="active" href="./project.html">프로젝트 <span class="nav-count">4</span></a>
+          <a href="./payment.html">결제 <span class="nav-count">5</span></a>
+        </nav>
+        <div class="sidebar-note">
+          <strong>프로젝트 기준</strong>
+          <p>마일스톤, 연결 작업, 상태 변경 이력을 하나의 운영 화면에서 봅니다.</p>
+        </div>
+      </aside>
+
+      <main class="main">
+        <header class="topbar">
+          <div>
+            <p class="page-kicker">Project</p>
+            <h1 class="page-title">프로젝트 운영</h1>
+            <p class="page-desc">프로젝트별 마일스톤과 작업 상태를 연결해서 마감 위험과 도움 요청을 추적합니다.</p>
+          </div>
+          <div class="toolbar">
+            <button class="btn">작업 연결</button>
+            <button class="btn primary">마일스톤 추가</button>
+          </div>
+        </header>
+
+        <section class="project-header">
+          <div class="project-hero">
+            <span class="chip green">진행중</span>
+            <h2>여름 프로모션</h2>
+            <p>상세페이지, 광고 소재, 결제 플로우 QA를 7월 8일 오픈 전까지 완료해야 하는 프로젝트입니다.</p>
+          </div>
+          <aside class="panel pad">
+            <div class="panel-title">
+              <h2>진행률</h2>
+              <small>계획 기준</small>
+            </div>
+            <div class="progress" aria-label="64% progress"><span></span></div>
+            <p class="page-desc" style="font-size: 13px;">완료 9 · 진행중 5 · 문제 2 · 홀드 1</p>
+          </aside>
+        </section>
+
+        <section class="panel pad" style="margin-bottom: 14px;">
+          <div class="panel-title">
+            <h2>캘린더 일정</h2>
+            <small>여름 프로모션</small>
+          </div>
+          <div class="calendar-schedule">
+            <div class="schedule-day">
+              <div class="schedule-date">7/3 수 <span>D-5</span></div>
+              <div class="schedule-item milestone-item">
+                <span class="chip amber">마일스톤</span>
+                <strong>상세페이지 완료</strong>
+                <span data-drag-meta>QA 응답 대기 연결</span>
+              </div>
+              <div class="schedule-item issue-item">
+                <span class="chip red">문제</span>
+                <strong>결제 페이지 QA</strong>
+                <span data-drag-meta>오승훈 도움 필요</span>
+              </div>
+            </div>
+            <div class="schedule-day">
+              <div class="schedule-date">7/4 목 <span>D-4</span></div>
+              <div class="schedule-item">
+                <span class="chip blue">작업</span>
+                <strong>상세 카피 최종안</strong>
+                <span data-drag-meta>황성진 · 승인 대기</span>
+              </div>
+            </div>
+            <div class="schedule-day">
+              <div class="schedule-date">7/5 금 <span>D-3</span></div>
+              <div class="schedule-item milestone-item">
+                <span class="chip amber">마일스톤</span>
+                <strong>광고 소재 완료</strong>
+                <span data-drag-meta>검수 작업 예정</span>
+              </div>
+              <div class="schedule-item">
+                <span class="chip blue">작업</span>
+                <strong>오픈 체크리스트</strong>
+                <span data-drag-meta>전체 참석</span>
+              </div>
+            </div>
+            <div class="schedule-day">
+              <div class="schedule-date">7/8 월 <span>Open</span></div>
+              <div class="schedule-item milestone-item">
+                <span class="chip green">마일스톤</span>
+                <strong>프로모션 오픈</strong>
+                <span data-drag-meta>최종 체크리스트 연결</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <div class="grid two">
+          <section class="grid">
+            <div class="panel pad">
+              <div class="panel-title">
+                <h2>마일스톤</h2>
+                <small>위험도 포함</small>
+              </div>
+              <div class="milestone-list">
+                <article class="milestone-card">
+                  <div class="datebox">7/3</div>
+                  <div>
+                    <p class="task-title">상세페이지 완료</p>
+                    <p class="task-meta">QA 응답 대기와 결제 QA 문제가 연결되어 있음</p>
+                  </div>
+                  <span class="chip red">위험</span>
+                </article>
+                <article class="milestone-card">
+                  <div class="datebox">7/5</div>
+                  <div>
+                    <p class="task-title">광고 소재 완료</p>
+                    <p class="task-meta">검수 작업 진행 예정</p>
+                  </div>
+                  <span class="chip amber">주의</span>
+                </article>
+                <article class="milestone-card">
+                  <div class="datebox">7/8</div>
+                  <div>
+                    <p class="task-title">프로모션 오픈</p>
+                    <p class="task-meta">최종 체크리스트 7/7 생성 예정</p>
+                  </div>
+                  <span class="chip green">정상</span>
+                </article>
+              </div>
+            </div>
+
+            <div class="panel pad">
+              <div class="panel-title">
+                <h2>연결된 작업</h2>
+                <small>오늘 기준</small>
+              </div>
+              <div class="list">
+                <article class="task green">
+                  <div class="time">황성현</div>
+                  <div>
+                    <p class="task-title">랜딩페이지 문구 수정</p>
+                    <p class="task-meta">완료 전 리뷰 필요</p>
+                  </div>
+                  <span class="chip green">진행중</span>
+                </article>
+                <article class="task red">
+                  <div class="time">황성현</div>
+                  <div>
+                    <p class="task-title">결제 페이지 QA</p>
+                    <p class="task-meta">API 응답 오류 · 오승훈 도움 필요</p>
+                  </div>
+                  <span class="chip red">문제발생</span>
+                </article>
+                <article class="task amber">
+                  <div class="time">황성진</div>
+                  <div>
+                    <p class="task-title">상세 카피 검토</p>
+                    <p class="task-meta">승인 대기</p>
+                  </div>
+                  <span class="chip amber">홀드</span>
+                </article>
+              </div>
+            </div>
+          </section>
+
+          <aside class="grid">
+            <section class="panel pad">
+              <div class="panel-title">
+                <h2>문제 해결 패널</h2>
+                <small>Next action</small>
+              </div>
+              <div class="attention-item">
+                <span class="chip red">문제발생</span>
+                <strong>결제 페이지 QA가 API 응답 오류로 멈춤</strong>
+                <p>다음 액션: 오승훈이 응답 형식 확인 후 14:30에 재체크</p>
+                <div class="choice-row">
+                  <button class="choice">오승훈에게 요청</button>
+                  <button class="choice">14:30 재확인</button>
+                  <button class="choice">홀드 처리</button>
+                </div>
+              </div>
+            </section>
+
+            <section class="panel pad">
+              <div class="panel-title">
+                <h2>상태 변경 이력</h2>
+                <small>최근</small>
+              </div>
+              <div class="timeline" data-change-log>
+                <div class="log">
+                  <span class="dot"></span>
+                  <p><strong>13:05</strong><br>황성현이 상세페이지 QA를 응답대기로 변경</p>
+                </div>
+                <div class="log">
+                  <span class="dot"></span>
+                  <p><strong>12:20</strong><br>황성진이 카피 검토를 홀드로 변경</p>
+                </div>
+                <div class="log">
+                  <span class="dot"></span>
+                  <p><strong>10:10</strong><br>광고 소재 완료 마일스톤이 7/5로 확정</p>
+                </div>
+              </div>
+            </section>
+          </aside>
+        </div>
+      </main>
+    </div>
+    <script src="./app.js"></script>
+  </body>
+</html>

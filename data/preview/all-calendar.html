@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Que All Calendar Preview</title>
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <div class="app">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="mark">Q</div>
+          <div>
+            <h1 class="brand-title">Que</h1>
+            <p class="brand-subtitle">Team work calendar</p>
+          </div>
+        </div>
+        <nav class="nav" aria-label="Preview navigation">
+          <a href="./index.html">프리뷰 맵 <span class="nav-count">12</span></a>
+          <a href="./now.html">Now <span class="nav-count">9</span></a>
+          <a href="./today.html">오늘 <span class="nav-count">3</span></a>
+          <a href="./calendar.html">캘린더 <span class="nav-count">12</span></a>
+          <a class="active" href="./all-calendar.html">전체 캘린더 <span class="nav-count">8</span></a>
+          <a href="./horizontal-calendar.html">가로 캘린더 <span class="nav-count">14</span></a>
+          <a href="./team.html">팀 현황 <span class="nav-count">2</span></a>
+          <a href="./heatmap.html">히트맵 <span class="nav-count">8</span></a>
+          <a href="./meeting-notes.html">회의록 <span class="nav-count">4</span></a>
+          <a href="./action.html">Action <span class="nav-count">6</span></a>
+          <a href="./project.html">프로젝트 <span class="nav-count">4</span></a>
+          <a href="./payment.html">결제 <span class="nav-count">5</span></a>
+        </nav>
+        <div class="sidebar-note">
+          <strong>전체 보기</strong>
+          <p>상태판이나 상세 패널 없이 전체 멤버의 주간/월간 일정만 확인하는 화면입니다.</p>
+        </div>
+      </aside>
+
+      <main class="main">
+        <header class="topbar">
+          <div>
+            <p class="page-kicker">All calendar</p>
+            <h1 class="page-title">전체 캘린더</h1>
+            <p class="page-desc">8명 전체 멤버가 각자 관리하는 업무 일정과 회사 일정을 주간/월간 캘린더로만 보여줍니다.</p>
+          </div>
+          <div class="toolbar" data-view-group>
+            <button class="btn icon" aria-label="이전">‹</button>
+            <div class="segmented" aria-label="Calendar view mode">
+              <button class="active" data-view-switch="week">주간</button>
+              <button data-view-switch="month">월간</button>
+            </div>
+            <button class="btn icon" aria-label="다음">›</button>
+          </div>
+        </header>
+
+        <section class="member-legend" aria-label="Member legend">
+          <span class="member-pill"><span class="member-dot blue"></span>황성현</span>
+          <span class="member-pill"><span class="member-dot green"></span>오승훈</span>
+          <span class="member-pill"><span class="member-dot amber"></span>황성진</span>
+          <span class="member-pill"><span class="member-dot red"></span>박승환</span>
+          <span class="member-pill"><span class="member-dot violet"></span>송수용</span>
+          <span class="member-pill"><span class="member-dot"></span>이예진</span>
+          <span class="member-pill"><span class="member-dot blue"></span>김리원</span>
+          <span class="member-pill"><span class="member-dot green"></span>이혜진</span>
+        </section>
+
+        <section class="panel view-pane" data-view-pane="week" aria-label="Weekly all member calendar">
+          <div class="all-week-grid">
+            <div class="week-head"></div>
+            <div class="week-head">월 <span>7.1</span></div>
+            <div class="week-head">화 <span>7.2</span></div>
+            <div class="week-head">수 <span>7.3</span></div>
+            <div class="week-head">목 <span>7.4</span></div>
+            <div class="week-head">금 <span>7.5</span></div>
+
+            <div class="member-name"><span class="avatar">성현</span>황성현</div>
+            <div>
+              <span class="mini-event blue">09:30 문구 수정<span>여름 프로모션</span></span>
+              <span class="mini-event blue">13:00 상세 QA<span>수정됨 · 15:00 종료</span></span>
+            </div>
+            <div><span class="mini-event blue">10:00 소재 검수<span>광고 캠페인</span></span></div>
+            <div><span class="mini-event">14:00 외부 콜<span>회사 캘린더</span></span></div>
+            <div><span class="mini-event blue">11:00 상세페이지 최종 확인<span>마일스톤 연결</span></span></div>
+            <div><span class="mini-event blue">15:00 오픈 체크<span>전체 참석</span></span></div>
+
+            <div class="member-name"><span class="avatar">승훈</span>오승훈</div>
+            <div><span class="mini-event green">09:00 프론트 수정<span>진행중</span></span></div>
+            <div>
+              <span class="mini-event green">13:00 개발 리뷰<span>황성현 QA 지원</span></span>
+              <span class="mini-event green">16:00 API 확인<span>결제 플로우</span></span>
+            </div>
+            <div><span class="mini-event">10:00 주간 스탠드업<span>회사 캘린더</span></span></div>
+            <div><span class="mini-event green">14:00 배포 준비<span>체크리스트</span></span></div>
+            <div><span class="mini-event green">11:00 QA 수정 반영<span>오픈 전 확인</span></span></div>
+
+            <div class="member-name"><span class="avatar">성진</span>황성진</div>
+            <div><span class="mini-event amber">10:00 카피 검토<span>홀드 · 승인 대기</span></span></div>
+            <div><span class="mini-event amber">11:30 기획 정리<span>상세페이지</span></span></div>
+            <div><span class="mini-event amber">13:00 브랜드 회의<span>회사 캘린더</span></span></div>
+            <div><span class="mini-event amber">15:00 문구 최종안<span>공유 예정</span></span></div>
+            <div><span class="mini-event">비공개 일정<span>자리비움</span></span></div>
+
+            <div class="member-name"><span class="avatar">승환</span>박승환</div>
+            <div><span class="mini-event red">11:00 콘텐츠 업로드<span>예정</span></span></div>
+            <div><span class="mini-event red">13:00 브랜드 회의<span>회사 캘린더</span></span></div>
+            <div><span class="mini-event red">14:00 수정 반영<span>회의 이후 이동</span></span></div>
+            <div><span class="mini-event red">10:00 디자인 QA<span>상세페이지</span></span></div>
+            <div><span class="mini-event red">16:00 배너 교체<span>광고 소재</span></span></div>
+
+            <div class="member-name"><span class="avatar">수용</span>송수용</div>
+            <div><span class="mini-event violet">11:00 데이터 취합<span>운영 리포트</span></span></div>
+            <div><span class="mini-event violet">15:00 리포트 초안<span>검토 요청</span></span></div>
+            <div><span class="mini-event">09:00 클라이언트 미팅<span>회사 캘린더</span></span></div>
+            <div><span class="mini-event violet">13:30 성과 분석<span>광고 캠페인</span></span></div>
+            <div><span class="mini-event violet">10:30 주간 리포트<span>마감</span></span></div>
+
+            <div class="member-name"><span class="avatar">예진</span>이예진</div>
+            <div><span class="mini-event">10:00 CS 이슈 정리<span>운영</span></span></div>
+            <div><span class="mini-event">14:30 고객 문의 분류<span>운영</span></span></div>
+            <div><span class="mini-event">13:00 정책 확인<span>외부 자료</span></span></div>
+            <div><span class="mini-event">11:00 FAQ 업데이트<span>고객지원</span></span></div>
+            <div><span class="mini-event">15:30 이슈 공유<span>전체</span></span></div>
+
+            <div class="member-name"><span class="avatar">리원</span>김리원</div>
+            <div><span class="mini-event blue">09:00 SNS 예약<span>콘텐츠</span></span></div>
+            <div><span class="mini-event blue">11:00 이미지 검수<span>디자인 확인</span></span></div>
+            <div><span class="mini-event blue">15:00 게시물 등록<span>마케팅</span></span></div>
+            <div><span class="mini-event">비공개 일정<span>자리비움</span></span></div>
+            <div><span class="mini-event blue">13:00 반응 모니터링<span>오픈 체크</span></span></div>
+
+            <div class="member-name"><span class="avatar">혜진</span>이혜진</div>
+            <div><span class="mini-event green">10:30 상품 정보 확인<span>MD</span></span></div>
+            <div><span class="mini-event green">13:00 재고 체크<span>오픈 전</span></span></div>
+            <div><span class="mini-event green">16:00 가격 검수<span>상세페이지</span></span></div>
+            <div><span class="mini-event green">09:30 협력사 콜<span>회사 캘린더</span></span></div>
+            <div><span class="mini-event green">14:00 오픈 승인<span>마일스톤</span></span></div>
+          </div>
+        </section>
+
+        <section class="panel view-pane" data-view-pane="month" hidden aria-label="Monthly all member calendar">
+          <div class="month-grid">
+            <div class="month-head">일</div>
+            <div class="month-head">월</div>
+            <div class="month-head">화</div>
+            <div class="month-head">수</div>
+            <div class="month-head">목</div>
+            <div class="month-head">금</div>
+            <div class="month-head">토</div>
+
+            <div class="month-day is-muted"><div class="month-date">30</div></div>
+            <div class="month-day">
+              <div class="month-date">1 <span>월</span></div>
+              <div class="month-event"><span class="member-dot blue"></span>황성현 문구 수정</div>
+              <div class="month-event"><span class="member-dot green"></span>오승훈 프론트 수정</div>
+              <div class="month-event"><span class="member-dot red"></span>박승환 콘텐츠 업로드</div>
+            </div>
+            <div class="month-day">
+              <div class="month-date">2 <span>화</span></div>
+              <div class="month-event"><span class="member-dot blue"></span>황성현 소재 검수</div>
+              <div class="month-event"><span class="member-dot green"></span>오승훈 개발 리뷰</div>
+              <div class="month-event"><span class="member-dot"></span>이예진 문의 분류</div>
+            </div>
+            <div class="month-day">
+              <div class="month-date">3 <span>수</span></div>
+              <div class="month-event"><span class="member-dot amber"></span>황성진 브랜드 회의</div>
+              <div class="month-event"><span class="member-dot violet"></span>송수용 클라이언트 미팅</div>
+              <div class="month-event"><span class="member-dot green"></span>이혜진 가격 검수</div>
+            </div>
+            <div class="month-day">
+              <div class="month-date">4 <span>목</span></div>
+              <div class="month-event"><span class="member-dot blue"></span>황성현 최종 확인</div>
+              <div class="month-event"><span class="member-dot red"></span>박승환 디자인 QA</div>
+              <div class="month-event"><span class="member-dot blue"></span>김리원 자리비움</div>
+            </div>
+            <div class="month-day">
+              <div class="month-date">5 <span>금</span></div>
+              <div class="month-event"><span class="member-dot green"></span>이혜진 오픈 승인</div>
+              <div class="month-event"><span class="member-dot violet"></span>송수용 주간 리포트</div>
+              <div class="month-event"><span class="member-dot blue"></span>김리원 반응 모니터링</div>
+            </div>
+            <div class="month-day"><div class="month-date">6 <span>토</span></div></div>
+
+            <div class="month-day"><div class="month-date">7 <span>일</span></div></div>
+            <div class="month-day">
+              <div class="month-date">8 <span>월</span></div>
+              <div class="month-event"><span class="member-dot red"></span>프로모션 오픈</div>
+              <div class="month-event"><span class="member-dot green"></span>배포 모니터링</div>
+            </div>
+            <div class="month-day">
+              <div class="month-date">9 <span>화</span></div>
+              <div class="month-event"><span class="member-dot violet"></span>성과 데이터 취합</div>
+              <div class="month-event"><span class="member-dot amber"></span>카피 회고</div>
+            </div>
+            <div class="month-day">
+              <div class="month-date">10 <span>수</span></div>
+              <div class="month-event"><span class="member-dot blue"></span>소재 A/B 정리</div>
+            </div>
+            <div class="month-day">
+              <div class="month-date">11 <span>목</span></div>
+              <div class="month-event"><span class="member-dot"></span>운영 이슈 리뷰</div>
+              <div class="month-event"><span class="member-dot green"></span>이혜진 재고 리포트</div>
+            </div>
+            <div class="month-day">
+              <div class="month-date">12 <span>금</span></div>
+              <div class="month-event"><span class="member-dot blue"></span>주간 콘텐츠 정리</div>
+            </div>
+            <div class="month-day"><div class="month-date">13 <span>토</span></div></div>
+          </div>
+        </section>
+      </main>
+    </div>
+    <script src="./app.js"></script>
+  </body>
+</html>

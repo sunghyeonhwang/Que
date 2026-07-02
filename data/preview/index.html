@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Que Preview</title>
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <div class="app">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="mark">Q</div>
+          <div>
+            <h1 class="brand-title">Que</h1>
+            <p class="brand-subtitle">Team work calendar</p>
+          </div>
+        </div>
+        <nav class="nav" aria-label="Preview navigation">
+          <a class="active" href="./index.html">프리뷰 맵 <span class="nav-count">12</span></a>
+          <a href="./now.html">Now <span class="nav-count">9</span></a>
+          <a href="./today.html">오늘 <span class="nav-count">3</span></a>
+          <a href="./calendar.html">캘린더 <span class="nav-count">12</span></a>
+          <a href="./all-calendar.html">전체 캘린더 <span class="nav-count">8</span></a>
+          <a href="./horizontal-calendar.html">가로 캘린더 <span class="nav-count">14</span></a>
+          <a href="./team.html">팀 현황 <span class="nav-count">2</span></a>
+          <a href="./heatmap.html">히트맵 <span class="nav-count">8</span></a>
+          <a href="./meeting-notes.html">회의록 <span class="nav-count">4</span></a>
+          <a href="./action.html">Action <span class="nav-count">6</span></a>
+          <a href="./project.html">프로젝트 <span class="nav-count">4</span></a>
+          <a href="./payment.html">결제 <span class="nav-count">5</span></a>
+        </nav>
+        <div class="sidebar-note">
+          <strong>제품 정의</strong>
+          <p>Que는 캘린더 UI를 가진 팀 작업 상태 관리 도구입니다.</p>
+        </div>
+      </aside>
+
+      <main class="main">
+        <header class="topbar">
+          <div>
+            <p class="page-kicker">Static prototype</p>
+            <h1 class="page-title">Que 화면 프리뷰</h1>
+            <p class="page-desc">회사 캘린더, 개인 작업, 회의록 Action, 프로젝트 마일스톤, 자동 체크인, 팀 공유 변경 내역을 한 흐름으로 검토하기 위한 HTML 프리뷰입니다.</p>
+          </div>
+          <div class="toolbar">
+            <a class="btn" href="../docs/que-product-plan.md">기획서</a>
+            <a class="btn primary" href="./today.html">오늘 화면 보기</a>
+          </div>
+        </header>
+
+        <section class="metric-row" aria-label="Summary">
+          <div class="metric"><strong>8</strong><span>팀원 기준 설계</span></div>
+          <div class="metric"><strong>11</strong><span>핵심 화면</span></div>
+          <div class="metric"><strong>7</strong><span>상태 응답 옵션</span></div>
+          <div class="metric"><strong>1</strong><span>하루 요약 주기</span></div>
+          <div class="metric"><strong>3초</strong><span>목표 상태 변경 시간</span></div>
+        </section>
+
+        <section class="preview-map" aria-label="Preview pages">
+          <a class="preview-link" href="./now.html">
+            <span class="chip green">Now</span>
+            <h2>Now</h2>
+            <p>캘린더 일정과 회의 Action Task를 한 표로 합쳐 오늘 처리할 항목을 확인합니다.</p>
+          </a>
+          <a class="preview-link" href="./today.html">
+            <span class="chip blue">Daily hub</span>
+            <h2>오늘</h2>
+            <p>내 일정, 내 작업, 체크인 응답, 주의 필요 항목을 하루 시작 화면으로 정리합니다.</p>
+          </a>
+          <a class="preview-link" href="./calendar.html">
+            <span class="chip green">Calendar</span>
+            <h2>캘린더</h2>
+            <p>회사 일정, 작업, 마일스톤을 같은 시간축에 표시하고 작업 상세 패널을 함께 봅니다.</p>
+          </a>
+          <a class="preview-link" href="./all-calendar.html">
+            <span class="chip violet">All members</span>
+            <h2>전체 캘린더</h2>
+            <p>주간/월간 캘린더만 두고 8명 전체 멤버의 일정을 한 화면에서 확인합니다.</p>
+          </a>
+          <a class="preview-link" href="./horizontal-calendar.html">
+            <span class="chip amber">Timeline</span>
+            <h2>가로 캘린더</h2>
+            <p>날짜를 가로축으로 두고 멤버와 캘린더 일정을 긴 막대 형태로 확인합니다.</p>
+          </a>
+          <a class="preview-link" href="./team.html">
+            <span class="chip red">Attention</span>
+            <h2>팀 현황</h2>
+            <p>사람별 시간표와 문제발생, 홀드, 일정 충돌, 최근 변경 내역을 관리자가 빠르게 확인합니다.</p>
+          </a>
+          <a class="preview-link" href="./heatmap.html">
+            <span class="chip blue">Heatmap</span>
+            <h2>히트맵</h2>
+            <p>멤버별 작업량이 많은 날짜와 여유 있는 사람을 색상과 막대 그래프로 확인합니다.</p>
+          </a>
+          <a class="preview-link" href="./meeting-notes.html">
+            <span class="chip violet">Meeting notes</span>
+            <h2>회의록</h2>
+            <p>Plaud Note에서 내보낸 Markdown 회의록을 업로드하고 Action 추출 대상으로 관리합니다.</p>
+          </a>
+          <a class="preview-link" href="./action.html">
+            <span class="chip green">Action</span>
+            <h2>Action</h2>
+            <p>회의록에서 추출된 Task 후보를 담당자와 마감일 기준으로 확인하고 캘린더에 반영합니다.</p>
+          </a>
+          <a class="preview-link" href="./project.html">
+            <span class="chip amber">Milestone</span>
+            <h2>프로젝트</h2>
+            <p>프로젝트 마일스톤, 연결 작업, 병목, 다음 액션을 하나의 운영 화면으로 묶습니다.</p>
+          </a>
+          <a class="preview-link" href="./payment.html">
+            <span class="chip green">Payment</span>
+            <h2>결제</h2>
+            <p>결제 요청을 등록하고 입금 후 완료, 대기, 취소 상태를 확인합니다.</p>
+          </a>
+        </section>
+
+        <section class="grid two" style="margin-top: 14px;">
+          <div class="panel pad">
+            <div class="panel-title">
+              <h2>우선 설계한 사용 흐름</h2>
+              <small>MVP</small>
+            </div>
+            <div class="list">
+              <div class="task blue">
+                <div class="time">아침</div>
+                <div>
+                  <p class="task-title">오늘의 Que 확인</p>
+                  <p class="task-meta">내 작업, 회사 일정, 응답 대기, 문제발생을 한 번에 확인</p>
+                </div>
+                <span class="chip blue">개인</span>
+              </div>
+              <div class="task green">
+                <div class="time">업무중</div>
+                <div>
+                  <p class="task-title">개인이 직접 변경하고 팀에 공유</p>
+                  <p class="task-meta">업무에 영향을 주는 시간, 담당자, 상태 변경은 변경 내역에 표시</p>
+                </div>
+                <span class="chip green">상태</span>
+              </div>
+              <div class="task red">
+                <div class="time">즉시</div>
+                <div>
+                  <p class="task-title">막힌 일은 Attention Queue로 이동</p>
+                  <p class="task-meta">도움 필요한 사람과 다음 확인 시간을 함께 기록</p>
+                </div>
+                <span class="chip red">병목</span>
+              </div>
+            </div>
+          </div>
+
+          <aside class="panel pad">
+            <div class="panel-title">
+              <h2>디자인 메모</h2>
+              <small>UX tone</small>
+            </div>
+            <div class="attention-list">
+              <div class="attention-item">
+                <strong>감시보다 병목 공유</strong>
+                <p>화면은 근태 추적이 아니라 작업 충돌과 도움 요청을 먼저 보여주도록 구성했습니다.</p>
+              </div>
+              <div class="attention-item">
+                <strong>캘린더는 운영 맥락</strong>
+                <p>모든 데이터를 캘린더 이벤트로 저장하지 않고 작업, 일정, 마일스톤, 상태 로그를 분리하는 전제입니다.</p>
+              </div>
+            </div>
+          </aside>
+        </section>
+      </main>
+    </div>
+  </body>
+</html>
