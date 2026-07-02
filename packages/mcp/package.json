@@ -1,0 +1,21 @@
+{
+  "name": "@que/mcp",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "lint": "echo 'mcp: lint는 웹 eslint 설정 공유 예정'",
+    "test": "tsx scripts/smoke.mts"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@que/core": "workspace:*",
+    "zod": "^4.1.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0",
+    "typescript": "^5"
+  }
+}

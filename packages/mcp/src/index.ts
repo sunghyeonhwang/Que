@@ -1,0 +1,238 @@
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { z } from "zod";
+import {
+  checkInResponseSchema,
+  paymentStatusSchema,
+  statusDetailSchema,
+  taskStatusSchema,
+} from "@que/core";
+import { api, QueApiError, requireToken } from "./api-client.js";
+
+// Que MCP 서버 — 사용자가 자신의 AI와 대화하며 Que를 조회/조작한다.
+// 모든 변경은 웹 API → core 규칙을 거치므로 웹과 동일한 권한·검증·로그가 적용된다.
+// (도구 명세: data/docs/que-mcp-cli-plan.md)
+
+const server = new McpServer({ name: "que", version: "0.1.0" });
+
+type ToolResult = {
+  content: { type: "text"; text: string }[];
+  isError?: boolean;
+};
+
+function ok(data: unknown): ToolResult {
+  return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+}
+
+/** QueApiError를 AI가 이해할 수 있는 구조적 에러 텍스트로 변환한다. */
+async function run(fn: () => Promise<unknown>): Promise<ToolResult> {
+  try {
+    return ok(await fn());
+  } catch (error) {
+    if (error instanceof QueApiError) {
+      return {
+        isError: true,
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify({ error: { code: error.code, message: error.message } }),
+          },
+        ],
+      };
+    }
+    throw error;
+  }
+}
+
+// ---------- 조회 도구 ----------
+
+server.registerTool(
+  "get_me",
+  {
+    description: "현재 토큰의 사용자 정보를 조회한다.",
+    annotations: { readOnlyHint: true },
+  },
+  () => run(() => api.get("/api/me")),
+);
+
+server.registerTool(
+  "get_my_day",
+  {
+    description:
+      "오늘 화면 요약 — 내 작업 타임라인, 응답 대기 체크인, 마감 임박, 내가 관련된 문제/홀드.",
+    annotations: { readOnlyHint: true },
+  },
+  () => run(() => api.get("/api/my-day")),
+);
+
+server.registerTool(
+  "get_now_board",
+  {
+    description: "Now 운영표 — 오늘 캘린더 항목과 회의록 Action 후보를 한 표로 조회한다.",
+    inputSchema: { filter: z.enum(["all", "mine", "issue"]).optional() },
+    annotations: { readOnlyHint: true },
+  },
+  ({ filter }) => run(() => api.get(`/api/now${filter ? `?filter=${filter}` : ""}`)),
+);
+
+server.registerTool(
+  "get_team_status",
+  {
+    description:
+      "팀 현황 — 진행중/문제/홀드/마감 임박/응답 대기 요약, 사람별 오늘 시간표, Attention Queue, 일정 충돌.",
+    annotations: { readOnlyHint: true },
+  },
+  () => run(() => api.get("/api/team")),
+);
+
+server.registerTool(
+  "list_tasks",
+  {
+    description: "작업 목록 조회. 담당자/프로젝트/상태로 필터할 수 있다.",
+    inputSchema: {
+      assignee: z.string().optional().describe("담당자 userId"),
+      project: z.string().optional().describe("프로젝트 id"),
+      status: taskStatusSchema.optional(),
+    },
+    annotations: { readOnlyHint: true },
+  },
+  ({ assignee, project, status }) =>
+    run(() => {
+      const params = new URLSearchParams();
+      if (assignee) params.set("assignee", assignee);
+      if (project) params.set("project", project);
+      if (status) params.set("status", status);
+      const query = params.toString();
+      return api.get(`/api/tasks${query ? `?${query}` : ""}`);
+    }),
+);
+
+server.registerTool(
+  "list_action_candidates",
+  {
+    description: "회의록에서 추출된 Action 후보 목록. 확인 필요(담당자/마감 누락) 항목 포함.",
+    inputSchema: { meetingNoteId: z.string().optional() },
+    annotations: { readOnlyHint: true },
+  },
+  ({ meetingNoteId }) =>
+    run(() => api.get(`/api/action-items${meetingNoteId ? `?note=${meetingNoteId}` : ""}`)),
+);
+
+server.registerTool(
+  "list_payment_requests",
+  {
+    description:
+      "결제 요청 목록. 계좌번호/금액은 권한(관리자·요청자 본인)에 따라 마스킹되어 반환된다.",
+    annotations: { readOnlyHint: true },
+  },
+  () => run(() => api.get("/api/payments")),
+);
+
+// ---------- 변경 도구 ----------
+
+server.registerTool(
+  "change_task_status",
+  {
+    description:
+      "작업 상태 변경. 문제발생(issue)/홀드(on_hold)는 detail.reason이 필수다 — 없으면 사용자에게 사유를 물어본 뒤 호출하라.",
+    inputSchema: {
+      taskId: z.string(),
+      to: taskStatusSchema,
+      detail: statusDetailSchema.optional(),
+    },
+  },
+  ({ taskId, to, detail }) => run(() => api.post(`/api/tasks/${taskId}/status`, { to, detail })),
+);
+
+server.registerTool(
+  "move_task",
+  {
+    description: "작업 일정 이동. startAt/endAt은 ISO 8601 문자열, 시작≤종료여야 한다.",
+    inputSchema: { taskId: z.string(), startAt: z.string(), endAt: z.string() },
+  },
+  ({ taskId, startAt, endAt }) =>
+    run(() => api.post(`/api/tasks/${taskId}/move`, { startAt, endAt })),
+);
+
+server.registerTool(
+  "respond_checkin",
+  {
+    description:
+      "자동 체크인에 응답한다 (작업중/완료/시간변경/문제발생/필요없어짐/병합/나중에). issue 응답은 detail.reason 필수.",
+    inputSchema: {
+      checkInId: z.string(),
+      response: checkInResponseSchema,
+      detail: statusDetailSchema.optional(),
+    },
+  },
+  ({ checkInId, response, detail }) =>
+    run(() => api.post(`/api/checkins/${checkInId}/answer`, { response, detail })),
+);
+
+server.registerTool(
+  "update_action_item",
+  {
+    description: "Action 후보의 담당자/마감일/프로젝트를 지정한다. 확정 전 필드 보완용.",
+    inputSchema: {
+      actionItemId: z.string(),
+      assigneeId: z.string().optional(),
+      dueAt: z.string().optional().describe("ISO 8601"),
+      projectId: z.string().optional(),
+    },
+  },
+  ({ actionItemId, ...body }) => run(() => api.patch(`/api/action-items/${actionItemId}`, body)),
+);
+
+server.registerTool(
+  "confirm_action",
+  {
+    description:
+      "Action 후보를 실제 Task로 확정한다. 담당자와 마감일이 모두 있어야 하며, 없으면 서버가 거부한다 — 먼저 update_action_item으로 채워라.",
+    inputSchema: { actionItemId: z.string() },
+  },
+  ({ actionItemId }) => run(() => api.post(`/api/action-items/${actionItemId}/confirm`)),
+);
+
+server.registerTool(
+  "resolve_action",
+  {
+    description: "Action 후보를 보류(held)하거나 무시(ignored)한다. 무시는 되돌리기 어렵다 — 사용자 확인 후 호출하라.",
+    inputSchema: { actionItemId: z.string(), to: z.enum(["held", "ignored"]) },
+    annotations: { destructiveHint: true },
+  },
+  ({ actionItemId, to }) => run(() => api.post(`/api/action-items/${actionItemId}/status`, { to })),
+);
+
+server.registerTool(
+  "create_payment_request",
+  {
+    description: "결제 요청을 등록한다 (기본 상태: 대기). 등록 전에 사용자에게 내용을 확인받아라.",
+    inputSchema: {
+      title: z.string(),
+      bankName: z.string(),
+      accountNumber: z.string(),
+      amount: z.number(),
+      description: z.string().optional(),
+      dueAt: z.string().optional().describe("ISO 8601"),
+      category: z.string(),
+    },
+  },
+  (input) => run(() => api.post("/api/payments", input)),
+);
+
+server.registerTool(
+  "update_payment_status",
+  {
+    description:
+      "결제 요청 상태 변경 (waiting/done/cancelled). 완료 처리는 관리자만, 취소는 요청자 본인도 가능 — 서버가 강제한다.",
+    inputSchema: { paymentId: z.string(), to: paymentStatusSchema },
+    annotations: { destructiveHint: true },
+  },
+  ({ paymentId, to }) => run(() => api.post(`/api/payments/${paymentId}/status`, { to })),
+);
+
+// ---------- 기동 ----------
+
+requireToken(); // 토큰 없이 뜨는 것을 조기에 막는다
+await server.connect(new StdioServerTransport());
+console.error("[que-mcp] 서버 시작 — API:", process.env.QUE_API_URL ?? "http://localhost:3000");

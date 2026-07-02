@@ -21,10 +21,32 @@ pnpm lint && pnpm typecheck
 ## 구조
 
 ```text
-apps/web         Next.js 16 (App Router) + shadcn/ui
+apps/web         Next.js 16 (App Router) + shadcn/ui + REST API (/api/*)
 packages/core    도메인 타입·검증·권한·데이터 접근 계층 (웹/MCP/CLI 공유)
+packages/mcp     MCP 서버 — AI와 대화하며 Que 조회/조작 (도구 15개)
 data/            기획서, 디자인 가이드, 프롬프트, HTML 프리뷰
 ```
+
+## MCP 연결 (Claude Code / Claude Desktop)
+
+웹 dev 서버(`pnpm dev`)가 떠 있는 상태에서, 프로젝트 루트에 `.mcp.json`을 만들면 된다:
+
+```json
+{
+  "mcpServers": {
+    "que": {
+      "command": "pnpm",
+      "args": ["--filter", "@que/mcp", "start"],
+      "env": {
+        "QUE_API_URL": "http://localhost:3000",
+        "QUE_TOKEN": "que_pat_hwang-sunghyeon"
+      }
+    }
+  }
+}
+```
+
+`QUE_TOKEN`은 mock 단계에서 `que_pat_<userId>` 형식(본인 id로 교체 — 예: `que_pat_lee-yejin`). 권한·마스킹·변경 로그는 웹과 동일하게 적용되고, 변경 출처는 `via: mcp`로 기록된다. 스모크 테스트: `QUE_TOKEN=que_pat_hwang-sunghyeon pnpm --filter @que/mcp test`
 
 ## 문서
 
