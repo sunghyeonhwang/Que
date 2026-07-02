@@ -238,6 +238,39 @@ describe("게이트 반려 회귀 (글래도스 공격 케이스)", () => {
   });
 });
 
+describe("결제 요청 등록", () => {
+  it("필수값과 금액을 검증하고 대기 상태로 생성한다", () => {
+    const d = db();
+    const payment = d.createPaymentRequest(
+      { actorId: "lee-hyejin", via: "web" },
+      {
+        title: "CS 교육 자료 구매",
+        bankName: "국민은행",
+        accountNumber: "123-45-678901",
+        amount: 33000,
+        category: "교육",
+      },
+    );
+    expect(payment.status).toBe("waiting");
+    expect(payment.requesterId).toBe("lee-hyejin");
+    expect(d.changeLogs.at(-1)!.entityType).toBe("payment_request");
+
+    expect(() =>
+      d.createPaymentRequest(
+        { actorId: "lee-hyejin", via: "web" },
+        { title: " ", bankName: "국민", accountNumber: "1", amount: 1000, category: "기타" },
+      ),
+    ).toThrowError(/필수다/);
+
+    expect(() =>
+      d.createPaymentRequest(
+        { actorId: "lee-hyejin", via: "web" },
+        { title: "t", bankName: "b", accountNumber: "1", amount: -5, category: "기타" },
+      ),
+    ).toThrowError(/0보다 큰/);
+  });
+});
+
 describe("결제 상태 변경", () => {
   it("관리자는 완료 처리할 수 있다", () => {
     const d = db();

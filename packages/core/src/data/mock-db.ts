@@ -306,7 +306,7 @@ export class MockQueDb implements QueDb {
   ): MeetingNote {
     const actor = this.requireUser(ctx.actorId);
     if (!input.title.trim() || !input.fileName.trim()) {
-      throw new QueRuleError("INVALID_SCHEDULE", "회의명과 파일명은 필수다");
+      throw new QueRuleError("INVALID_INPUT", "회의명과 파일명은 필수다");
     }
     // meetingAt ISO 검증 (단일 시점)
     const range = parseScheduleRange({ startAt: input.meetingAt, endAt: input.meetingAt });
@@ -499,6 +499,58 @@ export class MockQueDb implements QueDb {
     checkIn.response = input.response;
     checkIn.followUpRequired = input.response === "later" || input.response === "issue";
     return checkIn;
+  }
+
+  /** 결제 요청 등록. 요청자는 본인(actor), 기본 상태 대기. */
+  createPaymentRequest(
+    ctx: ActorContext,
+    input: {
+      title: string;
+      bankName: string;
+      accountNumber: string;
+      amount: number;
+      description?: string;
+      dueAt?: string;
+      category: string;
+    },
+  ): PaymentRequest {
+    const actor = this.requireUser(ctx.actorId);
+    if (
+      !input.title.trim() ||
+      !input.bankName.trim() ||
+      !input.accountNumber.trim() ||
+      !input.category.trim()
+    ) {
+      throw new QueRuleError("INVALID_INPUT", "제목, 은행명, 계좌번호, 분류는 필수다");
+    }
+    if (!Number.isFinite(input.amount) || input.amount <= 0) {
+      throw new QueRuleError("INVALID_INPUT", "금액은 0보다 큰 숫자여야 한다");
+    }
+    if (input.dueAt) {
+      parseScheduleRange({ startAt: input.dueAt, endAt: input.dueAt });
+    }
+
+    const payment: PaymentRequest = {
+      id: this.nextId("pay"),
+      title: input.title.trim(),
+      requesterId: actor.id,
+      bankName: input.bankName.trim(),
+      accountNumber: input.accountNumber.trim(),
+      amount: input.amount,
+      description: input.description?.trim() || undefined,
+      dueAt: input.dueAt,
+      category: input.category.trim(),
+      status: "waiting",
+      createdAt: this.now(),
+    };
+    this.paymentRequests.push(payment);
+    this.logChange(ctx, {
+      entityType: "payment_request",
+      entityId: payment.id,
+      changeType: "create",
+      afterValue: payment.title,
+    });
+    return payment;
   }
 
   /** 결제 상태 변경. 관리자는 전체, 요청자는 본인 요청 취소만 가능. */

@@ -1,0 +1,88 @@
+import type { PaymentStatus, User } from "@que/core";
+import { getDb } from "./db";
+
+// 결제 화면 데이터. 계좌번호와 금액은 민감 정보 — 관리자와 요청자 본인에게만
+// 원본을 보여주고 그 외에는 마스킹한다 (기획서 "결제/입금 확인" 운영 규칙).
+
+export interface PaymentRow {
+  id: string;
+  title: string;
+  requesterName: string;
+  bankName: string;
+  /** 마스킹 적용된 표시용 계좌번호 */
+  accountDisplay: string;
+  /** 마스킹 적용된 표시용 금액 (null이면 비공개) */
+  amountDisplay: string | null;
+  category: string;
+  description?: string;
+  dueAt?: string;
+  status: PaymentStatus;
+  overdue: boolean;
+  dueSoon: boolean;
+  /** 현재 사용자가 이 요청의 상태를 바꿀 수 있는가 (관리자=전체, 요청자=취소만) */
+  canComplete: boolean;
+  canCancel: boolean;
+}
+
+export interface PaymentData {
+  rows: PaymentRow[];
+  summary: { waiting: number; done: number; cancelled: number; overdue: number };
+}
+
+function maskAccount(accountNumber: string): string {
+  const digits = accountNumber.replace(/\D/g, "");
+  return `•••• ${digits.slice(-4)}`;
+}
+
+export function getPaymentData(viewer: User, now: Date = new Date()): PaymentData {
+  const db = getDb();
+  const userById = new Map(db.users.map((u) => [u.id, u]));
+  const soonLimit = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+
+  const rows: PaymentRow[] = [...db.paymentRequests]
+    .sort((a, b) => {
+      // 마감 초과 대기 → 대기 → 나머지 순 (기획: 마감 지난 대기 항목 상단 노출)
+      const rank = (p: (typeof db.paymentRequests)[number]) => {
+        const isOverdue = p.status === "waiting" && p.dueAt && new Date(p.dueAt) < now;
+        if (isOverdue) return 0;
+        if (p.status === "waiting") return 1;
+        return 2;
+      };
+      return rank(a) - rank(b) || b.createdAt.localeCompare(a.createdAt);
+    })
+    .map((payment) => {
+      const canSee = viewer.role === "admin" || payment.requesterId === viewer.id;
+      const overdue =
+        payment.status === "waiting" && !!payment.dueAt && new Date(payment.dueAt) < now;
+      return {
+        id: payment.id,
+        title: payment.title,
+        requesterName: userById.get(payment.requesterId)?.name ?? payment.requesterId,
+        bankName: payment.bankName,
+        accountDisplay: canSee ? payment.accountNumber : maskAccount(payment.accountNumber),
+        amountDisplay: canSee ? `${payment.amount.toLocaleString()}원` : null,
+        category: payment.category,
+        description: payment.description,
+        dueAt: payment.dueAt,
+        status: payment.status,
+        overdue,
+        dueSoon:
+          payment.status === "waiting" &&
+          !overdue &&
+          !!payment.dueAt &&
+          new Date(payment.dueAt) <= soonLimit,
+        canComplete: viewer.role === "admin",
+        canCancel: viewer.role === "admin" || payment.requesterId === viewer.id,
+      };
+    });
+
+  return {
+    rows,
+    summary: {
+      waiting: db.paymentRequests.filter((p) => p.status === "waiting").length,
+      done: db.paymentRequests.filter((p) => p.status === "done").length,
+      cancelled: db.paymentRequests.filter((p) => p.status === "cancelled").length,
+      overdue: rows.filter((r) => r.overdue).length,
+    },
+  };
+}

@@ -4,7 +4,7 @@
 
 ## 현재 상태
 
-Phase 0 완료 — pnpm 워크스페이스 + Next.js 16 스캐폴드 + shadcn/ui(base-nova) 세팅까지. 화면 구현은 Phase 1(App Shell)부터 시작한다.
+**MVP 핵심 화면 완성** (2026-07-02) — 오늘, Now, 캘린더(3뷰+드래그), 팀 현황, 히트맵, 회의록, Action, 프로젝트, 결제. mock data 기반이며 매 Phase마다 게이트 심사(정적 검증 + 브라우저 실측 + 규칙 우회 공격)를 통과했다. 남은 것: 알림/설정(프리뷰 수령 후), API 계층 + MCP/CLI([계획](./data/docs/que-mcp-cli-plan.md)).
 
 - 인수인계/결정사항: [`HANDOFF.md`](./HANDOFF.md)
 - 개발 규칙 (Claude Code용): [`CLAUDE.md`](./CLAUDE.md)
