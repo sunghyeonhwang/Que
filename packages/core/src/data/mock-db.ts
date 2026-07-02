@@ -232,7 +232,8 @@ export class MockQueDb implements QueDb {
     const nowIso = this.now();
     const task: Task = {
       id: this.nextId("task"),
-      title: item.title,
+      // title/description은 DB check 제약(200/2000자)과 동일한 상한으로 절단
+      title: item.title.slice(0, 200),
       ownerId: actor.id,
       assigneeId: item.assigneeId!,
       projectId: item.projectId,
@@ -240,7 +241,7 @@ export class MockQueDb implements QueDb {
       endAt: item.dueAt,
       status: "scheduled",
       priority: "normal",
-      description: `회의록 출처: ${this.meetingNoteName(item.meetingNoteId)} — "${item.sourceText}"`,
+      description: `회의록 출처: ${this.meetingNoteName(item.meetingNoteId)} — "${item.sourceText}"`.slice(0, 2000),
       source: "action_item",
       visibility: "team",
       lastChangedBy: actor.id,
@@ -308,6 +309,12 @@ export class MockQueDb implements QueDb {
     if (!input.title.trim() || !input.fileName.trim()) {
       throw new QueRuleError("INVALID_INPUT", "회의명과 파일명은 필수다");
     }
+    if (input.title.length > 200 || input.fileName.length > 200) {
+      throw new QueRuleError("INVALID_INPUT", "회의명/파일명은 200자 이내다");
+    }
+    if (input.markdownBody.length > 500_000) {
+      throw new QueRuleError("INVALID_INPUT", "회의록 본문은 500,000자 이내다");
+    }
     // meetingAt ISO 검증 (단일 시점)
     const range = parseScheduleRange({ startAt: input.meetingAt, endAt: input.meetingAt });
 
@@ -357,7 +364,12 @@ export class MockQueDb implements QueDb {
 
       // "(담당: 이름 ...)" 패턴에서 담당자 추출
       const assignee = this.users.find((u) => bullet.includes(`담당: ${u.name}`));
-      const title = bullet.replace(/\s*\(담당:[^)]*\)\s*/, "").replace(/[.。]\s*$/, "").trim();
+      // 제목은 200자 상한(DB check 제약과 동일)으로 절단 — 원문은 sourceText에 그대로 보존된다
+      const title = bullet
+        .replace(/\s*\(담당:[^)]*\)\s*/, "")
+        .replace(/[.。]\s*$/, "")
+        .trim()
+        .slice(0, 200);
       if (!title) continue;
 
       const item: ActionItem = {
@@ -523,8 +535,17 @@ export class MockQueDb implements QueDb {
     ) {
       throw new QueRuleError("INVALID_INPUT", "제목, 은행명, 계좌번호, 분류는 필수다");
     }
-    if (!Number.isFinite(input.amount) || input.amount <= 0) {
-      throw new QueRuleError("INVALID_INPUT", "금액은 0보다 큰 숫자여야 한다");
+    if (
+      input.title.length > 200 ||
+      input.bankName.length > 50 ||
+      input.accountNumber.length > 50 ||
+      input.category.length > 50 ||
+      (input.description?.length ?? 0) > 2000
+    ) {
+      throw new QueRuleError("INVALID_INPUT", "입력 길이 상한 초과 (제목 200, 은행/계좌/분류 50, 내용 2000자)");
+    }
+    if (!Number.isFinite(input.amount) || input.amount <= 0 || input.amount > 1_000_000_000_000) {
+      throw new QueRuleError("INVALID_INPUT", "금액은 0보다 크고 1조 이하의 숫자여야 한다");
     }
     if (input.dueAt) {
       parseScheduleRange({ startAt: input.dueAt, endAt: input.dueAt });

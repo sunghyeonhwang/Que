@@ -267,7 +267,81 @@ describe("결제 요청 등록", () => {
         { actorId: "lee-hyejin", via: "web" },
         { title: "t", bankName: "b", accountNumber: "1", amount: -5, category: "기타" },
       ),
-    ).toThrowError(/0보다 큰/);
+    ).toThrowError(/0보다 크고/);
+  });
+});
+
+describe("입력 길이 상한 (DoS 표면 축소)", () => {
+  it("초대형 결제 제목과 1조 초과 금액은 거부된다", () => {
+    const d = db();
+    expect(() =>
+      d.createPaymentRequest(
+        { actorId: "lee-hyejin", via: "cli" },
+        {
+          title: "가".repeat(201),
+          bankName: "국민",
+          accountNumber: "1-2-3",
+          amount: 1000,
+          category: "기타",
+        },
+      ),
+    ).toThrowError(/길이 상한/);
+
+    expect(() =>
+      d.createPaymentRequest(
+        { actorId: "lee-hyejin", via: "cli" },
+        { title: "t", bankName: "b", accountNumber: "1", amount: 2_000_000_000_000, category: "c" },
+      ),
+    ).toThrowError(/1조 이하/);
+  });
+
+  it("250자 bullet은 title 200자로 절단되고 원문은 보존되며, 확정된 Task도 상한을 지킨다", () => {
+    const d = db();
+    const longLine = `아주 긴 할 일 ${"가".repeat(250)}`;
+    const note = d.createMeetingNote(
+      { actorId: "oh-seunghoon", via: "web" },
+      {
+        title: "긴 항목 회의",
+        meetingAt: NOW.toISOString(),
+        attendeeIds: [],
+        fileName: "long.md",
+        markdownBody: `- ${longLine}`,
+      },
+    );
+    const [item] = d.extractActionItems({ actorId: "oh-seunghoon", via: "web" }, note.id);
+    expect(item.title.length).toBe(200); // DB check 제약(200자)과 동일한 절단
+    expect(item.sourceText).toBe(longLine); // 원문은 그대로 보존
+
+    d.updateActionItem(
+      { actorId: "hwang-sunghyeon", via: "web" },
+      { actionItemId: item.id, assigneeId: "oh-seunghoon", dueAt: "2026-07-10T09:00:00.000Z" },
+    );
+    const task = d.confirmActionItem({ actorId: "hwang-sunghyeon", via: "web" }, item.id);
+    expect(task.title.length).toBeLessThanOrEqual(200);
+    expect((task.description ?? "").length).toBeLessThanOrEqual(2000);
+  });
+
+  it("초대형 회의록 본문과 500자 초과 사유는 거부된다", () => {
+    const d = db();
+    expect(() =>
+      d.createMeetingNote(
+        { actorId: "oh-seunghoon", via: "web" },
+        {
+          title: "t",
+          meetingAt: NOW.toISOString(),
+          attendeeIds: [],
+          fileName: "f.md",
+          markdownBody: "a".repeat(500_001),
+        },
+      ),
+    ).toThrowError(/500,000자 이내/);
+
+    expect(() =>
+      d.changeTaskStatus(
+        { actorId: "hwang-sunghyeon", via: "web" },
+        { taskId: "task-landing-copy", to: "issue", detail: { reason: "가".repeat(501) } },
+      ),
+    ).toThrowError(QueRuleError);
   });
 });
 

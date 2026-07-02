@@ -1,4 +1,5 @@
 import { resolvePat, type ChangeVia, type User } from "@que/core";
+import { isMockAuthAllowed, MOCK_AUTH_BLOCKED_MESSAGE } from "@/lib/mock-auth-guard";
 
 // API 계층 인증 — MCP 서버와 CLI가 사용하는 진입점.
 // Authorization: Bearer <PAT> 로 사용자를 식별하고,
@@ -19,6 +20,9 @@ export class ApiAuthError extends Error {
 }
 
 export function authenticate(request: Request): ApiContext {
+  if (!isMockAuthAllowed()) {
+    throw new ApiAuthError(503, MOCK_AUTH_BLOCKED_MESSAGE);
+  }
   const header = request.headers.get("authorization");
   if (!header?.startsWith("Bearer ")) {
     throw new ApiAuthError(401, "Authorization: Bearer <token> 헤더가 필요하다");

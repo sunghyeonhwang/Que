@@ -36,9 +36,9 @@ export type TaskStatus = z.infer<typeof taskStatusSchema>;
 
 /** 문제발생/홀드 전환 시 함께 받는 추가 정보 (기획서 "작업 상태 관리") */
 export const statusDetailSchema = z.object({
-  reason: z.string().trim().min(1, "사유는 필수다"),
-  nextAction: z.string().optional(),
-  helpUserId: z.string().optional(),
+  reason: z.string().trim().min(1, "사유는 필수다").max(500, "사유는 500자 이내"),
+  nextAction: z.string().max(500).optional(),
+  helpUserId: z.string().max(100).optional(),
   recheckAt: isoDateTime.optional(),
 });
 export type StatusDetail = z.infer<typeof statusDetailSchema>;
