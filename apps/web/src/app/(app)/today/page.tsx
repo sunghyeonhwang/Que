@@ -1,6 +1,7 @@
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 import { TASK_STATUS_LABELS } from "@que/core";
+import { ConflictSuggestions } from "@/components/app/conflict-suggestions";
 import { DayWrap } from "@/components/app/day-wrap";
 import { PageHeader } from "@/components/app/page-header";
 import { QuickAdd } from "@/components/app/quick-add";
@@ -37,6 +38,18 @@ export default async function TodayPage() {
       />
 
       <QuickAdd currentUserId={user.id} />
+
+      <ConflictSuggestions
+        items={data.conflictSuggestions.map((c) => ({
+          taskId: c.task.id,
+          taskTitle: c.task.title,
+          blockerTitle: c.blockerTitle,
+          blockerRangeText: `${format(new Date(c.blockerStartAt), "HH:mm")}–${format(new Date(c.blockerEndAt), "HH:mm")}`,
+          suggestedStartAt: c.suggestedStartAt,
+          suggestedEndAt: c.suggestedEndAt,
+          suggestedTimeText: format(new Date(c.suggestedStartAt), "HH:mm"),
+        }))}
+      />
 
       <section
         aria-label="오늘 요약"

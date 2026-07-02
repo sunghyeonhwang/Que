@@ -42,7 +42,14 @@ export function ItemChip({
         aria-hidden
       />
       <span className="min-w-0 flex-1">
-        <span className="block truncate font-medium">{item.title}</span>
+        <span className="block truncate font-medium">
+          {item.title}
+          {item.recentlyChanged && (
+            <span className="ml-1 rounded-sm bg-secondary px-1 py-px text-[9px] font-normal text-secondary-foreground">
+              수정됨
+            </span>
+          )}
+        </span>
         <span className="block truncate text-[10px] text-muted-foreground">
           {showTime && `${format(new Date(item.startAt), "HH:mm")} `}
           {showOwner && item.ownerName}

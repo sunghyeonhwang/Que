@@ -67,6 +67,16 @@ export async function addTaskCommentAction(input: {
   return toResult(() => getDb().addTaskComment({ actorId: user.id, via: "web" }, input));
 }
 
+/** 일정 충돌 제안 수락 — 제안된 시각으로 작업을 이동한다 (동일 규칙/로그). */
+export async function acceptConflictSuggestionAction(input: {
+  taskId: string;
+  startAt: string;
+  endAt: string;
+}): Promise<ActionResult> {
+  const user = await getCurrentUser();
+  return toResult(() => getDb().moveTask({ actorId: user.id, via: "web" }, input));
+}
+
 /** 하루 마감 — 미완료 작업을 내일 같은 시간으로 이동한다 (드래그 이동과 동일 규칙/로그). */
 export async function deferTaskToTomorrowAction(taskId: string): Promise<ActionResult> {
   const user = await getCurrentUser();

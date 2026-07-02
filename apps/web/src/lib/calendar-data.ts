@@ -19,6 +19,8 @@ export interface CalendarViewItem {
   taskStatus?: Task["status"];
   projectName?: string;
   isPrivate?: boolean;
+  /** 최근 24시간 내 변경됨 — 캘린더에 "수정됨" 배지 표시 (기획 변경 공유 정책) */
+  recentlyChanged?: boolean;
 }
 
 export interface CalendarData {
@@ -36,6 +38,10 @@ export function getCalendarData(
   const db = getDb();
   const userById = new Map(db.users.map((u) => [u.id, u]));
   const projectById = new Map(db.projects.map((p) => [p.id, p]));
+  // "수정됨" 배지는 일정 시간(24h) 동안만 표시한다
+  const changedSince = Date.now() - 24 * 60 * 60 * 1000;
+  const isRecent = (lastChangedAt?: string): boolean =>
+    !!lastChangedAt && new Date(lastChangedAt).getTime() >= changedSince;
 
   const overlaps = (startAt?: string, endAt?: string): boolean => {
     if (!startAt) return false;
@@ -60,6 +66,7 @@ export function getCalendarData(
         movable: true,
         taskStatus: task.status,
         projectName: task.projectId ? projectById.get(task.projectId)?.name : undefined,
+        recentlyChanged: isRecent(task.lastChangedAt),
       };
     });
 
@@ -80,6 +87,7 @@ export function getCalendarData(
         ownerColor: owner?.avatarColor ?? "#666666",
         movable: event.source === "que" && !isPrivate,
         isPrivate,
+        recentlyChanged: isRecent(event.lastChangedAt),
       };
     });
 

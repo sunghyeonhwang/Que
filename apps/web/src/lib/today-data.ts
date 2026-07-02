@@ -25,6 +25,17 @@ export interface AttentionTask {
   nextCheckAt?: string;
 }
 
+/** 일정 충돌 + 변경 제안 (기획서 "추가 아이디어 3": 회사 일정과 겹치면 변경을 제안한다) */
+export interface ConflictSuggestion {
+  task: Task;
+  blockerTitle: string;
+  blockerStartAt: string;
+  blockerEndAt: string;
+  /** 제안: 겹치는 일정 종료 직후로 이동 (지속시간 유지) */
+  suggestedStartAt: string;
+  suggestedEndAt: string;
+}
+
 export interface TodayData {
   myTasks: Task[];
   timeline: TodayTimelineItem[];
@@ -32,6 +43,7 @@ export interface TodayData {
   dueSoon: Task[];
   attention: AttentionTask[];
   conflictCount: number;
+  conflictSuggestions: ConflictSuggestion[];
   /** 하루 마감 요약 (기획서 "추가 아이디어 4") */
   wrapUp: { doneToday: Task[]; unfinished: Task[] };
   /** 나에게 온 도움 요청 댓글 (최근 순) */
@@ -139,14 +151,35 @@ export function getTodayData(user: User, now: Date = new Date()): TodayData {
 
   const timed = timeline.filter((item) => item.startAt && item.endAt);
   let conflictCount = 0;
+  const conflictSuggestions: ConflictSuggestion[] = [];
   for (let i = 0; i < timed.length; i += 1) {
     for (let j = i + 1; j < timed.length; j += 1) {
-      if (
-        timed[i].startAt! < timed[j].endAt! &&
-        timed[j].startAt! < timed[i].endAt!
-      ) {
-        conflictCount += 1;
-      }
+      const a = timed[i];
+      const b = timed[j];
+      if (!(a.startAt! < b.endAt! && b.startAt! < a.endAt!)) continue;
+      conflictCount += 1;
+
+      // 변경 제안: "움직일 수 있는 내 작업"이 "고정된 일정(회사 일정 등)"과 겹칠 때,
+      // 아직 시작 전(scheduled)인 작업을 겹치는 일정 종료 직후로 옮기자고 제안한다.
+      const [taskItem, blocker] =
+        a.kind === "task" && b.kind === "event"
+          ? [a, b]
+          : b.kind === "task" && a.kind === "event"
+            ? [b, a]
+            : [undefined, undefined];
+      if (!taskItem?.task || taskItem.task.status !== "scheduled" || !blocker) continue;
+
+      const durationMs =
+        new Date(taskItem.endAt!).getTime() - new Date(taskItem.startAt!).getTime();
+      const suggestedStart = new Date(blocker.endAt!);
+      conflictSuggestions.push({
+        task: taskItem.task,
+        blockerTitle: blocker.title,
+        blockerStartAt: blocker.startAt!,
+        blockerEndAt: blocker.endAt!,
+        suggestedStartAt: suggestedStart.toISOString(),
+        suggestedEndAt: new Date(suggestedStart.getTime() + durationMs).toISOString(),
+      });
     }
   }
 
@@ -174,6 +207,7 @@ export function getTodayData(user: User, now: Date = new Date()): TodayData {
     dueSoon,
     attention,
     conflictCount,
+    conflictSuggestions,
     wrapUp,
     helpRequests,
   };
