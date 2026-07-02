@@ -1,0 +1,22 @@
+{
+  "name": "@que/cli",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "que": "./bin/que.mjs"
+  },
+  "scripts": {
+    "start": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "lint": "echo 'cli: lint는 웹 eslint 설정 공유 예정'"
+  },
+  "dependencies": {
+    "@que/core": "workspace:*",
+    "commander": "^14.0.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0",
+    "typescript": "^5"
+  }
+}
