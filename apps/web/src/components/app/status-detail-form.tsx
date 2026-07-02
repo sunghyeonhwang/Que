@@ -68,7 +68,11 @@ export function StatusDetailForm({
       <div className="grid grid-cols-2 gap-3">
         <Field>
           <FieldLabel>도움 필요한 사람</FieldLabel>
-          <Select value={helpUserId} onValueChange={(v) => setHelpUserId(v ?? "")}>
+          <Select
+            items={Object.fromEntries(USERS.map((u) => [u.id, u.name]))}
+            value={helpUserId}
+            onValueChange={(v) => setHelpUserId(v ?? "")}
+          >
             <SelectTrigger aria-label="도움 필요한 사람 선택">
               <SelectValue placeholder="선택 안 함" />
             </SelectTrigger>

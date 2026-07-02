@@ -291,6 +291,147 @@ export class MockQueDb implements QueDb {
     return item;
   }
 
+  /** 회의록 업로드. 원문 MD를 보존하고 추출 대기 상태로 저장한다. */
+  createMeetingNote(
+    ctx: ActorContext,
+    input: {
+      title: string;
+      projectId?: string;
+      meetingAt: string;
+      attendeeIds: string[];
+      fileName: string;
+      markdownBody: string;
+      visibility?: MeetingNote["visibility"];
+    },
+  ): MeetingNote {
+    const actor = this.requireUser(ctx.actorId);
+    if (!input.title.trim() || !input.fileName.trim()) {
+      throw new QueRuleError("INVALID_SCHEDULE", "회의명과 파일명은 필수다");
+    }
+    // meetingAt ISO 검증 (단일 시점)
+    const range = parseScheduleRange({ startAt: input.meetingAt, endAt: input.meetingAt });
+
+    const nowIso = this.now();
+    const note: MeetingNote = {
+      id: this.nextId("note"),
+      title: input.title.trim(),
+      projectId: input.projectId,
+      meetingAt: range.startAt,
+      attendeeIds: input.attendeeIds,
+      uploaderId: actor.id,
+      fileName: input.fileName.trim(),
+      markdownBody: input.markdownBody,
+      visibility: input.visibility ?? "team",
+      extractionStatus: "pending",
+      createdAt: nowIso,
+      updatedAt: nowIso,
+    };
+    this.meetingNotes.push(note);
+    this.logChange(ctx, {
+      entityType: "meeting_note",
+      entityId: note.id,
+      changeType: "create",
+      afterValue: note.title,
+    });
+    return note;
+  }
+
+  /** 회의록에서 Action 후보를 규칙 기반으로 추출한다.
+   *  자동으로 Task를 만들지 않는다 — 후보는 candidate/needs_review로만 생성된다. */
+  extractActionItems(ctx: ActorContext, meetingNoteId: string): ActionItem[] {
+    const actor = this.requireUser(ctx.actorId);
+    const note = this.meetingNotes.find((n) => n.id === meetingNoteId);
+    if (!note) throw new QueRuleError("NOT_FOUND", `회의록 없음: ${meetingNoteId}`);
+    if (note.extractionStatus === "done") {
+      throw new QueRuleError(
+        "ACTION_ALREADY_RESOLVED",
+        "이미 추출이 완료된 회의록이다 — 중복 추출은 후보를 복제한다",
+      );
+    }
+
+    const nowIso = this.now();
+    const created: ActionItem[] = [];
+    for (const line of note.markdownBody.split("\n")) {
+      const bullet = line.match(/^\s*[-*]\s+(.+)$/)?.[1];
+      if (!bullet) continue;
+
+      // "(담당: 이름 ...)" 패턴에서 담당자 추출
+      const assignee = this.users.find((u) => bullet.includes(`담당: ${u.name}`));
+      const title = bullet.replace(/\s*\(담당:[^)]*\)\s*/, "").replace(/[.。]\s*$/, "").trim();
+      if (!title) continue;
+
+      const item: ActionItem = {
+        id: this.nextId("act"),
+        meetingNoteId: note.id,
+        sourceText: bullet,
+        title,
+        assigneeId: assignee?.id,
+        projectId: note.projectId,
+        status: "needs_review", // 마감일은 추출하지 않으므로 항상 확인 필요로 시작
+        confidence: assignee ? 0.8 : 0.5,
+        createdAt: nowIso,
+      };
+      this.actionItems.push(item);
+      created.push(item);
+    }
+
+    note.extractionStatus = "done";
+    note.updatedAt = nowIso;
+    this.logChange(ctx, {
+      entityType: "meeting_note",
+      entityId: note.id,
+      changeType: "update",
+      afterValue: `extracted:${created.length}`,
+      reason: `${actor.name}이 Action 후보 ${created.length}건 추출`,
+    });
+    return created;
+  }
+
+  /** Action 후보의 담당자/마감일/프로젝트 지정. 확인 필요 → 생성 대기 승격을 처리한다. */
+  updateActionItem(
+    ctx: ActorContext,
+    input: {
+      actionItemId: string;
+      assigneeId?: string;
+      dueAt?: string;
+      projectId?: string;
+    },
+  ): ActionItem {
+    const actor = this.requireUser(ctx.actorId);
+    const item = this.requireActionItem(input.actionItemId);
+    assertCanResolveActionItem(actor, item, this.meetingNoteOf(item));
+    if (item.status === "created" || item.status === "ignored") {
+      throw new QueRuleError(
+        "ACTION_ALREADY_RESOLVED",
+        `이미 처리된 Action이다 (${item.status})`,
+      );
+    }
+    if (input.assigneeId && !this.users.some((u) => u.id === input.assigneeId)) {
+      throw new QueRuleError("NOT_FOUND", `사용자 없음: ${input.assigneeId}`);
+    }
+    if (input.dueAt) {
+      const range = parseScheduleRange({ startAt: input.dueAt, endAt: input.dueAt });
+      item.dueAt = range.startAt;
+    }
+    if (input.assigneeId) item.assigneeId = input.assigneeId;
+    if (input.projectId) item.projectId = input.projectId;
+
+    // 담당자와 마감일이 모두 갖춰지면 생성 대기로 승격
+    if (item.status === "needs_review" && item.assigneeId && item.dueAt) {
+      item.status = "candidate";
+    }
+    item.lastChangedBy = actor.id;
+    item.lastChangedAt = this.now();
+
+    this.logChange(ctx, {
+      entityType: "action_item",
+      entityId: item.id,
+      changeType: "update",
+      afterValue: item.status,
+    });
+    return item;
+  }
+
   /** 마일스톤 이동 (dueAt 변경). 프로젝트 담당자 또는 관리자만 가능.
    *  연결 작업 동반 이동 확인 플로우는 후속 단계에서 다룬다 (HANDOFF 참고). */
   moveMilestone(ctx: ActorContext, input: { milestoneId: string; dueAt: string }): Milestone {

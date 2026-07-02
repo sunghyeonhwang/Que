@@ -265,6 +265,110 @@ describe("결제 상태 변경", () => {
   });
 });
 
+describe("회의록 업로드와 Action 추출", () => {
+  const MD = [
+    "# 주간 회의",
+    "",
+    "## 할 일",
+    "- 상세페이지 QA 시나리오 정리 (담당: 황성현)",
+    "- 배너 문구 검토",
+    "일반 문단은 후보가 아니다",
+  ].join("\n");
+
+  it("업로드하면 원문이 보존되고 추출 대기 상태다", () => {
+    const d = db();
+    const note = d.createMeetingNote(
+      { actorId: "oh-seunghoon", via: "web" },
+      {
+        title: "주간 회의",
+        meetingAt: NOW.toISOString(),
+        attendeeIds: ["oh-seunghoon", "hwang-sunghyeon"],
+        fileName: "주간회의.md",
+        markdownBody: MD,
+      },
+    );
+    expect(note.extractionStatus).toBe("pending");
+    expect(note.markdownBody).toBe(MD);
+    expect(d.changeLogs.at(-1)!.entityType).toBe("meeting_note");
+  });
+
+  it("추출은 bullet만 후보로 만들고 Task는 자동 생성하지 않는다", () => {
+    const d = db();
+    const note = d.createMeetingNote(
+      { actorId: "oh-seunghoon", via: "web" },
+      {
+        title: "주간 회의",
+        meetingAt: NOW.toISOString(),
+        attendeeIds: [],
+        fileName: "주간회의.md",
+        markdownBody: MD,
+      },
+    );
+    const taskCountBefore = d.tasks.length;
+    const items = d.extractActionItems({ actorId: "oh-seunghoon", via: "web" }, note.id);
+
+    expect(items).toHaveLength(2);
+    expect(items[0].assigneeId).toBe("hwang-sunghyeon"); // (담당: 황성현) 매칭
+    expect(items[0].title).toBe("상세페이지 QA 시나리오 정리");
+    expect(items[0].sourceText).toContain("담당: 황성현"); // 원문 보존
+    expect(items[1].assigneeId).toBeUndefined();
+    expect(items.every((i) => i.status === "needs_review")).toBe(true);
+    expect(d.tasks.length).toBe(taskCountBefore); // 자동 생성 없음
+    expect(d.meetingNotes.find((n) => n.id === note.id)!.extractionStatus).toBe("done");
+  });
+
+  it("이미 추출된 회의록의 재추출은 거부된다", () => {
+    const d = db();
+    expect(() =>
+      d.extractActionItems({ actorId: "oh-seunghoon", via: "web" }, "note-payment-qa"),
+    ).toThrowError(/이미 추출이 완료된/);
+  });
+});
+
+describe("Action 후보 필드 지정", () => {
+  it("담당자와 마감일이 채워지면 확인 필요 → 생성 대기로 승격된다", () => {
+    const d = db();
+    // act-refund-copy: needs_review, 담당자 없음, dueAt 있음
+    const updated = d.updateActionItem(
+      { actorId: "hwang-sunghyeon", via: "web" },
+      { actionItemId: "act-refund-copy", assigneeId: "lee-hyejin" },
+    );
+    expect(updated.assigneeId).toBe("lee-hyejin");
+    expect(updated.status).toBe("candidate");
+
+    // 승격 후에는 확정 가능
+    const task = d.confirmActionItem({ actorId: "hwang-sunghyeon", via: "web" }, "act-refund-copy");
+    expect(task.assigneeId).toBe("lee-hyejin");
+  });
+
+  it("무관한 팀원은 후보 필드를 지정할 수 없고, 유령 사용자 지정은 거부된다", () => {
+    const d = db();
+    expect(() =>
+      d.updateActionItem(
+        { actorId: "song-suyong", via: "web" },
+        { actionItemId: "act-refund-copy", assigneeId: "song-suyong" },
+      ),
+    ).toThrowError(/담당자, 회의록 업로더, 관리자만/);
+
+    expect(() =>
+      d.updateActionItem(
+        { actorId: "hwang-sunghyeon", via: "web" },
+        { actionItemId: "act-refund-copy", assigneeId: "ghost" },
+      ),
+    ).toThrowError(/사용자 없음/);
+  });
+
+  it("잘못된 마감일은 거부된다", () => {
+    const d = db();
+    expect(() =>
+      d.updateActionItem(
+        { actorId: "hwang-sunghyeon", via: "web" },
+        { actionItemId: "act-refund-copy", dueAt: "mango" },
+      ),
+    ).toThrowError(/유효하지 않은 일정 범위/);
+  });
+});
+
 describe("마일스톤 이동", () => {
   it("무관한 팀원은 마일스톤을 이동할 수 없다", () => {
     const d = db();
