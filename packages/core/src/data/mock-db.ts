@@ -292,6 +292,71 @@ export class MockQueDb implements QueDb {
     return item;
   }
 
+  /** 작업 생성. 자연어 해석(parseTaskInput) 결과는 확인 카드를 거쳐 이 mutation으로 들어온다.
+   *  담당자를 지정하지 않으면 본인 작업이 된다. 타인 지정은 허용하되 ChangeLog로 팀에 보인다. */
+  createTask(
+    ctx: ActorContext,
+    input: {
+      title: string;
+      assigneeId?: string;
+      projectId?: string;
+      startAt?: string;
+      endAt?: string;
+      description?: string;
+      estimatedHours?: number;
+      source: Task["source"];
+    },
+  ): Task {
+    const actor = this.requireUser(ctx.actorId);
+    const title = input.title.trim();
+    if (!title) throw new QueRuleError("INVALID_INPUT", "작업명은 필수다");
+    if (title.length > 200) throw new QueRuleError("INVALID_INPUT", "작업명은 200자 이내다");
+    if ((input.description?.length ?? 0) > 2000) {
+      throw new QueRuleError("INVALID_INPUT", "설명은 2000자 이내다");
+    }
+    const assignee = input.assigneeId ? this.requireUser(input.assigneeId) : actor;
+    if (input.projectId && !this.projects.some((p) => p.id === input.projectId)) {
+      throw new QueRuleError("NOT_FOUND", `프로젝트 없음: ${input.projectId}`);
+    }
+    let range: { startAt: string; endAt: string } | undefined;
+    if (input.startAt || input.endAt) {
+      range = parseScheduleRange({
+        startAt: input.startAt ?? input.endAt!,
+        endAt: input.endAt ?? input.startAt!,
+      });
+    }
+    if (input.estimatedHours !== undefined && !(input.estimatedHours > 0)) {
+      throw new QueRuleError("INVALID_INPUT", "예상 소요 시간은 0보다 커야 한다");
+    }
+
+    const nowIso = this.now();
+    const task: Task = {
+      id: this.nextId("task"),
+      title,
+      ownerId: actor.id,
+      assigneeId: assignee.id,
+      projectId: input.projectId,
+      startAt: range?.startAt,
+      endAt: range?.endAt,
+      status: "scheduled",
+      priority: "normal",
+      description: input.description?.trim() || undefined,
+      estimatedHours: input.estimatedHours,
+      source: input.source,
+      visibility: "team",
+      lastChangedBy: actor.id,
+      lastChangedAt: nowIso,
+    };
+    this.tasks.push(task);
+    this.logChange(ctx, {
+      entityType: "task",
+      entityId: task.id,
+      changeType: "create",
+      afterValue: `${task.title} (담당 ${assignee.name})`,
+    });
+    return task;
+  }
+
   /** 회의록 업로드. 원문 MD를 보존하고 추출 대기 상태로 저장한다. */
   createMeetingNote(
     ctx: ActorContext,

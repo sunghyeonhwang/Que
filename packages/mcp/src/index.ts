@@ -128,7 +128,36 @@ server.registerTool(
   () => run(() => api.get("/api/payments")),
 );
 
+server.registerTool(
+  "parse_task_input",
+  {
+    description:
+      "자연어 작업 입력을 해석해 초안(제목/담당자/일시)과 확인 질문을 반환한다. 저장하지 않는다 — 초안을 사용자에게 보여주고 확인받은 뒤 create_task를 호출하라.",
+    inputSchema: { text: z.string().min(1).max(500) },
+    annotations: { readOnlyHint: true },
+  },
+  ({ text }) => run(() => api.post("/api/tasks/parse", { text })),
+);
+
 // ---------- 변경 도구 ----------
+
+server.registerTool(
+  "create_task",
+  {
+    description:
+      "확인된 초안으로 작업을 생성한다. 반드시 parse_task_input 결과를 사용자에게 확인받은 뒤 호출하라. assigneeId를 생략하면 본인 작업이 된다.",
+    inputSchema: {
+      title: z.string().min(1).max(200),
+      assigneeId: z.string().optional(),
+      projectId: z.string().optional(),
+      startAt: z.string().optional().describe("ISO 8601"),
+      endAt: z.string().optional().describe("ISO 8601"),
+      description: z.string().optional(),
+      estimatedHours: z.number().optional(),
+    },
+  },
+  (input) => run(() => api.post("/api/tasks", { ...input, source: "natural_language" })),
+);
 
 server.registerTool(
   "change_task_status",

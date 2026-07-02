@@ -271,6 +271,80 @@ describe("결제 요청 등록", () => {
   });
 });
 
+describe("자연어 작업 해석 (parseTaskInput)", () => {
+  it("기획서 예시: '내일 오후 3시에 황성현씨 상세페이지 QA 넣어줘'", async () => {
+    const { parseTaskInput } = await import("./parse-task");
+    const { USERS } = await import("./mock/users");
+    const draft = parseTaskInput({
+      text: "내일 오후 3시에 황성현씨 상세페이지 QA 넣어줘",
+      users: USERS,
+      now: NOW,
+    });
+    expect(draft.title).toBe("상세페이지 QA");
+    expect(draft.assigneeId).toBe("hwang-sunghyeon");
+    const start = new Date(draft.startAt!);
+    expect(start.getDate()).toBe(3); // 7/2 기준 내일
+    expect(start.getHours()).toBe(15);
+    expect(draft.questions).toHaveLength(0);
+  });
+
+  it("날짜/담당자가 없으면 질문을 남기고 저장하지 않는다", async () => {
+    const { parseTaskInput } = await import("./parse-task");
+    const { USERS } = await import("./mock/users");
+    const draft = parseTaskInput({ text: "배너 시안 검토", users: USERS, now: NOW });
+    expect(draft.title).toBe("배너 시안 검토");
+    expect(draft.startAt).toBeUndefined();
+    expect(draft.questions.some((q) => q.includes("날짜"))).toBe(true);
+    expect(draft.questions.some((q) => q.includes("본인 작업"))).toBe(true);
+  });
+});
+
+describe("작업 생성 (createTask)", () => {
+  it("확인된 초안으로 생성되고 ChangeLog가 남는다", () => {
+    const d = db();
+    const task = d.createTask(
+      { actorId: "lee-yejin", via: "web" },
+      {
+        title: "상세페이지 QA",
+        assigneeId: "hwang-sunghyeon",
+        startAt: "2026-07-03T06:00:00.000Z",
+        endAt: "2026-07-03T07:00:00.000Z",
+        source: "natural_language",
+      },
+    );
+    expect(task.status).toBe("scheduled");
+    expect(task.ownerId).toBe("lee-yejin");
+    expect(task.assigneeId).toBe("hwang-sunghyeon");
+    const clog = d.changeLogs.at(-1)!;
+    expect(clog.changeType).toBe("create");
+    expect(clog.afterValue).toContain("황성현");
+  });
+
+  it("빈 제목, 유령 담당자, 역순 일정은 거부된다", () => {
+    const d = db();
+    expect(() =>
+      d.createTask({ actorId: "lee-yejin", via: "web" }, { title: "  ", source: "manual" }),
+    ).toThrowError(/작업명은 필수/);
+    expect(() =>
+      d.createTask(
+        { actorId: "lee-yejin", via: "web" },
+        { title: "t", assigneeId: "ghost", source: "manual" },
+      ),
+    ).toThrowError(/사용자 없음/);
+    expect(() =>
+      d.createTask(
+        { actorId: "lee-yejin", via: "web" },
+        {
+          title: "t",
+          startAt: "2026-07-03T10:00:00.000Z",
+          endAt: "2026-07-03T09:00:00.000Z",
+          source: "manual",
+        },
+      ),
+    ).toThrowError(QueRuleError);
+  });
+});
+
 describe("입력 길이 상한 (DoS 표면 축소)", () => {
   it("초대형 결제 제목과 1조 초과 금액은 거부된다", () => {
     const d = db();

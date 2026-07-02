@@ -1,4 +1,5 @@
-import { taskStatusSchema } from "@que/core";
+import { z } from "zod";
+import { taskStatusSchema, taskSourceSchema } from "@que/core";
 import { withApi } from "@/lib/api/respond";
 import { getDb } from "@/lib/db";
 
@@ -18,5 +19,25 @@ export async function GET(request: Request) {
         (!status || t.status === status),
     );
     return Response.json({ tasks });
+  });
+}
+
+const createSchema = z.object({
+  title: z.string(),
+  assigneeId: z.string().optional(),
+  projectId: z.string().optional(),
+  startAt: z.string().optional(),
+  endAt: z.string().optional(),
+  description: z.string().optional(),
+  estimatedHours: z.number().optional(),
+  source: taskSourceSchema.default("manual"),
+});
+
+/** 작업 생성 — MCP create_task 도구의 백엔드. 자연어 해석 결과는 확인 후 이 경로로 들어온다. */
+export async function POST(request: Request) {
+  return withApi(request, async ({ user, via }) => {
+    const body = createSchema.parse(await request.json());
+    const task = getDb().createTask({ actorId: user.id, via }, body);
+    return Response.json({ task }, { status: 201 });
   });
 }

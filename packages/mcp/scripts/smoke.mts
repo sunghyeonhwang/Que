@@ -26,10 +26,22 @@ function check(name: string, condition: boolean, detail?: string) {
 
 // 1) 도구 목록
 const { tools } = await client.listTools();
-check("도구 개수 15", tools.length === 15, `실제 ${tools.length}`);
+check("도구 개수 17", tools.length === 17, `실제 ${tools.length}`);
 check(
   "조회 도구 readOnlyHint",
-  tools.filter((t) => t.annotations?.readOnlyHint).length === 7,
+  tools.filter((t) => t.annotations?.readOnlyHint).length === 8,
+);
+
+// parse → 저장 안 됨 확인
+const parsed = await client.callTool({
+  name: "parse_task_input",
+  arguments: { text: "내일 오후 3시에 황성현씨 상세페이지 QA 넣어줘" },
+});
+const parsedText = (parsed.content as { text: string }[])[0]?.text ?? "";
+check(
+  "parse_task_input 초안 반환",
+  parsedText.includes("상세페이지 QA") && parsedText.includes("hwang-sunghyeon"),
+  parsedText.slice(0, 80),
 );
 
 // 2) 조회
@@ -71,6 +83,28 @@ const badEnum = await client
     () => true, // 프로토콜 레벨 거부도 통과로 간주
   );
 check("쓰레기 상태값 거부", badEnum);
+
+// 5-1) create_task — 신규 mutation 경로 커버리지
+const created = await client.callTool({
+  name: "create_task",
+  arguments: {
+    title: "MCP 스모크 생성 작업",
+    startAt: "2026-07-10T01:00:00.000Z",
+    endAt: "2026-07-10T02:00:00.000Z",
+  },
+});
+const createdText = (created.content as { text: string }[])[0]?.text ?? "";
+check(
+  "create_task 생성 (본인 담당 기본)",
+  !created.isError && createdText.includes("hwang-sunghyeon"),
+  createdText.slice(0, 80),
+);
+
+const badCreate = await client.callTool({
+  name: "create_task",
+  arguments: { title: " ", startAt: "banana", endAt: "kiwi" },
+});
+check("create_task 쓰레기 입력 거부", badCreate.isError === true);
 
 // 6) 마스킹 — 팀원 토큰용 별도 서버로는 검사하지 않고, 관리자 응답에 원본 존재만 확인
 const payments = await client.callTool({ name: "list_payment_requests", arguments: {} });

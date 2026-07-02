@@ -2,9 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import {
+  parseTaskInput,
   QueRuleError,
+  USERS,
   type CheckInResponse,
   type StatusDetail,
+  type TaskDraft,
   type TaskStatus,
 } from "@que/core";
 import { getDb } from "@/lib/db";
@@ -31,6 +34,26 @@ export async function changeTaskStatusAction(input: {
   const user = await getCurrentUser();
   return toResult(() =>
     getDb().changeTaskStatus({ actorId: user.id, via: "web" }, input),
+  );
+}
+
+/** 자연어 해석 — 저장하지 않는다. 확인 카드를 거쳐 createTaskAction으로만 등록된다. */
+export async function parseTaskAction(text: string): Promise<TaskDraft> {
+  return parseTaskInput({ text: text.slice(0, 500), users: USERS });
+}
+
+export async function createTaskAction(input: {
+  title: string;
+  assigneeId?: string;
+  startAt?: string;
+  endAt?: string;
+}): Promise<ActionResult> {
+  const user = await getCurrentUser();
+  return toResult(() =>
+    getDb().createTask(
+      { actorId: user.id, via: "web" },
+      { ...input, source: "natural_language" },
+    ),
   );
 }
 

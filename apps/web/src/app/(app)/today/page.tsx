@@ -2,6 +2,7 @@ import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 import { TASK_STATUS_LABELS } from "@que/core";
 import { PageHeader } from "@/components/app/page-header";
+import { QuickAdd } from "@/components/app/quick-add";
 import { StatusBadge } from "@/components/app/status-badge";
 import { CheckInPanel } from "@/components/app/checkin-panel";
 import { TaskStatusSheet, type TaskRowData } from "@/components/app/task-status-sheet";
@@ -31,6 +32,8 @@ export default async function TodayPage() {
         title={`오늘의 Que — ${user.name}`}
         subtitle={`내 하루를 시작하는 개인 화면 · ${format(now, "M월 d일 (EEE)", { locale: ko })}`}
       />
+
+      <QuickAdd currentUserId={user.id} />
 
       <section
         aria-label="오늘 요약"
