@@ -265,6 +265,74 @@ describe("결제 상태 변경", () => {
   });
 });
 
+describe("체크인 응답", () => {
+  it("담당자가 아니면 응답할 수 없다", () => {
+    const d = db();
+    // chk-detail-qa의 담당자는 황성현
+    expect(() =>
+      d.answerCheckIn(
+        { actorId: "song-suyong", via: "web" },
+        { checkInId: "chk-detail-qa", response: "working" },
+      ),
+    ).toThrowError(/담당자만/);
+  });
+
+  it("작업중 응답은 작업 상태를 진행중으로 바꾸고 로그를 남긴다", () => {
+    const d = db();
+    const checkIn = d.answerCheckIn(
+      { actorId: "hwang-sunghyeon", via: "web" },
+      { checkInId: "chk-detail-qa", response: "working" },
+    );
+    expect(checkIn.answeredAt).toBeDefined();
+    expect(d.requireTask("task-detail-qa").status).toBe("in_progress");
+    expect(d.statusLogs.at(-1)!.toStatus).toBe("in_progress");
+  });
+
+  it("문제발생 응답은 사유 없이 거부되고 체크인은 미응답으로 남는다", () => {
+    const d = db();
+    expect(() =>
+      d.answerCheckIn(
+        { actorId: "hwang-sunghyeon", via: "web" },
+        { checkInId: "chk-detail-qa", response: "issue" },
+      ),
+    ).toThrowError(QueRuleError);
+    const checkIn = d.checkIns.find((c) => c.id === "chk-detail-qa")!;
+    expect(checkIn.answeredAt).toBeUndefined();
+    expect(d.requireTask("task-detail-qa").status).toBe("scheduled");
+  });
+
+  it("나중에 답변은 상태를 바꾸지 않고 후속 확인만 남긴다", () => {
+    const d = db();
+    const checkIn = d.answerCheckIn(
+      { actorId: "hwang-sunghyeon", via: "web" },
+      { checkInId: "chk-detail-qa", response: "later" },
+    );
+    expect(checkIn.followUpRequired).toBe(true);
+    expect(d.requireTask("task-detail-qa").status).toBe("scheduled");
+
+    // later 이후 실제 응답은 가능하다
+    d.answerCheckIn(
+      { actorId: "hwang-sunghyeon", via: "web" },
+      { checkInId: "chk-detail-qa", response: "done" },
+    );
+    expect(d.requireTask("task-detail-qa").status).toBe("done");
+  });
+
+  it("이미 응답한 체크인은 다시 응답할 수 없다", () => {
+    const d = db();
+    d.answerCheckIn(
+      { actorId: "hwang-sunghyeon", via: "web" },
+      { checkInId: "chk-detail-qa", response: "done" },
+    );
+    expect(() =>
+      d.answerCheckIn(
+        { actorId: "hwang-sunghyeon", via: "web" },
+        { checkInId: "chk-detail-qa", response: "working" },
+      ),
+    ).toThrowError(/이미 응답한/);
+  });
+});
+
 describe("시드 데이터 정합성", () => {
   it("시드가 스키마를 통과한다", async () => {
     const d = db();

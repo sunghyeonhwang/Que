@@ -195,6 +195,9 @@ export const statusLogSchema = z.object({
   fromStatus: taskStatusSchema,
   toStatus: taskStatusSchema,
   reason: z.string().optional(),
+  nextAction: z.string().optional(),
+  /** 문제발생/홀드에서 지목된 도움 필요한 사람 — 오늘/팀 현황 화면의 "내 관련" 판정에 쓴다 */
+  helpUserId: z.string().optional(),
   nextCheckAt: isoDateTime.optional(),
   createdAt: isoDateTime,
 });

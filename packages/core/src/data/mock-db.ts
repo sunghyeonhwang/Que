@@ -4,6 +4,7 @@ import type {
   ChangeLog,
   ChangeVia,
   CheckIn,
+  CheckInResponse,
   MeetingNote,
   Milestone,
   PaymentRequest,
@@ -125,6 +126,8 @@ export class MockQueDb implements QueDb {
       fromStatus: from,
       toStatus: input.to,
       reason: input.detail?.reason,
+      nextAction: input.detail?.nextAction,
+      helpUserId: input.detail?.helpUserId,
       nextCheckAt: input.detail?.recheckAt,
       createdAt: nowIso,
     });
@@ -286,6 +289,42 @@ export class MockQueDb implements QueDb {
       afterValue: input.to,
     });
     return item;
+  }
+
+  /** 자동 체크인 응답. 담당자(또는 관리자)만 응답할 수 있고,
+   *  응답에 따라 작업 상태를 함께 갱신한다. `later`는 상태를 바꾸지 않고 후속 확인만 남긴다. */
+  answerCheckIn(
+    ctx: ActorContext,
+    input: { checkInId: string; response: CheckInResponse; detail?: StatusDetail },
+  ): CheckIn {
+    const actor = this.requireUser(ctx.actorId);
+    const checkIn = this.checkIns.find((c) => c.id === input.checkInId);
+    if (!checkIn) throw new QueRuleError("NOT_FOUND", `체크인 없음: ${input.checkInId}`);
+    if (actor.role !== "admin" && checkIn.assigneeId !== actor.id) {
+      throw new QueRuleError("NOT_AUTHORIZED", "체크인은 담당자만 응답할 수 있다");
+    }
+    if (checkIn.answeredAt && checkIn.response !== "later") {
+      throw new QueRuleError("NOT_AUTHORIZED", "이미 응답한 체크인이다");
+    }
+
+    // 응답 → 작업 상태 매핑. 상태 변경은 changeTaskStatus를 거쳐 규칙/로그가 동일 적용된다.
+    const statusByResponse: Partial<Record<CheckInResponse, TaskStatus>> = {
+      working: "in_progress",
+      done: "done",
+      needs_reschedule: "needs_reschedule",
+      issue: "issue",
+      not_needed: "cancelled",
+      merged: "merged",
+    };
+    const to = statusByResponse[input.response];
+    if (to) {
+      this.changeTaskStatus(ctx, { taskId: checkIn.taskId, to, detail: input.detail });
+    }
+
+    checkIn.answeredAt = this.now();
+    checkIn.response = input.response;
+    checkIn.followUpRequired = input.response === "later" || input.response === "issue";
+    return checkIn;
   }
 
   /** 결제 상태 변경. 관리자는 전체, 요청자는 본인 요청 취소만 가능. */
