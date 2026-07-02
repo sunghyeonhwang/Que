@@ -30,11 +30,32 @@ export async function changeTaskStatusAction(input: {
   taskId: string;
   to: TaskStatus;
   detail?: StatusDetail;
+  mergedIntoTaskId?: string;
 }): Promise<ActionResult> {
   const user = await getCurrentUser();
   return toResult(() =>
     getDb().changeTaskStatus({ actorId: user.id, via: "web" }, input),
   );
+}
+
+/** 병합 대상 후보 — 자기 자신과 종료 상태 작업을 제외한 활성 작업 목록. */
+export async function getMergeCandidatesAction(
+  excludeTaskId: string,
+): Promise<{ id: string; label: string }[]> {
+  const db = getDb();
+  const userById = new Map(db.users.map((u) => [u.id, u]));
+  return db.tasks
+    .filter(
+      (t) =>
+        t.id !== excludeTaskId &&
+        t.status !== "cancelled" &&
+        t.status !== "merged" &&
+        t.status !== "done",
+    )
+    .map((t) => ({
+      id: t.id,
+      label: `${t.title} (${userById.get(t.assigneeId)?.name ?? t.assigneeId})`,
+    }));
 }
 
 /** 자연어 해석 — 저장하지 않는다. 확인 카드를 거쳐 createTaskAction으로만 등록된다. */

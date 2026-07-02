@@ -6,12 +6,22 @@ import {
   type StatusDetail,
   type TaskStatus,
 } from "@que/core";
-import { changeTaskStatusAction } from "@/app/(app)/today/actions";
+import {
+  changeTaskStatusAction,
+  getMergeCandidatesAction,
+} from "@/app/(app)/today/actions";
 import { moveTaskToDateAction } from "@/app/(app)/calendar/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Separator } from "@/components/ui/separator";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Sheet,
   SheetContent,
@@ -33,6 +43,7 @@ const STATUS_CHOICES: TaskStatus[] = [
   "on_hold",
   "issue",
   "cancelled",
+  "merged",
 ];
 
 const NEEDS_DETAIL: TaskStatus[] = ["issue", "on_hold"];
@@ -62,16 +73,32 @@ export function TaskStatusSheet({
   triggerClassName?: string;
 }) {
   const [open, setOpen] = useState(false);
-  const { run, pending } = useSafeAction();
+  const { run, pending, startTransition } = useSafeAction();
   const [detailFor, setDetailFor] = useState<TaskStatus | null>(null);
+  const [mergeCandidates, setMergeCandidates] = useState<{ id: string; label: string }[] | null>(
+    null,
+  );
+  const [mergeTargetId, setMergeTargetId] = useState("");
 
-  const change = (to: TaskStatus, detail?: StatusDetail) => {
-    run(() => changeTaskStatusAction({ taskId: task.id, to, detail }), {
+  const change = (to: TaskStatus, detail?: StatusDetail, mergedIntoTaskId?: string) => {
+    run(() => changeTaskStatusAction({ taskId: task.id, to, detail, mergedIntoTaskId }), {
       success: `"${task.title}" → ${TASK_STATUS_LABELS[to]}`,
       onSuccess: () => {
         setDetailFor(null);
+        setMergeCandidates(null);
         setOpen(false);
       },
+    });
+  };
+
+  const openMergePicker = () => {
+    if (mergeCandidates) {
+      setMergeCandidates(null); // 토글 닫기
+      return;
+    }
+    startTransition(async () => {
+      setMergeCandidates(await getMergeCandidatesAction(task.id));
+      setMergeTargetId("");
     });
   };
 
@@ -126,6 +153,8 @@ export function TaskStatusSheet({
                   onClick={() => {
                     if (NEEDS_DETAIL.includes(status)) {
                       setDetailFor((current) => (current === status ? null : status));
+                    } else if (status === "merged") {
+                      openMergePicker();
                     } else {
                       change(status);
                     }
@@ -143,6 +172,41 @@ export function TaskStatusSheet({
                   pending={pending}
                   onSubmit={(detail) => change(detailFor, detail)}
                 />
+              </div>
+            )}
+
+            {mergeCandidates && (
+              <div className="mt-4 flex flex-col gap-2 rounded-md border p-3">
+                <p className="text-sm font-medium">어느 작업으로 병합할까요?</p>
+                {mergeCandidates.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">병합할 수 있는 활성 작업이 없습니다.</p>
+                ) : (
+                  <>
+                    <Select
+                      items={Object.fromEntries(mergeCandidates.map((c) => [c.id, c.label]))}
+                      value={mergeTargetId}
+                      onValueChange={(v) => setMergeTargetId(v ?? "")}
+                    >
+                      <SelectTrigger aria-label="병합 대상 선택" className="h-10 w-full">
+                        <SelectValue placeholder="대상 작업 선택" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {mergeCandidates.map((candidate) => (
+                          <SelectItem key={candidate.id} value={candidate.id}>
+                            {candidate.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      className="h-10"
+                      disabled={pending || !mergeTargetId}
+                      onClick={() => change("merged", undefined, mergeTargetId)}
+                    >
+                      병합
+                    </Button>
+                  </>
+                )}
               </div>
             )}
 

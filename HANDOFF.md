@@ -135,6 +135,10 @@ data/
 27. **API 규칙 에러 500 결함 수정 (2026-07-02, 글래도스 발견)**: dev(Turbopack/HMR)에서 @que/core 모듈이 이중 로딩되면 `instanceof QueRuleError`가 false가 되어 규칙 에러가 403/422 대신 **빈 500**으로 새는 잠복 결함 (비결정적 — 첫 로드에선 정상, 재컴파일 후 발생). core에 `isQueRuleError()` 덕 타이핑 판별자(instanceof + name/code 병행) 신설, 웹의 catch 6곳(respond.ts + 서버 액션 5파일) 전부 교체. HMR 2회 강제 유발 후에도 403/422 유지 실측(글래도스 재검증).
     - **규칙**: 웹 계층에서 core 에러 판별은 `instanceof` 금지 — 반드시 `isQueRuleError()` 사용. core 내부(mock-db 등 같은 모듈 사본 안)는 instanceof 허용.
 
+28. **요일 파싱 + 작업 병합 UI (2026-07-02)**:
+    - 파서: "(다음 주|이번 주)? X요일" 해석 — 무접두는 다가오는 해당 요일(오늘 포함), "다음 주"는 다음 주(월요일 시작) 기준. 27번 항목의 알려진 한계 해소.
+    - 병합: `changeTaskStatus`가 merged 전환 시 `mergedIntoTaskId` 필수 강제(자기 자신/유령 대상 거부). Sheet에 병합 버튼 + 대상 선택(활성 작업 lazy 조회 `getMergeCandidatesAction`). 체크인의 "병합" 응답은 대상 선택이 필요해 작업 상세로 안내(토스트). API/MCP `change_task_status`에 mergedIntoTaskId 반영. 테스트 49케이스.
+
 ## 남은 작업 / 오픈 질문
 
 - ~~알림 채널 결정~~ → **Slack 확정** (2026-07-02): 1단계 Incoming Webhook+딥링크, 2단계 Bot 인터랙티브 버튼으로 Slack 안에서 체크인 응답(`answerCheckIn` 경유, via 기록). 기획서 "알림 정책 > 알림 채널"과 MCP/CLI 계획 Phase E에 반영됨.

@@ -107,19 +107,36 @@ export class MockQueDb implements QueDb {
 
   // ---------- 변경 ----------
 
-  /** 작업 상태 변경. 문제발생/홀드는 사유 필수, StatusLog + ChangeLog 기록. */
+  /** 작업 상태 변경. 문제발생/홀드는 사유 필수, 병합(merged)은 대상 작업 필수.
+   *  StatusLog + ChangeLog 기록. */
   changeTaskStatus(
     ctx: ActorContext,
-    input: { taskId: string; to: TaskStatus; detail?: StatusDetail },
+    input: {
+      taskId: string;
+      to: TaskStatus;
+      detail?: StatusDetail;
+      /** to가 merged일 때 필수 — 어느 작업으로 합치는지 */
+      mergedIntoTaskId?: string;
+    },
   ): Task {
     const actor = this.requireUser(ctx.actorId);
     const task = this.requireTask(input.taskId);
     assertCanEditTask(actor, task, this.projectOf(task));
     assertStatusDetail(input.to, input.detail);
+    if (input.to === "merged") {
+      if (!input.mergedIntoTaskId) {
+        throw new QueRuleError("INVALID_INPUT", "병합에는 대상 작업(mergedIntoTaskId)이 필요하다");
+      }
+      if (input.mergedIntoTaskId === task.id) {
+        throw new QueRuleError("INVALID_INPUT", "자기 자신과는 병합할 수 없다");
+      }
+      this.requireTask(input.mergedIntoTaskId); // 대상 존재 검증
+    }
 
     const from = task.status;
     const nowIso = this.now();
     task.status = input.to;
+    if (input.to === "merged") task.mergedIntoTaskId = input.mergedIntoTaskId;
     task.lastChangedBy = actor.id;
     task.lastChangedAt = nowIso;
 
@@ -616,7 +633,13 @@ export class MockQueDb implements QueDb {
    *  응답에 따라 작업 상태를 함께 갱신한다. `later`는 상태를 바꾸지 않고 후속 확인만 남긴다. */
   answerCheckIn(
     ctx: ActorContext,
-    input: { checkInId: string; response: CheckInResponse; detail?: StatusDetail },
+    input: {
+      checkInId: string;
+      response: CheckInResponse;
+      detail?: StatusDetail;
+      /** response가 merged일 때 필수 — 병합 대상 작업 */
+      mergedIntoTaskId?: string;
+    },
   ): CheckIn {
     const actor = this.requireUser(ctx.actorId);
     const checkIn = this.checkIns.find((c) => c.id === input.checkInId);
@@ -639,7 +662,12 @@ export class MockQueDb implements QueDb {
     };
     const to = statusByResponse[input.response];
     if (to) {
-      this.changeTaskStatus(ctx, { taskId: checkIn.taskId, to, detail: input.detail });
+      this.changeTaskStatus(ctx, {
+        taskId: checkIn.taskId,
+        to,
+        detail: input.detail,
+        mergedIntoTaskId: input.mergedIntoTaskId,
+      });
     }
 
     checkIn.answeredAt = this.now();

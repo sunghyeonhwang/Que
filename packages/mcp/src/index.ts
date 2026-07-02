@@ -163,14 +163,16 @@ server.registerTool(
   "change_task_status",
   {
     description:
-      "작업 상태 변경. 문제발생(issue)/홀드(on_hold)는 detail.reason이 필수다 — 없으면 사용자에게 사유를 물어본 뒤 호출하라.",
+      "작업 상태 변경. 문제발생(issue)/홀드(on_hold)는 detail.reason이 필수다 — 없으면 사용자에게 사유를 물어본 뒤 호출하라. 병합(merged)은 mergedIntoTaskId가 필수다 — list_tasks로 대상을 찾아 사용자에게 확인받아라.",
     inputSchema: {
       taskId: z.string(),
       to: taskStatusSchema,
       detail: statusDetailSchema.optional(),
+      mergedIntoTaskId: z.string().optional().describe("to가 merged일 때 필수 — 병합 대상 작업 id"),
     },
   },
-  ({ taskId, to, detail }) => run(() => api.post(`/api/tasks/${taskId}/status`, { to, detail })),
+  ({ taskId, to, detail, mergedIntoTaskId }) =>
+    run(() => api.post(`/api/tasks/${taskId}/status`, { to, detail, mergedIntoTaskId })),
 );
 
 server.registerTool(

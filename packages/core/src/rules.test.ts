@@ -585,6 +585,59 @@ describe("마일스톤 이동", () => {
   });
 });
 
+describe("자연어 요일 파싱", () => {
+  it("'금요일'은 다가오는 금요일, '다음주 화요일'은 다음 주로 해석된다", async () => {
+    const { parseTaskInput } = await import("./parse-task");
+    const { USERS } = await import("./mock/users");
+    // NOW = 2026-07-02 (목)
+    const friday = parseTaskInput({ text: "금요일 오후 2시 보고서 검토", users: USERS, now: NOW });
+    expect(friday.title).toBe("보고서 검토");
+    const fridayStart = new Date(friday.startAt!);
+    expect([fridayStart.getMonth() + 1, fridayStart.getDate()]).toEqual([7, 3]);
+    expect(fridayStart.getHours()).toBe(14);
+
+    const nextTue = parseTaskInput({ text: "다음주 화요일 회의 준비", users: USERS, now: NOW });
+    const tueStart = new Date(nextTue.startAt!);
+    expect([tueStart.getMonth() + 1, tueStart.getDate()]).toEqual([7, 7]);
+
+    // 오늘이 목요일 — "목요일"은 오늘
+    const today = parseTaskInput({ text: "목요일 정리", users: USERS, now: NOW });
+    expect(new Date(today.startAt!).getDate()).toBe(2);
+  });
+});
+
+describe("작업 병합 (merged)", () => {
+  it("대상 없이/자기 자신과는 병합할 수 없고, 정상 병합은 대상이 기록된다", () => {
+    const d = db();
+    expect(() =>
+      d.changeTaskStatus(
+        { actorId: "hwang-sunghyeon", via: "web" },
+        { taskId: "task-detail-qa", to: "merged" },
+      ),
+    ).toThrowError(/대상 작업/);
+    expect(() =>
+      d.changeTaskStatus(
+        { actorId: "hwang-sunghyeon", via: "web" },
+        { taskId: "task-detail-qa", to: "merged", mergedIntoTaskId: "task-detail-qa" },
+      ),
+    ).toThrowError(/자기 자신/);
+    expect(() =>
+      d.changeTaskStatus(
+        { actorId: "hwang-sunghyeon", via: "web" },
+        { taskId: "task-detail-qa", to: "merged", mergedIntoTaskId: "ghost" },
+      ),
+    ).toThrowError(/작업 없음/);
+
+    const merged = d.changeTaskStatus(
+      { actorId: "hwang-sunghyeon", via: "web" },
+      { taskId: "task-detail-qa", to: "merged", mergedIntoTaskId: "task-final-review" },
+    );
+    expect(merged.status).toBe("merged");
+    expect(merged.mergedIntoTaskId).toBe("task-final-review");
+    expect(d.statusLogs.at(-1)!.toStatus).toBe("merged");
+  });
+});
+
 describe("작업 댓글 / 도움 요청", () => {
   it("팀원은 타인의 작업에도 댓글을 남길 수 있고, 도움 요청은 ChangeLog에 남는다", () => {
     const d = db();

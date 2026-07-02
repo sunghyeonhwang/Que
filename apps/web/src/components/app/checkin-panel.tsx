@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { toast } from "sonner";
 import {
   CHECK_IN_RESPONSE_LABELS,
   type CheckInResponse,
@@ -56,6 +57,9 @@ export function CheckInPanel({
             onClick={() => {
               if (choice === "issue") {
                 setIssueOpen((open) => !open);
+              } else if (choice === "merged") {
+                // 병합은 대상 작업 선택이 필요 — 타임라인의 작업 상세에서 처리하도록 안내
+                toast.info("병합은 타임라인에서 작업을 열어 대상 작업을 선택해 처리해주세요.");
               } else {
                 respond(choice);
               }

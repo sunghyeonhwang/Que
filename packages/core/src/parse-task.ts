@@ -57,6 +57,24 @@ export function parseTaskInput(input: {
       break;
     }
   }
+  // 요일 표현: "(다음 주|이번 주)? X요일" — 없으면 다가오는 해당 요일(오늘 포함)
+  if (!hasDate) {
+    const weekdayMatch = rest.match(/(다음\s*주|담주|이번\s*주)?\s*([월화수목금토일])요일/);
+    if (weekdayMatch) {
+      const DOW: Record<string, number> = { 일: 0, 월: 1, 화: 2, 수: 3, 목: 4, 금: 5, 토: 6 };
+      const target = DOW[weekdayMatch[2]];
+      const current = date.getDay();
+      if (/다음\s*주|담주/.test(weekdayMatch[1] ?? "")) {
+        // 다음 주(월요일 시작)의 해당 요일
+        const daysToNextMonday = ((8 - current) % 7) || 7;
+        date.setDate(date.getDate() + daysToNextMonday + ((target + 6) % 7));
+      } else {
+        date.setDate(date.getDate() + ((target - current + 7) % 7));
+      }
+      rest = rest.replace(weekdayMatch[0], " ");
+      hasDate = true;
+    }
+  }
   if (!hasDate) {
     const explicit = rest.match(/(\d{1,2})\s*월\s*(\d{1,2})\s*일/) ?? rest.match(/(\d{1,2})\/(\d{1,2})/);
     if (explicit) {
