@@ -1,20 +1,34 @@
+import Link from "next/link";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 import { AlertTriangle, Clock, HandHelping, Pause } from "lucide-react";
 import { PageHeader } from "@/components/app/page-header";
 import { StatusBadge } from "@/components/app/status-badge";
 import { TaskStatusSheet, type TaskRowData } from "@/components/app/task-status-sheet";
+import { StandupGrid } from "@/components/team/standup-grid";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getCurrentUser } from "@/lib/current-user";
 import { getCommentViewsByTask } from "@/lib/comments";
 import { getRecentChangeLogs } from "@/lib/calendar-data";
-import { getTeamData, type AttentionEntry } from "@/lib/team-data";
+import { getStandupData, getTeamData, type AttentionEntry } from "@/lib/team-data";
 import { josa } from "@/lib/korean";
+import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
-export default async function TeamPage() {
+const VIEWS = [
+  { key: "board", label: "운영 보드" },
+  { key: "standup", label: "스탠드업" },
+] as const;
+
+export default async function TeamPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ view?: string }>;
+}) {
+  const params = await searchParams;
+  const view = params.view === "standup" ? "standup" : "board";
   const user = await getCurrentUser();
   const now = new Date();
   const data = getTeamData(user, now);
@@ -50,6 +64,33 @@ export default async function TeamPage() {
         ))}
       </section>
 
+      <nav aria-label="팀 현황 뷰 전환" className="mb-4 flex w-fit rounded-lg border p-0.5">
+        {VIEWS.map((v) => (
+          <Link
+            key={v.key}
+            href={v.key === "board" ? "/team" : `/team?view=${v.key}`}
+            aria-current={view === v.key ? "page" : undefined}
+            className={cn(
+              "flex h-10 items-center rounded-md px-3 text-sm font-medium transition-colors",
+              view === v.key ? "bg-primary text-primary-foreground" : "hover:bg-accent",
+            )}
+          >
+            {v.label}
+          </Link>
+        ))}
+      </nav>
+
+      {view === "standup" && (
+        <>
+          <p className="mb-3 text-sm text-muted-foreground">
+            아침 회의용 — 멤버별 어제/오늘/막힘을 한 화면에서 돕니다. 상태 변경은 시간표나 오늘
+            화면에서.
+          </p>
+          <StandupGrid rows={getStandupData(now)} />
+        </>
+      )}
+
+      {view === "board" && (
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,26rem)]">
         <Card>
           <CardHeader>
@@ -177,6 +218,7 @@ export default async function TeamPage() {
           </Card>
         </div>
       </div>
+      )}
     </div>
   );
 }

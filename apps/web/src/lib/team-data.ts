@@ -200,6 +200,51 @@ export function getTeamData(viewer: User, now: Date = new Date()): TeamData {
   return { summary, members, attention, conflicts };
 }
 
+export interface StandupRow {
+  user: User;
+  /** 어제 시작했고 완료된 작업 */
+  yesterdayDone: Task[];
+  /** 어제 시작했지만 완료되지 않은 작업 (이월 후보) */
+  yesterdayUnfinished: Task[];
+  /** 오늘 예정/진행 작업 */
+  todayPlanned: Task[];
+  /** 막힘 — 문제발생/홀드 (날짜 무관) */
+  blocked: Task[];
+}
+
+/** 데일리 스탠드업 뷰 — 아침 회의에서 이 화면 하나로 "어제/오늘/막힘"을 돈다. */
+export function getStandupData(now: Date = new Date()): StandupRow[] {
+  const db = getDb();
+  const dayStart = new Date(now);
+  dayStart.setHours(0, 0, 0, 0);
+  const yesterdayStart = new Date(dayStart);
+  yesterdayStart.setDate(yesterdayStart.getDate() - 1);
+
+  const startedIn = (task: Task, from: Date, to: Date): boolean => {
+    if (!task.startAt) return false;
+    const start = new Date(task.startAt);
+    return start >= from && start < to;
+  };
+
+  return db.users.map((user) => {
+    const mine = db.tasks.filter(
+      (t) => t.assigneeId === user.id && t.status !== "cancelled" && t.status !== "merged",
+    );
+    const yesterday = mine.filter((t) => startedIn(t, yesterdayStart, dayStart));
+    const tomorrow = new Date(dayStart);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    return {
+      user,
+      yesterdayDone: yesterday.filter((t) => t.status === "done"),
+      yesterdayUnfinished: yesterday.filter((t) => t.status !== "done"),
+      todayPlanned: mine.filter(
+        (t) => startedIn(t, dayStart, tomorrow) && t.status !== "done",
+      ),
+      blocked: mine.filter((t) => t.status === "issue" || t.status === "on_hold"),
+    };
+  });
+}
+
 function isAwaiting(checkIn: CheckIn, taskById: Map<string, Task>): boolean {
   const task = taskById.get(checkIn.taskId);
   if (!task || !ACTIVE.has(task.status)) return false;
