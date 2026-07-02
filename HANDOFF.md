@@ -141,6 +141,9 @@ data/
 
 29. **댓글 API/MCP/CLI (2026-07-02)**: 24번의 후속 백로그 완료 — GET/POST `/api/tasks/[id]/comments`, MCP 도구 `list_task_comments`(readOnly)/`add_task_comment` (도구 17→19), CLI `que comment <taskId> <내용...> [--help-from]`. 스모크에 댓글 2케이스 추가.
 
+30. **CLI/MCP 배포 방식 결정 (2026-07-02)**: 사용자 확인 — env(Supabase/Vercel) 도착 후 배포 2단계까지 마치고 나서 착수. 이유: 지금 각자 로컬 `pnpm dev`가 서로 다른 인메모리 mock DB라 CLI를 "배포"해도 팀원끼리 같은 데이터를 못 봄 — 실서버 연결 전엔 의미가 없음. mock PAT(`que_pat_<userId>`)도 외부 배포용 인증으로 부적합.
+    - 잠정 계획(실행은 보류): 1단계 `tsup`으로 `packages/cli`/`packages/mcp` 단일 번들 컴파일(`npx tsx` 런타임 의존 제거, `bin/que.mjs` 전환 — 75번 항목 이행), 배포 채널은 npm publish 대신 **GitHub 저장소 기반 설치**(`npm install -g "git+https://github.com/sunghyeonhwang/Que.git#main"`)를 기본 제안 — 슬랙 앱 때와 같은 이유(외부 계정/조직 생성 불필요, mock 구조 비공개 유지). 2단계에서 `QUE_API_URL`을 배포 URL로 전환, mock PAT를 `que login` 발급 플로우로 교체.
+
 ## 남은 작업 / 오픈 질문
 
 - ~~알림 채널 결정~~ → **Slack 확정** (2026-07-02): 1단계 Incoming Webhook+딥링크, 2단계 Bot 인터랙티브 버튼으로 Slack 안에서 체크인 응답(`answerCheckIn` 경유, via 기록). 기획서 "알림 정책 > 알림 채널"과 MCP/CLI 계획 Phase E에 반영됨.
