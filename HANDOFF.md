@@ -157,6 +157,8 @@ data/
     - 우선순위 판정 결과(위 우회 방식으로 실행): **1위 비공개 일정 관리자 열람 → 2위 회의록 단위 열람 권한 → 3위 반복 업무 템플릿 → 4위 관리자 리포트 → 5위 Google Calendar 실연동**. 1·2위는 같은 "관리자/당사자 예외 열람" 패턴이라 연속 착수 권장, 마스킹 지점도 이미 특정됨(`calendar-data.ts`/`today-data.ts`/`now-data.ts`/`team-data.ts` 4곳 + `domain.ts:132` visibility enum 확장 필요). 4위는 시드 데이터가 최대 3일치뿐이라 지금 만들어도 반쪽 검증만 가능. 5위는 Google OAuth 앱 등록이 필요해 슬랙 앱과 같은 "외부라 계정 생성 불가" 벽에 부딪힐 가능성 — **착수 전 사용자에게 OAuth 앱 등록 가능 여부부터 확인 필요**. 1~4위는 env 도착 전에도 mock+vitest로 완결 검증 가능.
     - **부수 발견**: 우선순위 판정 중 `que-product-plan.md:1006`("관리자도 비공개 일정 상세를 보지 않는 것을 기본값으로")이 같은 날 확정한 161행("관리자는 예외적으로 원본 상세 열람 가능")과 정면충돌하는 걸 발견 → 1006행을 취소선 처리하고 161행을 가리키도록 수정.
 
+33. **frontend-dev/backend-dev를 opus로 상향 (2026-07-03)**: 사용자가 "sonnet 전부 opus로" 제안 → 비용 정책(30번/32번, 월 한도 초과로 나온 절약 방침)을 뒤집는 결정이라 AskUserQuestion으로 범위 확인. **구현 2개(frontend-dev, backend-dev)만 opus로, qa-engineer·uiux-expert는 sonnet 유지**를 선택받음. 목적은 비용 절감이 아니라 품질 투자 — 두 에이전트가 과거 완결성 미스(24번 항목, 댓글 기능 도달 경로 부재) 이력이 있어 구현 정확성에 비용을 더 쓰기로 함. 서브에이전트 model 정책이 이제 3단 구조: 결정형(glados/planner/dev-lead)=fable+high, 구현형(frontend-dev/backend-dev)=**opus**+high, 체크리스트형(qa-engineer=sonnet+medium, uiux-expert=sonnet+high). 근거는 memory `model-usage-policy`에도 갱신.
+
 ## 남은 작업 / 오픈 질문
 
 - ~~알림 채널 결정~~ → **Slack 확정** (2026-07-02): 1단계 Incoming Webhook+딥링크, 2단계 Bot 인터랙티브 버튼으로 Slack 안에서 체크인 응답(`answerCheckIn` 경유, via 기록). 기획서 "알림 정책 > 알림 채널"과 MCP/CLI 계획 Phase E에 반영됨.

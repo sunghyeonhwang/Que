@@ -2,7 +2,7 @@
 name: frontend-dev
 description: 프론트엔드 개발자. Next.js + shadcn/ui 화면 구현, 컴포넌트 작성/수정, 반응형 레이아웃, 드래그 인터랙션 구현이 필요할 때 사용한다. UI 코드를 실제로 작성하는 작업을 위임한다.
 tools: Read, Grep, Glob, Edit, Write, Bash, WebFetch
-model: sonnet
+model: opus
 effort: high
 ---
 
