@@ -4,10 +4,27 @@
 
 ## 현재 상태
 
-기획·디자인·프로토타입 단계. Next.js 앱 구현은 아직 시작 전이다.
+Phase 0 완료 — pnpm 워크스페이스 + Next.js 16 스캐폴드 + shadcn/ui(base-nova) 세팅까지. 화면 구현은 Phase 1(App Shell)부터 시작한다.
 
 - 인수인계/결정사항: [`HANDOFF.md`](./HANDOFF.md)
 - 개발 규칙 (Claude Code용): [`CLAUDE.md`](./CLAUDE.md)
+
+## 실행
+
+```bash
+pnpm install
+pnpm dev        # apps/web 개발 서버
+pnpm build      # 프로덕션 빌드
+pnpm lint && pnpm typecheck
+```
+
+## 구조
+
+```text
+apps/web         Next.js 16 (App Router) + shadcn/ui
+packages/core    도메인 타입·검증·권한·데이터 접근 계층 (웹/MCP/CLI 공유)
+data/            기획서, 디자인 가이드, 프롬프트, HTML 프리뷰
+```
 
 ## 문서
 

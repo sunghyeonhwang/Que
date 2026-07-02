@@ -1,0 +1,11 @@
+{
+  "name": "que",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm --filter @que/web dev",
+    "build": "pnpm --filter @que/web build",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck"
+  },
+  "packageManager": "pnpm@11.9.0"
+}
