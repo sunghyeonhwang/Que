@@ -2,3 +2,6 @@
 node_modules/
 .next/
 .claude/settings.local.json
+.playwright-mcp/
+*.png
+!apps/web/public/**
