@@ -1,4 +1,6 @@
 import { Suspense } from "react";
+import Link from "next/link";
+import { Info } from "lucide-react";
 import { getCurrentUser } from "@/lib/current-user";
 import {
   getPrimaryProject,
@@ -63,6 +65,18 @@ export default async function ProjectsPage({
 
   return (
     <Suspense>
+      {/* 출시 강등(HANDOFF 51): PM 모델이 비영속 mock이라 저장되지 않는 미리보기다. */}
+      <div className="mb-4 flex items-start gap-2.5 rounded-xl border border-[var(--que-warning)]/30 bg-[var(--que-warning-bg)] px-4 py-3 text-sm">
+        <Info className="mt-0.5 size-4 shrink-0 text-[var(--que-warning)]" aria-hidden />
+        <p className="text-[var(--que-text-secondary)]">
+          <span className="font-semibold text-[var(--que-text)]">미리보기 화면입니다 — 변경이 저장되지 않습니다.</span>{" "}
+          실제 작업은{" "}
+          <Link href="/today" className="font-medium text-[var(--que-brand)] underline-offset-2 hover:underline">
+            작업 목록
+          </Link>
+          에서 관리하세요.
+        </p>
+      </div>
       <ProjectView data={data} board={board} calendar={calendar} meta={meta} />
       <TaskDetailDrawer detail={taskDetail} meta={meta} />
     </Suspense>

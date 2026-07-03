@@ -27,6 +27,13 @@ class PmInputError extends Error {}
 
 /** mutation 실행 → revalidate. 입력 거부만 error 문자열로 변환, 나머지는 전파. */
 async function run(fn: () => void): Promise<ActionResult> {
+  // 출시 강등(HANDOFF 51): PM 모델이 비영속 in-memory mock이라 프로덕션 쓰기를 차단한다.
+  // 저장돼도 서버 재시작/다중 인스턴스에서 소실되므로 실 데이터 입력을 막는다.
+  // dev 데모에서만 QUE_PM_WRITE=1로 실제 mutation 허용. (getCurrentUser는 각 액션에서 이미
+  // 호출돼 미인증은 이 지점 전에 /login으로 redirect된다 — 회귀 없음.)
+  if (process.env.QUE_PM_WRITE !== "1") {
+    return { ok: false, error: "미리보기 모드입니다 — 프로젝트 화면은 아직 저장되지 않습니다." };
+  }
   try {
     fn();
     revalidatePath("/projects");

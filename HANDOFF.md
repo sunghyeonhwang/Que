@@ -351,6 +351,29 @@ data/
     - **⚠️ 후속(중요)**: (1) **PM mutation에 ChangeLog/via 기록 없음** — CLAUDE.md "업무 영향 변경은 ChangeLog에 기록" 원칙. mock 모델엔 인프라가 없어 현 단계 수용하나 **DB화 시 반드시 함께 구현**. (2) **in-memory 저장**이라 서버 재시작 시 seed로 초기화 → DB화 필요(신규 PM 모델 Supabase 스키마). (3) 크래프트 요청으로 존재하지 않는 groupId에 create/move 시 어느 뷰에도 안 보이는 고아 태스크 가능(mock 한정, 정상 UI 경로에선 불가).
     - **→ 46번 기능감사에서 나온 dead/missing 실기능화 1~4 전부 완료** (전역검색·알림 / 일정 날짜이동 / 홈·성과 기간선택 / 프로젝트 쓰기). 남은 것은 레거시 고아 정리(/calendar·/team·components/templates)와 위 후속들.
 
+51. **출시(다음주 8명 실사용) 준비 — 글래도스 지휘 (2026-07-04)**: 사용자 "모든 작업 마무리, 다음주 실사용, Glados 지휘". 5차원 준비도 감사(`tasks/wlo757q4k.output`) → 글래도스 릴리즈 디렉터 계획 → 코드 Batch A/B 집행.
+    - **총평**: 원본 도메인(작업목록/확인필요/결제/일정/팀현황/성과/홈/검색/알림)은 Supabase 영속·규칙 강제·실 인증까지 **실사용 가능(GO)**. 죽는 건 그 옆 전시장(/projects 비영속)과 배포 위생(미push·구버전·공용비번).
+    - **집행 완료 — Batch A(보안·데이터 방어)**:
+      - `verify.ts` mock 폴백을 `isMockAuthAllowed()`로 **fail-close**(배포 env 누락 시 로그인 거부).
+      - `supabase-db.ts` persist에서 **users 영구 제외**(password_hash NULL 덮어쓰기 방지).
+      - `db/supabase/gen-passwords.mts` 신설 — 7명 개인 무작위 비번 → bcrypt 해시. **평문 `data/passwords.txt` + 적용 `db/supabase/set-passwords.sql` 산출(둘 다 gitignore), DB 적용은 사용자 승인 후.**
+    - **집행 완료 — Batch B(강등·IA·문서)**:
+      - **/projects 3중 강등**: menu.ts에서 제거 + 상단 '미리보기(저장 안 됨)' 배너 + pm-actions 쓰기 차단(`QUE_PM_WRITE=1` dev만, 미인증 redirect는 유지).
+      - **/calendar → `/schedule` redirect**(components/calendar/*·actions는 LIVE라 유지).
+      - **/team 메뉴 재노출('팀 현황', LayoutDashboard)** + 페이지 제목 "일정"→"팀 현황"(라벨 충돌 해소). 스탠드업·관리자 리포트·운영보드 복귀.
+      - **/schedule 새로추가·필터** → aria-disabled + '준비 중' 툴팁.
+      - **/members 조회 전용화** — 새 멤버 다이얼로그·카드 ⋮ 메뉴 미노출(파일은 잔존, unrender).
+      - CLAUDE.md 메뉴 구조 절을 현행 배포 IA로 갱신.
+    - **⚠️ 사용자 액션 체크리스트(내가 못 하거나 승인 필요) — Go 조건**:
+      1. [승인] 프로덕션 DB 퍼지+클린 리시드(데모데이터 제거, users 유지) — SQL 번들(C3) 실행.
+      2. [승인+실행] 개인 비번 적용(`set-passwords.sql`) + 7명 1:1 전달. `que-2026!` 로그인 실패 확인이 완료 기준.
+      3. [실행] 원격 push + Vercel 재배포(신 코드). **⚠️ 로컬 main이 origin보다 앞서므로 push 필수(백업).**
+      4. [실행] 시각 QA 15분(1920/1366/1024/768) — 재설계 화면 프로덕션 육안 검증(확장 끊겨 세션 중 미수행).
+      5. [실행] DNS: Cloudflare `que` CNAME→cname.vercel-dns.com + **프록시 OFF(DNS only)**. 미완이면 팀엔 que-rouge-eight.vercel.app 안내(Go 비차단).
+      6. [결정] Deployment Protection 재활성화 or 레이트리밋(후속).
+    - **Go 조건(전부 충족 시 실사용)**: Batch A·B 글래도스 PASS + origin push + DB퍼지·개인비번(que-2026! 실패 실측) + 재배포 프로덕션 스모크(신 라우트 200·/projects 메뉴 부재·쓰기차단·미인증 /login·mock fail-close·무토큰 API 401) + 시각 QA.
+    - **수용한 리스크(기록=수용, 은폐 아님) / 후순위**: 도메인 미연결(vercel.app로 출시), 동시편집 lost-update(8인 저동시성), 스케줄러 요청경로 실행+중복(check_ins/반복 UNIQUE 제약 권장, C3 번들), PM DB화(+권한+ChangeLog via), 로그인 레이트리밋/첫로그인 강제변경, /calendar 컴포넌트·templates/* 고아 삭제, ?view=files 잔재, rangeLabel 끝날짜, 워크스페이스 스위처 단일 mock 축소, mock tokens 빌드타임 가드, dp 체감용 시드.
+
 ## 남은 작업 / 오픈 질문
 
 - ~~알림 채널 결정~~ → **Slack 확정** (2026-07-02): 1단계 Incoming Webhook+딥링크, 2단계 Bot 인터랙티브 버튼으로 Slack 안에서 체크인 응답(`answerCheckIn` 경유, via 기록). 기획서 "알림 정책 > 알림 채널"과 MCP/CLI 계획 Phase E에 반영됨.

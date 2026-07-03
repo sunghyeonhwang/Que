@@ -110,25 +110,38 @@ export function ScheduleHeader({
         </DropdownMenuContent>
       </DropdownMenu>
 
+      {/* 필터·새로 추가는 아직 미구현 — 무반응 버튼 대신 '준비 중' 비활성으로 명시(출시 기준). */}
       <Tooltip>
         <TooltipTrigger
           render={
             <Button
               variant="outline"
-              aria-label="필터"
-              className="size-10 rounded-lg border-[var(--que-border)] p-0"
+              aria-label="필터 (준비 중)"
+              aria-disabled
+              className="size-10 rounded-lg border-[var(--que-border)] p-0 opacity-60"
             />
           }
         >
           <SlidersHorizontal className="size-4" aria-hidden />
         </TooltipTrigger>
-        <TooltipContent>필터</TooltipContent>
+        <TooltipContent>준비 중</TooltipContent>
       </Tooltip>
 
-      <Button className="h-10 gap-1.5 rounded-lg bg-[var(--que-brand)] px-3.5 font-medium text-white hover:bg-[var(--que-brand-hover)]">
-        <Plus className="size-4" aria-hidden />
-        새로 추가
-      </Button>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button
+              aria-label="새로 추가 (준비 중)"
+              aria-disabled
+              className="h-10 gap-1.5 rounded-lg bg-[var(--que-brand)] px-3.5 font-medium text-white opacity-60"
+            />
+          }
+        >
+          <Plus className="size-4" aria-hidden />
+          새로 추가
+        </TooltipTrigger>
+        <TooltipContent>준비 중</TooltipContent>
+      </Tooltip>
     </div>
   );
 }

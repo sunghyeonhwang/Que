@@ -2,11 +2,11 @@ import Link from "next/link";
 import { ChevronRight, FolderClosed } from "lucide-react";
 import type { TeamMemberCard } from "@/lib/members-data";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { MemberCardMenu } from "@/components/members/member-card-menu";
 
 /**
  * 팀 개요 멤버 카드(조회 전용).
- * 상단: 아바타 + 이름/이메일 + ⋮ 메뉴. 하단: 부서 라벨 · "자세히" 링크(멤버 상세로).
+ * 상단: 아바타 + 이름/이메일. 하단: 부서 라벨 · "자세히" 링크(멤버 상세로).
+ * (멤버 조작 ⋮ 메뉴는 미구현이라 출시 시 미노출.)
  */
 export function MemberCard({ member }: { member: TeamMemberCard }) {
   const deptLabel = member.department || member.rank;
@@ -26,7 +26,6 @@ export function MemberCard({ member }: { member: TeamMemberCard }) {
           <p className="truncate font-semibold text-[var(--que-text)]">{member.name}</p>
           <p className="truncate text-xs text-[var(--que-text-tertiary)]">{member.email}</p>
         </div>
-        <MemberCardMenu name={member.name} />
       </div>
 
       <div className="mt-4 flex items-center justify-between border-t border-[var(--que-border)] pt-3">

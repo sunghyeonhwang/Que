@@ -58,7 +58,7 @@ export default async function TeamPage({
   return (
     <div>
       <PageHeader
-        title="일정"
+        title="팀 현황"
         subtitle={`오늘 팀의 업무 흐름과 병목 · ${format(now, "M월 d일 (EEE)", { locale: ko })}`}
       />
 

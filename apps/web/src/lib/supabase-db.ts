@@ -82,6 +82,9 @@ export class SupabaseQueDb extends MockQueDb {
   async persist(): Promise<void> {
     // upsert: FK 안전 순서 (users → ... → 로그류)
     for (const table of TABLE_INSERT_ORDER as readonly TableName[]) {
+      // ⚠️ users는 절대 write-back하지 않는다. load()에서 password_hash·email을 제거했으므로
+      // upsert하면 그 컬럼이 NULL로 덮여 로그인 불능이 된다. 사용자 편집 기능은 전용 경로로.
+      if (table === "users") continue;
       const field = TABLE_TO_FIELD[table];
       const arr = (this as unknown as Record<string, { id: string }[]>)[field] ?? [];
       const base = this.baseline[table] ?? new Map();
@@ -95,6 +98,7 @@ export class SupabaseQueDb extends MockQueDb {
     }
     // delete: 역순 (자식 먼저)
     for (const table of [...TABLE_INSERT_ORDER].reverse() as TableName[]) {
+      if (table === "users") continue; // users는 write-back 대상에서 완전히 제외(위 참조)
       const field = TABLE_TO_FIELD[table];
       const arr = (this as unknown as Record<string, { id: string }[]>)[field] ?? [];
       const currentIds = new Set(arr.map((e) => e.id));

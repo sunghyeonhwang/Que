@@ -22,5 +22,9 @@ db/supabase/backup-before-que/
 # PAT 평문(팀원 개별 전달용) — 커밋 금지
 data/pat-tokens.txt
 
+# 개인 초기 비밀번호 평문 + 적용 SQL(해시) — 커밋 금지
+data/passwords.txt
+db/supabase/set-passwords.sql
+
 # 유저 PII(전화/생년월일) — 커밋 금지
 data/docs/que-user-info.md

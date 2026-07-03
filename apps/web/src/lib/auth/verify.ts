@@ -1,6 +1,7 @@
 import bcrypt from "bcryptjs";
 import { createClient } from "@supabase/supabase-js";
 import { USERS, emailForUser, DEV_PASSWORD, type UserRole } from "@que/core";
+import { isMockAuthAllowed } from "@/lib/mock-auth-guard";
 
 // 이메일+비밀번호 검증. Auth.js Credentials provider의 authorize()에서만 호출한다.
 // password_hash는 여기서만 읽고 절대 도메인 User/세션 밖으로 내보내지 않는다.
@@ -45,6 +46,9 @@ export async function verifyCredentials(
   }
 
   // 로컬 mock/dev: 정적 로스터의 파생 이메일 + 공용 개발 비밀번호.
+  // ⚠️ fail-close: 배포(production)에서 QUE_ALLOW_MOCK_AUTH 옵트인 없이는 mock 폴백을 차단한다.
+  // (supabase env가 하나라도 누락돼 useSupabase=false로 떨어져도 프로덕션이 공용 비번으로 열리지 않게.)
+  if (!isMockAuthAllowed()) return null;
   if (password !== DEV_PASSWORD) return null;
   const user = USERS.find((u) => emailForUser(u.id).toLowerCase() === e);
   return user ? { id: user.id, name: user.name, role: user.role } : null;
