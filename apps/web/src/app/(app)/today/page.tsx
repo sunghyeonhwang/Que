@@ -19,8 +19,8 @@ export const dynamic = "force-dynamic";
 export default async function TodayPage() {
   const user = await getCurrentUser();
   const now = new Date();
-  const data = getTodayData(user, now);
-  const commentsByTask = getCommentViewsByTask();
+  const data = await getTodayData(user, now);
+  const commentsByTask = await getCommentViewsByTask();
 
   const metrics = [
     { value: data.myTasks.length, label: "오늘 내 작업" },

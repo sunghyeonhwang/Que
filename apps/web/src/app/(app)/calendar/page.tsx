@@ -76,8 +76,8 @@ export default async function CalendarPage({
 
   const rangeEndOfDay = new Date(rangeEnd);
   rangeEndOfDay.setHours(23, 59, 59, 999);
-  const data = getCalendarData(user, rangeStart, rangeEndOfDay);
-  const logs = getRecentChangeLogs();
+  const data = await getCalendarData(user, rangeStart, rangeEndOfDay);
+  const logs = await getRecentChangeLogs();
 
   return (
     <div>

@@ -40,7 +40,7 @@ export default async function NowPage({
   const filter = parseFilter(params.filter);
   const user = await getCurrentUser();
   const now = new Date();
-  const data = getNowData(user, filter, now);
+  const data = await getNowData(user, filter, now);
 
   const metrics = [
     { value: data.summary.calendarCount, label: "오늘 캘린더 항목" },

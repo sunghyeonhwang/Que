@@ -1059,12 +1059,23 @@ export class MockQueDb implements QueDb {
     });
   }
 
-  private nextId(prefix: string): string {
+  /**
+   * 변경 영속화 훅. 인메모리 mock은 아무것도 하지 않는다(no-op) — 상태가 프로세스 메모리에 이미 있다.
+   * Supabase 어댑터가 override해 mutation 이후 변경분을 실 DB에 write-through한다.
+   * 호출부(서버 액션/API)는 mock/supabase 구분 없이 mutation 뒤 `await db.persist()`를 부른다.
+   */
+  async persist(): Promise<void> {
+    // no-op (mock)
+  }
+
+  // protected: Supabase 어댑터가 요청 간 충돌 없는 전역 고유 id로 override한다(인메모리 시퀀스는
+  // 요청마다 0부터 재시작해 충돌 가능).
+  protected nextId(prefix: string): string {
     this.seq += 1;
     return `${prefix}-gen-${this.seq}`;
   }
 
-  private now(): string {
+  protected now(): string {
     return this.clock().toISOString();
   }
 }

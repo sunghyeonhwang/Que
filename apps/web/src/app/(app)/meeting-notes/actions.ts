@@ -6,9 +6,14 @@ import { getDb } from "@/lib/db";
 import { getCurrentUser } from "@/lib/current-user";
 import type { ActionResult } from "@/app/(app)/today/actions";
 
-function toResult(fn: () => void): ActionResult {
+type Db = Awaited<ReturnType<typeof getDb>>;
+
+// mutation과 persist를 반드시 같은 db 인스턴스에서 (글래도스 반려 회귀 — cache 정체성 의존 금지).
+async function toResult(fn: (db: Db) => Promise<unknown> | unknown): Promise<ActionResult> {
   try {
-    fn();
+    const db = await getDb();
+    await fn(db);
+    await db.persist();
     revalidatePath("/meeting-notes");
     revalidatePath("/action");
     revalidatePath("/now");
@@ -38,8 +43,8 @@ export async function uploadMeetingNoteAction(input: {
   }
 
   const user = await getCurrentUser();
-  return toResult(() =>
-    getDb().createMeetingNote(
+  return toResult((db) =>
+    db.createMeetingNote(
       { actorId: user.id, via: "web" },
       {
         title: input.title,
@@ -57,7 +62,5 @@ export async function uploadMeetingNoteAction(input: {
 
 export async function extractActionsAction(meetingNoteId: string): Promise<ActionResult> {
   const user = await getCurrentUser();
-  return toResult(() =>
-    getDb().extractActionItems({ actorId: user.id, via: "web" }, meetingNoteId),
-  );
+  return toResult((db) => db.extractActionItems({ actorId: user.id, via: "web" }, meetingNoteId));
 }

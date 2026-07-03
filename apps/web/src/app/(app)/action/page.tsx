@@ -18,7 +18,7 @@ export default async function ActionPage({
 }) {
   const params = await searchParams;
   const user = await getCurrentUser();
-  const db = getDb();
+  const db = await getDb();
   // 열람 권한 없는 회의록(관리자 전용/지정 인원)에서 나온 Action은 여기서도 보이면 안 된다.
   const visibleNotes = db.meetingNotes.filter((n) => canViewMeetingNote(user, n));
   const noteById = new Map(visibleNotes.map((n) => [n.id, n]));

@@ -12,10 +12,12 @@ export async function POST(
   return withApi(request, async ({ user, via }) => {
     const { actionItemId } = await params;
     const body = bodySchema.parse(await request.json());
-    const item = getDb().setActionItemStatus(
+    const db = await getDb();
+    const item = db.setActionItemStatus(
       { actorId: user.id, via },
       { actionItemId, to: body.to },
     );
+    await db.persist();
     return Response.json({ actionItem: item });
   });
 }

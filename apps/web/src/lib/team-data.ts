@@ -55,8 +55,8 @@ export interface TeamData {
 
 const ACTIVE = new Set(["scheduled", "in_progress", "needs_reschedule", "on_hold", "issue"]);
 
-export function getTeamData(viewer: User, now: Date = new Date()): TeamData {
-  const db = getDb();
+export async function getTeamData(viewer: User, now: Date = new Date()): Promise<TeamData> {
+  const db = await getDb();
   const dayStart = new Date(now);
   dayStart.setHours(0, 0, 0, 0);
   const dayEnd = new Date(now);
@@ -213,8 +213,8 @@ export interface StandupRow {
 }
 
 /** 데일리 스탠드업 뷰 — 아침 회의에서 이 화면 하나로 "어제/오늘/막힘"을 돈다. */
-export function getStandupData(now: Date = new Date()): StandupRow[] {
-  const db = getDb();
+export async function getStandupData(now: Date = new Date()): Promise<StandupRow[]> {
+  const db = await getDb();
   const dayStart = new Date(now);
   dayStart.setHours(0, 0, 0, 0);
   const yesterdayStart = new Date(dayStart);

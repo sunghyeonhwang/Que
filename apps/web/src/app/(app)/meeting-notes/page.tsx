@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 export default async function MeetingNotesPage() {
   const user = await getCurrentUser();
-  const db = getDb();
+  const db = await getDb();
   const userById = new Map(db.users.map((u) => [u.id, u]));
   const projectById = new Map(db.projects.map((p) => [p.id, p]));
 

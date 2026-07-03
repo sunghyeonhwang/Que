@@ -1,14 +1,20 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { isQueRuleError } from "@que/core";
+import { isQueRuleError, QueRuleError } from "@que/core";
 import { getDb } from "@/lib/db";
 import { getCurrentUser } from "@/lib/current-user";
 import type { ActionResult } from "@/app/(app)/today/actions";
 
-function toResult(fn: () => void): ActionResult {
+type Db = Awaited<ReturnType<typeof getDb>>;
+
+// mutation과 persist를 반드시 같은 db 인스턴스에서 (글래도스 반려 회귀 — cache 정체성 의존 금지).
+// 사전 읽기(작업/일정/마일스톤 조회)도 콜백 안에서 같은 db로 처리한다.
+async function toResult(fn: (db: Db) => Promise<unknown> | unknown): Promise<ActionResult> {
   try {
-    fn();
+    const db = await getDb();
+    await fn(db);
+    await db.persist();
     revalidatePath("/calendar");
     revalidatePath("/today");
     return { ok: true };
@@ -56,31 +62,26 @@ export async function moveTaskToDateAction(input: {
   if (parsedHour === null) return INVALID_HOUR;
 
   const user = await getCurrentUser();
-  const db = getDb();
-  const task = db.tasks.find((t) => t.id === input.taskId);
-  if (!task) return { ok: false, error: `작업 없음: ${input.taskId}` };
+  return toResult((db) => {
+    const task = db.tasks.find((t) => t.id === input.taskId);
+    if (!task) throw new QueRuleError("NOT_FOUND", `작업 없음: ${input.taskId}`);
 
-  const prevStart = task.startAt ? new Date(task.startAt) : new Date();
-  const durationMs =
-    task.endAt && task.startAt
-      ? new Date(task.endAt).getTime() - new Date(task.startAt).getTime()
-      : 60 * 60 * 1000;
+    const prevStart = task.startAt ? new Date(task.startAt) : new Date();
+    const durationMs =
+      task.endAt && task.startAt
+        ? new Date(task.endAt).getTime() - new Date(task.startAt).getTime()
+        : 60 * 60 * 1000;
 
-  const nextStart = new Date(prevStart);
-  nextStart.setFullYear(parsedDate.y, parsedDate.m - 1, parsedDate.d);
-  if (parsedHour !== undefined) nextStart.setHours(parsedHour, 0, 0, 0);
-  const nextEnd = new Date(nextStart.getTime() + durationMs);
+    const nextStart = new Date(prevStart);
+    nextStart.setFullYear(parsedDate.y, parsedDate.m - 1, parsedDate.d);
+    if (parsedHour !== undefined) nextStart.setHours(parsedHour, 0, 0, 0);
+    const nextEnd = new Date(nextStart.getTime() + durationMs);
 
-  return toResult(() =>
     db.moveTask(
       { actorId: user.id, via: "web" },
-      {
-        taskId: input.taskId,
-        startAt: nextStart.toISOString(),
-        endAt: nextEnd.toISOString(),
-      },
-    ),
-  );
+      { taskId: input.taskId, startAt: nextStart.toISOString(), endAt: nextEnd.toISOString() },
+    );
+  });
 }
 
 /** Que 일정을 다른 날짜/시간으로 이동. */
@@ -95,17 +96,16 @@ export async function moveEventToDateAction(input: {
   if (parsedHour === null) return INVALID_HOUR;
 
   const user = await getCurrentUser();
-  const db = getDb();
-  const event = db.calendarEvents.find((e) => e.id === input.eventId);
-  if (!event) return { ok: false, error: `일정 없음: ${input.eventId}` };
+  return toResult((db) => {
+    const event = db.calendarEvents.find((e) => e.id === input.eventId);
+    if (!event) throw new QueRuleError("NOT_FOUND", `일정 없음: ${input.eventId}`);
 
-  const prevStart = new Date(event.startAt);
-  const durationMs = new Date(event.endAt).getTime() - prevStart.getTime();
-  const nextStart = new Date(prevStart);
-  nextStart.setFullYear(parsedDate.y, parsedDate.m - 1, parsedDate.d);
-  if (parsedHour !== undefined) nextStart.setHours(parsedHour, 0, 0, 0);
+    const prevStart = new Date(event.startAt);
+    const durationMs = new Date(event.endAt).getTime() - prevStart.getTime();
+    const nextStart = new Date(prevStart);
+    nextStart.setFullYear(parsedDate.y, parsedDate.m - 1, parsedDate.d);
+    if (parsedHour !== undefined) nextStart.setHours(parsedHour, 0, 0, 0);
 
-  return toResult(() =>
     db.moveCalendarEvent(
       { actorId: user.id, via: "web" },
       {
@@ -113,8 +113,8 @@ export async function moveEventToDateAction(input: {
         startAt: nextStart.toISOString(),
         endAt: new Date(nextStart.getTime() + durationMs).toISOString(),
       },
-    ),
-  );
+    );
+  });
 }
 
 /** 마일스톤 마감일 이동 (시간은 유지). */
@@ -126,18 +126,17 @@ export async function moveMilestoneToDateAction(input: {
   if (!parsedDate) return INVALID_DATE;
 
   const user = await getCurrentUser();
-  const db = getDb();
-  const milestone = db.milestones.find((m) => m.id === input.milestoneId);
-  if (!milestone) return { ok: false, error: `마일스톤 없음: ${input.milestoneId}` };
+  return toResult((db) => {
+    const milestone = db.milestones.find((m) => m.id === input.milestoneId);
+    if (!milestone) throw new QueRuleError("NOT_FOUND", `마일스톤 없음: ${input.milestoneId}`);
 
-  const prev = new Date(milestone.dueAt);
-  const next = new Date(prev);
-  next.setFullYear(parsedDate.y, parsedDate.m - 1, parsedDate.d);
+    const prev = new Date(milestone.dueAt);
+    const next = new Date(prev);
+    next.setFullYear(parsedDate.y, parsedDate.m - 1, parsedDate.d);
 
-  return toResult(() =>
     db.moveMilestone(
       { actorId: user.id, via: "web" },
       { milestoneId: input.milestoneId, dueAt: next.toISOString() },
-    ),
-  );
+    );
+  });
 }

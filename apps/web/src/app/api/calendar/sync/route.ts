@@ -17,7 +17,9 @@ export async function POST(request: Request) {
     rangeEnd.setDate(rangeEnd.getDate() + 30);
 
     const provider = new MockGoogleCalendarProvider(defaultMockGoogleEvents(now));
-    const result = await getDb().syncExternalCalendar(provider, rangeStart, rangeEnd);
+    const db = await getDb();
+    const result = await db.syncExternalCalendar(provider, rangeStart, rangeEnd);
+    await db.persist();
     return Response.json({ provider: provider.name, ...result });
   });
 }

@@ -5,14 +5,14 @@ import { getDb } from "@/lib/db";
 
 /** 작업 목록 조회 — MCP list_tasks 도구의 백엔드. 필터: assignee, status, project */
 export async function GET(request: Request) {
-  return withApi(request, () => {
+  return withApi(request, async () => {
     const params = new URL(request.url).searchParams;
     const assignee = params.get("assignee") ?? undefined;
     const project = params.get("project") ?? undefined;
     const statusRaw = params.get("status");
     const status = statusRaw ? taskStatusSchema.parse(statusRaw) : undefined;
 
-    const tasks = getDb().tasks.filter(
+    const tasks = (await getDb()).tasks.filter(
       (t) =>
         (!assignee || t.assigneeId === assignee) &&
         (!project || t.projectId === project) &&
@@ -37,7 +37,9 @@ const createSchema = z.object({
 export async function POST(request: Request) {
   return withApi(request, async ({ user, via }) => {
     const body = createSchema.parse(await request.json());
-    const task = getDb().createTask({ actorId: user.id, via }, body);
+    const db = await getDb();
+    const task = db.createTask({ actorId: user.id, via }, body);
+    await db.persist();
     return Response.json({ task }, { status: 201 });
   });
 }

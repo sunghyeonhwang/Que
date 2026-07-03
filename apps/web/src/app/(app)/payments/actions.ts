@@ -6,9 +6,14 @@ import { getDb } from "@/lib/db";
 import { getCurrentUser } from "@/lib/current-user";
 import type { ActionResult } from "@/app/(app)/today/actions";
 
-function toResult(fn: () => void): ActionResult {
+type Db = Awaited<ReturnType<typeof getDb>>;
+
+// mutation과 persist를 반드시 같은 db 인스턴스에서 (글래도스 반려 회귀 — cache 정체성 의존 금지).
+async function toResult(fn: (db: Db) => Promise<unknown> | unknown): Promise<ActionResult> {
   try {
-    fn();
+    const db = await getDb();
+    await fn(db);
+    await db.persist();
     revalidatePath("/payments");
     return { ok: true };
   } catch (error) {
@@ -37,11 +42,8 @@ export async function createPaymentRequestAction(input: {
   }
 
   const user = await getCurrentUser();
-  return toResult(() =>
-    getDb().createPaymentRequest(
-      { actorId: user.id, via: "web" },
-      { ...input, dueAt },
-    ),
+  return toResult((db) =>
+    db.createPaymentRequest({ actorId: user.id, via: "web" }, { ...input, dueAt }),
   );
 }
 
@@ -50,5 +52,5 @@ export async function updatePaymentStatusAction(input: {
   to: PaymentStatus;
 }): Promise<ActionResult> {
   const user = await getCurrentUser();
-  return toResult(() => getDb().updatePaymentStatus({ actorId: user.id, via: "web" }, input));
+  return toResult((db) => db.updatePaymentStatus({ actorId: user.id, via: "web" }, input));
 }

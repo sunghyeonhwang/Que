@@ -54,11 +54,11 @@ const ymd = (d: Date): string =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
 /** 관리자만 실데이터를 받는다. 비관리자에게는 빈 골격(isAdmin:false)만 돌려준다 — 페이지 가드와 함께 이중 방어. */
-export function getAdminReportData(
+export async function getAdminReportData(
   viewer: User,
   period: ReportPeriod,
   now: Date = new Date(),
-): AdminReportData {
+): Promise<AdminReportData> {
   const empty: AdminReportData = {
     isAdmin: false,
     period,
@@ -83,7 +83,7 @@ export function getAdminReportData(
   };
   if (viewer.role !== "admin") return empty;
 
-  const db = getDb();
+  const db = await getDb();
   const userById = new Map(db.users.map((u) => [u.id, u]));
   const projectById = new Map(db.projects.map((p) => [p.id, p]));
   const taskById = new Map(db.tasks.map((t) => [t.id, t]));

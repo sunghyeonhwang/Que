@@ -16,7 +16,9 @@ export async function PATCH(
   return withApi(request, async ({ user, via }) => {
     const { actionItemId } = await params;
     const body = bodySchema.parse(await request.json());
-    const item = getDb().updateActionItem({ actorId: user.id, via }, { actionItemId, ...body });
+    const db = await getDb();
+    const item = db.updateActionItem({ actorId: user.id, via }, { actionItemId, ...body });
+    await db.persist();
     return Response.json({ actionItem: item });
   });
 }

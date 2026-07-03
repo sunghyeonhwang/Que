@@ -19,7 +19,7 @@ const INTENSITY_BG = [
 ];
 
 export default async function HeatmapPage() {
-  const data = getHeatmapData();
+  const data = await getHeatmapData();
 
   return (
     <div>

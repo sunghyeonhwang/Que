@@ -4,8 +4,8 @@ import type { TaskCommentView } from "@/components/app/task-comments";
 import { getDb } from "./db";
 
 /** 작업별 댓글 뷰 — 오늘/팀 현황 등 TaskStatusSheet를 쓰는 화면이 공유한다. */
-export function getCommentViewsByTask(): Map<string, TaskCommentView[]> {
-  const db = getDb();
+export async function getCommentViewsByTask(): Promise<Map<string, TaskCommentView[]>> {
+  const db = await getDb();
   const userById = new Map(db.users.map((u) => [u.id, u]));
   const map = new Map<string, TaskCommentView[]>();
   for (const comment of db.taskComments as TaskComment[]) {

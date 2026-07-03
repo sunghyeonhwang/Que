@@ -9,7 +9,9 @@ export async function POST(
 ) {
   return withApi(request, async ({ user, via }) => {
     const { actionItemId } = await params;
-    const task = getDb().confirmActionItem({ actorId: user.id, via }, actionItemId);
+    const db = await getDb();
+    const task = db.confirmActionItem({ actorId: user.id, via }, actionItemId);
+    await db.persist();
     return Response.json({ task }, { status: 201 });
   });
 }

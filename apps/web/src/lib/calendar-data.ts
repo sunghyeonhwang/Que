@@ -30,12 +30,12 @@ export interface CalendarData {
   users: User[];
 }
 
-export function getCalendarData(
+export async function getCalendarData(
   viewer: User,
   rangeStart: Date,
   rangeEnd: Date,
-): CalendarData {
-  const db = getDb();
+): Promise<CalendarData> {
+  const db = await getDb();
   const userById = new Map(db.users.map((u) => [u.id, u]));
   const projectById = new Map(db.projects.map((p) => [p.id, p]));
   // "수정됨" 배지는 일정 시간(24h) 동안만 표시한다
@@ -114,8 +114,8 @@ export interface ChangeLogEntry {
 }
 
 /** 최근 변경 내역 (캘린더 변경 로그 패널용) */
-export function getRecentChangeLogs(limit = 8): ChangeLogEntry[] {
-  const db = getDb();
+export async function getRecentChangeLogs(limit = 8): Promise<ChangeLogEntry[]> {
+  const db = await getDb();
   const userById = new Map(db.users.map((u) => [u.id, u]));
   const titleOf = (entityType: string, entityId: string): string => {
     switch (entityType) {

@@ -18,10 +18,12 @@ export async function POST(
   return withApi(request, async ({ user, via }) => {
     const { taskId } = await params;
     const body = bodySchema.parse(await request.json());
-    const task = getDb().changeTaskStatus(
+    const db = await getDb();
+    const task = db.changeTaskStatus(
       { actorId: user.id, via },
       { taskId, to: body.to, detail: body.detail, mergedIntoTaskId: body.mergedIntoTaskId },
     );
+    await db.persist();
     return Response.json({ task });
   });
 }

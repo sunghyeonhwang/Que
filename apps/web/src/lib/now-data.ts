@@ -39,8 +39,8 @@ export interface NowData {
 
 const UNRESOLVED: ActionItemStatus[] = ["needs_review", "candidate", "held"];
 
-export function getNowData(viewer: User, filter: NowFilter, now: Date = new Date()): NowData {
-  const db = getDb();
+export async function getNowData(viewer: User, filter: NowFilter, now: Date = new Date()): Promise<NowData> {
+  const db = await getDb();
   const dayStart = new Date(now);
   dayStart.setHours(0, 0, 0, 0);
   const dayEnd = new Date(now);

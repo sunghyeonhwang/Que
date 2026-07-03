@@ -9,7 +9,7 @@ export async function GET(
 ) {
   return withApi(request, async () => {
     const { taskId } = await params;
-    const db = getDb();
+    const db = await getDb();
     db.requireTask(taskId); // 유령 작업이면 404
     const comments = db.taskComments.filter((c) => c.taskId === taskId);
     return Response.json({ comments });
@@ -29,7 +29,9 @@ export async function POST(
   return withApi(request, async ({ user, via }) => {
     const { taskId } = await params;
     const input = bodySchema.parse(await request.json());
-    const comment = getDb().addTaskComment({ actorId: user.id, via }, { taskId, ...input });
+    const db = await getDb();
+    const comment = db.addTaskComment({ actorId: user.id, via }, { taskId, ...input });
+    await db.persist();
     return Response.json({ comment }, { status: 201 });
   });
 }

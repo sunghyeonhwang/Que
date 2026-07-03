@@ -34,8 +34,8 @@ function maskAccount(accountNumber: string): string {
   return `•••• ${digits.slice(-4)}`;
 }
 
-export function getPaymentData(viewer: User, now: Date = new Date()): PaymentData {
-  const db = getDb();
+export async function getPaymentData(viewer: User, now: Date = new Date()): Promise<PaymentData> {
+  const db = await getDb();
   const userById = new Map(db.users.map((u) => [u.id, u]));
   const soonLimit = new Date(now.getTime() + 24 * 60 * 60 * 1000);
 

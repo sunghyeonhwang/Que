@@ -15,7 +15,9 @@ export async function POST(
   return withApi(request, async ({ user, via }) => {
     const { taskId } = await params;
     const body = bodySchema.parse(await request.json());
-    const task = getDb().moveTask({ actorId: user.id, via }, { taskId, ...body });
+    const db = await getDb();
+    const task = db.moveTask({ actorId: user.id, via }, { taskId, ...body });
+    await db.persist();
     return Response.json({ task });
   });
 }

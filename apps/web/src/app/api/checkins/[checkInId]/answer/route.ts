@@ -16,10 +16,12 @@ export async function POST(
   return withApi(request, async ({ user, via }) => {
     const { checkInId } = await params;
     const body = bodySchema.parse(await request.json());
-    const checkIn = getDb().answerCheckIn(
+    const db = await getDb();
+    const checkIn = db.answerCheckIn(
       { actorId: user.id, via },
       { checkInId, response: body.response, detail: body.detail },
     );
+    await db.persist();
     return Response.json({ checkIn });
   });
 }

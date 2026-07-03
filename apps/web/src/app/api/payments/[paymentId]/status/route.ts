@@ -13,10 +13,12 @@ export async function POST(
   return withApi(request, async ({ user, via }) => {
     const { paymentId } = await params;
     const body = bodySchema.parse(await request.json());
-    const payment = getDb().updatePaymentStatus(
+    const db = await getDb();
+    const payment = db.updatePaymentStatus(
       { actorId: user.id, via },
       { paymentId, to: body.to },
     );
+    await db.persist();
     return Response.json({ payment });
   });
 }

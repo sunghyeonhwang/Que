@@ -59,8 +59,8 @@ export interface TodayData {
 
 const ACTIVE_STATUSES = new Set(["scheduled", "in_progress", "needs_reschedule", "on_hold", "issue"]);
 
-export function getTodayData(user: User, now: Date = new Date()): TodayData {
-  const db = getDb();
+export async function getTodayData(user: User, now: Date = new Date()): Promise<TodayData> {
+  const db = await getDb();
   const dayStart = new Date(now);
   dayStart.setHours(0, 0, 0, 0);
   const dayEnd = new Date(now);

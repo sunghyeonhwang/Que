@@ -16,3 +16,10 @@ export {
 export { MockGoogleCalendarProvider, defaultMockGoogleEvents } from "./mock/mock-google-calendar";
 export { createSeed, type QueSeed } from "./data/seed";
 export { createMockDb, MockQueDb, type QueDb } from "./data/mock-db";
+export {
+  toRow,
+  fromRow,
+  rowForTable,
+  TABLE_INSERT_ORDER,
+  SEED_KEY_TO_TABLE,
+} from "./data/supabase-rows";

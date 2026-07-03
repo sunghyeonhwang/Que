@@ -40,8 +40,8 @@ function toIntensity(score: number): number {
 
 const COUNTED = new Set(["scheduled", "in_progress", "needs_reschedule", "on_hold", "issue", "done"]);
 
-export function getHeatmapData(now: Date = new Date()): HeatmapData {
-  const db = getDb();
+export async function getHeatmapData(now: Date = new Date()): Promise<HeatmapData> {
+  const db = await getDb();
   const days: string[] = [];
   for (let i = 0; i < 7; i += 1) {
     const d = new Date(now);

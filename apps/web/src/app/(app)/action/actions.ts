@@ -6,9 +6,14 @@ import { getDb } from "@/lib/db";
 import { getCurrentUser } from "@/lib/current-user";
 import type { ActionResult } from "@/app/(app)/today/actions";
 
-function toResult(fn: () => void): ActionResult {
+type Db = Awaited<ReturnType<typeof getDb>>;
+
+// mutation과 persist를 반드시 같은 db 인스턴스에서 (글래도스 반려 회귀 — cache 정체성 의존 금지).
+async function toResult(fn: (db: Db) => Promise<unknown> | unknown): Promise<ActionResult> {
   try {
-    fn();
+    const db = await getDb();
+    await fn(db);
+    await db.persist();
     revalidatePath("/action");
     revalidatePath("/now");
     revalidatePath("/today");
@@ -21,9 +26,7 @@ function toResult(fn: () => void): ActionResult {
 
 export async function confirmActionItemAction(actionItemId: string): Promise<ActionResult> {
   const user = await getCurrentUser();
-  return toResult(() =>
-    getDb().confirmActionItem({ actorId: user.id, via: "web" }, actionItemId),
-  );
+  return toResult((db) => db.confirmActionItem({ actorId: user.id, via: "web" }, actionItemId));
 }
 
 export async function setActionItemStatusAction(input: {
@@ -31,7 +34,7 @@ export async function setActionItemStatusAction(input: {
   to: "held" | "ignored";
 }): Promise<ActionResult> {
   const user = await getCurrentUser();
-  return toResult(() => getDb().setActionItemStatus({ actorId: user.id, via: "web" }, input));
+  return toResult((db) => db.setActionItemStatus({ actorId: user.id, via: "web" }, input));
 }
 
 export async function updateActionItemAction(input: {
@@ -50,8 +53,8 @@ export async function updateActionItemAction(input: {
   }
 
   const user = await getCurrentUser();
-  return toResult(() =>
-    getDb().updateActionItem(
+  return toResult((db) =>
+    db.updateActionItem(
       { actorId: user.id, via: "web" },
       { actionItemId: input.actionItemId, assigneeId: input.assigneeId, dueAt },
     ),

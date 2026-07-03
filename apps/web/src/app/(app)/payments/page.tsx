@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 export default async function PaymentsPage() {
   const user = await getCurrentUser();
-  const data = getPaymentData(user);
+  const data = await getPaymentData(user);
 
   const metrics = [
     { value: data.summary.waiting, label: "대기" },

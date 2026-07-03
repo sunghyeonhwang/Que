@@ -40,11 +40,12 @@ export default async function TeamPage({
 
   const reportPeriod: ReportPeriod = params.period === "month" ? "month" : "week";
   const reportData =
-    view === "report" ? getAdminReportData(user, reportPeriod, now) : null;
+    view === "report" ? await getAdminReportData(user, reportPeriod, now) : null;
 
-  const data = getTeamData(user, now);
-  const logs = getRecentChangeLogs(6);
-  const commentsByTask = getCommentViewsByTask();
+  const data = await getTeamData(user, now);
+  const logs = await getRecentChangeLogs(6);
+  const commentsByTask = await getCommentViewsByTask();
+  const standupRows = view === "standup" ? await getStandupData(now) : [];
 
   const metrics = [
     { value: data.summary.inProgress, label: "진행중" },
@@ -97,7 +98,7 @@ export default async function TeamPage({
             아침 회의용 — 멤버별 어제/오늘/막힘을 한 화면에서 돕니다. 상태 변경은 시간표나 오늘
             화면에서.
           </p>
-          <StandupGrid rows={getStandupData(now)} />
+          <StandupGrid rows={standupRows} />
         </>
       )}
 

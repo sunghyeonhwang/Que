@@ -1,13 +1,14 @@
 # Que 배포 가이드 — Vercel + Supabase
 
-마지막 업데이트: 2026-07-02
-상태: **준비 단계** — env(Supabase 키) 수령 전. env 없이 가능한 준비는 완료됐고, 아래 체크리스트의 ⏳ 항목이 env 도착 후 작업이다.
+마지막 업데이트: 2026-07-03
+상태: **Supabase DB 연동 완료** — 실 프로젝트(`rnsqhipljpdmmkviiypy`)에 스키마·시드 적용됐고, 앱이 `QUE_DB=supabase`로 실 DB를 읽고 쓴다(로컬 검증 완료). 남은 것은 Vercel 배포 + 실 인증.
 
-## 완료된 준비 (env 불필요)
+## 완료된 준비
 
 - ✅ **mock 인증 배포 가드** — production 빌드에서 `QUE_ALLOW_MOCK_AUTH=true` 옵트인 없이는 웹/API 인증이 전부 차단된다 (`lib/mock-auth-guard.ts`). 실수로 공개 배포해도 계좌/데이터가 노출되지 않는 fail-safe.
 - ✅ **API 입력 상한** — 본문 100KB(413), 필드 길이 상한(제목 200자, 사유 500자, 회의록 500,000자, 금액 ≤1조 등)은 core에서 강제.
-- ✅ **Supabase 스키마** — `db/supabase/schema.sql` (테이블 12종 + PAT 테이블 + 인덱스. 서버가 service_role로만 접근하는 전제라 RLS 미사용).
+- ✅ **Supabase 스키마 + 시드 적용됨** — `db/supabase/schema.sql`(14테이블: 13 도메인 + PAT, RLS 미사용/service_role 전제). 실 프로젝트에 마이그레이션(`db/supabase/migrate-fresh.sql`)·시드(`db/supabase/seed.mts`) 완료.
+- ✅ **Supabase 어댑터 완성** — `apps/web/src/lib/supabase-db.ts`의 `SupabaseQueDb`(MockQueDb 상속, 요청마다 스냅샷 load → mutation 후 diff persist). `QUE_DB=supabase` + `SUPABASE_URL` + `SUPABASE_SECRET_KEY` 있으면 활성, 없으면 mock. 도메인↔행 매핑은 `packages/core/src/data/supabase-rows.ts`.
 - ✅ Vercel 빌드 호환 — pnpm 모노레포(`packageManager` 명시), Next.js 16, `turbopack.root` 설정.
 
 ## 배포 체크리스트
@@ -24,14 +25,15 @@
 
 ### 2단계 — 실사용 배포 (Supabase 연동)
 
-1. ⏳ Supabase 프로젝트 생성 → SQL Editor에서 `db/supabase/schema.sql` 실행
-2. ⏳ **코드 작업: Supabase 어댑터** — `QueDb` 인터페이스(packages/core)를 구현하는 `SupabaseQueDb` 작성, `apps/web/src/lib/db.ts`의 `getDb()`에서 env 존재 시 교체. 시드 스크립트(`pnpm seed` — core `createSeed` 데이터를 insert).
+1. ✅ Supabase 스키마·시드 적용 완료 (마이그레이션: `node db/supabase/run-migration.mjs`, 시드: `pnpm --filter @que/core exec tsx db/supabase/seed.mts` — 둘 다 `data/.env`의 pooler 연결 사용). 재시드하면 정본 상태로 리셋됨.
+2. ✅ Supabase 어댑터 완성(위 "완료된 준비" 참고). DDL은 pooler 직결, 런타임은 supabase-js(PostgREST).
 3. ⏳ Vercel 환경 변수:
    | 변수 | 값 | 비고 |
    | --- | --- | --- |
+   | `QUE_DB` | `supabase` | 없으면 mock으로 동작 |
    | `SUPABASE_URL` | Supabase 프로젝트 URL | |
-   | `SUPABASE_SERVICE_ROLE_KEY` | service_role 키 | **서버 전용 — `NEXT_PUBLIC_` 금지** |
-   | `QUE_ALLOW_MOCK_AUTH` | (제거) | 실 인증 도입 후 제거 |
+   | `SUPABASE_SECRET_KEY` | secret 키(`sb_secret_...`) | **서버 전용 — `NEXT_PUBLIC_` 금지** |
+   | `QUE_ALLOW_MOCK_AUTH` | `true`(실 인증 전) → 실 인증 후 제거 | Deployment Protection 필수 |
 4. ⏳ **실 인증** — Auth.js 도입, mock 쿠키 전환기 제거, PAT를 무작위 발급 + `personal_access_tokens` 테이블(해시 저장)로 교체 (`core/mock/tokens.ts` 폐기)
 4-1. ⏳ **체크인 스케줄러 Cron 전환** — 현재는 `getDb()` 접근 시 lazy 실행(`syncCheckIns`). 서버리스에서는 아무도 접근하지 않는 시간대에 체크인이 늦게 생성되므로, Vercel Cron(`vercel.json`의 crons, 예: 10분 간격)으로 `/api/cron/sync-checkins` 엔드포인트를 호출하게 전환한다 (lazy 실행은 이중 안전망으로 유지 — 멱등이므로 충돌 없음).
 5. ⏳ MCP/CLI 전환 — `.mcp.json`/`~/.que/config.json`의 `QUE_API_URL`을 배포 URL로
