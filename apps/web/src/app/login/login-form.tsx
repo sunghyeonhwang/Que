@@ -76,7 +76,7 @@ export function LoginForm() {
           disabled={pending}
           className="flex h-12 items-center justify-center rounded-lg bg-[#3388ff] text-base font-semibold text-white transition-colors hover:bg-[#2a78ee] disabled:opacity-60"
         >
-          {pending ? "로그인 중…" : "Login"}
+          {pending ? "로그인 중…" : "로그인"}
         </button>
       </form>
     </div>
