@@ -2,8 +2,10 @@ import { canViewMeetingNote } from "@que/core";
 import { PageHeader } from "@/components/app/page-header";
 import { NoteTabs } from "@/components/app/note-tabs";
 import { NoteList, type NoteListItem } from "@/components/notes/note-list";
+import { NoteSummaryCards } from "@/components/notes/note-summary-cards";
 import { UploadNoteForm } from "@/components/notes/upload-note-form";
 import { getCurrentUser } from "@/lib/current-user";
+import { getNoteSummary } from "@/lib/notes-summary";
 import { getDb } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
@@ -11,6 +13,7 @@ export const dynamic = "force-dynamic";
 export default async function MeetingNotesPage() {
   const user = await getCurrentUser();
   const db = await getDb();
+  const summary = await getNoteSummary(user);
   const userById = new Map(db.users.map((u) => [u.id, u]));
   const projectById = new Map(db.projects.map((p) => [p.id, p]));
 
@@ -38,6 +41,8 @@ export default async function MeetingNotesPage() {
         title="확인필요"
         subtitle="Plaud 회의록을 업로드하고 Action 추출 대상으로 관리합니다 — 원문은 항상 보존됩니다"
       />
+
+      <NoteSummaryCards summary={summary} />
 
       <NoteTabs active="notes" />
 

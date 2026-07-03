@@ -4,8 +4,10 @@ import { canViewMeetingNote } from "@que/core";
 import { ActionRow, type ActionRowData } from "@/components/action/action-row";
 import { PageHeader } from "@/components/app/page-header";
 import { NoteTabs } from "@/components/app/note-tabs";
+import { NoteSummaryCards } from "@/components/notes/note-summary-cards";
 import { StatusBadge } from "@/components/app/status-badge";
 import { getCurrentUser } from "@/lib/current-user";
+import { getNoteSummary } from "@/lib/notes-summary";
 import { getDb } from "@/lib/db";
 import { cn } from "@/lib/utils";
 
@@ -19,6 +21,7 @@ export default async function ActionPage({
   const params = await searchParams;
   const user = await getCurrentUser();
   const db = await getDb();
+  const summary = await getNoteSummary(user);
   // 열람 권한 없는 회의록(관리자 전용/지정 인원)에서 나온 Action은 여기서도 보이면 안 된다.
   const visibleNotes = db.meetingNotes.filter((n) => canViewMeetingNote(user, n));
   const noteById = new Map(visibleNotes.map((n) => [n.id, n]));
@@ -62,6 +65,8 @@ export default async function ActionPage({
         title="확인필요"
         subtitle={`회의록에서 추출된 Task 후보를 확정합니다 · 확인 필요 ${needsReview}건`}
       />
+
+      <NoteSummaryCards summary={summary} />
 
       <NoteTabs active="action" />
 
