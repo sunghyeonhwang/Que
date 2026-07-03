@@ -5,13 +5,16 @@ import { usePathname } from "next/navigation";
 import { MENU_SECTIONS } from "@/lib/menu";
 import { cn } from "@/lib/utils";
 
-/** 사이드바/모바일 시트 공용 메뉴. 섹션(메뉴·기타) + active + 뱃지. 터치 40px 이상. */
+/** 사이드바/모바일 시트 공용 메뉴. 섹션(메뉴·기타) + active + 뱃지. 터치 40px 이상.
+ * badges: href별 실데이터 뱃지 수(레이아웃에서 서버 계산해 주입). 정적 menu.badge보다 우선. */
 export function SidebarNav({
   onNavigate,
   className,
+  badges,
 }: {
   onNavigate?: () => void;
   className?: string;
+  badges?: Record<string, number>;
 }) {
   const pathname = usePathname();
 
@@ -26,6 +29,7 @@ export function SidebarNav({
             const matchPaths = item.match ?? [item.href];
             const active = matchPaths.some((path) => pathname.startsWith(path));
             const Icon = item.icon;
+            const badgeCount = badges?.[item.href] ?? item.badge ?? 0;
             return (
               <Link
                 key={item.href}
@@ -42,12 +46,12 @@ export function SidebarNav({
               >
                 <Icon className="size-[18px] shrink-0" aria-hidden />
                 <span className="min-w-0 flex-1 truncate">{item.label}</span>
-                {item.badge ? (
+                {badgeCount > 0 ? (
                   <span
                     className="flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--que-error)] px-1.5 text-[11px] font-semibold text-white"
-                    aria-label={`${item.badge}건`}
+                    aria-label={`${badgeCount}건`}
                   >
-                    {item.badge}
+                    {badgeCount}
                   </span>
                 ) : null}
               </Link>

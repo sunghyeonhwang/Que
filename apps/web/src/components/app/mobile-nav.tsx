@@ -15,7 +15,13 @@ import { SidebarNav } from "./sidebar-nav";
 import { WorkspaceSwitcher } from "./workspace-switcher";
 
 /** 태블릿 세로(lg 미만)에서 사이드바를 대체하는 Sheet 내비게이션. */
-export function MobileNav({ workspace }: { workspace: Workspace }) {
+export function MobileNav({
+  workspace,
+  badges,
+}: {
+  workspace: Workspace;
+  badges?: Record<string, number>;
+}) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -34,7 +40,7 @@ export function MobileNav({ workspace }: { workspace: Workspace }) {
           </SheetTitle>
         </SheetHeader>
         <WorkspaceSwitcher workspace={workspace} />
-        <SidebarNav onNavigate={() => setOpen(false)} />
+        <SidebarNav onNavigate={() => setOpen(false)} badges={badges} />
       </SheetContent>
     </Sheet>
   );

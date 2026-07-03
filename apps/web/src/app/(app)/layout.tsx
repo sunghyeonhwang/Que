@@ -1,6 +1,7 @@
 import { Bell, Search } from "lucide-react";
 import { rankForUser } from "@que/core";
 import { getCurrentUser } from "@/lib/current-user";
+import { getNoteSummary } from "@/lib/notes-summary";
 import { getPrimaryWorkspace } from "@/lib/pm-data";
 import { Brand } from "@/components/app/brand";
 import { SidebarNav } from "@/components/app/sidebar-nav";
@@ -22,6 +23,10 @@ export default async function AppLayout({
   const rank = rankForUser(user.id);
   const workspace = getPrimaryWorkspace();
 
+  // 사이드바 뱃지 실데이터 — 확인필요 = 열람 권한 스코프의 '확인 필요' Action 수(getNoteSummary).
+  const noteSummary = await getNoteSummary(user);
+  const menuBadges: Record<string, number> = { "/meeting-notes": noteSummary.needsReview };
+
   return (
     <div className="flex h-dvh w-full overflow-hidden bg-white text-[var(--que-text)]">
       <aside className="hidden w-[236px] shrink-0 flex-col border-r border-[var(--que-border)] bg-white lg:flex">
@@ -30,14 +35,14 @@ export default async function AppLayout({
         </div>
         <ScrollArea className="min-h-0 flex-1 px-4 py-4">
           <WorkspaceSwitcher workspace={workspace} />
-          <SidebarNav className="mt-4" />
+          <SidebarNav className="mt-4" badges={menuBadges} />
         </ScrollArea>
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex h-[72px] shrink-0 items-center gap-2 border-b border-[var(--que-border)] bg-white px-3 sm:gap-4 sm:px-5 lg:px-6">
           <div className="lg:hidden">
-            <MobileNav workspace={workspace} />
+            <MobileNav workspace={workspace} badges={menuBadges} />
           </div>
           <div className="lg:hidden">
             <Brand compact />

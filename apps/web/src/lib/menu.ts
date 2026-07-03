@@ -16,7 +16,7 @@ export interface MenuItem {
   icon: LucideIcon;
   /** 병합 메뉴의 active 매칭 경로. 없으면 href로 매칭한다. */
   match?: string[];
-  /** 사이드바 우측 뱃지 숫자(확인필요 등). 후속에 실데이터 연결. */
+  /** 사이드바 우측 뱃지 정적 폴백. 실데이터는 레이아웃이 SidebarNav의 badges prop으로 href별 주입. */
   badge?: number;
 }
 
@@ -48,7 +48,6 @@ export const MENU_SECTIONS: MenuSection[] = [
         label: "확인필요",
         icon: MessageSquareText,
         match: ["/meeting-notes", "/action"],
-        badge: 4,
       },
     ],
   },
