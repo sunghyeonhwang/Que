@@ -81,6 +81,25 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+
+  /* Que 재설계 토큰 (신규 — 위의 shadcn theme 토큰은 덮어쓰지 않는다).
+     새 화면(셸/프로젝트 등)은 이 변수 또는 arbitrary 값을 쓴다. */
+  --que-brand: #3388ff;
+  --que-brand-hover: #1f7bff;
+  --que-brand-subtle: #e9f1fa;
+  --que-text: #0d0d12;
+  --que-text-secondary: #55555e;
+  --que-text-tertiary: #74747d;
+  --que-placeholder: #a0a0a8;
+  --que-border: #e3e3e8;
+  --que-bg: #ffffff;
+  --que-bg-muted: #f4f4f6;
+  --que-success: #157f2f;
+  --que-success-bg: #e9feea;
+  --que-warning: #9a6300;
+  --que-warning-bg: #fdf3e2;
+  --que-error: #e33030;
+  --que-error-bg: #fdeaea;
 }
 
 .dark {

@@ -17,10 +17,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { ChevronsUpDown, LogOut } from "lucide-react";
+import { ChevronDown, LogOut } from "lucide-react";
 
-/** 로그인한 사용자 메뉴 — 이름/역할 표시 + 로그아웃. (실 인증 전환으로 사용자 전환 기능은 제거됨) */
-export function UserSwitcher({ current }: { current: User }) {
+/** 상단바 사용자 메뉴 — 아바타 + 이름/직급 + 로그아웃. */
+export function UserSwitcher({ current, rank }: { current: User; rank: string }) {
   const [pending, startTransition] = useTransition();
 
   return (
@@ -29,24 +29,32 @@ export function UserSwitcher({ current }: { current: User }) {
         render={
           <Button
             variant="ghost"
-            className="h-11 w-full justify-start gap-2 px-2"
+            className="h-12 gap-2.5 rounded-xl px-1.5 sm:pr-2.5 hover:bg-[var(--que-bg-muted)]"
             disabled={pending}
             aria-label={`${current.name} 메뉴`}
           />
         }
       >
         <MemberAvatar user={current} />
-        <span className="flex-1 truncate text-left text-sm">
-          {current.name}
-          <span className="block text-xs text-muted-foreground">
-            {current.role === "admin" ? "관리자" : "팀원"}
-          </span>
+        <span className="hidden flex-col text-left leading-tight sm:flex">
+          <span className="text-sm font-semibold text-[var(--que-text)]">{current.name}</span>
+          <span className="text-xs text-[var(--que-text-tertiary)]">{rank}</span>
         </span>
-        <ChevronsUpDown className="size-4 text-muted-foreground" aria-hidden />
+        <ChevronDown
+          className="hidden size-4 text-[var(--que-text-tertiary)] sm:block"
+          aria-hidden
+        />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-56">
+      <DropdownMenuContent align="end" className="w-56">
         <DropdownMenuGroup>
-          <DropdownMenuLabel>{current.name}</DropdownMenuLabel>
+          <DropdownMenuLabel>
+            <span className="block text-sm font-semibold text-[var(--que-text)]">
+              {current.name}
+            </span>
+            <span className="block text-xs font-normal text-[var(--que-text-tertiary)]">
+              {rank} · {current.role === "admin" ? "관리자" : "팀원"}
+            </span>
+          </DropdownMenuLabel>
           <DropdownMenuSeparator />
           <DropdownMenuItem
             className="h-10 gap-2"
@@ -72,9 +80,9 @@ export function UserSwitcher({ current }: { current: User }) {
 
 function MemberAvatar({ user }: { user: User }) {
   return (
-    <Avatar className="size-6">
+    <Avatar className="size-8">
       <AvatarFallback
-        className="text-[10px] font-semibold text-white"
+        className="text-[11px] font-semibold text-white"
         style={{ backgroundColor: user.avatarColor }}
       >
         {user.name.slice(1)}

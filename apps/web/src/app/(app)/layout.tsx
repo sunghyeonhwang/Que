@@ -1,53 +1,76 @@
-import Link from "next/link";
+import { Bell, Search } from "lucide-react";
+import { rankForUser } from "@que/core";
 import { getCurrentUser } from "@/lib/current-user";
+import { getPrimaryWorkspace } from "@/lib/pm-data";
+import { Brand } from "@/components/app/brand";
 import { SidebarNav } from "@/components/app/sidebar-nav";
+import { WorkspaceSwitcher } from "@/components/app/workspace-switcher";
 import { UserSwitcher } from "@/components/app/user-switcher";
 import { MobileNav } from "@/components/app/mobile-nav";
+import { IconButton } from "@/components/app/icon-button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Input } from "@/components/ui/input";
 
-// App Shell.
-// - lg 이상(태블릿 가로~FHD): 좌측 고정 사이드바, 본문 min-w-0
-// - lg 미만(태블릿 세로): 상단 헤더 + Sheet 내비게이션
+// App Shell (재설계).
+// - lg 이상: 좌측 고정 사이드바(로고+워크스페이스+메뉴) + 우측 상단바(검색·알림·사용자)
+// - lg 미만(태블릿 세로): 상단바에 햄버거(Sheet 내비) + 컴팩트 로고
+// 뷰포트 고정 높이(h-dvh) + main 내부 스크롤. 페이지 전체 레이아웃을 깨지 않는다.
 export default async function AppLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   const user = await getCurrentUser();
+  const rank = rankForUser(user.id);
+  const workspace = getPrimaryWorkspace();
 
   return (
-    <div className="flex min-h-dvh w-full">
-      <aside className="sticky top-0 hidden h-dvh w-60 shrink-0 flex-col border-r bg-sidebar text-sidebar-foreground lg:flex">
-        <div className="flex items-center gap-2 px-4 py-4">
+    <div className="flex h-dvh w-full overflow-hidden bg-white text-[var(--que-text)]">
+      <aside className="hidden w-[236px] shrink-0 flex-col border-r border-[var(--que-border)] bg-white lg:flex">
+        <div className="flex h-[72px] shrink-0 items-center border-b border-[var(--que-border)] px-5">
           <Brand />
         </div>
-        <ScrollArea className="min-h-0 flex-1 px-3">
-          <SidebarNav />
+        <ScrollArea className="min-h-0 flex-1 px-4 py-4">
+          <WorkspaceSwitcher workspace={workspace} />
+          <SidebarNav className="mt-4" />
         </ScrollArea>
-        <div className="border-t p-3">
-          <UserSwitcher current={user} />
-        </div>
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-40 flex h-14 items-center gap-2 border-b bg-background px-3 lg:hidden">
-          <MobileNav />
-          <Brand />
-          <div className="ml-auto w-40">
-            <UserSwitcher current={user} />
+        <header className="flex h-[72px] shrink-0 items-center gap-2 border-b border-[var(--que-border)] bg-white px-3 sm:gap-4 sm:px-5 lg:px-6">
+          <div className="lg:hidden">
+            <MobileNav workspace={workspace} />
+          </div>
+          <div className="lg:hidden">
+            <Brand compact />
+          </div>
+
+          <div className="relative hidden w-full max-w-[440px] flex-1 sm:block">
+            <Search
+              className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-[var(--que-placeholder)]"
+              aria-hidden
+            />
+            <Input
+              type="search"
+              placeholder="무엇이든 검색…"
+              aria-label="검색"
+              className="h-11 rounded-full border-[var(--que-border)] bg-[var(--que-bg-muted)] pl-10 text-sm placeholder:text-[var(--que-placeholder)]"
+            />
+          </div>
+
+          <div className="ml-auto flex items-center gap-1 sm:gap-2">
+            <IconButton
+              label="알림"
+              className="size-11 rounded-full text-[var(--que-text-secondary)]"
+            >
+              <Bell className="size-5" aria-hidden />
+            </IconButton>
+            <UserSwitcher current={user} rank={rank} />
           </div>
         </header>
-        <main className="min-w-0 flex-1 p-4 md:p-5 xl:p-6">{children}</main>
+
+        <main className="min-h-0 min-w-0 flex-1 overflow-y-auto p-4 md:p-5 xl:p-6">
+          {children}
+        </main>
       </div>
     </div>
-  );
-}
-
-function Brand() {
-  return (
-    <Link href="/" className="flex items-center gap-2" aria-label="Que 홈">
-      <span className="flex size-8 items-center justify-center rounded-md bg-primary text-sm font-bold text-primary-foreground">
-        Q
-      </span>
-      <span className="text-base font-semibold tracking-tight">Que</span>
-    </Link>
   );
 }
