@@ -335,6 +335,13 @@ data/
     - `components/schedule/schedule-header.tsx`에 이전/오늘/다음 버튼 추가. **이동 단위는 range에 맞춤**(일간=±1일, 주간=±1주, 월간=±1월, date-fns addDays/addWeeks/addMonths). 이전/다음→`?date=YYYY-MM-DD` 설정, 오늘→`date` 파라미터 삭제(페이지가 오늘로 폴백). page.tsx가 `anchorIso={format(anchor,"yyyy-MM-dd")}`를 헤더에 주입.
     - 검증: typecheck/lint/build exit 0. curl 서버렌더 — `/schedule`=오늘(7/3), `?date=2026-07-17`→7/17, `?range=month&date=2026-09-15`→9/15, 에러 0. 버튼이 이 파라미터를 생성(client 로직). **브라우저 클릭 QA는 확장 끊겨 미수행**. 참고: 일정의 필터·새로추가·이벤트 클릭은 여전히 미구현(별도 항목).
 
+49. **홈·성과 기간 선택 6개 실연동 (2026-07-04)**: 46번 감사에서 dead였던 PeriodSelect(값만 바뀌고 데이터 안 바뀜)를 실동작으로. 사용자 "전부 실기능(큼)" 선택. 워크플로(데이터계층→UI배선) + 글래도스 승인.
+    - **PeriodSelect를 URL 파라미터 구동으로 전환**(useState 제거, usePathname+useSearchParams, controlled value, 홈/성과 경로 공용). 데이터 계층이 그 값으로 재집계.
+    - **파라미터 6종**: 히트맵 `hm`(월 1-12) — 그 달 '일 단위' 그리드(멤버×그달 날짜, 최대 31열 가로스크롤). 완료율 `cm`(월) — 그 달로 끝나는 6개월. 기한초과추이 `ot`(주수 {4,8,12,26}) — 최근 N주. 팀부하 `lm`(월) — 그 달 범위 재집계. 작업분포 `dp`(week=향후7일/month=향후30일 마감 활성작업). 라인차트는 select 없음(8주 고정).
+    - 파일: `lib/heatmap-data.ts`(getHeatmapData(now,{monthAnchor})), `lib/performance-data.ts`(getPerformanceData(now,{hm,cm,ot,lm}), `anchorYear`로 미래월 방지 — 선택월>현재월이면 작년), `lib/home-data.ts`(getHomeData(user,now,{dp})), `components/performance/period-select.tsx`, `performance-heatmap.tsx`(월그리드 min-width 스케일), `heatmap/page.tsx`·`home/page.tsx`(searchParams await + 화이트리스트).
+    - 검증: build exit 0. 실측 — 히트맵셀 hm=7→217(31일)/hm=2→196(28일)/hm=6→210(30일), 홈 동일. 글래도스: cm/ot/lm/dp 전부 mock 직접호출로 데이터 변화 확인(now 20일 되감아 dp 격리검증), 쓰레기입력 8종(hm=99,ot=999,dp[]= 등) 200·폴백, anchorYear 미래월 정상.
+    - **⚠️ 알려진 사소(후속)**: (1) **dp 체감 0** — 시드에 향후 7~30일 마감 활성작업이 없어 week↔month 토글해도 화면 불변(메커니즘은 정상). `packages/core/src/data/seed.ts`에 2주 뒤 마감 작업 추가하면 해소. (2) **rangeLabel 불일치** — `performance-data.ts:330` 시작은 cm 반영하나 끝은 now 고정 → cm 바꾸면 meta 라벨과 차트 구간 어긋남. 끝을 `months[5].end`로 맞추면 정직. (3) `heatmap-data.ts`의 7일 폴백 경로는 호출처 0(두 페이지 다 monthAnchor 경유) — 죽은 가지, 다음 정리 때 결정.
+
 ## 남은 작업 / 오픈 질문
 
 - ~~알림 채널 결정~~ → **Slack 확정** (2026-07-02): 1단계 Incoming Webhook+딥링크, 2단계 Bot 인터랙티브 버튼으로 Slack 안에서 체크인 응답(`answerCheckIn` 경유, via 기록). 기획서 "알림 정책 > 알림 채널"과 MCP/CLI 계획 Phase E에 반영됨.

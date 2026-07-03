@@ -40,15 +40,37 @@ function toIntensity(score: number): number {
 
 const COUNTED = new Set(["scheduled", "in_progress", "needs_reschedule", "on_hold", "issue", "done"]);
 
-export async function getHeatmapData(now: Date = new Date()): Promise<HeatmapData> {
+export interface HeatmapOptions {
+  /** 지정 시 그 달의 1일~말일 전체를 days로 만든다(월 단위 히트맵). 없으면 now부터 7일. */
+  monthAnchor?: Date;
+}
+
+export async function getHeatmapData(
+  now: Date = new Date(),
+  opts: HeatmapOptions = {},
+): Promise<HeatmapData> {
   const db = await getDb();
   const days: string[] = [];
-  for (let i = 0; i < 7; i += 1) {
-    const d = new Date(now);
-    d.setDate(d.getDate() + i);
-    days.push(
-      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`,
-    );
+  if (opts.monthAnchor) {
+    // 월 단위: 앵커 달의 1일~말일 각 날짜 셀.
+    const y = opts.monthAnchor.getFullYear();
+    const m = opts.monthAnchor.getMonth();
+    const lastDay = new Date(y, m + 1, 0).getDate();
+    for (let day = 1; day <= lastDay; day += 1) {
+      const d = new Date(y, m, day);
+      days.push(
+        `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`,
+      );
+    }
+  } else {
+    // 하위호환: now부터 7일 그리드.
+    for (let i = 0; i < 7; i += 1) {
+      const d = new Date(now);
+      d.setDate(d.getDate() + i);
+      days.push(
+        `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`,
+      );
+    }
   }
   const dayOf = (iso: string): string => {
     const d = new Date(iso);

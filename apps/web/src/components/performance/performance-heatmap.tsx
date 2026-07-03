@@ -20,8 +20,11 @@ export function PerformanceHeatmap({ data }: { data: HeatmapData }) {
         <div
           role="grid"
           aria-label="멤버별 일자별 작업량 히트맵"
-          className="grid min-w-[560px]"
-          style={{ gridTemplateColumns: `5rem repeat(${data.days.length}, minmax(0,1fr))` }}
+          className="grid"
+          style={{
+            gridTemplateColumns: `5rem repeat(${data.days.length}, minmax(0,1fr))`,
+            minWidth: `${5 + data.days.length * 1.6}rem`,
+          }}
         >
           <div />
           {data.days.map((date) => (

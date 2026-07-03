@@ -30,16 +30,38 @@ const MONTH_OPTIONS = Array.from({ length: 12 }, (_, i) => ({
   value: String(i + 1),
   label: `${i + 1}월`,
 }));
-const RANGE_OPTIONS = [
-  { value: "7d", label: "최근 7일" },
-  { value: "4w", label: "4주 보기" },
-  { value: "3m", label: "3개월" },
-  { value: "6m", label: "6개월" },
+const WEEK_OPTIONS = [
+  { value: "4", label: "4주" },
+  { value: "8", label: "8주" },
+  { value: "12", label: "12주" },
+  { value: "26", label: "26주" },
 ];
+const OT_ALLOWED = new Set([4, 8, 12, 26]);
 
-export default async function PerformancePage() {
+/** 1~12 정수만 통과, 아니면 현재월 폴백 */
+function parseMonth(raw: string | string[] | undefined, fallback: number): number {
+  const v = Array.isArray(raw) ? raw[0] : raw;
+  const n = Number(v);
+  return Number.isInteger(n) && n >= 1 && n <= 12 ? n : fallback;
+}
+
+export default async function PerformancePage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   await getCurrentUser();
-  const data = await getPerformanceData();
+  const now = new Date();
+  const currentMonth = now.getMonth() + 1;
+  const sp = await searchParams;
+
+  const hm = parseMonth(sp.hm, currentMonth);
+  const cm = parseMonth(sp.cm, currentMonth);
+  const lm = parseMonth(sp.lm, currentMonth);
+  const otRaw = Number(Array.isArray(sp.ot) ? sp.ot[0] : sp.ot);
+  const ot = OT_ALLOWED.has(otRaw) ? otRaw : 8;
+
+  const data = await getPerformanceData(now, { hm, cm, ot, lm });
 
   return (
     <div className="flex flex-col gap-4">
@@ -64,9 +86,10 @@ export default async function PerformancePage() {
           meta={data.rangeLabel}
           action={
             <PeriodSelect
+              param="cm"
               ariaLabel="작업 완료율 기준 월 선택"
               options={MONTH_OPTIONS}
-              defaultValue="7"
+              value={String(cm)}
             />
           }
         >
@@ -77,9 +100,10 @@ export default async function PerformancePage() {
           title="기한 초과 추이"
           action={
             <PeriodSelect
+              param="ot"
               ariaLabel="기한 초과 추이 기간 선택"
-              options={RANGE_OPTIONS}
-              defaultValue="4w"
+              options={WEEK_OPTIONS}
+              value={String(ot)}
             />
           }
         >
@@ -93,9 +117,10 @@ export default async function PerformancePage() {
           title="히트맵"
           action={
             <PeriodSelect
+              param="hm"
               ariaLabel="히트맵 기준 월 선택"
               options={MONTH_OPTIONS}
-              defaultValue="7"
+              value={String(hm)}
             />
           }
         >
@@ -113,9 +138,10 @@ export default async function PerformancePage() {
           title="팀 부하 현황"
           action={
             <PeriodSelect
+              param="lm"
               ariaLabel="팀 부하 현황 기준 월 선택"
               options={MONTH_OPTIONS}
-              defaultValue="7"
+              value={String(lm)}
             />
           }
         >

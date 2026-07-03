@@ -35,14 +35,34 @@ const MONTH_OPTIONS = Array.from({ length: 12 }, (_, i) => ({
   label: `${i + 1}월`,
 }));
 
+/** 1~12 정수만 통과, 아니면 현재월 폴백 */
+function parseMonth(raw: string | string[] | undefined, fallback: number): number {
+  const v = Array.isArray(raw) ? raw[0] : raw;
+  const n = Number(v);
+  return Number.isInteger(n) && n >= 1 && n <= 12 ? n : fallback;
+}
+
 // 홈(개인 대시보드) — 재설계. KPI·히트맵·작업성과는 성과(/heatmap) 컴포넌트를 재사용,
 // 오늘 할 일·개인 일정·작업 분포는 홈 전용 조회(getHomeData)로 조합한다.
-export default async function HomePage() {
+export default async function HomePage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const user = await getCurrentUser();
   const now = new Date();
-  const [perf, home] = await Promise.all([getPerformanceData(now), getHomeData(user, now)]);
+  const sp = await searchParams;
 
-  const currentMonth = String(now.getMonth() + 1);
+  const hm = parseMonth(sp.hm, now.getMonth() + 1);
+  const dpRaw = Array.isArray(sp.dp) ? sp.dp[0] : sp.dp;
+  const dp = dpRaw === "month" ? "month" : "week";
+
+  const [perf, home] = await Promise.all([
+    getPerformanceData(now, { hm }),
+    getHomeData(user, now, { dp }),
+  ]);
+
+  const selectedMonth = String(hm);
   const contribution = perf.heatmap.rows.reduce(
     (sum, row) => sum + row.cells.reduce((a, c) => a + c.taskCount, 0),
     0,
@@ -83,16 +103,17 @@ export default async function HomePage() {
           title="히트맵"
           action={
             <PeriodSelect
+              param="hm"
               ariaLabel="히트맵 기준 월 선택"
               options={MONTH_OPTIONS}
-              defaultValue={currentMonth}
+              value={selectedMonth}
             />
           }
         >
           <div className="flex flex-col gap-3">
             <PerformanceHeatmap data={perf.heatmap} />
             <p className="text-center text-sm text-[var(--que-text-secondary)]">
-              {currentMonth}월에 <span className="font-semibold tabular-nums">{contribution}</span>개 기여
+              {selectedMonth}월에 <span className="font-semibold tabular-nums">{contribution}</span>개 기여
             </p>
           </div>
         </HomeCard>
@@ -130,12 +151,13 @@ export default async function HomePage() {
           className="xl:col-span-2"
           action={
             <PeriodSelect
+              param="dp"
               ariaLabel="작업 분포 기간 선택"
               options={[
                 { value: "week", label: "주간 보기" },
                 { value: "month", label: "월간 보기" },
               ]}
-              defaultValue="week"
+              value={dp}
             />
           }
         >

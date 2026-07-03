@@ -82,7 +82,16 @@ const STATUS_COLOR: Record<TaskStatus, string> = {
   merged: "#9ca3af",
 };
 
-export async function getHomeData(user: User, now: Date = new Date()): Promise<HomeData> {
+export interface HomeOptions {
+  /** 작업 분포 창: week=향후 7일, month=향후 30일 내 마감. 기본 "week". */
+  dp?: "week" | "month";
+}
+
+export async function getHomeData(
+  user: User,
+  now: Date = new Date(),
+  opts: HomeOptions = {},
+): Promise<HomeData> {
   const db = await getDb();
   const userById = new Map(db.users.map((u) => [u.id, u]));
   const projectById = new Map(db.projects.map((p) => [p.id, p]));
@@ -183,12 +192,21 @@ export async function getHomeData(user: User, now: Date = new Date()): Promise<H
     a.timeLabel.localeCompare(b.timeLabel),
   );
 
-  // ── 작업 분포: 멤버별 활성 작업 수(멤버 색). ──
+  // ── 작업 분포: 멤버별 향후 기간 내 마감 활성작업 수(멤버 색). ──
+  // week=now~+7일, month=now~+30일 사이 endAt인 활성 작업.
+  const windowDays = opts.dp === "month" ? 30 : 7;
+  const windowEnd = new Date(now);
+  windowEnd.setDate(windowEnd.getDate() + windowDays);
+  const windowEndMs = windowEnd.getTime();
   const distribution: HomeDistributionRow[] = db.users
     .map((u) => ({
       id: u.id,
       name: u.name,
-      value: db.tasks.filter((t) => t.assigneeId === u.id && ACTIVE.has(t.status)).length,
+      value: db.tasks.filter((t) => {
+        if (t.assigneeId !== u.id || !ACTIVE.has(t.status) || !t.endAt) return false;
+        const e = new Date(t.endAt).getTime();
+        return e >= nowMs && e <= windowEndMs;
+      }).length,
       color: u.avatarColor,
     }))
     .sort((a, b) => b.value - a.value);

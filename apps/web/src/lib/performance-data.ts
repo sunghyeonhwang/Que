@@ -84,9 +84,32 @@ function pctChange(cur: number, prev: number): { deltaPct: number; direction: Kp
   return { deltaPct, direction: deltaPct > 0 ? "up" : deltaPct < 0 ? "down" : "flat" };
 }
 
-export async function getPerformanceData(now: Date = new Date()): Promise<PerformanceData> {
+export interface PerformanceOptions {
+  /** 히트맵 월(1-12). 기본=현재월. */
+  hm?: number;
+  /** 완료율 막대: 이 월(1-12)로 끝나는 최근 6개월. 기본=현재월. */
+  cm?: number;
+  /** 기한 초과 추이: 최근 N주. 기본=8. */
+  ot?: number;
+  /** 저성과표 산정 월(1-12). 기본=현재월. */
+  lm?: number;
+}
+
+export async function getPerformanceData(
+  now: Date = new Date(),
+  opts: PerformanceOptions = {},
+): Promise<PerformanceData> {
   const db = await getDb();
   const nowMs = now.getTime();
+
+  // 화이트리스트 검증은 호출부(페이지)에서 하고, 여기선 숫자/enum을 그대로 신뢰한다.
+  const hm = opts.hm ?? now.getMonth() + 1;
+  const cm = opts.cm ?? now.getMonth() + 1;
+  const otWeeks = opts.ot ?? 8;
+  const lm = opts.lm ?? now.getMonth() + 1;
+  // 앵커 연도: 선택 월이 현재월보다 크면 작년으로 간주(현재 시점 이후 월 방지).
+  const anchorYear = (month: number): number =>
+    month > now.getMonth() + 1 ? now.getFullYear() - 1 : now.getFullYear();
 
   // ── 작업 생성 시점 근사: 해당 작업의 가장 이른 status_log, 없으면 startAt/endAt ──
   const earliestLog = new Map<string, number>();
@@ -182,11 +205,12 @@ export async function getPerformanceData(now: Date = new Date()): Promise<Perfor
     },
   ];
 
-  // ── 작업 완료율(월별 막대): 최근 6개월, status_logs done 전이 기준 ──
+  // ── 작업 완료율(월별 막대): cm월로 끝나는 최근 6개월, status_logs done 전이 기준 ──
+  const cmAnchor = startOfMonth(new Date(anchorYear(cm), cm - 1, 1));
   const months: { start: Date; end: Date; label: string }[] = [];
   for (let i = 5; i >= 0; i -= 1) {
-    const start = startOfMonth(subMonths(now, i));
-    const end = startOfMonth(subMonths(now, i - 1));
+    const start = startOfMonth(subMonths(cmAnchor, i));
+    const end = startOfMonth(subMonths(cmAnchor, i - 1));
     months.push({ start, end, label: format(start, "M월") });
   }
   const completionByMonth: MonthlyCompletion[] = months.map(({ start, end, label }) => {
@@ -200,16 +224,30 @@ export async function getPerformanceData(now: Date = new Date()): Promise<Perfor
     return { label, completed };
   });
 
-  // ── 주별 버킷(최근 8주) — 기한 초과 추이(영역) + 작업 성과(3계열 라인) ──
-  const weeks: { start: number; end: number; label: string }[] = [];
-  for (let i = 7; i >= 0; i -= 1) {
-    const start = startOfWeek(subWeeks(now, i), { weekStartsOn: 1 });
-    const end = startOfWeek(subWeeks(now, i - 1), { weekStartsOn: 1 });
-    weeks.push({ start: start.getTime(), end: end.getTime(), label: format(start, "M/d") });
-  }
-  const overdueTrend: OverduePoint[] = [];
-  const performanceTrend: PerformancePoint[] = [];
-  for (const { start, end, label } of weeks) {
+  // ── 주별 버킷 헬퍼: 최근 n주 [start,end) 버킷 ──
+  const buildWeeks = (n: number): { start: number; end: number; label: string }[] => {
+    const out: { start: number; end: number; label: string }[] = [];
+    for (let i = n - 1; i >= 0; i -= 1) {
+      const start = startOfWeek(subWeeks(now, i), { weekStartsOn: 1 });
+      const end = startOfWeek(subWeeks(now, i - 1), { weekStartsOn: 1 });
+      out.push({ start: start.getTime(), end: end.getTime(), label: format(start, "M/d") });
+    }
+    return out;
+  };
+
+  // ── 기한 초과 추이(영역): 최근 otWeeks주 ──
+  const overdueTrend: OverduePoint[] = buildWeeks(otWeeks).map(({ start, end, label }) => {
+    // 그 주에 마감이 걸렸고 아직 완료되지 못한(초과) 작업 수
+    const overdue = db.tasks.filter((t) => {
+      if (!t.endAt) return false;
+      const e = new Date(t.endAt).getTime();
+      return e >= start && e < end && OPEN.has(t.status);
+    }).length;
+    return { label, overdue };
+  });
+
+  // ── 작업 성과(3계열 라인): 8주 고정 ──
+  const performanceTrend: PerformancePoint[] = buildWeeks(8).map(({ start, end, label }) => {
     const completed = db.statusLogs.filter(
       (l) => l.toStatus === "done" && new Date(l.createdAt).getTime() >= start && new Date(l.createdAt).getTime() < end,
     ).length;
@@ -217,20 +255,32 @@ export async function getPerformanceData(now: Date = new Date()): Promise<Perfor
       const c = creationMs(t.id);
       return c !== undefined && c >= start && c < end;
     }).length;
-    // 그 주에 마감이 걸렸고 아직 완료되지 못한(초과) 작업 수
     const overdue = db.tasks.filter((t) => {
       if (!t.endAt) return false;
       const e = new Date(t.endAt).getTime();
       return e >= start && e < end && OPEN.has(t.status);
     }).length;
-    overdueTrend.push({ label, overdue });
-    performanceTrend.push({ label, completed, created, overdue });
+    return { label, completed, created, overdue };
+  });
+
+  // ── 히트맵 재사용 (멤버×일 초록 강도): hm월 그리드 ──
+  const heatmap = await getHeatmapData(now, {
+    monthAnchor: new Date(anchorYear(hm), hm - 1, 1),
+  });
+
+  // ── 저성과 팀 표: lm월 내 활동 기준 (초과 많고 완료 적은 순) ──
+  // overdue=lm월에 마감이 걸렸고 아직 열린 작업, completed=lm월에 done 전이가 있었던 작업.
+  const lmStart = new Date(anchorYear(lm), lm - 1, 1).getTime();
+  const lmEnd = new Date(anchorYear(lm), lm, 1).getTime();
+  const inLm = (ms: number): boolean => ms >= lmStart && ms < lmEnd;
+  const taskAssignee = new Map(db.tasks.map((t) => [t.id, t.assigneeId]));
+  const doneInLmByUser = new Map<string, number>();
+  for (const l of db.statusLogs) {
+    if (l.toStatus !== "done") continue;
+    if (!inLm(new Date(l.createdAt).getTime())) continue;
+    const assignee = taskAssignee.get(l.taskId);
+    if (assignee) doneInLmByUser.set(assignee, (doneInLmByUser.get(assignee) ?? 0) + 1);
   }
-
-  // ── 히트맵 재사용 (멤버×일 초록 강도) ──
-  const heatmap = await getHeatmapData(now);
-
-  // ── 저성과 팀 표: 이름·부서·기한 초과·완료 (초과 많고 완료 적은 순) ──
   const lowPerformers: LowPerformerRow[] = db.users
     .map((u) => {
       const mine = db.tasks.filter((t) => t.assigneeId === u.id);
@@ -239,8 +289,10 @@ export async function getPerformanceData(now: Date = new Date()): Promise<Perfor
         name: u.name,
         department: departmentForUser(u.id),
         avatarColor: u.avatarColor,
-        overdue: mine.filter((t) => isOverdue(t.endAt, t.status)).length,
-        completed: mine.filter((t) => t.status === "done").length,
+        overdue: mine.filter(
+          (t) => t.endAt && inLm(new Date(t.endAt).getTime()) && OPEN.has(t.status),
+        ).length,
+        completed: doneInLmByUser.get(u.id) ?? 0,
       };
     })
     .sort((a, b) => b.overdue - a.overdue || a.completed - b.completed);
