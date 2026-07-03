@@ -295,6 +295,14 @@ data/
     - **CLI 참고**: Vercel CLI 인증됨(`sunghyeonhwang-1862`), 토큰은 `~/Library/Application Support/com.vercel.cli/auth.json`. 배포는 `vercel deploy --prod --scope griff0120s-projects`(레포 루트에서). `.vercel/`·`.env.local`은 gitignore됨.
     - **남은 것**: ① Deployment Protection 재활성화(대시보드, 원하면) ② 팀에 로그인 안내(이메일+공용 임시비번 `que-2026!`, 실제 이메일 검증) ③ B2(PAT 해시화 후 `QUE_ALLOW_MOCK_AUTH`+Protection으로 MCP/CLI 개방) ④ 커스텀 도메인(원하면).
 
+44. **유저 정보 정정 + 커스텀 도메인 + MCP/CLI 개방 (2026-07-03)**: 사용자 지시(재활성화·유저정보·개방·커스텀도메인). `data/docs/que-user-info.md`(PII라 gitignore) 기준.
+    - **유저 정보(item 2)**: 실제 이메일로 정정 — 오승훈 `seunghun.oh`(추정 seunghoon 오류), 황성진 `seongjin.hwang`(추정 sungjin 오류). `emailForUser`를 유도→`USER_EMAILS` 명시 맵으로 교체(id 로마자와 실제 불일치). **오승훈 직급 '관리' → admin 권한**(이제 관리자 2명). **이혜진(명단에 없음) 제거 → 7명**(seed의 이혜진 배정은 김리원으로 재배정, rules.test 외부인은 송수용으로 교정, core 74/74). DB 재시드로 7명 정본 반영(demo 데이터 리셋 — 프리런치라 무방).
+    - **Deployment Protection 재활성화(item 1)**: 새 배포 후 `all_except_custom_domains`가 정상 작동 확인 — **배포/preview URL은 302 SSO 보호, 프로덕션 별칭·커스텀 도메인은 개방**(설계상 production 제외). 앞서 "재활성화 안 됨"은 프로덕션 별칭만 봐서 생긴 오해였음.
+    - **커스텀 도메인(item 4)**: `que.griff.co.kr` Vercel 등록·verified. **DNS CNAME `que`→`cname.vercel-dns.com`은 사용자가 griff.co.kr DNS에 추가해야 연결/SSL 완료.** deploy 문서 참고.
+    - **MCP/CLI 개방(item 3, B2)**: `api/auth.ts`를 해시 토큰 인증으로 — Supabase면 `personal_access_tokens.token_hash`(SHA-256) 조회, 아니면 mock. `authenticate` async화(`respond.ts` 한 줄, withApi가 중앙집중이라 라우트 무변경). `db/supabase/gen-tokens.mts`로 7명 무작위 PAT 발급(해시만 DB, 평문 `data/pat-tokens.txt` gitignore). **옛 추측형 `que_pat_<id>`는 401.** 실측(프로덕션): 실 PAT→200(유출0), 옛 PAT→401, 무토큰→401. `QUE_ALLOW_MOCK_AUTH`는 계속 미설정(운영은 실 토큰만).
+    - **PII 주의**: `que-user-info.md`(전화/생년월일)와 `pat-tokens.txt`는 gitignore. 절대 커밋 금지. `que-user-info.md`는 실수로 커밋됐다가 amend로 제거(push 전).
+    - **남은 것**: DNS 추가(사용자) · 팀에 PAT 개별 전달 · 첫 로그인 비번 변경(후속) · CLI/MCP 번들 배포(30번). `mock/tokens.ts`(결정적 mock PAT)는 dev 전용으로 잔존 — 운영은 안 씀.
+
 ## 남은 작업 / 오픈 질문
 
 - ~~알림 채널 결정~~ → **Slack 확정** (2026-07-02): 1단계 Incoming Webhook+딥링크, 2단계 Bot 인터랙티브 버튼으로 Slack 안에서 체크인 응답(`answerCheckIn` 경유, via 기록). 기획서 "알림 정책 > 알림 채널"과 MCP/CLI 계획 Phase E에 반영됨.

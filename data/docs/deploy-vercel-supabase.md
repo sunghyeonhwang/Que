@@ -3,7 +3,18 @@
 마지막 업데이트: 2026-07-03
 상태: **✅ Vercel 프로덕션 배포 완료** — <https://que-rouge-eight.vercel.app> (팀 `griff0120s-projects`, 프로젝트 `que`, Root=`apps/web`, 리전 `icn1`). 실 Supabase DB + Auth.js 실 인증으로 동작. 프로덕션 런타임 E2E 검증 완료(로그인·역할별 진입점·미인증 API 503).
 
-## ⚠️ Deployment Protection 현재 상태 (사용자 조치 필요할 수 있음)
+## 커스텀 도메인 — que.griff.co.kr (DNS만 남음)
+
+- Vercel에 `que.griff.co.kr` 등록·소유권 verified 완료. `all_except_custom_domains` 보호에서 **커스텀 도메인은 제외** → 팀이 이 주소로 Que 로그인만으로 접속(개방점).
+- **남은 작업(사용자): griff.co.kr DNS에 CNAME 추가** → `que` → `cname.vercel-dns.com`(또는 `56de61d8d42c0adf.vercel-dns-017.com`). 추가하면 자동으로 연결되고 SSL 인증서가 발급됨. 그 전까지는 프로덕션 별칭 <https://que-rouge-eight.vercel.app> 사용.
+
+## MCP/CLI 개방 (해시 PAT, 43·44번)
+
+- 운영 API는 이제 `personal_access_tokens`의 **SHA-256 해시 토큰**으로 인증(무작위라 추측 불가) → `QUE_ALLOW_MOCK_AUTH` 없이 공개 배포에서 안전. 옛 `que_pat_<id>`는 401.
+- 토큰 발급: `pnpm --filter @que/core exec tsx db/supabase/gen-tokens.mts` → 평문은 `data/pat-tokens.txt`(gitignore, chmod 600), 각 팀원에게 개별 전달. 재실행 시 이전 토큰 전량 폐기 후 재발급.
+- MCP/CLI 설정: `QUE_API_URL=https://que.griff.co.kr`(DNS 연결 후, 그 전엔 que-rouge-eight.vercel.app) + `QUE_TOKEN=<본인 토큰>`. (CLI/MCP 번들 배포는 30번 — 별도.)
+
+## ⚠️ Deployment Protection 현재 상태
 
 - 배포 시 Vercel Authentication(SSO)이 기본 ON이었으나, **런타임 검증 중 API로 잠시 껐다가 재활성화가 API/재배포로 되지 않는 상태**(대시보드 토글 필요, 플랜 특성으로 추정). 현재 **공개 접근 가능**.
 - **그래도 안전**: 웹은 Auth.js 실 로그인 필수(`getCurrentUser`가 미인증 시 `/login`), 모든 `(app)` 페이지·API는 로그인/PAT 없이는 데이터 0. **`QUE_ALLOW_MOCK_AUTH`를 안 켰기 때문에 mock-PAT API 경로는 전부 503** (미인증·mock PAT 모두 503, 계좌 노출 0 실측).
