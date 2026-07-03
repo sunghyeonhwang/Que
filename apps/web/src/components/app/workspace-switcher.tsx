@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -47,15 +48,19 @@ export function WorkspaceSwitcher({ workspace }: { workspace: Workspace }) {
         <ChevronsUpDown className="size-4 shrink-0 text-[var(--que-text-tertiary)]" aria-hidden />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-[204px]">
-        <DropdownMenuLabel className="text-xs text-[var(--que-text-tertiary)]">
-          워크스페이스
-        </DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem className="h-10 gap-2.5">
-          <WorkspaceMark workspace={workspace} />
-          <span className="min-w-0 flex-1 truncate text-sm">{workspace.name}</span>
-          <Check className="size-4 shrink-0 text-[var(--que-brand)]" aria-hidden />
-        </DropdownMenuItem>
+        {/* Base UI: GroupLabel(=DropdownMenuLabel)은 반드시 Menu.Group(=DropdownMenuGroup)
+            안에 있어야 한다. 없으면 클릭 시 MenuGroupContext missing(error #31)로 크래시. */}
+        <DropdownMenuGroup>
+          <DropdownMenuLabel className="text-xs text-[var(--que-text-tertiary)]">
+            워크스페이스
+          </DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem className="h-10 gap-2.5">
+            <WorkspaceMark workspace={workspace} />
+            <span className="min-w-0 flex-1 truncate text-sm">{workspace.name}</span>
+            <Check className="size-4 shrink-0 text-[var(--que-brand)]" aria-hidden />
+          </DropdownMenuItem>
+        </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>
   );
