@@ -1,4 +1,4 @@
-import { canEditTask, type CheckIn, type Task, type User } from "@que/core";
+import { canEditTask, canViewPrivateEventDetail, type CheckIn, type Task, type User } from "@que/core";
 import { getDb } from "./db";
 
 // 팀 현황 데이터 조합 (기획서 "팀 현황판").
@@ -121,7 +121,7 @@ export function getTeamData(viewer: User, now: Date = new Date()): TeamData {
       .map((e) => ({
         kind: "event" as const,
         id: e.id,
-        title: e.visibility === "private" && e.ownerId !== viewer.id ? "자리비움" : e.title,
+        title: e.visibility === "private" && !canViewPrivateEventDetail(e, viewer) ? "자리비움" : e.title,
         startAt: e.startAt,
         endAt: e.endAt,
         readonly: true,

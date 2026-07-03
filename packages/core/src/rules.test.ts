@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createMockDb } from "./data/mock-db";
-import { QueRuleError } from "./rules";
+import { QueRuleError, canViewMeetingNote, canViewPrivateEventDetail } from "./rules";
+import { USERS } from "./mock/users";
 
 // 도메인 규칙이 core 계층에서 실제로 강제되는지 검증한다.
 // 이 규칙들은 CLAUDE.md "도메인 규칙"과 기획서의 운영 규칙에서 온다.
@@ -503,6 +504,133 @@ describe("회의록 업로드와 Action 추출", () => {
     expect(() =>
       d.extractActionItems({ actorId: "oh-seunghoon", via: "web" }, "note-payment-qa"),
     ).toThrowError(/이미 추출이 완료된/);
+  });
+
+  it("열람 권한 없는 지정 인원 회의록은 추출도 거부된다 (글래도스 반려 회귀)", () => {
+    const d = db();
+    const note = d.createMeetingNote(
+      { actorId: "hwang-sunghyeon", via: "web" },
+      {
+        title: "연봉협상",
+        meetingAt: NOW.toISOString(),
+        attendeeIds: [],
+        fileName: "연봉협상.md",
+        markdownBody: "# 연봉협상\n\n- 인상안 검토 (담당: 박승환)",
+        visibility: "restricted",
+        restrictedUserIds: ["park-seunghwan"],
+      },
+    );
+    // 지정 인원(박승환)은 추출 가능
+    expect(() => d.extractActionItems({ actorId: "park-seunghwan", via: "web" }, note.id)).not.toThrow();
+  });
+
+  it("지정 인원이 아닌 외부인은 추출을 시도해도 원문이 새지 않는다 (글래도스 반려 회귀)", () => {
+    const d = db();
+    const note = d.createMeetingNote(
+      { actorId: "hwang-sunghyeon", via: "web" },
+      {
+        title: "연봉협상2",
+        meetingAt: NOW.toISOString(),
+        attendeeIds: [],
+        fileName: "연봉협상2.md",
+        markdownBody: "# 연봉협상2\n\n- 인상안 검토 (담당: 박승환)",
+        visibility: "restricted",
+        restrictedUserIds: ["park-seunghwan"],
+      },
+    );
+    expect(() =>
+      d.extractActionItems({ actorId: "oh-seunghoon", via: "web" }, note.id),
+    ).toThrowError(/열람 권한이 없는/);
+    expect(d.actionItems.some((a) => a.meetingNoteId === note.id)).toBe(false);
+  });
+
+  it("지정 인원 공개 범위는 대상자를 최소 1명 지정해야 한다", () => {
+    const d = db();
+    expect(() =>
+      d.createMeetingNote(
+        { actorId: "hwang-sunghyeon", via: "web" },
+        {
+          title: "연봉협상",
+          meetingAt: NOW.toISOString(),
+          attendeeIds: [],
+          fileName: "연봉협상.md",
+          markdownBody: MD,
+          visibility: "restricted",
+        },
+      ),
+    ).toThrowError(/1명 이상 지정/);
+  });
+
+  it("지정 인원 공개 범위로 업로드하면 restrictedUserIds가 저장된다", () => {
+    const d = db();
+    const note = d.createMeetingNote(
+      { actorId: "hwang-sunghyeon", via: "web" },
+      {
+        title: "연봉협상",
+        meetingAt: NOW.toISOString(),
+        attendeeIds: [],
+        fileName: "연봉협상.md",
+        markdownBody: MD,
+        visibility: "restricted",
+        restrictedUserIds: ["park-seunghwan"],
+      },
+    );
+    expect(note.visibility).toBe("restricted");
+    expect(note.restrictedUserIds).toEqual(["park-seunghwan"]);
+  });
+});
+
+describe("비공개 일정 열람 권한 (canViewPrivateEventDetail)", () => {
+  const [admin, member1, member2] = USERS;
+  const privateEvent = {
+    id: "evt-1",
+    source: "que" as const,
+    title: "병원",
+    ownerId: member1.id,
+    startAt: NOW.toISOString(),
+    endAt: NOW.toISOString(),
+    attendeeIds: [],
+    visibility: "private" as const,
+  };
+
+  it("본인은 자신의 비공개 일정 상세를 본다", () => {
+    expect(canViewPrivateEventDetail(privateEvent, member1)).toBe(true);
+  });
+
+  it("관리자는 타인의 비공개 일정도 상세를 본다 (2026-07-03 확정)", () => {
+    expect(canViewPrivateEventDetail(privateEvent, admin)).toBe(true);
+  });
+
+  it("일반 팀원은 타인의 비공개 일정 상세를 볼 수 없다", () => {
+    expect(canViewPrivateEventDetail(privateEvent, member2)).toBe(false);
+  });
+});
+
+describe("회의록 열람 권한 (canViewMeetingNote)", () => {
+  const [admin, uploader, outsider, allowed] = USERS;
+
+  it("팀 전체 공개 회의록은 누구나 본다", () => {
+    const note = { visibility: "team" as const, uploaderId: uploader.id };
+    expect(canViewMeetingNote(outsider, note)).toBe(true);
+  });
+
+  it("관리자 전용 회의록은 관리자/업로더만 본다", () => {
+    const note = { visibility: "admin" as const, uploaderId: uploader.id };
+    expect(canViewMeetingNote(admin, note)).toBe(true);
+    expect(canViewMeetingNote(uploader, note)).toBe(true);
+    expect(canViewMeetingNote(outsider, note)).toBe(false);
+  });
+
+  it("지정 인원 회의록은 목록에 있는 사람과 관리자/업로더만 본다", () => {
+    const note = {
+      visibility: "restricted" as const,
+      uploaderId: uploader.id,
+      restrictedUserIds: [allowed.id],
+    };
+    expect(canViewMeetingNote(admin, note)).toBe(true);
+    expect(canViewMeetingNote(uploader, note)).toBe(true);
+    expect(canViewMeetingNote(allowed, note)).toBe(true);
+    expect(canViewMeetingNote(outsider, note)).toBe(false);
   });
 });
 

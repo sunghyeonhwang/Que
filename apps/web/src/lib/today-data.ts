@@ -1,4 +1,11 @@
-import type { CalendarEvent, CheckIn, Task, TaskComment, User } from "@que/core";
+import {
+  canViewPrivateEventDetail,
+  type CalendarEvent,
+  type CheckIn,
+  type Task,
+  type TaskComment,
+  type User,
+} from "@que/core";
 import { getDb } from "./db";
 
 // 오늘 화면 데이터 조합. 조회 로직은 화면이 아니라 여기 모아 재사용한다.
@@ -90,7 +97,10 @@ export function getTodayData(user: User, now: Date = new Date()): TodayData {
     ...myEvents.map((event): TodayTimelineItem => ({
       kind: "event",
       id: event.id,
-      title: event.visibility === "private" && event.ownerId !== user.id ? "자리비움" : event.title,
+      title:
+        event.visibility === "private" && !canViewPrivateEventDetail(event, user)
+          ? "자리비움"
+          : event.title,
       startAt: event.startAt,
       endAt: event.endAt,
       event,

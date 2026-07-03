@@ -1,4 +1,10 @@
-import type { ActionItemStatus, TaskStatus, User } from "@que/core";
+import {
+  canViewMeetingNote,
+  canViewPrivateEventDetail,
+  type ActionItemStatus,
+  type TaskStatus,
+  type User,
+} from "@que/core";
 import { getDb } from "./db";
 
 // Now 통합표 — 캘린더 일정과 회의록 Action을 한 표로 합친다 (기획서 "Now 통합표").
@@ -69,7 +75,7 @@ export function getNowData(viewer: User, filter: NowFilter, now: Date = new Date
       at: event.startAt,
       kind: "calendar" as const,
       title:
-        event.visibility === "private" && event.ownerId !== viewer.id
+        event.visibility === "private" && !canViewPrivateEventDetail(event, viewer)
           ? "자리비움"
           : event.title,
       assigneeName: userById.get(event.ownerId)?.name,
@@ -81,6 +87,10 @@ export function getNowData(viewer: User, filter: NowFilter, now: Date = new Date
 
   const actionRows: NowRow[] = db.actionItems
     .filter((item) => UNRESOLVED.includes(item.status))
+    .filter((item) => {
+      const note = noteById.get(item.meetingNoteId);
+      return !note || canViewMeetingNote(viewer, note);
+    })
     .map((item) => ({
       key: `action-${item.id}`,
       at: item.dueAt,

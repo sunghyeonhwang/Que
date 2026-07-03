@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { format } from "date-fns";
+import { canViewMeetingNote } from "@que/core";
 import { ActionRow, type ActionRowData } from "@/components/action/action-row";
 import { PageHeader } from "@/components/app/page-header";
 import { StatusBadge } from "@/components/app/status-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { getCurrentUser } from "@/lib/current-user";
 import { getDb } from "@/lib/db";
 import { cn } from "@/lib/utils";
 
@@ -15,14 +17,18 @@ export default async function ActionPage({
   searchParams: Promise<{ note?: string }>;
 }) {
   const params = await searchParams;
+  const user = await getCurrentUser();
   const db = getDb();
-  const noteById = new Map(db.meetingNotes.map((n) => [n.id, n]));
+  // 열람 권한 없는 회의록(관리자 전용/지정 인원)에서 나온 Action은 여기서도 보이면 안 된다.
+  const visibleNotes = db.meetingNotes.filter((n) => canViewMeetingNote(user, n));
+  const noteById = new Map(visibleNotes.map((n) => [n.id, n]));
   const projectById = new Map(db.projects.map((p) => [p.id, p]));
   const userById = new Map(db.users.map((u) => [u.id, u]));
 
   const noteFilter = params.note && noteById.has(params.note) ? params.note : undefined;
 
   const rows: ActionRowData[] = [...db.actionItems]
+    .filter((item) => noteById.has(item.meetingNoteId))
     .filter((item) => !noteFilter || item.meetingNoteId === noteFilter)
     .sort((a, b) => {
       // 처리 안 된 후보 먼저, 그 안에서 확인 필요 우선
@@ -59,7 +65,7 @@ export default async function ActionPage({
 
       <div className="mb-4 flex flex-wrap gap-2" aria-label="회의록 필터">
         <FilterChip href="/action" active={!noteFilter} label="전체 회의록" />
-        {db.meetingNotes.map((note) => (
+        {visibleNotes.map((note) => (
           <FilterChip
             key={note.id}
             href={`/action?note=${note.id}`}

@@ -159,11 +159,25 @@ data/
 
 33. **frontend-dev/backend-dev를 opus로 상향 (2026-07-03)**: 사용자가 "sonnet 전부 opus로" 제안 → 비용 정책(30번/32번, 월 한도 초과로 나온 절약 방침)을 뒤집는 결정이라 AskUserQuestion으로 범위 확인. **구현 2개(frontend-dev, backend-dev)만 opus로, qa-engineer·uiux-expert는 sonnet 유지**를 선택받음. 목적은 비용 절감이 아니라 품질 투자 — 두 에이전트가 과거 완결성 미스(24번 항목, 댓글 기능 도달 경로 부재) 이력이 있어 구현 정확성에 비용을 더 쓰기로 함. 서브에이전트 model 정책이 이제 3단 구조: 결정형(glados/planner/dev-lead)=fable+high, 구현형(frontend-dev/backend-dev)=**opus**+high, 체크리스트형(qa-engineer=sonnet+medium, uiux-expert=sonnet+high). 근거는 memory `model-usage-policy`에도 갱신.
 
+34. **백로그 1·2위 구현 — 비공개 일정 관리자 열람 + 회의록 단위 열람 권한 (2026-07-03)**: 32번 우선순위 판정대로 착수.
+    - core: `canViewPrivateEventDetail(event, viewer)` 신설 — 본인이거나 관리자면 비공개 일정 상세 열람 가능. `calendar-data.ts`/`now-data.ts`/`today-data.ts`/`team-data.ts` 4곳의 마스킹 로직을 이 함수로 교체.
+    - core: `meetingNoteSchema.visibility`에 `"restricted"` 추가 + `restrictedUserIds` 필드 신설. `canViewMeetingNote(viewer, note)` 신설 — 관리자/업로더/지정 인원만 열람. `createMeetingNote`에 "지정 인원 1명 이상 필수" 검증 추가.
+    - web: 회의록 업로드 폼에 공개 범위 Select(팀 전체/관리자만/지정 인원만)와 지정 인원 체크박스 UI 신설(기존엔 이 필드를 설정할 UI 자체가 없어 `admin`/`project` 등급이 죽은 코드였음 — 이번에 처음 노출). 목록에 "관리자 전용"/"지정 인원 N명만" 뱃지 추가.
+    - 시드에 실증 데이터 추가: `note-salary-review`(연봉협상, visibility: restricted, restrictedUserIds: [박승환]) + 매칭 Action `act-salary-followup`.
+    - **글래도스 1차 반려** — 재현 가능한 심각한 결함 2건 발견:
+      1. `extractActionItems`(core)에 열람 권한 검사가 전무 — 지정 인원이 아닌 사람도 restricted 회의록에서 Action을 추출할 수 있었고, 추출된 원문(`sourceText`)이 그대로 저장됨.
+      2. `/action` 페이지(noteById·필터칩 무필터), `/api/action-items` GET, `now-data.ts`의 actionRows가 전부 회의록 열람 권한을 안 걸러서 **restricted 회의록에서 나온 Action의 제목/원문/회의록 파일명이 팀 전체에 노출**됨. 즉 "회의록은 숨겼지만 그 회의록에서 나온 Action은 안 숨김" — 열람 제한 기능이 옆문으로 새고 있었음.
+    - **수정**: `extractActionItems`에 `canViewMeetingNote` 가드 추가(위반 시 `NOT_AUTHORIZED`) + 회귀 테스트 2건. `/action`·`/api/action-items`·`now-data.ts` 3곳 모두 `canViewMeetingNote`로 필터링. curl로 관리자/지정 인원/외부인 3인 기준 재현 확인 — 외부인에게 완전히 안 보임, 관리자·지정 인원에게는 정상 노출.
+    - **UI에서 "프로젝트 참여자" 옵션 제거**: `visibility: "project"` 등급은 원래부터(이번 diff 이전부터) 실제로 프로젝트 참여자로 제한하지 않는 기존 결함이었음(schema엔 있지만 필터 로직이 처리 안 함, "프로젝트 참여자"라는 멤버십 개념 자체가 도메인에 없음). 이번에 처음으로 이 값을 UI에서 선택 가능하게 만들 뻔했는데, 지키지 못하는 약속을 팔지 않기 위해 Select에서 제거(schema enum 값은 하위호환으로 유지, UI만 안 보여줌). **후속 결정 필요**: "프로젝트 참여자"를 실제로 구현하려면 프로젝트 멤버십 개념부터 새로 정의해야 함 — 별도 기획 확인 후 진행.
+    - **범위 제외 결정 (글래도스 승인)**: ① `Task.visibility`(개인 작업의 private 필드)는 이번 작업에서 안 건드림 — private task를 만드는 UI/플로우 자체가 없어 휴면 필드, CalendarEvent.visibility와는 별개. ② 관리자가 타인의 비공개 일정을 열람해도 별도 표시나 감사 로그를 남기지 않음 — 열람은 "변경"이 아니라 ChangeLog 대상 밖이고 기획서 161행이 예외 열람을 이미 허용. 실 인증 전환 시 열람 감사 로그 필요 여부는 재검토.
+    - 최종 검증: `pnpm -r typecheck`/`lint` 통과, core 테스트 49→59케이스, `pnpm build` 성공(dev 서버 종료 확인 후 실행), production 빌드(`QUE_ALLOW_MOCK_AUTH=true`, 포트 3987 격리)로 curl 3인 재현 + Playwright로 4개 화면(팀 현황·회의록·Now·업로드 폼) 실측 후 글래도스 재승인.
+
 ## 남은 작업 / 오픈 질문
 
 - ~~알림 채널 결정~~ → **Slack 확정** (2026-07-02): 1단계 Incoming Webhook+딥링크, 2단계 Bot 인터랙티브 버튼으로 Slack 안에서 체크인 응답(`answerCheckIn` 경유, via 기록). 기획서 "알림 정책 > 알림 채널"과 MCP/CLI 계획 Phase E에 반영됨.
 - ~~`que-product-plan.md` 오픈 질문 답변~~ → 2026-07-03 전항목 완료 (31번 항목 참고). Plaud MD 포맷만 샘플 도착 대기.
 - 추가 메뉴 통합 제안(회의록+Action, 히트맵→팀 현황 탭) — CLAUDE.md가 이미 현재 구조(개별 메뉴 유지)로 확정해서 사실상 종결. 재검토 요청 없으면 다음 정리 때 이 줄 제거.
 - 알림/설정 프리뷰 수령 후 해당 프롬프트 갱신
-- ~~백로그 우선순위~~ → 32번 항목에서 확정 (1비공개일정관리자열람 → 2회의록단위권한 → 3반복템플릿 → 4관리자리포트 → 5구글캘린더연동). 다음 착수는 1·2위 연속 진행 권장.
+- ~~백로그 우선순위~~ → 32번 항목에서 확정 (1비공개일정관리자열람 → 2회의록단위권한 → 3반복템플릿 → 4관리자리포트 → 5구글캘린더연동). **1·2위 구현 완료 (34번)** — 다음은 3위(반복 업무 템플릿).
 - `glados` 등 커스텀 서브에이전트가 이번 세션 Agent tool 레지스트리에 안 잡히는 문제 — 다음 세션에서 재확인 (32번 항목 참고)
+- "프로젝트 참여자" 회의록 공개 범위 — 프로젝트 멤버십 개념이 도메인에 없어 UI에서 제거함(34번). 실제로 필요하면 멤버십 모델부터 기획 확인 필요.

@@ -25,6 +25,7 @@ import {
   assertCanMoveCalendarEvent,
   assertCanResolveActionItem,
   assertStatusDetail,
+  canViewMeetingNote,
   parseScheduleRange,
 } from "../rules";
 import { createSeed } from "./seed";
@@ -389,6 +390,7 @@ export class MockQueDb implements QueDb {
       fileName: string;
       markdownBody: string;
       visibility?: MeetingNote["visibility"];
+      restrictedUserIds?: string[];
     },
   ): MeetingNote {
     const actor = this.requireUser(ctx.actorId);
@@ -400,6 +402,12 @@ export class MockQueDb implements QueDb {
     }
     if (input.markdownBody.length > 500_000) {
       throw new QueRuleError("INVALID_INPUT", "회의록 본문은 500,000자 이내다");
+    }
+    if (input.visibility === "restricted" && !input.restrictedUserIds?.length) {
+      throw new QueRuleError(
+        "INVALID_INPUT",
+        "지정 인원 공개 범위는 열람 가능한 사용자를 1명 이상 지정해야 한다",
+      );
     }
     // meetingAt ISO 검증 (단일 시점)
     const range = parseScheduleRange({ startAt: input.meetingAt, endAt: input.meetingAt });
@@ -415,6 +423,7 @@ export class MockQueDb implements QueDb {
       fileName: input.fileName.trim(),
       markdownBody: input.markdownBody,
       visibility: input.visibility ?? "team",
+      restrictedUserIds: input.visibility === "restricted" ? input.restrictedUserIds : undefined,
       extractionStatus: "pending",
       createdAt: nowIso,
       updatedAt: nowIso,
@@ -435,6 +444,12 @@ export class MockQueDb implements QueDb {
     const actor = this.requireUser(ctx.actorId);
     const note = this.meetingNotes.find((n) => n.id === meetingNoteId);
     if (!note) throw new QueRuleError("NOT_FOUND", `회의록 없음: ${meetingNoteId}`);
+    if (!canViewMeetingNote(actor, note)) {
+      throw new QueRuleError(
+        "NOT_AUTHORIZED",
+        "열람 권한이 없는 회의록에서는 Action을 추출할 수 없다",
+      );
+    }
     if (note.extractionStatus === "done") {
       throw new QueRuleError(
         "ACTION_ALREADY_RESOLVED",

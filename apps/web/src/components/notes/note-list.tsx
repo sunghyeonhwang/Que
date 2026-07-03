@@ -27,6 +27,8 @@ export interface NoteListItem {
   extractionStatus: "pending" | "done";
   candidateCount: number;
   markdownBody: string;
+  visibility: "team" | "project" | "admin" | "restricted";
+  restrictedCount?: number;
 }
 
 /** 업로드된 회의록 목록. 원문 미리보기(Sheet)와 Action 추출 버튼을 제공한다. */
@@ -63,6 +65,10 @@ function NoteRow({ note }: { note: NoteListItem }) {
           {note.projectName ?? "프로젝트 미지정"} · 업로드 {note.uploaderName}
         </p>
       </div>
+      {note.visibility === "admin" && <Badge variant="outline">관리자 전용</Badge>}
+      {note.visibility === "restricted" && (
+        <Badge variant="outline">지정 인원 {note.restrictedCount ?? 0}명만</Badge>
+      )}
       {note.extractionStatus === "pending" ? (
         <Badge variant="secondary">추출 대기</Badge>
       ) : (

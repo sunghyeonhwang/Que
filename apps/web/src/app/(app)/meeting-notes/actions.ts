@@ -27,6 +27,7 @@ export async function uploadMeetingNoteAction(input: {
   fileName: string;
   markdownBody: string;
   visibility?: MeetingNote["visibility"];
+  restrictedUserIds?: string[];
 }): Promise<ActionResult> {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(input.meetingDate)) {
     return { ok: false, error: "유효하지 않은 회의일이다 (YYYY-MM-DD)" };
@@ -48,6 +49,7 @@ export async function uploadMeetingNoteAction(input: {
         fileName: input.fileName,
         markdownBody: input.markdownBody,
         visibility: input.visibility,
+        restrictedUserIds: input.restrictedUserIds,
       },
     ),
   );

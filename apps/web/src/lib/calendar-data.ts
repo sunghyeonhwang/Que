@@ -1,4 +1,4 @@
-import type { Milestone, Project, Task, User } from "@que/core";
+import { canViewPrivateEventDetail, type Milestone, type Project, type Task, type User } from "@que/core";
 import { getDb } from "./db";
 
 // 캘린더 3뷰(기본형/전체 멤버/타임라인)가 공유하는 데이터 조합.
@@ -75,7 +75,7 @@ export function getCalendarData(
     .map((event) => {
       const owner = userById.get(event.ownerId);
       const isPrivate = event.visibility === "private";
-      const hideTitle = isPrivate && event.ownerId !== viewer.id;
+      const hideTitle = isPrivate && !canViewPrivateEventDetail(event, viewer);
       return {
         kind: "event" as const,
         id: event.id,

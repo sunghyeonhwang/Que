@@ -128,8 +128,10 @@ export const meetingNoteSchema = z.object({
   uploaderId: z.string().min(1),
   fileName: z.string().min(1),
   markdownBody: z.string(),
-  /** 회의록 공개 범위: 팀 전체 / 프로젝트 참여자 / 관리자만 */
-  visibility: z.enum(["team", "project", "admin"]).default("team"),
+  /** 회의록 공개 범위: 팀 전체 / 프로젝트 참여자 / 관리자만 / 지정 인원만(restrictedUserIds) */
+  visibility: z.enum(["team", "project", "admin", "restricted"]).default("team"),
+  /** visibility가 "restricted"일 때만 사용 — 이 목록의 사용자와 관리자·업로더만 열람 가능 (예: 연봉협상 회의록) */
+  restrictedUserIds: z.array(z.string()).optional(),
   extractionStatus: z.enum(["pending", "done"]),
   createdAt: isoDateTime,
   updatedAt: isoDateTime,

@@ -30,6 +30,10 @@ export function UploadNoteForm({ projects }: { projects: Project[] }) {
   const [attendeeIds, setAttendeeIds] = useState<string[]>([]);
   const [fileName, setFileName] = useState("");
   const [markdownBody, setMarkdownBody] = useState("");
+  const [visibility, setVisibility] = useState<"team" | "project" | "admin" | "restricted">(
+    "team",
+  );
+  const [restrictedUserIds, setRestrictedUserIds] = useState<string[]>([]);
 
   const onFileChange = async (file: File | undefined) => {
     if (!file) return;
@@ -38,7 +42,12 @@ export function UploadNoteForm({ projects }: { projects: Project[] }) {
     if (!title) setTitle(file.name.replace(/\.md$/i, ""));
   };
 
-  const canSubmit = title.trim() && fileName && markdownBody && !pending;
+  const canSubmit =
+    title.trim() &&
+    fileName &&
+    markdownBody &&
+    !pending &&
+    (visibility !== "restricted" || restrictedUserIds.length > 0);
 
   const submit = () => {
     run(
@@ -50,6 +59,8 @@ export function UploadNoteForm({ projects }: { projects: Project[] }) {
           attendeeIds,
           fileName,
           markdownBody,
+          visibility,
+          restrictedUserIds: visibility === "restricted" ? restrictedUserIds : undefined,
         }),
       {
         success: `"${title}" 회의록이 업로드됐습니다. Action 추출 대기 상태입니다.`,
@@ -58,6 +69,8 @@ export function UploadNoteForm({ projects }: { projects: Project[] }) {
           setFileName("");
           setMarkdownBody("");
           setAttendeeIds([]);
+          setVisibility("team");
+          setRestrictedUserIds([]);
           if (fileRef.current) fileRef.current.value = "";
         },
       },
@@ -138,6 +151,55 @@ export function UploadNoteForm({ projects }: { projects: Project[] }) {
             ))}
           </div>
         </Field>
+        <Field>
+          <FieldLabel>공개 범위</FieldLabel>
+          <Select
+            items={{
+              team: "팀 전체",
+              admin: "관리자만",
+              restricted: "지정 인원만",
+            }}
+            value={visibility}
+            onValueChange={(v) => {
+              if (!v) return;
+              setVisibility(v as typeof visibility);
+              if (v !== "restricted") setRestrictedUserIds([]);
+            }}
+          >
+            <SelectTrigger aria-label="공개 범위 선택">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="team">팀 전체</SelectItem>
+              <SelectItem value="admin">관리자만</SelectItem>
+              <SelectItem value="restricted">지정 인원만</SelectItem>
+            </SelectContent>
+          </Select>
+        </Field>
+        {visibility === "restricted" && (
+          <Field>
+            <FieldLabel>열람 가능 인원 (관리자는 항상 열람 가능)</FieldLabel>
+            <div className="grid grid-cols-4 gap-2">
+              {USERS.map((user) => (
+                <label key={user.id} className="flex h-10 items-center gap-2 text-sm">
+                  <Checkbox
+                    checked={restrictedUserIds.includes(user.id)}
+                    onCheckedChange={(checked) =>
+                      setRestrictedUserIds((prev) =>
+                        checked ? [...prev, user.id] : prev.filter((id) => id !== user.id),
+                      )
+                    }
+                    aria-label={`열람 허용 ${user.name}`}
+                  />
+                  {user.name}
+                </label>
+              ))}
+            </div>
+            {restrictedUserIds.length === 0 && (
+              <p className="text-xs text-destructive">1명 이상 지정해야 합니다.</p>
+            )}
+          </Field>
+        )}
         <Button className="h-10" disabled={!canSubmit} onClick={submit}>
           {pending ? "업로드 중…" : "업로드"}
         </Button>

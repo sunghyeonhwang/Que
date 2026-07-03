@@ -339,6 +339,20 @@ export function createSeed(now: Date): QueSeed {
       createdAt: at(-3, 11),
       updatedAt: at(-3, 11),
     },
+    {
+      id: "note-salary-review",
+      title: "박승환 연봉협상",
+      meetingAt: at(-2, 16),
+      attendeeIds: [hwang.id, park.id],
+      uploaderId: hwang.id,
+      fileName: "연봉협상_박승환.md",
+      markdownBody: "# 박승환 연봉협상\n\n- 다음 분기 목표와 연동해 재검토\n- 결과는 별도 서면 통보",
+      visibility: "restricted",
+      restrictedUserIds: [park.id],
+      extractionStatus: "done",
+      createdAt: at(-2, 17),
+      updatedAt: at(-2, 17),
+    },
   ];
 
   const actionItems: ActionItem[] = [
@@ -401,6 +415,16 @@ export function createSeed(now: Date): QueSeed {
       status: "needs_review",
       confidence: 0.58,
       createdAt: at(-3, 11, 5),
+    },
+    {
+      id: "act-salary-followup",
+      meetingNoteId: "note-salary-review",
+      sourceText: "다음 분기 목표와 연동해 재검토",
+      title: "연봉 재검토 후속 확인",
+      assigneeId: park.id,
+      status: "needs_review",
+      confidence: 0.6,
+      createdAt: at(-2, 17, 5),
     },
   ];
 

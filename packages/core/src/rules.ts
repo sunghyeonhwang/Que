@@ -87,6 +87,14 @@ export function canMoveCalendarEvent(event: CalendarEvent): boolean {
   return event.source === "que" && event.visibility !== "private";
 }
 
+/**
+ * 비공개 일정의 원본 제목/사유를 볼 수 있는가. 본인이거나 관리자면 상세를 본다.
+ * 그 외 팀원에게는 `자리비움`으로만 보여야 한다 (기획서 "권한과 공개 범위" 161행, 2026-07-03 확정).
+ */
+export function canViewPrivateEventDetail(event: CalendarEvent, viewer: User): boolean {
+  return event.ownerId === viewer.id || viewer.role === "admin";
+}
+
 export function assertCanMoveCalendarEvent(event: CalendarEvent): void {
   if (!canMoveCalendarEvent(event)) {
     throw new QueRuleError(
@@ -116,6 +124,20 @@ export function assertCanConfirmActionItem(item: ActionItem): void {
       "담당자 또는 마감일이 없는 Action은 Task로 생성하지 않는다 — 확인 필요 상태로 남긴다",
     );
   }
+}
+
+/**
+ * 회의록 열람 권한. `admin` 등급은 관리자/업로더만, `restricted`는 지정 인원(+관리자·업로더)만
+ * 볼 수 있다 (기획서 "회의록 업로드" 절, 2026-07-03 확정 — 예: 연봉협상 회의록은 당사자와 대표만).
+ */
+export function canViewMeetingNote(
+  viewer: User,
+  note: Pick<MeetingNote, "uploaderId" | "visibility" | "restrictedUserIds">,
+): boolean {
+  if (viewer.role === "admin" || note.uploaderId === viewer.id) return true;
+  if (note.visibility === "admin") return false;
+  if (note.visibility === "restricted") return (note.restrictedUserIds ?? []).includes(viewer.id);
+  return true;
 }
 
 /** Action 후보의 처리(보류/무시)는 담당자, 회의록 업로더, 관리자만 할 수 있다. */

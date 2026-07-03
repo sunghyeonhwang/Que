@@ -1,3 +1,4 @@
+import { canViewMeetingNote } from "@que/core";
 import { PageHeader } from "@/components/app/page-header";
 import { NoteList, type NoteListItem } from "@/components/notes/note-list";
 import { UploadNoteForm } from "@/components/notes/upload-note-form";
@@ -13,11 +14,8 @@ export default async function MeetingNotesPage() {
   const projectById = new Map(db.projects.map((p) => [p.id, p]));
 
   const notes: NoteListItem[] = [...db.meetingNotes]
-    // 공개 범위: admin 전용 회의록은 관리자/업로더만
-    .filter(
-      (note) =>
-        note.visibility !== "admin" || user.role === "admin" || note.uploaderId === user.id,
-    )
+    // 공개 범위: admin 전용/지정 인원 전용 회의록은 관리자·업로더(+지정 인원)만
+    .filter((note) => canViewMeetingNote(user, note))
     .sort((a, b) => b.meetingAt.localeCompare(a.meetingAt))
     .map((note) => ({
       id: note.id,
@@ -29,6 +27,8 @@ export default async function MeetingNotesPage() {
       extractionStatus: note.extractionStatus,
       candidateCount: db.actionItems.filter((a) => a.meetingNoteId === note.id).length,
       markdownBody: note.markdownBody,
+      visibility: note.visibility,
+      restrictedCount: note.restrictedUserIds?.length,
     }));
 
   return (
