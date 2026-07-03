@@ -315,6 +315,15 @@ data/
     - **45.3 사이드바 badge 실데이터 연결(완료, `f37c318`)**: `menu.ts` 하드코딩 badge:4 제거 → 셸 레이아웃에서 `getNoteSummary(user).needsReview`를 SidebarNav/MobileNav에 href별 `badges` prop으로 주입(0이면 숨김, 열람권한 스코프). curl 서버렌더 실측: 사이드바 badge=3(요약 카드 확인 필요=3과 일치), 하드코딩 "4건" 소멸, /payments 등 전 페이지 공통. **badges 맵은 href별 확장 가능** — 향후 다른 메뉴 뱃지도 같은 패턴으로 주입.
     - **남은 재설계**: 홈 정식 디자인(사용자 제공 시), 신규 PM 모델 Supabase 스키마+기존 모델 통합. 재설계 착지 시 CLAUDE.md의 "캘린더 기반 팀 상태 도구" 정의 갱신 필요.
 
+46. **피그마 대비 실작동 기능 감사 + 워크스페이스 크래시 수정 (2026-07-03)**: 사용자 "작동 안 되는 것 확인 + 시각 QA". 코드 감사(화면별 병렬 워크플로 10) + 프로덕션(`next start`, HMR 없어 브라우저 안정) 런타임 QA 병행.
+    - **🔴 실버그 수정(`88968bc`)**: **워크스페이스 스위처 클릭 시 크래시** — `DropdownMenuLabel`(=Base UI `Menu.GroupLabel`)을 `DropdownMenuGroup` 없이 써서 클릭(메뉴 오픈) 시 `MenuGroupContext missing`(Base UI error #31) → 에러 바운더리. Group으로 감싸 해결(런타임 실측: 수정 후 드롭다운 정상 오픈). `DropdownMenuLabel` 사용처는 workspace/user-switcher 둘뿐이고 후자는 이미 정상. **교훈: DropdownMenuLabel은 반드시 DropdownMenuGroup 안에.**
+    - **작동 안 하는 전역 컨트롤(모든 페이지, dead)**: 상단바 **검색 입력**(value/onChange/form 없음 — 타이핑만 되고 검색 안 됨), **알림 벨**(onClick 없음). layout.tsx가 서버 컴포넌트라 핸들러 미부착. → 기능이거나 최소 '준비 중' 처리 필요.
+    - **신규 PM 화면은 대체로 표시 전용 목업**: 프로젝트(/projects)=순수 mock(pm-data 조회만, mutation 0) — 작동은 뷰 탭·태스크 드로어·캘린더 월이동·그룹접기뿐, **새로추가/필터/공유/⋯/그룹+/완료체크박스/드로어 편집은 전부 dead**, **칸반 드래그·태스크 생성삭제·상세편집·그룹추가는 미구현(missing)**. 일정(/schedule)=기간 스위처만 작동, **날짜 이동 UI 통째 부재**(항상 오늘 고정), 필터·새로추가·이벤트클릭 dead. 성과·홈=**PeriodSelect(기간/월 select)가 useState만 바꾸고 데이터 미갱신(dead)**. 홈 '오늘 할 일 행 클릭' 미구현.
+    - **원본 도메인 기반 화면은 실동작 확인**: 작업목록(/today·/now) 20/22, 확인필요 19/20, 결제요청 11/12 — 탭·완료체크·상태변경·충돌제안·하루마감·체크인·업로드·추출·후보처리·등록폼·상태버튼(권한별) 전부 서버액션 연결. 로그인/인증/로그아웃/사이드바 8링크 정상.
+    - **의도적 데모(stub, 버그 아님)**: 팀 초대/확인필요보내기/부서변경/멤버제거(toast), 체크인 '병합'(안내 toast), 워크스페이스 항목(단일 mock).
+    - **레거시 고아 라우트**: `/calendar`·`/team`은 menu.ts에 없음(재설계로 /projects·/schedule가 대체). 내부 인터랙션은 살아있으나 메뉴에서 도달 불가. `components/templates/*`(반복업무 폼·리스트)는 **importer 0 — 어느 페이지에도 연결 안 된 고아**(서버액션은 배선돼 있으나 렌더 안 됨). → 정리 또는 /projects(마일스톤) 연결 결정 필요.
+    - 전체 감사 원본: `tasks/wj0p6z2g2.output`(JSON, 화면별 findings). 시각 QA 실측 확인: 검색 dead, 벨 dead, 워크스페이스 크래시→수정후정상, 프로젝트 보드탭·태스크드로어 작동, 팀 ⋮메뉴·KPI 정상.
+
 ## 남은 작업 / 오픈 질문
 
 - ~~알림 채널 결정~~ → **Slack 확정** (2026-07-02): 1단계 Incoming Webhook+딥링크, 2단계 Bot 인터랙티브 버튼으로 Slack 안에서 체크인 응답(`answerCheckIn` 경유, via 기록). 기획서 "알림 정책 > 알림 채널"과 MCP/CLI 계획 Phase E에 반영됨.
