@@ -8,5 +8,9 @@
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test"
   },
-  "packageManager": "pnpm@11.9.0"
+  "packageManager": "pnpm@11.9.0",
+  "devDependencies": {
+    "@types/pg": "^8.20.0",
+    "pg": "^8.22.0"
+  }
 }

@@ -207,6 +207,15 @@ data/
     - **글래도스 심사 1차 승인** — 멱등성(4회 반복 바이트 동일)·읽기전용 불변식(동기화 일정 moveCalendarEvent 거부)·접근제어(팀원 403)·입력방어(유령 owner/시간역전 skip)·갱신vs중복 전부 재현 통과. 비차단 관찰(attendeeIds/visibility만 바뀌면 갱신 감지 안 됨 — 실 연동 시 참석자 변경 유실) 즉시 반영: `changed` 비교에 visibility·attendeeIds(JSON 비교) 추가 + 잠금 테스트. 멱등성 유지 확인.
     - **env 도착 후 남은 실 연동 작업**: ① Google Cloud OAuth 앱 등록(사용자 확인 필요 — 슬랙처럼 "외부라 불가"인지), ② `GoogleCalendarProvider.listEvents` 구현(OAuth 토큰 + Calendar API), ③ Vercel Cron으로 `/api/calendar/sync` 주기 호출, ④ 외부 이벤트 삭제 동기화, ⑤ Google 사용자 ↔ Que userId 매핑 테이블. 지금 만든 엔진/인터페이스/엔드포인트는 그대로 재사용.
 
+38. **Supabase 프로젝트 초기 마이그레이션 (2026-07-03, env 트랙 시작)**: 사용자가 Supabase env(`data/.env`, gitignore됨) + Supabase MCP(`mcp.supabase.com`, project_ref `rnsqhipljpdmmkviiypy`) 제공.
+    - **중대 발견**: 이 Supabase 프로젝트는 비어있지 않았음 — 다른(더 큰) 앱의 스키마 20테이블 + 실데이터(profiles 7·tasks 25·calendar_events 22·payments 25·meetings 21 등, workspaces/onboarding/policies/approval/audit 포함)가 있었고 `tasks`·`calendar_events` 이름이 Que와 겹침. 임의 적용 시 충돌/데이터 훼손 위험이라 **중단하고 사용자 확인** → 사용자 결정: "기존 스키마 모두 삭제하고 새로 만들어 사용".
+    - **안전조치**: 삭제 전 기존 20테이블 전량을 `db/supabase/backup-before-que/*.json`으로 백업(REST, gitignore됨 — PII/결제 데이터라 커밋 금지).
+    - **연결 경로**: DDL은 secret key(PostgREST)로 불가 → 직접 Postgres 필요. 직접 호스트 `db.<ref>.supabase.co`는 DNS 미해석(최신 Supabase는 IPv6 전용/비활성) → **Session pooler**(`aws-1-ap-northeast-2.pooler.supabase.com:5432`, user `postgres.<ref>`)로 연결. 런타임 앱은 pooler 불필요 — supabase-js(PostgREST, API 호스트는 정상 해석)로 붙을 예정.
+    - **실행**: `db/supabase/migrate-fresh.sql`(구 객체 20테이블+3함수 CASCADE 삭제 → `schema.sql` 생성, `begin;…commit;` 단일 트랜잭션) + 러너 `db/supabase/run-migration.mjs`(pg, `data/.env`에서 연결 읽음, `--check` 모드). 결과: **public에 Que 14테이블만**(13 core + personal_access_tokens), 외래키 31·인덱스 25. 핵심 컬럼(recurring_template_id, restricted_user_ids, recurring_templates.*) 검증 완료.
+    - **schema.sql 갱신**: 이번 세션 변경 반영 — tasks.source에 `recurring_template`+`recurring_template_id` 컬럼, meeting_notes.visibility에 `restricted`+`restricted_user_ids`, change_logs.entity_type에 `recurring_template`, `recurring_templates` 테이블+인덱스 신설.
+    - **주의/후속**: 사용자가 `data/.env`를 pooler 문자열 추가하며 덮어써 **기존 API 키(SUPABASE_URL/SECRET_KEY/PUBLISHABLE_KEY/JWKS_URL)가 사라짐**. 런타임 어댑터(supabase-js) 구현엔 SUPABASE_SECRET_KEY + SUPABASE_URL이 다시 필요. **다음 단계 = Supabase 어댑터(QueDb 구현) + 시드 스크립트** — 이때 키 재수령 필요.
+    - Supabase MCP는 등록됐으나 이번 세션에선 "Needs authentication"으로 도구 미로드(세션 재연결 필요할 수 있음) — 마이그레이션은 pooler 직결로 처리해 MCP 없이 완료.
+
 ## 남은 작업 / 오픈 질문
 
 - ~~알림 채널 결정~~ → **Slack 확정** (2026-07-02): 1단계 Incoming Webhook+딥링크, 2단계 Bot 인터랙티브 버튼으로 Slack 안에서 체크인 응답(`answerCheckIn` 경유, via 기록). 기획서 "알림 정책 > 알림 채널"과 MCP/CLI 계획 Phase E에 반영됨.

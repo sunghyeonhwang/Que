@@ -1,3 +1,36 @@
+-- Que 초기 마이그레이션: 기존(다른 앱) 스키마 전체 삭제 후 Que 스키마 생성.
+-- 실행 전 db/supabase/backup-before-que/ 에 기존 데이터 백업 완료.
+-- 사용자 승인(2026-07-03): "기존의 스키마는 모두 삭제하고 새로 만들어서 사용".
+-- 단일 트랜잭션 — 중간 실패 시 전부 롤백된다.
+
+begin;
+
+-- ── 1) 기존 객체 제거 (다른 앱: workspaces/onboarding/policies/approval/audit ...) ──
+drop function if exists current_profile_id() cascade;
+drop function if exists shares_workspace_with_profile(uuid) cascade;
+drop function if exists is_active_workspace_member(uuid) cascade;
+drop table if exists public.workspaces cascade;
+drop table if exists public.meeting_minutes cascade;
+drop table if exists public.payments cascade;
+drop table if exists public.workspace_members cascade;
+drop table if exists public.approval_requests cascade;
+drop table if exists public.meetings cascade;
+drop table if exists public.deposits cascade;
+drop table if exists public.tasks cascade;
+drop table if exists public.profiles cascade;
+drop table if exists public.policy_versions cascade;
+drop table if exists public.approval_decisions cascade;
+drop table if exists public.onboarding_items cascade;
+drop table if exists public.teams cascade;
+drop table if exists public.onboarding_plans cascade;
+drop table if exists public.meeting_attendees cascade;
+drop table if exists public.policies cascade;
+drop table if exists public.audit_events cascade;
+drop table if exists public.employee_profiles cascade;
+drop table if exists public.notifications cascade;
+drop table if exists public.calendar_events cascade;
+
+-- ── 2) Que 스키마 생성 (db/supabase/schema.sql 기준) ──
 -- Que — Supabase(Postgres) 스키마
 -- 기준: packages/core/src/domain.ts (zod 스키마가 source of truth)
 -- 적용: Supabase Dashboard > SQL Editor 또는 `supabase db push`
@@ -208,3 +241,5 @@ create index if not exists idx_check_ins_assignee on check_ins (assignee_id, ans
 create index if not exists idx_task_comments_task on task_comments (task_id, created_at);
 create index if not exists idx_task_comments_help on task_comments (help_user_id, created_at desc);
 create index if not exists idx_recurring_templates_active on recurring_templates (active);
+
+commit;
