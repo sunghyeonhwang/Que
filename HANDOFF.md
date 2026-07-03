@@ -28,7 +28,7 @@ pnpm -r typecheck && pnpm --filter @que/web lint && pnpm --filter @que/core test
 mock 인증: 쿠키 `que-user=<id>` / PAT `que_pat_<id>` (예: `hwang-sunghyeon`=관리자). 8명 id는 `packages/core/src/mock/users.ts`.
 
 ### 다음 할 일 (사용자가 "하나씩" 진행 중 — env 트랙)
-1. **Vercel 배포** — Root=`apps/web`, env: `QUE_DB=supabase`+`SUPABASE_URL`+`SUPABASE_SECRET_KEY`+`QUE_ALLOW_MOCK_AUTH=true`, **Deployment Protection 필수**. 이제 실 DB가 붙어 배포하면 팀이 실사용 가능. (`data/docs/deploy-vercel-supabase.md`)
+1. **Vercel 배포** — Root=`apps/web`, **리전 인천(`icn1`) 필수**(Supabase도 서울 `ap-northeast-2` — 같은 리전), env: `QUE_DB=supabase`+`SUPABASE_URL`+`SUPABASE_SECRET_KEY`+`QUE_ALLOW_MOCK_AUTH=true`, **Deployment Protection 필수**. 이제 실 DB가 붙어 배포하면 팀이 실사용 가능. (`data/docs/deploy-vercel-supabase.md`)
 2. **실 인증** — 지금은 mock 쿠키/PAT라 아무나 사용자 전환 가능. Auth.js 도입 + `personal_access_tokens` 테이블(해시) + `core/mock/tokens.ts` 폐기.
 3. Sentry DSN(에러 리포팅) · Slack 앱(알림/스탠드업) · CLI/MCP 배포(30번) · 스케줄러 Vercel Cron 전환.
 
@@ -268,6 +268,16 @@ data/
     - **글래도스 적대적 리뷰 반려 1건(치명) → 수정 → 승인**: `toResult`(6개 서버 액션의 mutation 래퍼)가 `await fn()`(인스턴스 A에 mutation) + `await (await getDb()).persist()`(인스턴스 B — React `cache()`가 **서버 액션 경계에선 같은 인스턴스를 보장 못 함**)를 서로 다른 인스턴스에서 실행 → persist가 변경 없는 새 스냅샷에서 돌아 **웹 UI의 모든 mutation이 Supabase에서 조용히 유실**(API 라우트는 단일 인스턴스라 무사, 하필 주 인터페이스인 웹만 뚫림). 최초 E2E가 API(curl)+읽기 렌더만 검증해 이 구멍을 놓침. **수정**: `toResult`가 db를 한 번 획득해 콜백에 넘기고(`toResult((db) => db.method(...))`) 같은 인스턴스로 persist. 사전 읽기가 있던 calendar 3개 + `deferTaskToTomorrow`는 검증을 콜백 안으로 이동(not-found는 `QueRuleError` throw). **교훈: getDb의 cache 정체성에 기대는 코드는 서버 액션 경계에서 금지 — mutation과 persist는 반드시 같은 인스턴스.** 재심사: 웹 폼 3종(결제 완료·하루 마감·체크인 응답) DB 재조회로 영속 확인, 회귀 없음.
     - **E2E 실증(실 DB)**: 읽기(team API 8멤버, tasks 실 DB) / 쓰기 영속(API+웹폼 모두 status change → DB에 done+status_log/change_log 저장) / CREATE(uuid id 신규 행 영속, source/owner 정확) / **멱등성**(반복 스케줄러가 반복 요청에도 스탠드업 태스크 1개 — last_generated_for 영속, GET 전후 xmin 해시 동일 = 읽기가 쓰기 유발 안 함) / 브라우저 팀·결제 페이지 렌더+버튼 / **mock 무영향**(env 없이 8멤버·에러0, core 74테스트·build·lint 통과). 검증 후 정본 시드로 리셋.
     - **알려진 특성/후속**: ① 요청마다 전체 스냅샷 로드(≈200행이라 저렴하나, 규모 커지면 타겟 쿼리로 최적화). ② persist는 last-write-wins(동시 요청 낙관적 충돌 미처리 — 8인 저경합이라 수용, 후속에 버전 체크 검토). ③ 스케줄러는 여전히 getDb에서 lazy(멱등) — 배포 후 Vercel Cron 전환은 deploy 문서대로. ④ 인증/정적 USERS는 시드 id가 동일해 이번 단계 미변경(실 인증은 별도 백로그).
+
+40. **Supabase RLS 하드닝 (2026-07-03, env 트랙)**: Supabase MCP 재인증 후(옛 DCR client_id가 키체인에 캐시돼 `Unrecognized client_id` → `~/.claude` 키체인 `Claude Code-credentials`의 `mcpOAuth."supabase|..."` 항목 삭제로 새 등록 유도) 보안 어드바이저 확인 → **14개 테이블 전부 RLS 비활성 = publishable/anon 키로 전 행 읽기/쓰기 가능**(계좌번호 `payment_requests.account_number` 포함, critical) 발견.
+    - **조치**: 14개 테이블 `ENABLE ROW LEVEL SECURITY`(정책 없음) + `set_updated_at` search_path 고정 마이그레이션 적용. 앱은 `SUPABASE_SECRET_KEY`(service_role급)로만 붙어 RLS 우회 → **무영향**, anon 경로만 차단. `supabase-db.ts:41`이 secret 키로만 `createClient`하고 anon 클라이언트가 코드에 없음을 사전 확인.
+    - **실측**: secret 키로 `payment_requests` 조회 → 계좌번호 정상 반환(앱 동작), publishable/anon 키로 동일 조회 → `[]`(차단). 어드바이저 critical/ERROR 3종(rls_disabled·sensitive_columns_exposed·function_search_path) 해소, 남은 건 INFO(rls_enabled_no_policy = 의도된 deny-all)·WARN(auth_* = Supabase Auth 미사용이라 무관).
+    - **후속**: `db/supabase/schema.sql`은 아직 RLS 구문 미포함 → DB 재생성 시 `migrate-fresh.sql` 뒤에 RLS ALTER를 다시 적용해야 함(deploy 문서에 명시). 실 인증(Auth.js) 도입 후 세분화 정책이 필요하면 그때 policy 추가 검토.
+
+41. **Vercel 배포 준비 코드 파트 + 인천 리전 (2026-07-03)**: 사용자 지시 "A-B-C로 진행"(A=Vercel 배포, B=실 인증, C=커밋).
+    - **A 완료(코드 파트)**: `apps/web/vercel.json` 신설 — `"regions": ["icn1"]`로 **인천 리전 고정**(Supabase도 서울 `ap-northeast-2`이라 동일 리전, 왕복 지연 최소화). typecheck·lint·`pnpm build`(dev 미실행 확인 후) 전부 통과. 대시보드 조작(프로젝트 import·Root=apps/web·env 4종·Deployment Protection)은 사용자 몫이라 체크리스트로 안내(deploy 문서 참고). 체크인 스케줄러 Vercel Cron 전환은 후속(엔드포인트 신설 필요, deploy 문서 4-1).
+    - **B 미착수 — 결정 대기**: 실 인증(Auth.js) 수단을 AskUserQuestion으로 물었으나 사용자 자리 비움으로 미응답. 선택지: ①Google OAuth(도메인 제한, griff.co.kr Workspace라 자연스럽지만 Google Cloud OAuth 앱 등록=외부 벽) ②이메일+비밀번호(Credentials+Supabase 해시, 외부 의존 0) ③Supabase Auth 내장(service_role 아키텍처와 재정렬 필요). **다음 세션에서 이 결정부터 받고 착수.** 어느 쪽이든 공통으로 `personal_access_tokens`(현재 0행, 해시 저장)로 mock PAT(`core/mock/tokens.ts`) 대체 필요.
+    - **C 완료**: A + RLS(40번) + 문서 변경을 커밋. B는 결정 후 별도 커밋.
 
 ## 남은 작업 / 오픈 질문
 

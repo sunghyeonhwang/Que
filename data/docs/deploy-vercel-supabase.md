@@ -7,7 +7,8 @@
 
 - ✅ **mock 인증 배포 가드** — production 빌드에서 `QUE_ALLOW_MOCK_AUTH=true` 옵트인 없이는 웹/API 인증이 전부 차단된다 (`lib/mock-auth-guard.ts`). 실수로 공개 배포해도 계좌/데이터가 노출되지 않는 fail-safe.
 - ✅ **API 입력 상한** — 본문 100KB(413), 필드 길이 상한(제목 200자, 사유 500자, 회의록 500,000자, 금액 ≤1조 등)은 core에서 강제.
-- ✅ **Supabase 스키마 + 시드 적용됨** — `db/supabase/schema.sql`(14테이블: 13 도메인 + PAT, RLS 미사용/service_role 전제). 실 프로젝트에 마이그레이션(`db/supabase/migrate-fresh.sql`)·시드(`db/supabase/seed.mts`) 완료.
+- ✅ **Supabase 스키마 + 시드 적용됨** — `db/supabase/schema.sql`(14테이블: 13 도메인 + PAT). 실 프로젝트에 마이그레이션(`db/supabase/migrate-fresh.sql`)·시드(`db/supabase/seed.mts`) 완료.
+- ✅ **RLS 활성화됨 (2026-07-03)** — 14개 테이블 전부 `ENABLE ROW LEVEL SECURITY`(정책 없음). 앱은 `SUPABASE_SECRET_KEY`(service_role급)로만 접근해 RLS를 우회하므로 무영향, publishable/anon 키를 통한 PostgREST 직접 접근(계좌번호 등)은 차단됨. 실측: secret 키 조회 정상 / anon 키 조회 `[]`. Supabase 보안 어드바이저 critical 3종(rls_disabled·sensitive_columns_exposed·function_search_path) 해소. **주의: `schema.sql`은 아직 이 RLS 구문을 포함하지 않음 — DB 재생성 시 `ALTER TABLE ... ENABLE ROW LEVEL SECURITY`를 다시 적용할 것.**
 - ✅ **Supabase 어댑터 완성** — `apps/web/src/lib/supabase-db.ts`의 `SupabaseQueDb`(MockQueDb 상속, 요청마다 스냅샷 load → mutation 후 diff persist). `QUE_DB=supabase` + `SUPABASE_URL` + `SUPABASE_SECRET_KEY` 있으면 활성, 없으면 mock. 도메인↔행 매핑은 `packages/core/src/data/supabase-rows.ts`.
 - ✅ Vercel 빌드 호환 — pnpm 모노레포(`packageManager` 명시), Next.js 16, `turbopack.root` 설정.
 
@@ -19,6 +20,7 @@
 
 1. ⏳ Vercel 프로젝트 생성 — GitHub `sunghyeonhwang/Que` 연결
 2. ⏳ **Root Directory: `apps/web`** (Framework: Next.js 자동 인식)
+2-1. ⏳ **리전: 인천(`icn1`) — 필수.** Settings > Functions > Function Region을 **Seoul, South Korea (icn1)** 로 지정하거나, `apps/web/vercel.json`에 `{ "regions": ["icn1"] }`를 둔다. Supabase 프로젝트도 서울(`ap-northeast-2`)이라 DB와 같은 리전에 두어야 왕복 지연이 최소화된다.
 3. ⏳ 환경 변수: `QUE_ALLOW_MOCK_AUTH=true`
 4. ⏳ **Settings > Deployment Protection 활성화 (필수)** — mock 인증은 누구나 사용자 전환이 가능하므로 Protection 없이 절대 공개하지 않는다
 5. ⏳ 배포 후 확인: `/` 접속(역할별 리다이렉트), `QUE_ALLOW_MOCK_AUTH` 없이 재배포하면 503으로 잠기는지
