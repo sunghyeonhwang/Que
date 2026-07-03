@@ -19,9 +19,24 @@ export function findUser(id: string | undefined): User | undefined {
 }
 
 // ---------- 인증(실 로그인) 관련 ----------
-// 사용자 id는 `<성>-<이름>` 규칙 → 이메일은 `<이름>.<성>@griff.co.kr` (대표 실제 이메일과 동일 패턴).
-// 시드/mock 로그인/Supabase 인증이 같은 유도 규칙을 공유하도록 core에 둔다.
+// 실제 회사 이메일(영어이름@griff.co.kr). 출처: data/docs/que-user-info.md.
+// id의 로마자 표기가 실제와 다른 경우가 있어(예: oh-seunghoon→seunghun.oh) 유도가 아니라 명시 맵으로 둔다.
+// 시드/mock 로그인/Supabase 인증이 이 맵을 공유한다.
+// 주의: lee-hyejin은 que-user-info.md 명단에 없음(확인 필요) — 임시로 규칙값 유지.
+const USER_EMAILS: Record<string, string> = {
+  "hwang-sunghyeon": "sunghyeon.hwang@griff.co.kr",
+  "oh-seunghoon": "seunghun.oh@griff.co.kr",
+  "song-suyong": "suyong.song@griff.co.kr",
+  "hwang-sungjin": "seongjin.hwang@griff.co.kr",
+  "lee-yejin": "yejin.lee@griff.co.kr",
+  "park-seunghwan": "seunghwan.park@griff.co.kr",
+  "kim-riwon": "riwon.kim@griff.co.kr",
+  "lee-hyejin": "hyejin.lee@griff.co.kr",
+};
+
 export function emailForUser(id: string): string {
+  if (USER_EMAILS[id]) return USER_EMAILS[id];
+  // 폴백: id `<성>-<이름>` → `<이름>.<성>@griff.co.kr`
   const [family, ...rest] = id.split("-");
   return `${rest.join("")}.${family}@griff.co.kr`;
 }
