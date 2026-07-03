@@ -51,9 +51,16 @@ export class SupabaseQueDb extends MockQueDb {
     for (const [table, field] of Object.entries(TABLE_TO_FIELD) as [TableName, string][]) {
       const { data, error } = await this.client.from(table).select("*");
       if (error) throw new Error(`Supabase load ${table} 실패: ${error.message}`);
-      (this as unknown as Record<string, unknown[]>)[field] = (data ?? []).map((r) =>
-        fromRow(r as Record<string, unknown>),
-      );
+      const rows = (data ?? []).map((r) => fromRow(r as Record<string, unknown>));
+      if (table === "users") {
+        // 인증 전용 컬럼은 도메인 User가 아니다 — 메모리 객체/직렬화(팀 API 등)에서 완전히 제거해
+        // password_hash·email이 클라이언트로 새지 않게 한다.
+        for (const u of rows as Record<string, unknown>[]) {
+          delete u.passwordHash;
+          delete u.email;
+        }
+      }
+      (this as unknown as Record<string, unknown[]>)[field] = rows;
     }
     // 정규화로 사라진 Project.milestoneIds를 milestones에서 재구성(도메인 객체 충실성 유지).
     for (const p of this.projects as Project[]) {

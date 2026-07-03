@@ -35,8 +35,9 @@
    | `QUE_DB` | `supabase` | 없으면 mock으로 동작 |
    | `SUPABASE_URL` | Supabase 프로젝트 URL | |
    | `SUPABASE_SECRET_KEY` | secret 키(`sb_secret_...`) | **서버 전용 — `NEXT_PUBLIC_` 금지** |
-   | `QUE_ALLOW_MOCK_AUTH` | `true`(실 인증 전) → 실 인증 후 제거 | Deployment Protection 필수 |
-4. ⏳ **실 인증** — Auth.js 도입, mock 쿠키 전환기 제거, PAT를 무작위 발급 + `personal_access_tokens` 테이블(해시 저장)로 교체 (`core/mock/tokens.ts` 폐기)
+   | `AUTH_SECRET` | 랜덤 32바이트 base64 (`openssl rand -base64 32`) | **Auth.js 세션 서명 — 필수.** 로컬은 `data/.env`에 있음 |
+   | `QUE_ALLOW_MOCK_AUTH` | `true` (API/MCP/CLI의 mock PAT 경로 게이트) | **웹 로그인은 이제 실 인증이라 이 값과 무관.** PAT 해시화(B2) 완료 후 제거 |
+4. ✅ **웹 실 인증 완료 (Auth.js, 이메일+비밀번호)** — `getCurrentUser`가 세션을 읽고 미인증 시 `/login`으로 리다이렉트. 8명 계정은 `<이름>.<성>@griff.co.kr` + 초기 공용 비밀번호 `que-2026!`(bcrypt, DB 저장). **첫 로그인 강제 변경/개별 비밀번호는 후속(B2).** ⏳ 남은 것: API/MCP/CLI의 mock PAT를 무작위 발급 + `personal_access_tokens` 테이블(해시)로 교체(`core/mock/tokens.ts` 폐기) — 이게 되면 `QUE_ALLOW_MOCK_AUTH` 제거.
 4-1. ⏳ **체크인 스케줄러 Cron 전환** — 현재는 `getDb()` 접근 시 lazy 실행(`syncCheckIns`). 서버리스에서는 아무도 접근하지 않는 시간대에 체크인이 늦게 생성되므로, Vercel Cron(`vercel.json`의 crons, 예: 10분 간격)으로 `/api/cron/sync-checkins` 엔드포인트를 호출하게 전환한다 (lazy 실행은 이중 안전망으로 유지 — 멱등이므로 충돌 없음).
 5. ⏳ MCP/CLI 전환 — `.mcp.json`/`~/.que/config.json`의 `QUE_API_URL`을 배포 URL로
 

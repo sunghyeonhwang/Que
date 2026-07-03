@@ -29,7 +29,7 @@ mock 인증: 쿠키 `que-user=<id>` / PAT `que_pat_<id>` (예: `hwang-sunghyeon`
 
 ### 다음 할 일 (사용자가 "하나씩" 진행 중 — env 트랙)
 1. **Vercel 배포** — Root=`apps/web`, **리전 인천(`icn1`) 필수**(Supabase도 서울 `ap-northeast-2` — 같은 리전), env: `QUE_DB=supabase`+`SUPABASE_URL`+`SUPABASE_SECRET_KEY`+`QUE_ALLOW_MOCK_AUTH=true`, **Deployment Protection 필수**. 이제 실 DB가 붙어 배포하면 팀이 실사용 가능. (`data/docs/deploy-vercel-supabase.md`)
-2. **실 인증** — 지금은 mock 쿠키/PAT라 아무나 사용자 전환 가능. Auth.js 도입 + `personal_access_tokens` 테이블(해시) + `core/mock/tokens.ts` 폐기.
+2. ~~**웹 실 인증**~~ → **완료 (42번, Auth.js 이메일+비밀번호)**. 로그인: `<이름>.<성>@griff.co.kr` / 초기 공용 비번 `que-2026!`. **남은 B2**: API/MCP/CLI의 mock PAT를 `personal_access_tokens`(해시)로 교체 + `core/mock/tokens.ts` 폐기 → 그 후 `QUE_ALLOW_MOCK_AUTH` 제거. 첫 로그인 비번 강제 변경 플로우도 후속.
 3. Sentry DSN(에러 리포팅) · Slack 앱(알림/스탠드업) · CLI/MCP 배포(30번) · 스케줄러 Vercel Cron 전환.
 
 ### 반드시 지킬 규칙 / 함정
@@ -276,8 +276,17 @@ data/
 
 41. **Vercel 배포 준비 코드 파트 + 인천 리전 (2026-07-03)**: 사용자 지시 "A-B-C로 진행"(A=Vercel 배포, B=실 인증, C=커밋).
     - **A 완료(코드 파트)**: `apps/web/vercel.json` 신설 — `"regions": ["icn1"]`로 **인천 리전 고정**(Supabase도 서울 `ap-northeast-2`이라 동일 리전, 왕복 지연 최소화). typecheck·lint·`pnpm build`(dev 미실행 확인 후) 전부 통과. 대시보드 조작(프로젝트 import·Root=apps/web·env 4종·Deployment Protection)은 사용자 몫이라 체크리스트로 안내(deploy 문서 참고). 체크인 스케줄러 Vercel Cron 전환은 후속(엔드포인트 신설 필요, deploy 문서 4-1).
-    - **B 미착수 — 결정 대기**: 실 인증(Auth.js) 수단을 AskUserQuestion으로 물었으나 사용자 자리 비움으로 미응답. 선택지: ①Google OAuth(도메인 제한, griff.co.kr Workspace라 자연스럽지만 Google Cloud OAuth 앱 등록=외부 벽) ②이메일+비밀번호(Credentials+Supabase 해시, 외부 의존 0) ③Supabase Auth 내장(service_role 아키텍처와 재정렬 필요). **다음 세션에서 이 결정부터 받고 착수.** 어느 쪽이든 공통으로 `personal_access_tokens`(현재 0행, 해시 저장)로 mock PAT(`core/mock/tokens.ts`) 대체 필요.
-    - **C 완료**: A + RLS(40번) + 문서 변경을 커밋. B는 결정 후 별도 커밋.
+    - **B**: 사용자가 "이메일+비밀번호가 제일 간단"으로 결정 → 42번에서 구현 완료.
+    - **C 완료**: A + RLS(40번) + 문서 변경을 커밋. B(42번)는 별도 커밋.
+
+42. **웹 실 인증 — Auth.js 이메일+비밀번호 (2026-07-03)**: mock 쿠키(아무나 사용자 전환) → 실 로그인 전환. 41번의 B 결정("제일 간단" = 이메일+비밀번호) 이행.
+    - **스택**: `next-auth@5.0.0-beta.31`(Auth.js v5) Credentials provider + JWT 세션(어댑터 불필요), `bcryptjs`(서버리스 안전). **Next 16은 middleware가 `proxy`로 개명 + "proxy를 인증 솔루션으로 쓰지 말라" 명시** → middleware/proxy 없이 `getCurrentUser`가 세션 읽고 미인증 시 `redirect("/login")` (더 단순·안전). `apps/web/src/auth.ts`(NextAuth 설정), `lib/auth/verify.ts`(검증), `app/login/*`(폼+액션), `api/auth/[...nextauth]/route.ts`.
+    - **DB**: `users`에 `email`(lower 유니크 인덱스)·`password_hash` 컬럼 추가(실 DB 적용 + schema.sql·seed.mts 반영). 8명 이메일 `<이름>.<성>@griff.co.kr`(대표 실 이메일 패턴과 동일, 나머지 7명은 추정 — 실제와 다르면 수정), 초기 공용 비번 `que-2026!`(bcrypt(10), core `SEED_PASSWORD_HASH`/`DEV_PASSWORD`/`emailForUser`).
+    - **유출 방어(중요)**: `SupabaseQueDb.load()`가 `select *`+제네릭 `fromRow`라 그대로면 `password_hash`가 메모리 User→팀 API로 샘 → **users 로드에서 `passwordHash`·`email` 삭제**. 도메인 `User`는 불변(email/passwordHash 미포함), 인증 계층만 `verify.ts`에서 별도 쿼리로 password_hash 조회. 실측: `/api/team` JSON에 password_hash·email 노출 0.
+    - **mock/dev 호환**: `verify.ts`가 `QUE_DB=supabase`면 실 DB 조회, 아니면 정적 USERS의 파생 이메일 + `DEV_PASSWORD`로 검증 → 로컬 인메모리 개발도 같은 자격증명으로 로그인 가능(안 깨짐).
+    - **역할별 진입점 유지**: 관리자→/now, 팀원→/today (기존 `/` 로직 그대로, 이제 세션 기반). `UserSwitcher`는 "이름+로그아웃" 메뉴로 교체(사용자 전환 제거), `switchUser` 액션→`logout`(signOut). `AUTH_SECRET`는 `data/.env`(gitignore)에 추가, Vercel env 필수.
+    - **E2E 실측(실 DB dev + curl)**: 미인증→/login(307), CSRF→로그인 성공(302, 세션쿠키), 관리자→/now·팀원→/today, 틀린 비번 거부(세션 없음), `/now` 렌더(이름 표시), 로그아웃→세션 무효화→/login, 팀 API 유출 0. mock 모드 로그인/거부도 확인. typecheck·lint·`pnpm build`(dev 종료 후) 통과.
+    - **범위 제외(B2 후속)**: ① API/MCP/CLI는 여전히 mock PAT(`QUE_ALLOW_MOCK_AUTH` 게이트) — `personal_access_tokens`(해시) 전환 필요, ② 첫 로그인 비밀번호 강제 변경/개별 발급 미구현(사내 프리런치라 공용 임시비번 수용), ③ 글래도스 최종 게이트 미실행(다음 세션에서 커스텀 서브에이전트 인식되면 적대적 재검증 권장 — 특히 유출 방어·세션 위조).
 
 ## 남은 작업 / 오픈 질문
 

@@ -9,6 +9,8 @@ import {
   createSeed,
   USERS,
   toRow,
+  emailForUser,
+  SEED_PASSWORD_HASH,
   SEED_KEY_TO_TABLE,
   TABLE_INSERT_ORDER,
 } from "../../packages/core/src/index.ts";
@@ -76,7 +78,12 @@ try {
   counts.users = await insertRows(
     client,
     "users",
-    USERS.map((u) => filterCols("users", toRow(u as unknown as Record<string, unknown>))),
+    // 도메인 User + 인증 컬럼(email·공용 임시 비밀번호 해시)을 함께 넣어 재시드 시 로그인이 유지되게 한다.
+    USERS.map((u) => ({
+      ...filterCols("users", toRow(u as unknown as Record<string, unknown>)),
+      email: emailForUser(u.id),
+      password_hash: SEED_PASSWORD_HASH,
+    })),
   );
 
   // 나머지는 seed에서 (FK 안전 순서)

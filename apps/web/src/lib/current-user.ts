@@ -1,19 +1,20 @@
-import { cookies } from "next/headers";
-import { DEFAULT_USER_ID, findUser, type User } from "@que/core";
-import { isMockAuthAllowed, MOCK_AUTH_BLOCKED_MESSAGE } from "@/lib/mock-auth-guard";
+import { redirect } from "next/navigation";
+import { findUser, type User } from "@que/core";
+import { auth } from "@/auth";
 
-export const USER_COOKIE = "que-user";
-
-/** mock 로그인: 쿠키의 사용자를 읽고, 없으면 기본 사용자(황성현)로 취급한다.
- *  production에서는 명시적 옵트인 없이 동작하지 않는다 (실수 공개 배포 방지 fail-safe). */
+/** 실 로그인: Auth.js 세션에서 사용자를 읽는다. 세션이 없으면 로그인 화면으로 보낸다.
+ *  이 함수를 부르는 모든 (app) 페이지·레이아웃이 자동으로 인증 게이트를 통과한다. */
 export async function getCurrentUser(): Promise<User> {
-  // cookies()를 가드보다 먼저 호출한다 — 페이지를 dynamic으로 전환시켜
-  // 빌드 시점 프리렌더에서는 이 코드가 실행되지 않게 하고(빌드 통과),
-  // 실제 요청(런타임)에서만 가드가 동작한다.
-  const store = await cookies();
-  if (!isMockAuthAllowed()) {
-    throw new Error(MOCK_AUTH_BLOCKED_MESSAGE);
-  }
-  const id = store.get(USER_COOKIE)?.value;
-  return findUser(id) ?? findUser(DEFAULT_USER_ID)!;
+  const session = await auth();
+  const id = session?.user?.id;
+  if (!id) redirect("/login");
+
+  // avatarColor는 정적 로스터에서, name·role은 세션(=DB) 값을 우선한다.
+  const base = findUser(id);
+  if (!base) redirect("/login"); // 로스터에 없는 사용자 → 재로그인 유도
+  return {
+    ...base,
+    name: session.user.name ?? base.name,
+    role: session.user.role ?? base.role,
+  };
 }

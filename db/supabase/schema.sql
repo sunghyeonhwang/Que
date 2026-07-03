@@ -13,8 +13,12 @@ create table if not exists users (
   name        text not null,
   role        text not null check (role in ('admin', 'member')),
   avatar_color text not null,
+  email        text,          -- 실 로그인 식별자 (Auth.js Credentials)
+  password_hash text,         -- bcrypt 해시. 서버에서만 읽고 도메인 User/세션 밖으로 내보내지 않는다.
   created_at  timestamptz not null default now()
 );
+-- 이메일 유니크(대소문자 무시). email이 NULL인 계정도 허용.
+create unique index if not exists users_email_key on users (lower(email)) where email is not null;
 
 create table if not exists projects (
   id         text primary key,

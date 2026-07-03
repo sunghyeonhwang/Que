@@ -2,8 +2,8 @@
 
 import { useTransition } from "react";
 import { toast } from "sonner";
-import { USERS, type User } from "@que/core";
-import { switchUser } from "@/app/actions";
+import { type User } from "@que/core";
+import { logout } from "@/app/actions";
 import { reportError } from "@/lib/report-error";
 import { UNEXPECTED_ERROR_MESSAGE } from "./use-safe-action";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -17,9 +17,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { ChevronsUpDown, Check } from "lucide-react";
+import { ChevronsUpDown, LogOut } from "lucide-react";
 
-/** mock 로그인 전환기. 권한 없는 MVP 로그인 — 8명 중 한 명으로 전환한다. */
+/** 로그인한 사용자 메뉴 — 이름/역할 표시 + 로그아웃. (실 인증 전환으로 사용자 전환 기능은 제거됨) */
 export function UserSwitcher({ current }: { current: User }) {
   const [pending, startTransition] = useTransition();
 
@@ -31,7 +31,7 @@ export function UserSwitcher({ current }: { current: User }) {
             variant="ghost"
             className="h-11 w-full justify-start gap-2 px-2"
             disabled={pending}
-            aria-label={`현재 사용자 ${current.name}, 사용자 전환`}
+            aria-label={`${current.name} 메뉴`}
           />
         }
       >
@@ -46,28 +46,24 @@ export function UserSwitcher({ current }: { current: User }) {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-56">
         <DropdownMenuGroup>
-          <DropdownMenuLabel>사용자 전환 (mock 로그인)</DropdownMenuLabel>
+          <DropdownMenuLabel>{current.name}</DropdownMenuLabel>
           <DropdownMenuSeparator />
-          {USERS.map((user) => (
-            <DropdownMenuItem
-              key={user.id}
-              className="h-10 gap-2"
-              onClick={() =>
-                startTransition(async () => {
-                  try {
-                    await switchUser(user.id);
-                  } catch (error) {
-                    reportError(error, { source: "switch-user" });
-                    toast.error(UNEXPECTED_ERROR_MESSAGE);
-                  }
-                })
-              }
-            >
-              <MemberAvatar user={user} />
-              <span className="flex-1">{user.name}</span>
-              {user.id === current.id && <Check className="size-4" aria-hidden />}
-            </DropdownMenuItem>
-          ))}
+          <DropdownMenuItem
+            className="h-10 gap-2"
+            onClick={() =>
+              startTransition(async () => {
+                try {
+                  await logout();
+                } catch (error) {
+                  reportError(error, { source: "logout" });
+                  toast.error(UNEXPECTED_ERROR_MESSAGE);
+                }
+              })
+            }
+          >
+            <LogOut className="size-4" aria-hidden />
+            <span className="flex-1">로그아웃</span>
+          </DropdownMenuItem>
         </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>
