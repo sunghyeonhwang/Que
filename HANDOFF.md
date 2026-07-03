@@ -312,7 +312,7 @@ data/
       - **⚠️ 의도적 디자인 편차(도메인 규칙 우선)**: 디자인 프로필엔 위치/전화/가입일이 있으나 **PII 정책상 넣지 않음** — 2×2 레이아웃만 유지하고 값은 비-PII(부서/직급/역할/이메일)로 채움. **멤버 추가/부서 변경/멤버 제거·초대는 전부 데모 toast**(실 사용자/Auth/DB mutation 없음 — 시드/인증 보호). 히트맵은 색 단독 구분 회피(셀 수치+범례). 카드 이름/이메일은 실제 7명(디자인의 가상 12명 아님). **부서는 여전히 placeholder**(`departmentForUser`, 실값 미확정).
       - 검증: typecheck/lint/build(Next 16) 통과, dynamic 라우트 생성 확인, 적대적 코드리뷰 CRITICAL 0(WARN 2건=터치타깃·히트맵 색구분 즉시 수정). **브라우저/4해상도 시각 QA는 사용자 결정대로 나중 일괄**.
     - **45.2 확인필요·결제요청**: 재스킨은 이미 `aa6fdd8`에서 완료(ToneBadge·카드·표·마스킹/권한 보존). 이번 세션엔 **확인필요 상단 요약 카드만 추가**(회의록/추출 대기/Action 후보/확인 필요, `lib/notes-summary.ts`+`note-summary-cards.tsx`, 두 탭 공통, 열람권한 스코프) — 커밋 `54168fb`. 브라우저 QA(로그인→3화면 렌더) 실측 정상. ⚠️ 이 도구의 브라우저는 창 리사이즈해도 뷰포트가 ~2225px 고정이라 768/1024/1366 좁은폭 리플로우는 시각 캡처 불가 → 반응형은 결제요청과 동일한 Tailwind 클래스(`grid-cols-2 sm:grid-cols-4`·`xl:grid-cols`)로 코드상 보장.
-    - **⚠️ 미결(작음)**: `lib/menu.ts`의 확인필요 사이드바 badge가 **하드코딩 4**인데 실제 `needsReview`(getNoteSummary)는 3 — 요약 카드가 실값을 보여주면서 불일치가 드러남. 셸 레이아웃에서 getNoteSummary(user) 호출해 badge를 실데이터로 연결 필요(사용자 승인 시).
+    - **45.3 사이드바 badge 실데이터 연결(완료, `f37c318`)**: `menu.ts` 하드코딩 badge:4 제거 → 셸 레이아웃에서 `getNoteSummary(user).needsReview`를 SidebarNav/MobileNav에 href별 `badges` prop으로 주입(0이면 숨김, 열람권한 스코프). curl 서버렌더 실측: 사이드바 badge=3(요약 카드 확인 필요=3과 일치), 하드코딩 "4건" 소멸, /payments 등 전 페이지 공통. **badges 맵은 href별 확장 가능** — 향후 다른 메뉴 뱃지도 같은 패턴으로 주입.
     - **남은 재설계**: 홈 정식 디자인(사용자 제공 시), 신규 PM 모델 Supabase 스키마+기존 모델 통합. 재설계 착지 시 CLAUDE.md의 "캘린더 기반 팀 상태 도구" 정의 갱신 필요.
 
 ## 남은 작업 / 오픈 질문
