@@ -10,6 +10,7 @@ export {
   findUser,
   emailForUser,
   rankForUser,
+  departmentForUser,
   DEV_PASSWORD,
   SEED_PASSWORD_HASH,
 } from "./mock/users";

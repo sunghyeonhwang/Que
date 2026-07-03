@@ -54,6 +54,22 @@ export function rankForUser(id: string): string {
   return USER_RANK[id] ?? "사원";
 }
 
+// 부서 — 성과 화면(저성과 팀 표) 표시용. ⚠️ 임시 placeholder — 실제 값은 사용자 제공 후 교체.
+// (que-user-info.md엔 부서가 없어 임시 배정. DB 컬럼화는 실제 값 확정 시.)
+const USER_DEPARTMENT: Record<string, string> = {
+  "hwang-sunghyeon": "경영",
+  "oh-seunghoon": "운영",
+  "hwang-sungjin": "개발",
+  "park-seunghwan": "개발",
+  "song-suyong": "디자인",
+  "lee-yejin": "디자인",
+  "kim-riwon": "기획",
+};
+
+export function departmentForUser(id: string): string {
+  return USER_DEPARTMENT[id] ?? "";
+}
+
 /** 로컬 mock 개발 + 초기 배포용 공용 임시 비밀번호. 실 운영에선 사용자별 변경이 후속(강제 변경 플로우 = B2). */
 export const DEV_PASSWORD = "que-2026!";
 
