@@ -34,7 +34,7 @@ export const MENU_SECTIONS: MenuSection[] = [
     items: [
       { href: "/home", label: "홈", icon: Home },
       { href: "/projects", label: "프로젝트", icon: FolderKanban },
-      { href: "/team", label: "일정", icon: Calendar },
+      { href: "/schedule", label: "일정", icon: Calendar },
       { href: "/heatmap", label: "성과", icon: ChartColumn },
       {
         href: "/today",
