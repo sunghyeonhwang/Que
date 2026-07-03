@@ -2,12 +2,13 @@
 
 import { useSearchParams } from "next/navigation";
 import { SlidersHorizontal, Plus } from "lucide-react";
-import type { ProjectListView } from "@/lib/pm-data";
+import type { ProjectListView, ProjectBoardView } from "@/lib/pm-data";
 import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/app/icon-button";
 import { ProjectHeader } from "./project-header";
 import { ViewTabs, type ProjectView as ProjectViewKey } from "./view-tabs";
 import { TaskGroupSection } from "./task-group-section";
+import { BoardView } from "./board-view";
 
 const VIEW_KEYS: ProjectViewKey[] = ["list", "board", "calendar", "files"];
 const VIEW_LABEL: Record<ProjectViewKey, string> = {
@@ -21,8 +22,14 @@ function resolveView(raw: string | null): ProjectViewKey {
   return VIEW_KEYS.includes(raw as ProjectViewKey) ? (raw as ProjectViewKey) : "list";
 }
 
-/** 프로젝트 화면 클라이언트 오케스트레이터 — 헤더 + 뷰 탭 + 목록(스크롤). */
-export function ProjectView({ data }: { data: ProjectListView }) {
+/** 프로젝트 화면 클라이언트 오케스트레이터 — 헤더 + 뷰 탭 + 목록/보드(내부 스크롤). */
+export function ProjectView({
+  data,
+  board,
+}: {
+  data: ProjectListView;
+  board: ProjectBoardView;
+}) {
   const view = resolveView(useSearchParams().get("view"));
 
   return (
@@ -49,15 +56,19 @@ export function ProjectView({ data }: { data: ProjectListView }) {
         </div>
       </div>
 
-      <div className="-mx-4 min-h-0 flex-1 overflow-y-auto px-4 pt-3 md:-mx-5 md:px-5 xl:-mx-6 xl:px-6">
-        {view === "list" ? (
-          data.groups.map((group) => <TaskGroupSection key={group.id} group={group} />)
-        ) : (
-          <div className="flex min-h-[280px] items-center justify-center rounded-xl border border-dashed border-[var(--que-border)] bg-[var(--que-bg-muted)] text-sm text-[var(--que-text-tertiary)]">
-            {VIEW_LABEL[view]} 뷰는 준비 중입니다.
-          </div>
-        )}
-      </div>
+      {view === "board" ? (
+        <BoardView groups={board.groups} />
+      ) : (
+        <div className="-mx-4 min-h-0 flex-1 overflow-y-auto px-4 pt-3 md:-mx-5 md:px-5 xl:-mx-6 xl:px-6">
+          {view === "list" ? (
+            data.groups.map((group) => <TaskGroupSection key={group.id} group={group} />)
+          ) : (
+            <div className="flex min-h-[280px] items-center justify-center rounded-xl border border-dashed border-[var(--que-border)] bg-[var(--que-bg-muted)] text-sm text-[var(--que-text-tertiary)]">
+              {VIEW_LABEL[view]} 뷰는 준비 중입니다.
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

@@ -43,6 +43,10 @@ export interface PmTask {
   priority: PmPriority;
   assigneeIds: string[];
   done: boolean;
+  /** 카드 댓글 수(보드 뷰 푸터). */
+  commentCount: number;
+  /** 카드 첨부 수(보드 뷰 푸터). */
+  attachmentCount: number;
 }
 
 // ---------- seed ----------
@@ -87,6 +91,8 @@ const TASKS: PmTask[] = [
     priority: "high",
     assigneeIds: ["park-seunghwan"],
     done: false,
+    commentCount: 0,
+    attachmentCount: 0,
   },
   {
     id: "task-2",
@@ -97,6 +103,8 @@ const TASKS: PmTask[] = [
     priority: "low",
     assigneeIds: ["lee-yejin"],
     done: false,
+    commentCount: 0,
+    attachmentCount: 0,
   },
   {
     id: "task-3",
@@ -107,6 +115,8 @@ const TASKS: PmTask[] = [
     priority: "normal",
     assigneeIds: ["kim-riwon"],
     done: false,
+    commentCount: 1,
+    attachmentCount: 0,
   },
   // 할 일
   {
@@ -118,6 +128,8 @@ const TASKS: PmTask[] = [
     priority: "low",
     assigneeIds: ["song-suyong", "lee-yejin"],
     done: false,
+    commentCount: 0,
+    attachmentCount: 0,
   },
   {
     id: "task-5",
@@ -128,6 +140,8 @@ const TASKS: PmTask[] = [
     priority: "low",
     assigneeIds: ["hwang-sungjin", "kim-riwon"],
     done: false,
+    commentCount: 0,
+    attachmentCount: 0,
   },
   // 진행 중
   {
@@ -139,6 +153,8 @@ const TASKS: PmTask[] = [
     priority: "normal",
     assigneeIds: ["hwang-sunghyeon", "oh-seunghoon"],
     done: false,
+    commentCount: 5,
+    attachmentCount: 2,
   },
   {
     id: "task-7",
@@ -149,6 +165,8 @@ const TASKS: PmTask[] = [
     priority: "high",
     assigneeIds: ["lee-yejin"],
     done: false,
+    commentCount: 12,
+    attachmentCount: 4,
   },
   {
     id: "task-8",
@@ -159,6 +177,8 @@ const TASKS: PmTask[] = [
     priority: "normal",
     assigneeIds: ["park-seunghwan", "song-suyong"],
     done: false,
+    commentCount: 8,
+    attachmentCount: 0,
   },
   // 완료
   {
@@ -170,6 +190,8 @@ const TASKS: PmTask[] = [
     priority: "normal",
     assigneeIds: ["hwang-sunghyeon", "oh-seunghoon"],
     done: true,
+    commentCount: 3,
+    attachmentCount: 1,
   },
   {
     id: "task-10",
@@ -180,6 +202,8 @@ const TASKS: PmTask[] = [
     priority: "low",
     assigneeIds: ["kim-riwon"],
     done: true,
+    commentCount: 6,
+    attachmentCount: 2,
   },
 ];
 
@@ -269,4 +293,54 @@ export function getProjectListView(projectId: string): ProjectListView {
     memberOverflow: Math.max(0, members.length - 3),
     groups: listGroups,
   };
+}
+
+// ---------- 보드(칸반) 뷰 ----------
+
+export interface BoardViewTask {
+  id: string;
+  name: string;
+  description: string;
+  /** "2025년 9월 8일 금요일" 형태로 서버에서 포맷. 없으면 null. */
+  dueLabel: string | null;
+  priority: PmPriority;
+  assignees: ListViewMember[];
+  commentCount: number;
+  attachmentCount: number;
+}
+
+export interface BoardViewGroup {
+  id: string;
+  name: string;
+  color: string;
+  count: number;
+  tasks: BoardViewTask[];
+}
+
+export interface ProjectBoardView {
+  groups: BoardViewGroup[];
+}
+
+/** 프로젝트 보드 뷰 모델 — 그룹=열, 태스크=카드. 리스트 뷰와 동일하게 서버에서 날짜 포맷. */
+export function getProjectBoardView(projectId: string): ProjectBoardView {
+  const project = PROJECTS.find((p) => p.id === projectId) ?? PROJECTS[0];
+  const groups = GROUPS.filter((g) => g.projectId === project.id).sort(
+    (a, b) => a.order - b.order,
+  );
+
+  const boardGroups: BoardViewGroup[] = groups.map((group) => {
+    const tasks = TASKS.filter((t) => t.groupId === group.id).map<BoardViewTask>((t) => ({
+      id: t.id,
+      name: t.name,
+      description: t.description,
+      dueLabel: formatDue(t.dueAt),
+      priority: t.priority,
+      assignees: t.assigneeIds.map(resolveMember),
+      commentCount: t.commentCount,
+      attachmentCount: t.attachmentCount,
+    }));
+    return { id: group.id, name: group.name, color: group.color, count: tasks.length, tasks };
+  });
+
+  return { groups: boardGroups };
 }
