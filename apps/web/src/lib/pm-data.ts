@@ -1,4 +1,13 @@
-import { format } from "date-fns";
+import {
+  addDays,
+  addMonths,
+  format,
+  isSameDay,
+  isSameMonth,
+  startOfMonth,
+  startOfWeek,
+  subMonths,
+} from "date-fns";
 import { ko } from "date-fns/locale";
 import { findUser } from "@que/core";
 
@@ -343,4 +352,109 @@ export function getProjectBoardView(projectId: string): ProjectBoardView {
   });
 
   return { groups: boardGroups };
+}
+
+// ---------- 캘린더(월 그리드) 뷰 ----------
+
+export interface CalendarViewTask {
+  id: string;
+  /** pill 제목. */
+  name: string;
+  /** pill 점·틴트 색(hex). 태스크 소속 그룹 색을 사용. */
+  color: string;
+}
+
+export interface CalendarViewDay {
+  /** yyyy-MM-dd. */
+  date: string;
+  /** 셀 날짜 숫자(1..31). */
+  day: number;
+  /** 표시 월에 속하는 날짜인지(다른 달은 흐리게). */
+  inMonth: boolean;
+  /** 오늘 여부(서버에서 계산해 직렬화). */
+  isToday: boolean;
+  tasks: CalendarViewTask[];
+}
+
+export interface ProjectCalendarView {
+  /** 해석된 표시 월 "yyyy-MM". */
+  month: string;
+  /** 헤더 라벨 "2025년 9월". */
+  monthLabel: string;
+  /** 이전/다음 달 "yyyy-MM"(URL 이동용). */
+  prevMonth: string;
+  nextMonth: string;
+  /** 6주 × 7일 = 42 셀(일요일 시작). */
+  days: CalendarViewDay[];
+}
+
+/** "yyyy-MM" 형식 화이트리스트(01~12만 허용). */
+const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
+
+/** seed 태스크 dueAt 중 가장 많은 달, 동수면 이른 달을 기본 앵커로. 태스크가 없으면 이번 달. */
+function defaultAnchorMonth(): string {
+  const counts = new Map<string, number>();
+  for (const t of TASKS) {
+    if (!t.dueAt) continue;
+    const key = t.dueAt.slice(0, 7);
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  let best: string | null = null;
+  let bestCount = -1;
+  for (const [key, count] of counts) {
+    if (count > bestCount || (count === bestCount && best !== null && key < best)) {
+      best = key;
+      bestCount = count;
+    }
+  }
+  return best ?? format(new Date(), "yyyy-MM");
+}
+
+/** URL 파라미터 방어: 유효한 "yyyy-MM"이면 그대로, 아니면 기본 앵커. */
+function resolveAnchorMonth(raw: string | null | undefined): string {
+  return raw && MONTH_RE.test(raw) ? raw : defaultAnchorMonth();
+}
+
+/** 프로젝트 캘린더(월) 뷰 모델 — 6주 그리드 각 날짜에 마감 태스크를 매핑. 읽기 전용(P3). */
+export function getProjectCalendarView(
+  projectId: string,
+  anchorMonth: string | null | undefined,
+): ProjectCalendarView {
+  const project = PROJECTS.find((p) => p.id === projectId) ?? PROJECTS[0];
+  const groupColor = new Map(
+    GROUPS.filter((g) => g.projectId === project.id).map((g) => [g.id, g.color]),
+  );
+  const projectTasks = TASKS.filter((t) => groupColor.has(t.groupId));
+
+  const month = resolveAnchorMonth(anchorMonth);
+  const anchorDate = new Date(`${month}-01T00:00:00`);
+  const gridStart = startOfWeek(startOfMonth(anchorDate), { weekStartsOn: 0 });
+  const today = new Date();
+
+  const days: CalendarViewDay[] = Array.from({ length: 42 }, (_, i) => {
+    const d = addDays(gridStart, i);
+    const key = format(d, "yyyy-MM-dd");
+    const tasks = projectTasks
+      .filter((t) => t.dueAt === key)
+      .map<CalendarViewTask>((t) => ({
+        id: t.id,
+        name: t.name,
+        color: groupColor.get(t.groupId) ?? "#9ca3af",
+      }));
+    return {
+      date: key,
+      day: d.getDate(),
+      inMonth: isSameMonth(d, anchorDate),
+      isToday: isSameDay(d, today),
+      tasks,
+    };
+  });
+
+  return {
+    month,
+    monthLabel: format(anchorDate, "yyyy년 M월", { locale: ko }),
+    prevMonth: format(subMonths(anchorDate, 1), "yyyy-MM"),
+    nextMonth: format(addMonths(anchorDate, 1), "yyyy-MM"),
+    days,
+  };
 }

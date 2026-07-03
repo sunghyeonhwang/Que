@@ -2,13 +2,14 @@
 
 import { useSearchParams } from "next/navigation";
 import { SlidersHorizontal, Plus } from "lucide-react";
-import type { ProjectListView, ProjectBoardView } from "@/lib/pm-data";
+import type { ProjectListView, ProjectBoardView, ProjectCalendarView } from "@/lib/pm-data";
 import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/app/icon-button";
 import { ProjectHeader } from "./project-header";
 import { ViewTabs, type ProjectView as ProjectViewKey } from "./view-tabs";
 import { TaskGroupSection } from "./task-group-section";
 import { BoardView } from "./board-view";
+import { ProjectCalendarView as CalendarView } from "./calendar-view";
 
 const VIEW_KEYS: ProjectViewKey[] = ["list", "board", "calendar", "files"];
 const VIEW_LABEL: Record<ProjectViewKey, string> = {
@@ -26,9 +27,11 @@ function resolveView(raw: string | null): ProjectViewKey {
 export function ProjectView({
   data,
   board,
+  calendar,
 }: {
   data: ProjectListView;
   board: ProjectBoardView;
+  calendar: ProjectCalendarView;
 }) {
   const view = resolveView(useSearchParams().get("view"));
 
@@ -58,6 +61,8 @@ export function ProjectView({
 
       {view === "board" ? (
         <BoardView groups={board.groups} />
+      ) : view === "calendar" ? (
+        <CalendarView data={calendar} />
       ) : (
         <div className="-mx-4 min-h-0 flex-1 overflow-y-auto px-4 pt-3 md:-mx-5 md:px-5 xl:-mx-6 xl:px-6">
           {view === "list" ? (
