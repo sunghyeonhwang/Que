@@ -110,7 +110,7 @@ export default async function CalendarPage({
   return (
     <div>
       <PageHeader
-        title="캘린더"
+        title="프로젝트"
         subtitle={`회사 일정, 작업, 마일스톤을 한 시간축에서 · ${format(anchor, "yyyy년 M월", { locale: ko })}`}
       />
 

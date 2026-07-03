@@ -38,6 +38,22 @@ export function emailForUser(id: string): string {
   return `${rest.join("")}.${family}@griff.co.kr`;
 }
 
+// 직급(직책) — 팀원 카드 표시용. 출처: data/docs/que-user-info.md.
+// 전화·생년월일은 PII라 코드에 두지 않는다(필요 시 DB 컬럼으로).
+const USER_RANK: Record<string, string> = {
+  "hwang-sunghyeon": "대표",
+  "oh-seunghoon": "관리",
+  "hwang-sungjin": "사원",
+  "park-seunghwan": "사원",
+  "song-suyong": "사원",
+  "lee-yejin": "사원",
+  "kim-riwon": "사원",
+};
+
+export function rankForUser(id: string): string {
+  return USER_RANK[id] ?? "사원";
+}
+
 /** 로컬 mock 개발 + 초기 배포용 공용 임시 비밀번호. 실 운영에선 사용자별 변경이 후속(강제 변경 플로우 = B2). */
 export const DEV_PASSWORD = "que-2026!";
 

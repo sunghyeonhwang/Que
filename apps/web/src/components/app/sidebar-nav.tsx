@@ -12,7 +12,8 @@ export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
   return (
     <nav aria-label="주 메뉴" className="flex flex-col gap-1">
       {MENU.map((item) => {
-        const active = pathname.startsWith(item.href);
+        const matchPaths = item.match ?? [item.href];
+        const active = matchPaths.some((path) => pathname.startsWith(path));
         const Icon = item.icon;
         return (
           <Link

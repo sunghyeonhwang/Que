@@ -58,7 +58,7 @@ export default async function TeamPage({
   return (
     <div>
       <PageHeader
-        title="팀 현황"
+        title="일정"
         subtitle={`오늘 팀의 업무 흐름과 병목 · ${format(now, "M월 d일 (EEE)", { locale: ko })}`}
       />
 
@@ -76,7 +76,7 @@ export default async function TeamPage({
         ))}
       </section>
 
-      <nav aria-label="팀 현황 뷰 전환" className="mb-4 flex w-fit rounded-lg border p-0.5">
+      <nav aria-label="일정 뷰 전환" className="mb-4 flex w-fit rounded-lg border p-0.5">
         {VIEWS.map((v) => (
           <Link
             key={v.key}

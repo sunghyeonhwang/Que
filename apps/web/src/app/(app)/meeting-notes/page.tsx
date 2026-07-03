@@ -1,5 +1,6 @@
 import { canViewMeetingNote } from "@que/core";
 import { PageHeader } from "@/components/app/page-header";
+import { NoteTabs } from "@/components/app/note-tabs";
 import { NoteList, type NoteListItem } from "@/components/notes/note-list";
 import { UploadNoteForm } from "@/components/notes/upload-note-form";
 import { getCurrentUser } from "@/lib/current-user";
@@ -37,6 +38,9 @@ export default async function MeetingNotesPage() {
         title="회의록"
         subtitle="Plaud 회의록을 업로드하고 Action 추출 대상으로 관리합니다 — 원문은 항상 보존됩니다"
       />
+
+      <NoteTabs active="notes" />
+
       <div className="grid gap-4 xl:grid-cols-[minmax(0,26rem)_minmax(0,1fr)]">
         <UploadNoteForm projects={db.projects} />
         <div>

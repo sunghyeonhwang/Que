@@ -24,7 +24,7 @@ export default async function HeatmapPage() {
   return (
     <div>
       <PageHeader
-        title="히트맵"
+        title="퍼포먼스"
         subtitle="멤버별 작업량 편차 — 평가가 아니라 업무 배분과 병목 조정용입니다"
       />
 

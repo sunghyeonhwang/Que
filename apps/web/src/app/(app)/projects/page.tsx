@@ -70,7 +70,7 @@ export default async function ProjectsPage() {
 
   return (
     <div>
-      <PageHeader title="프로젝트" subtitle="프로젝트 기준으로 마일스톤과 연결 작업을 추적합니다" />
+      <PageHeader title="마일스톤" subtitle="프로젝트 기준으로 마일스톤과 연결 작업을 추적합니다" />
 
       <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">
         {projects.map(({ project, active, done, blocked, nextMilestone, byAssignee, changes }) => {

@@ -3,6 +3,7 @@ import { format } from "date-fns";
 import { canViewMeetingNote } from "@que/core";
 import { ActionRow, type ActionRowData } from "@/components/action/action-row";
 import { PageHeader } from "@/components/app/page-header";
+import { NoteTabs } from "@/components/app/note-tabs";
 import { StatusBadge } from "@/components/app/status-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getCurrentUser } from "@/lib/current-user";
@@ -62,6 +63,8 @@ export default async function ActionPage({
         title="Action"
         subtitle={`회의록에서 추출된 Task 후보를 확정합니다 · 확인 필요 ${needsReview}건`}
       />
+
+      <NoteTabs active="action" />
 
       <div className="mb-4 flex flex-wrap gap-2" aria-label="회의록 필터">
         <FilterChip href="/action" active={!noteFilter} label="전체 회의록" />

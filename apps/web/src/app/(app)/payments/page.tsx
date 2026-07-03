@@ -21,7 +21,7 @@ export default async function PaymentsPage() {
   return (
     <div>
       <PageHeader
-        title="결제"
+        title="결제요청"
         subtitle="결제 요청을 등록하고 입금 처리 상태를 확인합니다 — 계좌번호와 금액은 관리자와 요청자에게만 표시됩니다"
       />
 

@@ -9,6 +9,7 @@ export {
   DEFAULT_USER_ID,
   findUser,
   emailForUser,
+  rankForUser,
   DEV_PASSWORD,
   SEED_PASSWORD_HASH,
 } from "./mock/users";
