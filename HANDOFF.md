@@ -303,6 +303,16 @@ data/
     - **PII 주의**: `que-user-info.md`(전화/생년월일)와 `pat-tokens.txt`는 gitignore. 절대 커밋 금지. `que-user-info.md`는 실수로 커밋됐다가 amend로 제거(push 전).
     - **남은 것**: DNS 추가(사용자) · 팀에 PAT 개별 전달 · 첫 로그인 비번 변경(후속) · CLI/MCP 번들 배포(30번). `mock/tokens.ts`(결정적 mock PAT)는 dev 전용으로 잔존 — 운영은 안 씀.
 
+45. **전면 재설계 트랙 — Figma QUE_All_Pages (2026-07-03, 진행 중)**: 사용자 제공 Figma(`XhDXyGhG2PYKNRKRpgXheQ`, 화면별 노드 `data/디자인변경_추가기능_작업.md`) 기준으로 전 화면 시각 재설계. 방향(사용자 확정): **"디자인 그대로 + 신규 데이터 모델 + 새 앱 셸"**. 마스터 계획 = `data/docs/redesign-plan.md`.
+    - **공통 기반(완료)**: `globals.css`에 `--que-*` 디자인 토큰(brand `#3388ff`, border `#e3e3e8`, text 3단계, bg-muted `#f4f4f6`, success/error). shadcn theme 토큰은 **덮지 않음**(신규 --que-* 변수 병행). 폰트 Inter Tight(라틴)+Noto Sans KR(한글), 전역 `word-break:keep-all`. 새 앱 셸(GRIFF 상단바+워크스페이스 스위처 사이드바), 로그인 리스킨. 메뉴 IA `lib/menu.ts`(홈/프로젝트/일정/성과/작업목록/팀/확인필요/결제요청). **URL은 유지**(팀→/members, 일정→/schedule 등).
+    - **완료 화면**: 프로젝트(신규 PM mock `pm-data.ts` — 목록/보드/캘린더/태스크 상세, 파일뷰 제외), 성과(recharts KPI·라인·영역·히트맵·저성과표), 일정(주/월 뷰), 작업목록(리치 기능 유지), 홈(성과 컴포넌트 재사용), **팀(이번, 45.1)**. 차트=recharts 확정.
+    - **45.1 팀 화면(/members) — 이번 세션**: Figma 팀 개요(`1:17286`)·멤버 세부(`1:18275`)·추가 모달(`1:17912`)·⋮ 메뉴(`1:17592`) 반영. Workflow 오케스트레이션(데이터 계층 backend → 팀개요+멤버상세 frontend 병렬 → build+적대적 리뷰). 커밋 `a7b34f2`.
+      - **`/members` 재작성**: KPI 4(총 멤버=USERS.length·오늘 활동·총 부서=departmentForUser 고유수·평균 완료 작업/주=최근6주 done÷6) + `＋ 새 멤버` 초대 다이얼로그 + "모든 팀" 멤버 카드(부서 라벨+⋮ 메뉴+자세히 링크).
+      - **`/members/[id]` 신규**: 프로필(2×2 정보 그리드) + 최근 활동(status_logs) + 기여 히트맵(35일) + 작업 성과(주별 8주, `PerformanceLineChart` 재사용). 데이터 계층 `members-data.ts`의 `getTeamOverview`/`getMemberDetail`(성과·히트맵 집계 패턴 재사용).
+      - **⚠️ 의도적 디자인 편차(도메인 규칙 우선)**: 디자인 프로필엔 위치/전화/가입일이 있으나 **PII 정책상 넣지 않음** — 2×2 레이아웃만 유지하고 값은 비-PII(부서/직급/역할/이메일)로 채움. **멤버 추가/부서 변경/멤버 제거·초대는 전부 데모 toast**(실 사용자/Auth/DB mutation 없음 — 시드/인증 보호). 히트맵은 색 단독 구분 회피(셀 수치+범례). 카드 이름/이메일은 실제 7명(디자인의 가상 12명 아님). **부서는 여전히 placeholder**(`departmentForUser`, 실값 미확정).
+      - 검증: typecheck/lint/build(Next 16) 통과, dynamic 라우트 생성 확인, 적대적 코드리뷰 CRITICAL 0(WARN 2건=터치타깃·히트맵 색구분 즉시 수정). **브라우저/4해상도 시각 QA는 사용자 결정대로 나중 일괄**.
+    - **남은 재설계**: 확인필요(회의록+Action)·결제요청 화면 재스킨, 홈 정식 디자인(사용자 제공 시), 신규 PM 모델 Supabase 스키마+기존 모델 통합. 재설계 착지 시 CLAUDE.md의 "캘린더 기반 팀 상태 도구" 정의 갱신 필요.
+
 ## 남은 작업 / 오픈 질문
 
 - ~~알림 채널 결정~~ → **Slack 확정** (2026-07-02): 1단계 Incoming Webhook+딥링크, 2단계 Bot 인터랙티브 버튼으로 Slack 안에서 체크인 응답(`answerCheckIn` 경유, via 기록). 기획서 "알림 정책 > 알림 채널"과 MCP/CLI 계획 Phase E에 반영됨.
