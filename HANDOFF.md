@@ -1,6 +1,49 @@
 # Que 핸드오프 문서
 
-마지막 업데이트: 2026-07-02
+마지막 업데이트: 2026-07-03
+
+---
+
+## 🚀 빠른 시작 (다음 세션은 여기부터)
+
+**Que = 8인 팀용 캘린더 기반 작업 상태 관리 도구.** 감시 도구가 아니라 병목·일정충돌을 빨리 드러내는 운영 도구. 저장소 <https://github.com/sunghyeonhwang/Que.git>. 스택: TypeScript · Next.js 16 App Router · Tailwind · shadcn/ui(base-nova) · zod. pnpm 모노레포(`apps/web` 웹, `packages/core` 도메인/규칙/데이터, `packages/mcp` MCP, `packages/cli` CLI).
+
+### 지금까지 완성된 것
+- **웹 MVP 11화면**: 오늘·Now·캘린더(3뷰+드래그)·팀 현황(+스탠드업+관리자 리포트)·히트맵·회의록·Action·프로젝트·결제. 하루 사이클 완결(자연어 등록→체크인→충돌 제안→댓글/도움요청→하루 마감).
+- **REST API + MCP(도구 19개) + CLI(19명령)** — 전부 `packages/core`의 규칙 공유, 변경은 `via: web|mcp|cli` 기록.
+- **백로그 1~5위 완료**: ①비공개 일정 관리자 열람 ②회의록 단위 열람 권한(restricted) ③반복 업무 템플릿 ④관리자 리포트(점수화 없음, 팀 현황 admin 뷰) ⑤Google Calendar 비-env 골격(CalendarProvider+동기화 엔진+`/api/calendar/sync`, 실 OAuth만 대기).
+- **Supabase 실 DB 연동 완료 (핵심)**: 실 프로젝트 `rnsqhipljpdmmkviiypy`에 스키마·시드 적용. `SupabaseQueDb`(`apps/web/src/lib/supabase-db.ts`)가 MockQueDb를 상속해 요청마다 스냅샷 load→mutation→diff persist. **`QUE_DB=supabase`면 실 DB, 없으면 mock(기본).**
+- core 테스트 74케이스. 글래도스 게이트 누적 20+회(반려 전부 수정 후 승인).
+
+### 실행 방법
+```bash
+pnpm install
+pnpm dev                    # mock(인메모리) 기본 — 키 불필요
+# Supabase 실 DB로 띄우려면 (키는 data/.env에 있음, gitignore됨):
+SUPA_URL=$(grep '^SUPABASE_URL=' data/.env | cut -d= -f2-); SUPA_KEY=$(grep '^SUPABASE_SECRET_KEY=' data/.env | cut -d= -f2-)
+QUE_DB=supabase SUPABASE_URL="$SUPA_URL" SUPABASE_SECRET_KEY="$SUPA_KEY" pnpm dev
+pnpm -r typecheck && pnpm --filter @que/web lint && pnpm --filter @que/core test
+# DB 재시드(정본 리셋): pnpm --filter @que/core exec tsx "$PWD/db/supabase/seed.mts"
+```
+mock 인증: 쿠키 `que-user=<id>` / PAT `que_pat_<id>` (예: `hwang-sunghyeon`=관리자). 8명 id는 `packages/core/src/mock/users.ts`.
+
+### 다음 할 일 (사용자가 "하나씩" 진행 중 — env 트랙)
+1. **Vercel 배포** — Root=`apps/web`, env: `QUE_DB=supabase`+`SUPABASE_URL`+`SUPABASE_SECRET_KEY`+`QUE_ALLOW_MOCK_AUTH=true`, **Deployment Protection 필수**. 이제 실 DB가 붙어 배포하면 팀이 실사용 가능. (`data/docs/deploy-vercel-supabase.md`)
+2. **실 인증** — 지금은 mock 쿠키/PAT라 아무나 사용자 전환 가능. Auth.js 도입 + `personal_access_tokens` 테이블(해시) + `core/mock/tokens.ts` 폐기.
+3. Sentry DSN(에러 리포팅) · Slack 앱(알림/스탠드업) · CLI/MCP 배포(30번) · 스케줄러 Vercel Cron 전환.
+
+### 반드시 지킬 규칙 / 함정
+- **dev 서버 켜진 동안 `pnpm build` 금지** (같은 `.next` 공유로 캐시 오염). build 전 dev 종료.
+- **웹 계층에서 core 에러 판별은 `instanceof` 금지 → `isQueRuleError()` 사용** (HMR 이중 로딩, 27번).
+- **서버 액션에서 mutation과 persist는 반드시 같은 db 인스턴스** (`getDb()` cache 정체성은 액션 경계에서 미보장 — 39번 치명 버그). 각 `toResult`가 db 한 번 획득해 콜백에 넘김.
+- **비밀값**: `data/.env`(Supabase URL/키/비번/pooler)와 `db/supabase/backup-before-que/`(구 앱 데이터)는 gitignore됨 — 절대 커밋 금지.
+- **Supabase MCP**: `mcp.supabase.com` 등록됐으나 "Needs authentication" — 세션에서 `/mcp`로 재인증 필요(마이그레이션은 pooler 직결로 처리해 MCP 없이 완료). DDL은 pooler(pg), 런타임은 supabase-js(직접 호스트 `db.<ref>`는 IPv6/DNS 미해석).
+- **모델 방침**: 서브에이전트 결정형=fable, 구현형(frontend/backend-dev)=opus, 검증형=sonnet (`.claude/agents/*.md` frontmatter).
+- **글래도스 게이트**: 의미 있는 변경은 커밋 전 글래도스(general-purpose+페르소나 주입, `model:fable`) 적대적 심사 — 커스텀 `glados` 서브에이전트가 이번 세션 레지스트리에 안 잡혀 우회 중.
+
+상세 이력은 아래 번호 항목(1~39)과 "남은 작업" 절 참고.
+
+---
 
 ## 프로젝트 개요
 
