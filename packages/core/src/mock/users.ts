@@ -3,13 +3,12 @@ import type { User } from "../domain";
 // 기획서 "초기 멤버 명단" 8명. 황성현은 대표/관리자.
 export const USERS: User[] = [
   { id: "hwang-sunghyeon", name: "황성현", role: "admin", avatarColor: "#2563eb" },
-  { id: "oh-seunghoon", name: "오승훈", role: "member", avatarColor: "#16a34a" },
+  { id: "oh-seunghoon", name: "오승훈", role: "admin", avatarColor: "#16a34a" }, // 직급 '관리' → 관리자
   { id: "hwang-sungjin", name: "황성진", role: "member", avatarColor: "#d97706" },
   { id: "park-seunghwan", name: "박승환", role: "member", avatarColor: "#dc2626" },
   { id: "song-suyong", name: "송수용", role: "member", avatarColor: "#7c3aed" },
   { id: "lee-yejin", name: "이예진", role: "member", avatarColor: "#0891b2" },
   { id: "kim-riwon", name: "김리원", role: "member", avatarColor: "#db2777" },
-  { id: "lee-hyejin", name: "이혜진", role: "member", avatarColor: "#65a30d" },
 ];
 
 export const DEFAULT_USER_ID = USERS[0].id;
@@ -22,7 +21,6 @@ export function findUser(id: string | undefined): User | undefined {
 // 실제 회사 이메일(영어이름@griff.co.kr). 출처: data/docs/que-user-info.md.
 // id의 로마자 표기가 실제와 다른 경우가 있어(예: oh-seunghoon→seunghun.oh) 유도가 아니라 명시 맵으로 둔다.
 // 시드/mock 로그인/Supabase 인증이 이 맵을 공유한다.
-// 주의: lee-hyejin은 que-user-info.md 명단에 없음(확인 필요) — 임시로 규칙값 유지.
 const USER_EMAILS: Record<string, string> = {
   "hwang-sunghyeon": "sunghyeon.hwang@griff.co.kr",
   "oh-seunghoon": "seunghun.oh@griff.co.kr",
@@ -31,7 +29,6 @@ const USER_EMAILS: Record<string, string> = {
   "lee-yejin": "yejin.lee@griff.co.kr",
   "park-seunghwan": "seunghwan.park@griff.co.kr",
   "kim-riwon": "riwon.kim@griff.co.kr",
-  "lee-hyejin": "hyejin.lee@griff.co.kr",
 };
 
 export function emailForUser(id: string): string {

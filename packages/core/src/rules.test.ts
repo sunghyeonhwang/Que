@@ -244,7 +244,7 @@ describe("결제 요청 등록", () => {
   it("필수값과 금액을 검증하고 대기 상태로 생성한다", () => {
     const d = db();
     const payment = d.createPaymentRequest(
-      { actorId: "lee-hyejin", via: "web" },
+      { actorId: "kim-riwon", via: "web" },
       {
         title: "CS 교육 자료 구매",
         bankName: "국민은행",
@@ -254,19 +254,19 @@ describe("결제 요청 등록", () => {
       },
     );
     expect(payment.status).toBe("waiting");
-    expect(payment.requesterId).toBe("lee-hyejin");
+    expect(payment.requesterId).toBe("kim-riwon");
     expect(d.changeLogs.at(-1)!.entityType).toBe("payment_request");
 
     expect(() =>
       d.createPaymentRequest(
-        { actorId: "lee-hyejin", via: "web" },
+        { actorId: "kim-riwon", via: "web" },
         { title: " ", bankName: "국민", accountNumber: "1", amount: 1000, category: "기타" },
       ),
     ).toThrowError(/필수다/);
 
     expect(() =>
       d.createPaymentRequest(
-        { actorId: "lee-hyejin", via: "web" },
+        { actorId: "kim-riwon", via: "web" },
         { title: "t", bankName: "b", accountNumber: "1", amount: -5, category: "기타" },
       ),
     ).toThrowError(/0보다 크고/);
@@ -352,7 +352,7 @@ describe("입력 길이 상한 (DoS 표면 축소)", () => {
     const d = db();
     expect(() =>
       d.createPaymentRequest(
-        { actorId: "lee-hyejin", via: "cli" },
+        { actorId: "kim-riwon", via: "cli" },
         {
           title: "가".repeat(201),
           bankName: "국민",
@@ -365,7 +365,7 @@ describe("입력 길이 상한 (DoS 표면 축소)", () => {
 
     expect(() =>
       d.createPaymentRequest(
-        { actorId: "lee-hyejin", via: "cli" },
+        { actorId: "kim-riwon", via: "cli" },
         { title: "t", bankName: "b", accountNumber: "1", amount: 2_000_000_000_000, category: "c" },
       ),
     ).toThrowError(/1조 이하/);
@@ -540,7 +540,7 @@ describe("회의록 업로드와 Action 추출", () => {
       },
     );
     expect(() =>
-      d.extractActionItems({ actorId: "oh-seunghoon", via: "web" }, note.id),
+      d.extractActionItems({ actorId: "song-suyong", via: "web" }, note.id),
     ).toThrowError(/열람 권한이 없는/);
     expect(d.actionItems.some((a) => a.meetingNoteId === note.id)).toBe(false);
   });
@@ -641,14 +641,14 @@ describe("Action 후보 필드 지정", () => {
     // act-refund-copy: needs_review, 담당자 없음, dueAt 있음
     const updated = d.updateActionItem(
       { actorId: "hwang-sunghyeon", via: "web" },
-      { actionItemId: "act-refund-copy", assigneeId: "lee-hyejin" },
+      { actionItemId: "act-refund-copy", assigneeId: "kim-riwon" },
     );
-    expect(updated.assigneeId).toBe("lee-hyejin");
+    expect(updated.assigneeId).toBe("kim-riwon");
     expect(updated.status).toBe("candidate");
 
     // 승격 후에는 확정 가능
     const task = d.confirmActionItem({ actorId: "hwang-sunghyeon", via: "web" }, "act-refund-copy");
-    expect(task.assigneeId).toBe("lee-hyejin");
+    expect(task.assigneeId).toBe("kim-riwon");
   });
 
   it("무관한 팀원은 후보 필드를 지정할 수 없고, 유령 사용자 지정은 거부된다", () => {

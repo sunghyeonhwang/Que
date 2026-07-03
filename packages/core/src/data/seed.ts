@@ -40,7 +40,7 @@ export function createSeed(now: Date): QueSeed {
     return d.toISOString();
   };
 
-  const [hwang, oh, sungjin, park, song, yejin, riwon, hyejin] = USERS;
+  const [hwang, oh, sungjin, park, song, yejin, riwon] = USERS;
 
   const projects: Project[] = [
     {
@@ -167,7 +167,7 @@ export function createSeed(now: Date): QueSeed {
       id: "task-cs-macro",
       title: "CS 응대 매크로 정리",
       ownerId: yejin.id,
-      assigneeId: hyejin.id,
+      assigneeId: riwon.id,
       projectId: "prj-cs",
       startAt: at(0, 14),
       endAt: at(0, 16),
@@ -177,7 +177,7 @@ export function createSeed(now: Date): QueSeed {
       estimatedHours: 2,
       source: "manual",
       visibility: "team",
-      lastChangedBy: hyejin.id,
+      lastChangedBy: riwon.id,
       lastChangedAt: at(-1, 17, 30),
     },
     {
@@ -297,7 +297,7 @@ export function createSeed(now: Date): QueSeed {
       ownerId: yejin.id,
       startAt: at(2, 14),
       endAt: at(2, 15),
-      attendeeIds: [yejin.id, hyejin.id, hwang.id],
+      attendeeIds: [yejin.id, riwon.id, hwang.id],
       visibility: "team",
     },
   ];
@@ -501,7 +501,7 @@ export function createSeed(now: Date): QueSeed {
     {
       id: "slog-cs-macro-hold",
       taskId: "task-cs-macro",
-      actorId: hyejin.id,
+      actorId: riwon.id,
       fromStatus: "scheduled",
       toStatus: "on_hold",
       reason: "FAQ 개편 방향 확정 대기",
@@ -611,7 +611,7 @@ export function createSeed(now: Date): QueSeed {
     "리뷰 반영",
     "샘플 재확인",
   ];
-  const HISTORY_ASSIGNEES = [oh, sungjin, park, song, yejin, riwon, hyejin, hwang];
+  const HISTORY_ASSIGNEES = [oh, sungjin, park, song, yejin, riwon, hwang];
   const HISTORY_PROJECTS: (string | undefined)[] = ["prj-summer", "prj-payment", "prj-cs", undefined];
   let hIdx = 0;
   for (let d = 42; d >= 3; d -= 1) {

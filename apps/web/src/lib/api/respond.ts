@@ -34,7 +34,7 @@ export async function withApi(
     if (contentLength > MAX_BODY_BYTES) {
       return apiError(413, "PAYLOAD_TOO_LARGE", `본문은 ${MAX_BODY_BYTES.toLocaleString()}바이트 이내여야 한다`);
     }
-    const ctx = authenticate(request);
+    const ctx = await authenticate(request);
     return await handler(ctx);
   } catch (error) {
     if (error instanceof ApiAuthError) {

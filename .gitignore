@@ -18,3 +18,9 @@ data/.env.*
 db/supabase/backup-before-que/
 .vercel
 .env*.local
+
+# PAT 평문(팀원 개별 전달용) — 커밋 금지
+data/pat-tokens.txt
+
+# 유저 PII(전화/생년월일) — 커밋 금지
+data/docs/que-user-info.md
