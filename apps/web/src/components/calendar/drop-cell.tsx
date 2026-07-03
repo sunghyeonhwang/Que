@@ -13,6 +13,7 @@ export function DropCell({
   hour,
   restrictOwnerId,
   className,
+  style,
   children,
   ariaLabel,
 }: {
@@ -20,6 +21,7 @@ export function DropCell({
   hour?: number;
   restrictOwnerId?: string;
   className?: string;
+  style?: React.CSSProperties;
   children?: React.ReactNode;
   ariaLabel?: string;
 }) {
@@ -38,6 +40,7 @@ export function DropCell({
     <div
       role="gridcell"
       aria-label={ariaLabel}
+      style={style}
       className={cn(className, over && "bg-accent/70 outline-2 outline-ring")}
       onDragOver={(e) => {
         e.preventDefault();
