@@ -10,6 +10,8 @@ import type {
   PaymentRequest,
   PaymentStatus,
   Project,
+  RecurrenceFrequency,
+  RecurringTemplate,
   StatusDetail,
   StatusLog,
   Task,
@@ -22,6 +24,7 @@ import {
   QueRuleError,
   assertCanConfirmActionItem,
   assertCanEditTask,
+  assertCanManageRecurringTemplate,
   assertCanMoveCalendarEvent,
   assertCanResolveActionItem,
   assertStatusDetail,
@@ -47,6 +50,7 @@ export interface QueDb {
   changeLogs: ChangeLog[];
   checkIns: CheckIn[];
   taskComments: TaskComment[];
+  recurringTemplates: RecurringTemplate[];
 }
 
 interface ActorContext {
@@ -67,6 +71,7 @@ export class MockQueDb implements QueDb {
   changeLogs: ChangeLog[];
   checkIns: CheckIn[];
   taskComments: TaskComment[];
+  recurringTemplates: RecurringTemplate[];
 
   private seq = 0;
   private readonly clock: () => Date;
@@ -86,6 +91,7 @@ export class MockQueDb implements QueDb {
     this.changeLogs = seed.changeLogs;
     this.checkIns = seed.checkIns;
     this.taskComments = seed.taskComments;
+    this.recurringTemplates = seed.recurringTemplates;
   }
 
   // ---------- 조회 ----------
@@ -640,6 +646,175 @@ export class MockQueDb implements QueDb {
       };
       this.checkIns.push(checkIn);
       created.push(checkIn);
+    }
+    return created;
+  }
+
+  /** 반복 업무 템플릿 등록. 담당자는 항상 필요하고, 주기별 필수 필드는 스키마가 강제한다. */
+  createRecurringTemplate(
+    ctx: ActorContext,
+    input: {
+      title: string;
+      assigneeId: string;
+      projectId?: string;
+      frequency: RecurrenceFrequency;
+      dayOfWeek?: number;
+      dayOfMonth?: number;
+      startTime: string;
+      durationMinutes?: number;
+      description?: string;
+    },
+  ): RecurringTemplate {
+    const actor = this.requireUser(ctx.actorId);
+    this.requireUser(input.assigneeId);
+    if (!input.title.trim()) {
+      throw new QueRuleError("INVALID_INPUT", "제목은 필수다");
+    }
+    if (input.projectId && !this.projects.some((p) => p.id === input.projectId)) {
+      throw new QueRuleError("NOT_FOUND", `프로젝트 없음: ${input.projectId}`);
+    }
+    if (input.frequency === "weekly") {
+      if (input.dayOfWeek === undefined) {
+        throw new QueRuleError("INVALID_INPUT", "매주 반복은 요일을 지정해야 한다");
+      }
+      if (!Number.isInteger(input.dayOfWeek) || input.dayOfWeek < 0 || input.dayOfWeek > 6) {
+        throw new QueRuleError("INVALID_INPUT", "요일은 0(일)~6(토) 사이여야 한다");
+      }
+    }
+    if (input.frequency === "monthly") {
+      if (input.dayOfMonth === undefined) {
+        throw new QueRuleError("INVALID_INPUT", "매월 반복은 날짜를 지정해야 한다");
+      }
+      if (!Number.isInteger(input.dayOfMonth) || input.dayOfMonth < 1 || input.dayOfMonth > 28) {
+        throw new QueRuleError("INVALID_INPUT", "매월 반복 날짜는 1~28 사이여야 한다 (월말 문제 회피)");
+      }
+    }
+    const timeMatch = /^(\d{2}):(\d{2})$/.exec(input.startTime);
+    if (!timeMatch || Number(timeMatch[1]) > 23 || Number(timeMatch[2]) > 59) {
+      throw new QueRuleError("INVALID_INPUT", "시작 시각은 HH:mm 형식(00:00~23:59)이어야 한다");
+    }
+    if (input.durationMinutes !== undefined) {
+      if (
+        !Number.isInteger(input.durationMinutes) ||
+        input.durationMinutes < 1 ||
+        input.durationMinutes > 24 * 60
+      ) {
+        throw new QueRuleError("INVALID_INPUT", "소요 시간은 1분~24시간 사이여야 한다");
+      }
+    }
+
+    const template: RecurringTemplate = {
+      id: this.nextId("tmpl"),
+      title: input.title.trim().slice(0, 200),
+      assigneeId: input.assigneeId,
+      projectId: input.projectId,
+      frequency: input.frequency,
+      dayOfWeek: input.frequency === "weekly" ? input.dayOfWeek : undefined,
+      dayOfMonth: input.frequency === "monthly" ? input.dayOfMonth : undefined,
+      startTime: input.startTime,
+      durationMinutes: input.durationMinutes ?? 60,
+      description: input.description?.slice(0, 2000),
+      active: true,
+      createdBy: actor.id,
+      createdAt: this.now(),
+    };
+    this.recurringTemplates.push(template);
+    this.logChange(ctx, {
+      entityType: "recurring_template",
+      entityId: template.id,
+      changeType: "create",
+      afterValue: template.title,
+    });
+    return template;
+  }
+
+  /** 반복 업무 템플릿 켜기/끄기. 만든 사람과 관리자만 가능하다. 끄면 다음 회차부터 생성이 멈춘다. */
+  setRecurringTemplateActive(ctx: ActorContext, templateId: string, active: boolean): RecurringTemplate {
+    const actor = this.requireUser(ctx.actorId);
+    const template = this.recurringTemplates.find((t) => t.id === templateId);
+    if (!template) throw new QueRuleError("NOT_FOUND", `템플릿 없음: ${templateId}`);
+    assertCanManageRecurringTemplate(actor, template);
+    const before = template.active;
+    template.active = active;
+    this.logChange(ctx, {
+      entityType: "recurring_template",
+      entityId: template.id,
+      changeType: "update",
+      beforeValue: String(before),
+      afterValue: String(active),
+    });
+    return template;
+  }
+
+  /** 템플릿 기준으로 다음 회차 날짜(YYYY-MM-DD)를 계산한다. now 당일도 포함한다. */
+  private nextOccurrenceDate(template: RecurringTemplate, now: Date): string {
+    const cursor = new Date(now);
+    cursor.setHours(0, 0, 0, 0);
+    if (template.frequency === "weekly") {
+      const target = template.dayOfWeek!;
+      const diff = (target - cursor.getDay() + 7) % 7;
+      cursor.setDate(cursor.getDate() + diff);
+    } else {
+      const target = template.dayOfMonth!;
+      // cursor에 이미 큰 날짜(예: 30)가 들어있는 채로 setMonth를 먼저 하면 월 오버플로우가 나므로
+      // (1/30 + 1개월 = "2/30" → 3/2로 밀림), year/month/day를 한 번에 새로 구성한다.
+      const month = cursor.getDate() > target ? cursor.getMonth() + 1 : cursor.getMonth();
+      cursor.setTime(new Date(cursor.getFullYear(), month, target).getTime());
+    }
+    const y = cursor.getFullYear();
+    const m = String(cursor.getMonth() + 1).padStart(2, "0");
+    const d = String(cursor.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  }
+
+  /** 반복 업무 템플릿 스케줄러 — 다가오는(3일 이내) 회차를 Task로 미리 만들어둔다 (멱등).
+   *  체크인과 같은 이유로 조회 시점에 lazy 실행하고, 배포 후 Vercel Cron으로 전환한다.
+   *  시스템 동작이므로 ChangeLog는 생성된 Task 쪽에만 남긴다(템플릿 자체의 변경이 아님). */
+  syncRecurringTemplates(now: Date = this.clock()): Task[] {
+    const WINDOW_DAYS = 3;
+    const windowEnd = new Date(now);
+    windowEnd.setDate(windowEnd.getDate() + WINDOW_DAYS);
+    windowEnd.setHours(23, 59, 59, 999);
+
+    const created: Task[] = [];
+    for (const template of this.recurringTemplates) {
+      if (!template.active) continue;
+      const occurrence = this.nextOccurrenceDate(template, now);
+      if (occurrence === template.lastGeneratedFor) continue; // 이미 만들어준 회차다
+      const [h, min] = template.startTime.split(":").map(Number);
+      const startAt = new Date(`${occurrence}T00:00:00`);
+      startAt.setHours(h, min, 0, 0);
+      if (startAt > windowEnd) continue; // 아직 너무 먼 회차 — 다음에 다시 계산한다
+
+      const endAt = new Date(startAt.getTime() + template.durationMinutes * 60_000);
+      const task: Task = {
+        id: this.nextId("task"),
+        title: template.title,
+        ownerId: template.createdBy,
+        assigneeId: template.assigneeId,
+        projectId: template.projectId,
+        startAt: startAt.toISOString(),
+        endAt: endAt.toISOString(),
+        status: "scheduled",
+        priority: "normal",
+        description: template.description,
+        source: "recurring_template",
+        recurringTemplateId: template.id,
+        visibility: "team",
+      };
+      this.tasks.push(task);
+      template.lastGeneratedFor = occurrence;
+      created.push(task);
+
+      this.logChange(
+        { actorId: template.createdBy, via: "web" },
+        {
+          entityType: "task",
+          entityId: task.id,
+          changeType: "create",
+          afterValue: `${task.title} (반복 템플릿 ${template.id}에서 자동 생성)`,
+        },
+      );
     }
     return created;
   }

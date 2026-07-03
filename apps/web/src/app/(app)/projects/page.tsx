@@ -1,21 +1,41 @@
 import { format } from "date-fns";
 import { differenceInCalendarDays } from "date-fns";
 import { Diamond } from "lucide-react";
-import { TASK_STATUS_LABELS } from "@que/core";
+import { canManageRecurringTemplate, TASK_STATUS_LABELS } from "@que/core";
 import { PageHeader } from "@/components/app/page-header";
 import { StatusBadge } from "@/components/app/status-badge";
+import { CreateTemplateForm } from "@/components/templates/create-template-form";
+import { TemplateList, type TemplateListItem } from "@/components/templates/template-list";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import { getCurrentUser } from "@/lib/current-user";
 import { getDb } from "@/lib/db";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
 export default async function ProjectsPage() {
+  const user = await getCurrentUser();
   const db = getDb();
   const userById = new Map(db.users.map((u) => [u.id, u]));
+  const projectById = new Map(db.projects.map((p) => [p.id, p]));
   const now = new Date();
+
+  const templates: TemplateListItem[] = [...db.recurringTemplates]
+    .sort((a, b) => Number(b.active) - Number(a.active) || a.title.localeCompare(b.title))
+    .map((t) => ({
+      id: t.id,
+      title: t.title,
+      assigneeName: userById.get(t.assigneeId)?.name ?? t.assigneeId,
+      projectName: t.projectId ? projectById.get(t.projectId)?.name : undefined,
+      frequency: t.frequency,
+      dayOfWeek: t.dayOfWeek,
+      dayOfMonth: t.dayOfMonth,
+      startTime: t.startTime,
+      active: t.active,
+      canManage: canManageRecurringTemplate(user, t),
+    }));
 
   const projects = db.projects.map((project) => {
     const tasks = db.tasks.filter((t) => t.projectId === project.id);
@@ -159,6 +179,17 @@ export default async function ProjectsPage() {
             </Card>
           );
         })}
+      </div>
+
+      <div className="mt-6 grid gap-4 xl:grid-cols-[minmax(0,26rem)_minmax(0,1fr)]">
+        <CreateTemplateForm projects={db.projects} />
+        <div>
+          <h2 className="mb-2 text-base font-semibold">반복 업무 템플릿</h2>
+          <p className="mb-2 text-xs text-muted-foreground">
+            매주/매월 반복되는 정기 업무를 등록하면 다가오는 회차를 Task로 미리 만들어줍니다.
+          </p>
+          <TemplateList templates={templates} />
+        </div>
       </div>
     </div>
   );

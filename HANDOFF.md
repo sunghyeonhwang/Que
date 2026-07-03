@@ -172,12 +172,26 @@ data/
     - **범위 제외 결정 (글래도스 승인)**: ① `Task.visibility`(개인 작업의 private 필드)는 이번 작업에서 안 건드림 — private task를 만드는 UI/플로우 자체가 없어 휴면 필드, CalendarEvent.visibility와는 별개. ② 관리자가 타인의 비공개 일정을 열람해도 별도 표시나 감사 로그를 남기지 않음 — 열람은 "변경"이 아니라 ChangeLog 대상 밖이고 기획서 161행이 예외 열람을 이미 허용. 실 인증 전환 시 열람 감사 로그 필요 여부는 재검토.
     - 최종 검증: `pnpm -r typecheck`/`lint` 통과, core 테스트 49→59케이스, `pnpm build` 성공(dev 서버 종료 확인 후 실행), production 빌드(`QUE_ALLOW_MOCK_AUTH=true`, 포트 3987 격리)로 curl 3인 재현 + Playwright로 4개 화면(팀 현황·회의록·Now·업로드 폼) 실측 후 글래도스 재승인.
 
+35. **백로그 3위 — 반복 업무 템플릿 (2026-07-03)**: 32번 우선순위 판정대로 착수. 매주/매월 반복되는 정기 업무를 템플릿으로 등록하면 다가오는 회차를 Task로 미리 만들어준다(기획서 976행).
+    - core: `RecurringTemplate` 스키마 신설(`frequency`: weekly/monthly, weekly는 `dayOfWeek` 필수·monthly는 `dayOfMonth`(1~28, 월말 문제 회피) 필수 — zod `.refine`으로 필드 *존재*를 강제). `taskSourceSchema`에 `"recurring_template"` 추가, `Task`에 `recurringTemplateId` 역참조 필드 추가. `canManageRecurringTemplate` 규칙(만든 사람/관리자만 켜고 끌 수 있음).
+    - core: `createRecurringTemplate`/`setRecurringTemplateActive`/`syncRecurringTemplates` (mock-db). 스케줄러는 체크인과 동일한 lazy 패턴 — `syncCheckIns`처럼 `getDb()` 접근 시마다 실행, **3일 이내 다가오는 회차만** Task로 생성(너무 일찍 만들지도, 당일 임박까지 기다리지도 않음), `lastGeneratedFor`(YYYY-MM-DD)로 멱등 보장. 템플릿을 꺼도 이미 생성된 Task는 취소되지 않음(다음 회차부터만 중단) — 의도적 결정.
+    - web: `apps/web/src/lib/db.ts`에 `syncRecurringTemplates` lazy 실행 연결. **프로젝트 페이지**에 등록 폼 + 목록 UI 신설(신규 메뉴 없이 기존 화면에 배치 — CLAUDE.md 메뉴 구조 확정 원칙 준수). 목록은 만든 사람/관리자에게만 켜기/끄기 버튼 노출.
+    - 시드에 예시 2건 추가: `tmpl-weekly-standup`(매주 월요일, 황성현), `tmpl-monthly-settlement`(매월 25일, 오승훈).
+    - **글래도스 1차 반려** — 재현 가능한 결함 2건 발견, 둘 다 "스키마는 있지만 mutation 경로에 연결 안 됨" 유형:
+      1. `createRecurringTemplate`가 필드 *존재*만 확인하고 *범위*는 검증하지 않아 `dayOfMonth: 31`, `dayOfWeek: 9`, `startTime: "99:99"`, 존재하지 않는 `projectId`가 전부 통과함. 서버 액션이 무검증으로 core에 그대로 전달해서 실질적으로 막는 계층이 없었음.
+      2. `nextOccurrenceDate`의 월 계산이 `cursor.setMonth(+1)` 후 `setDate(target)` 순서라, 오늘 날짜가 target보다 크면(예: 1/30에 매월 1일 템플릿) JS Date 오버플로우로 한 달을 더 건너뜀(1/30+1개월="2/30"→3/2로 밀림) → 월 경계 회차가 통째로 유실될 수 있었음.
+    - **수정**: `createRecurringTemplate`에 `dayOfWeek`(0~6)/`dayOfMonth`(1~28)/`startTime`(00~23:00~59)/`projectId` 존재 검증 추가. `nextOccurrenceDate`는 `new Date(year, month, day)` 생성자로 연/월/일을 한 번에 구성하도록 재작성해 월 오버플로우 제거. 회귀 테스트 2건 추가(범위 밖 입력 4종 거부, 1/30 sync 시 정확히 2/1 회차가 3일 윈도우 안에서 생성되는지).
+    - 테스트 9건 추가(core 59→68케이스): 주기별 필수 필드 검증, 권한(만든 사람/관리자만), 3일 이내 생성+멱등, 비활성 시 미생성, 3일 초과 회차 미생성, 범위 밖 입력 거부, 월말 경계 회귀.
+    - E2E 실증(Playwright, dev 서버): 프로젝트 페이지에서 실제 템플릿 생성 → 목록에 즉시 반영 → 끄기 버튼으로 비활성화 → `/api/tasks?assignee=`로 생성된 Task 확인(source: recurring_template, recurringTemplateId 연결 확인). 3일 초과 회차(월간 정산)는 예상대로 미생성 확인.
+    - 최종 검증: `pnpm -r typecheck`/`lint` 통과, core 테스트 68/68, `pnpm build` 성공(dev 서버 종료 확인 후). 글래도스 재승인 후 커밋.
+
 ## 남은 작업 / 오픈 질문
 
 - ~~알림 채널 결정~~ → **Slack 확정** (2026-07-02): 1단계 Incoming Webhook+딥링크, 2단계 Bot 인터랙티브 버튼으로 Slack 안에서 체크인 응답(`answerCheckIn` 경유, via 기록). 기획서 "알림 정책 > 알림 채널"과 MCP/CLI 계획 Phase E에 반영됨.
 - ~~`que-product-plan.md` 오픈 질문 답변~~ → 2026-07-03 전항목 완료 (31번 항목 참고). Plaud MD 포맷만 샘플 도착 대기.
 - 추가 메뉴 통합 제안(회의록+Action, 히트맵→팀 현황 탭) — CLAUDE.md가 이미 현재 구조(개별 메뉴 유지)로 확정해서 사실상 종결. 재검토 요청 없으면 다음 정리 때 이 줄 제거.
 - 알림/설정 프리뷰 수령 후 해당 프롬프트 갱신
-- ~~백로그 우선순위~~ → 32번 항목에서 확정 (1비공개일정관리자열람 → 2회의록단위권한 → 3반복템플릿 → 4관리자리포트 → 5구글캘린더연동). **1·2위 구현 완료 (34번)** — 다음은 3위(반복 업무 템플릿).
+- ~~백로그 우선순위~~ → 32번 항목에서 확정 (1비공개일정관리자열람 → 2회의록단위권한 → 3반복템플릿 → 4관리자리포트 → 5구글캘린더연동). **1·2·3위 구현 완료 (34·35번)** — 다음은 4위(관리자 리포트, 실데이터 부족으로 반쪽 검증만 가능하다고 이미 예고됨).
 - `glados` 등 커스텀 서브에이전트가 이번 세션 Agent tool 레지스트리에 안 잡히는 문제 — 다음 세션에서 재확인 (32번 항목 참고)
 - "프로젝트 참여자" 회의록 공개 범위 — 프로젝트 멤버십 개념이 도메인에 없어 UI에서 제거함(34번). 실제로 필요하면 멤버십 모델부터 기획 확인 필요.
+- MCP/CLI에 반복 템플릿 도구 미구현 — 지금은 웹 전용(35번). 필요하면 후속으로 `create_recurring_template`/`list_recurring_templates` 추가 검토.

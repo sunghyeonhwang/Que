@@ -7,6 +7,7 @@ import type {
   Milestone,
   PaymentRequest,
   Project,
+  RecurringTemplate,
   StatusLog,
   Task,
   TaskComment,
@@ -28,6 +29,7 @@ export interface QueSeed {
   changeLogs: ChangeLog[];
   checkIns: CheckIn[];
   taskComments: TaskComment[];
+  recurringTemplates: RecurringTemplate[];
 }
 
 export function createSeed(now: Date): QueSeed {
@@ -563,6 +565,36 @@ export function createSeed(now: Date): QueSeed {
     },
   ];
 
+  const recurringTemplates: RecurringTemplate[] = [
+    {
+      id: "tmpl-weekly-standup",
+      title: "주간 스탠드업 준비",
+      assigneeId: hwang.id,
+      frequency: "weekly",
+      dayOfWeek: 1, // 매주 월요일
+      startTime: "09:30",
+      durationMinutes: 30,
+      description: "지난 주 완료/이월 정리 후 스탠드업 진행",
+      active: true,
+      createdBy: hwang.id,
+      createdAt: at(-30, 9),
+    },
+    {
+      id: "tmpl-monthly-settlement",
+      title: "월간 정산",
+      assigneeId: oh.id,
+      projectId: "prj-payment",
+      frequency: "monthly",
+      dayOfMonth: 25,
+      startTime: "14:00",
+      durationMinutes: 120,
+      description: "결제/입금 내역 월 정산 및 대사",
+      active: true,
+      createdBy: oh.id,
+      createdAt: at(-30, 9),
+    },
+  ];
+
   return {
     projects,
     milestones,
@@ -575,5 +607,6 @@ export function createSeed(now: Date): QueSeed {
     changeLogs,
     checkIns,
     taskComments,
+    recurringTemplates,
   };
 }

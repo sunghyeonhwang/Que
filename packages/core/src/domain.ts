@@ -54,7 +54,12 @@ export const scheduleRangeSchema = z
   });
 export type ScheduleRange = z.infer<typeof scheduleRangeSchema>;
 
-export const taskSourceSchema = z.enum(["manual", "natural_language", "action_item"]);
+export const taskSourceSchema = z.enum([
+  "manual",
+  "natural_language",
+  "action_item",
+  "recurring_template",
+]);
 export const visibilitySchema = z.enum(["team", "private"]);
 
 export const taskSchema = z.object({
@@ -72,6 +77,8 @@ export const taskSchema = z.object({
   source: taskSourceSchema,
   visibility: visibilitySchema.default("team"),
   mergedIntoTaskId: z.string().optional(),
+  /** source가 recurring_template일 때 생성 출처 템플릿 (추적용) */
+  recurringTemplateId: z.string().optional(),
   lastChangedBy: z.string().optional(),
   lastChangedAt: isoDateTime.optional(),
 });
@@ -165,6 +172,42 @@ export const actionItemSchema = z.object({
 });
 export type ActionItem = z.infer<typeof actionItemSchema>;
 
+// ---------- RecurringTemplate ----------
+
+/** 매주/매월 반복되는 정기 업무를 Task로 대신 만들어주는 템플릿 (기획서 "반복 업무 템플릿", 2026-07-03 확정). */
+export const recurrenceFrequencySchema = z.enum(["weekly", "monthly"]);
+export type RecurrenceFrequency = z.infer<typeof recurrenceFrequencySchema>;
+
+export const recurringTemplateSchema = z
+  .object({
+    id: z.string().min(1),
+    title: z.string().min(1).max(200),
+    assigneeId: z.string().min(1),
+    projectId: z.string().optional(),
+    frequency: recurrenceFrequencySchema,
+    /** frequency가 weekly일 때 필수. 0=일 ~ 6=토 */
+    dayOfWeek: z.number().int().min(0).max(6).optional(),
+    /** frequency가 monthly일 때 필수. 월말 문제를 피하려고 1~28로 제한한다 */
+    dayOfMonth: z.number().int().min(1).max(28).optional(),
+    startTime: z.string().regex(/^\d{2}:\d{2}$/, "HH:mm 형식이어야 한다"),
+    durationMinutes: z.number().int().positive().max(24 * 60).default(60),
+    description: z.string().max(2000).optional(),
+    active: z.boolean().default(true),
+    createdBy: z.string().min(1),
+    createdAt: isoDateTime,
+    /** 마지막으로 Task를 생성해준 회차의 날짜(YYYY-MM-DD) — 중복 생성 방지용 */
+    lastGeneratedFor: isoDate.optional(),
+  })
+  .refine((t) => (t.frequency === "weekly" ? t.dayOfWeek !== undefined : true), {
+    message: "매주 반복은 요일을 지정해야 한다",
+    path: ["dayOfWeek"],
+  })
+  .refine((t) => (t.frequency === "monthly" ? t.dayOfMonth !== undefined : true), {
+    message: "매월 반복은 날짜를 지정해야 한다",
+    path: ["dayOfMonth"],
+  });
+export type RecurringTemplate = z.infer<typeof recurringTemplateSchema>;
+
 // ---------- PaymentRequest ----------
 
 export const paymentStatusSchema = z.enum(["waiting", "done", "cancelled"]);
@@ -231,6 +274,7 @@ export const changeLogSchema = z.object({
     "action_item",
     "payment_request",
     "meeting_note",
+    "recurring_template",
   ]),
   entityId: z.string().min(1),
   actorId: z.string().min(1),

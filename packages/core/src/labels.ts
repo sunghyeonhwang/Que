@@ -2,6 +2,7 @@ import type {
   ActionItemStatus,
   CheckInResponse,
   PaymentStatus,
+  RecurrenceFrequency,
   TaskStatus,
 } from "./domain";
 
@@ -42,3 +43,11 @@ export const CHECK_IN_RESPONSE_LABELS: Record<CheckInResponse, string> = {
   merged: "병합",
   later: "나중에 답변",
 };
+
+export const RECURRENCE_FREQUENCY_LABELS: Record<RecurrenceFrequency, string> = {
+  weekly: "매주",
+  monthly: "매월",
+};
+
+/** 0=일 ~ 6=토 (JS Date.getDay() 순서) */
+export const WEEKDAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"] as const;

@@ -925,6 +925,7 @@ describe("시드 데이터 정합성", () => {
       meetingNoteSchema,
       milestoneSchema,
       projectSchema,
+      recurringTemplateSchema,
     } = await import("./domain");
 
     for (const t of d.tasks) taskSchema.parse(t);
@@ -934,6 +935,7 @@ describe("시드 데이터 정합성", () => {
     for (const n of d.meetingNotes) meetingNoteSchema.parse(n);
     for (const m of d.milestones) milestoneSchema.parse(m);
     for (const pr of d.projects) projectSchema.parse(pr);
+    for (const rt of d.recurringTemplates) recurringTemplateSchema.parse(rt);
   });
 
   it("생성된 Action Task의 참조가 유효하다", () => {
@@ -941,5 +943,180 @@ describe("시드 데이터 정합성", () => {
     for (const item of d.actionItems.filter((a) => a.status === "created")) {
       expect(d.tasks.some((t) => t.id === item.createdTaskId)).toBe(true);
     }
+  });
+});
+
+describe("반복 업무 템플릿", () => {
+  it("weekly 템플릿은 요일 없이 만들 수 없다", () => {
+    const d = db();
+    expect(() =>
+      d.createRecurringTemplate(
+        { actorId: "hwang-sunghyeon", via: "web" },
+        { title: "매주 회의", assigneeId: "hwang-sunghyeon", frequency: "weekly", startTime: "10:00" },
+      ),
+    ).toThrowError(/요일을 지정/);
+  });
+
+  it("monthly 템플릿은 날짜 없이 만들 수 없다", () => {
+    const d = db();
+    expect(() =>
+      d.createRecurringTemplate(
+        { actorId: "hwang-sunghyeon", via: "web" },
+        { title: "월간 정산", assigneeId: "hwang-sunghyeon", frequency: "monthly", startTime: "10:00" },
+      ),
+    ).toThrowError(/날짜를 지정/);
+  });
+
+  it("정상 생성하면 changeLog가 기록된다", () => {
+    const d = db();
+    const tmpl = d.createRecurringTemplate(
+      { actorId: "hwang-sunghyeon", via: "web" },
+      {
+        title: "테스트 반복",
+        assigneeId: "oh-seunghoon",
+        frequency: "weekly",
+        dayOfWeek: 1,
+        startTime: "09:00",
+      },
+    );
+    expect(tmpl.active).toBe(true);
+    expect(d.changeLogs.at(-1)!.entityType).toBe("recurring_template");
+  });
+
+  it("만든 사람/관리자가 아니면 켜고 끌 수 없다", () => {
+    const d = db();
+    const tmpl = d.createRecurringTemplate(
+      { actorId: "oh-seunghoon", via: "web" },
+      { title: "테스트", assigneeId: "oh-seunghoon", frequency: "weekly", dayOfWeek: 2, startTime: "09:00" },
+    );
+    expect(() =>
+      d.setRecurringTemplateActive({ actorId: "song-suyong", via: "web" }, tmpl.id, false),
+    ).toThrowError(/만든 사람과 관리자만/);
+    const updated = d.setRecurringTemplateActive(
+      { actorId: "hwang-sunghyeon", via: "web" },
+      tmpl.id,
+      false,
+    );
+    expect(updated.active).toBe(false);
+  });
+
+  it("오늘이 해당 요일이면 3일 이내 회차로 Task를 만든다 (멱등)", () => {
+    const d = db();
+    const todayDow = NOW.getDay();
+    const tmpl = d.createRecurringTemplate(
+      { actorId: "hwang-sunghyeon", via: "web" },
+      {
+        title: "오늘 반복",
+        assigneeId: "oh-seunghoon",
+        frequency: "weekly",
+        dayOfWeek: todayDow,
+        startTime: "15:00",
+      },
+    );
+    const before = d.tasks.length;
+    const created1 = d.syncRecurringTemplates(NOW);
+    expect(created1).toHaveLength(1);
+    expect(created1[0].source).toBe("recurring_template");
+    expect(created1[0].recurringTemplateId).toBe(tmpl.id);
+    expect(d.tasks.length).toBe(before + 1);
+
+    const created2 = d.syncRecurringTemplates(NOW); // 같은 시각에 재실행
+    expect(created2).toHaveLength(0); // 중복 생성 없음
+    expect(d.tasks.length).toBe(before + 1);
+  });
+
+  it("비활성 템플릿은 생성하지 않는다", () => {
+    const d = db();
+    const todayDow = NOW.getDay();
+    const tmpl = d.createRecurringTemplate(
+      { actorId: "hwang-sunghyeon", via: "web" },
+      {
+        title: "꺼진 반복",
+        assigneeId: "hwang-sunghyeon",
+        frequency: "weekly",
+        dayOfWeek: todayDow,
+        startTime: "15:00",
+      },
+    );
+    d.setRecurringTemplateActive({ actorId: "hwang-sunghyeon", via: "web" }, tmpl.id, true);
+    d.setRecurringTemplateActive({ actorId: "hwang-sunghyeon", via: "web" }, tmpl.id, false);
+    const created = d.syncRecurringTemplates(NOW);
+    expect(created.some((t) => t.recurringTemplateId === tmpl.id)).toBe(false);
+  });
+
+  it("3일보다 먼 회차는 아직 만들지 않는다", () => {
+    const d = db();
+    const farDow = (NOW.getDay() + 5) % 7; // 모듈러 연산상 항상 5일 뒤
+    const tmpl = d.createRecurringTemplate(
+      { actorId: "hwang-sunghyeon", via: "web" },
+      { title: "먼 반복", assigneeId: "hwang-sunghyeon", frequency: "weekly", dayOfWeek: farDow, startTime: "09:00" },
+    );
+    const created = d.syncRecurringTemplates(NOW);
+    expect(created.some((t) => t.recurringTemplateId === tmpl.id)).toBe(false);
+  });
+
+  it("범위를 벗어난 입력은 거부된다 (글래도스 반려 회귀)", () => {
+    const d = db();
+    const base = {
+      title: "잘못된 반복",
+      assigneeId: "hwang-sunghyeon",
+      startTime: "10:00",
+    } as const;
+    expect(() =>
+      d.createRecurringTemplate(
+        { actorId: "hwang-sunghyeon", via: "web" },
+        { ...base, frequency: "monthly", dayOfMonth: 31 },
+      ),
+    ).toThrowError(/1~28/);
+    expect(() =>
+      d.createRecurringTemplate(
+        { actorId: "hwang-sunghyeon", via: "web" },
+        { ...base, frequency: "weekly", dayOfWeek: 9 },
+      ),
+    ).toThrowError(/0\(일\)~6\(토\)/);
+    expect(() =>
+      d.createRecurringTemplate(
+        { actorId: "hwang-sunghyeon", via: "web" },
+        { ...base, frequency: "weekly", dayOfWeek: 1, startTime: "99:99" },
+      ),
+    ).toThrowError(/HH:mm/);
+    expect(() =>
+      d.createRecurringTemplate(
+        { actorId: "hwang-sunghyeon", via: "web" },
+        {
+          ...base,
+          frequency: "weekly",
+          dayOfWeek: 1,
+          projectId: "prj-does-not-exist",
+        },
+      ),
+    ).toThrowError(/프로젝트 없음/);
+  });
+
+  it("월말에서 다음 달로 넘어가는 회차를 정확히 계산한다 (글래도스 반려 회귀)", () => {
+    const d = db();
+    const tmpl = d.createRecurringTemplate(
+      { actorId: "hwang-sunghyeon", via: "web" },
+      {
+        title: "매월 1일 정산",
+        assigneeId: "hwang-sunghyeon",
+        frequency: "monthly",
+        dayOfMonth: 1,
+        startTime: "09:00",
+      },
+    );
+    // 1/30 시점 — 다음 회차는 "2/30"(존재하지 않음)이 아니라 정확히 2/1이어야 하고, 3일 윈도우 안이라 미리 생성돼야 한다.
+    const jan30 = new Date(2026, 0, 30, 9, 0);
+    const created = d.syncRecurringTemplates(jan30);
+    const generated = created.find((t) => t.recurringTemplateId === tmpl.id);
+    expect(generated).toBeDefined();
+    expect(generated!.startAt!.slice(0, 10)).toBe("2026-02-01");
+
+    // 아무도 2/1 당일에 접속하지 않아도(체크인/템플릿 모두 lazy 실행) 회차가 유실되지 않는다 —
+    // 이미 1/30에 생성됐으므로 2/3에 다시 돌려도 중복 생성되지 않는다.
+    const feb3 = new Date(2026, 1, 3, 9, 0);
+    const createdAgain = d.syncRecurringTemplates(feb3);
+    expect(createdAgain.some((t) => t.recurringTemplateId === tmpl.id)).toBe(false);
+    expect(d.tasks.filter((t) => t.recurringTemplateId === tmpl.id)).toHaveLength(1);
   });
 });

@@ -6,8 +6,9 @@ const store = globalThis as unknown as { __queDb?: MockQueDb };
 
 export function getDb(): MockQueDb {
   store.__queDb ??= createMockDb();
-  // 체크인 스케줄러 — 모든 접근 경로(페이지/서버 액션/API)에서 빠짐없이 동작하도록
-  // 여기서 lazy 실행한다 (멱등, O(tasks)). 배포 후 Vercel Cron으로 전환 예정.
+  // 체크인/반복 템플릿 스케줄러 — 모든 접근 경로(페이지/서버 액션/API)에서 빠짐없이
+  // 동작하도록 여기서 lazy 실행한다 (멱등). 배포 후 Vercel Cron으로 전환 예정.
   store.__queDb.syncCheckIns(new Date());
+  store.__queDb.syncRecurringTemplates(new Date());
   return store.__queDb;
 }

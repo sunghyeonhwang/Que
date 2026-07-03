@@ -5,6 +5,7 @@ import {
   type CalendarEvent,
   type MeetingNote,
   type Project,
+  type RecurringTemplate,
   type ScheduleRange,
   type StatusDetail,
   type Task,
@@ -138,6 +139,20 @@ export function canViewMeetingNote(
   if (note.visibility === "admin") return false;
   if (note.visibility === "restricted") return (note.restrictedUserIds ?? []).includes(viewer.id);
   return true;
+}
+
+/** 반복 업무 템플릿은 만든 사람과 관리자만 켜고 끌 수 있다. */
+export function canManageRecurringTemplate(actor: User, template: RecurringTemplate): boolean {
+  return actor.role === "admin" || template.createdBy === actor.id;
+}
+
+export function assertCanManageRecurringTemplate(actor: User, template: RecurringTemplate): void {
+  if (!canManageRecurringTemplate(actor, template)) {
+    throw new QueRuleError(
+      "NOT_AUTHORIZED",
+      "반복 업무 템플릿은 만든 사람과 관리자만 수정할 수 있다",
+    );
+  }
 }
 
 /** Action 후보의 처리(보류/무시)는 담당자, 회의록 업로더, 관리자만 할 수 있다. */
