@@ -198,13 +198,22 @@ data/
     - 최종 검증: `pnpm -r typecheck`/`lint` 통과, core 68/68, `pnpm build` 성공(dev 종료 후), 3개 수정 전부 브라우저 실측. 글래도스 재심사 후 커밋 예정.
     - **알려진 한계/후속**: MCP/CLI에 리포트 조회 도구 미구현(웹 전용). 개인 완료 데이터는 시드에 존재하나 리포트에 순위로 노출하지 않음(원칙) — 향후 요구 시 별도 기획 확인. report-data가 task.visibility(private)를 필터하지 않으나 현재 private task가 없어 무해 — 심층방어로 후속 검토 권장(리뷰 privacy 렌즈 노트).
 
+37. **Google Calendar 연동 — 비-env 골격 (백로그 5위, 2026-07-03)**: 실 OAuth 연동은 외부 계정/자격증명이 필요해(슬랙 앱과 동일한 벽) env 도착 전 불가. 그래서 자격증명과 무관하게 **지금 필요하고 테스트 가능한 부분**만 만들었다(글래도스가 우선순위 판정에서 지정한 "CalendarProvider 인터페이스 + 동기화 엔진").
+    - core: `CalendarProvider` 인터페이스(`calendar-provider.ts`, `listEvents(range)` — 실 구현은 async 허용) + `ExternalCalendarEvent` zod 스키마. `MockGoogleCalendarProvider`(`mock/mock-google-calendar.ts`) + `defaultMockGoogleEvents(now)` 데모 픽스처(멱등/갱신 시연용 — weekly-sync 시간 변경 + 신규 townhall/design-sync).
+    - core: `MockQueDb.syncExternalCalendar(provider, rangeStart, rangeEnd)` — 외부 일정을 회사 일정(source:"company")으로 **멱등 upsert**. externalCalendarId로 매칭해 변경분만 갱신, 없으면 추가. 회사 일정은 `canMoveCalendarEvent`가 source==="que"만 허용하므로 읽기 전용 유지. 매핑 불가 소유자·시간 역전은 skip. 삭제 동기화는 후속 과제.
+    - web: `POST /api/calendar/sync` (**관리자 전용**, 403 게이트) — 지금은 mock 제공자를 쓰고, env 도착 후 `GoogleCalendarProvider`(OAuth+API)로 교체하면 실 연동. 배포 후엔 이 엔드포인트를 Vercel Cron이 호출하는 그림. API-first 아키텍처의 자연스러운 연동 지점이라 별도 UI 버튼 대신 엔드포인트로 노출(죽은 코드 아님 — 동기화된 일정은 기존 calendarEvents로 흘러 캘린더에 그대로 렌더).
+    - 테스트 6건(core 68→74): 신규 추가+읽기전용, 멱등(재동기화 0건), 시간변경→갱신(중복 아님), 매핑불가/시간역전 skip, 기간 밖 미반환, 참석자만 변경→갱신 감지.
+    - E2E 실증(curl+Playwright): 팀원 403 / 관리자 1차 added2·updated1 / 2차 멱등 0 / 동기화된 "월간 타운홀"이 캘린더에 실제 렌더 확인.
+    - **글래도스 심사 1차 승인** — 멱등성(4회 반복 바이트 동일)·읽기전용 불변식(동기화 일정 moveCalendarEvent 거부)·접근제어(팀원 403)·입력방어(유령 owner/시간역전 skip)·갱신vs중복 전부 재현 통과. 비차단 관찰(attendeeIds/visibility만 바뀌면 갱신 감지 안 됨 — 실 연동 시 참석자 변경 유실) 즉시 반영: `changed` 비교에 visibility·attendeeIds(JSON 비교) 추가 + 잠금 테스트. 멱등성 유지 확인.
+    - **env 도착 후 남은 실 연동 작업**: ① Google Cloud OAuth 앱 등록(사용자 확인 필요 — 슬랙처럼 "외부라 불가"인지), ② `GoogleCalendarProvider.listEvents` 구현(OAuth 토큰 + Calendar API), ③ Vercel Cron으로 `/api/calendar/sync` 주기 호출, ④ 외부 이벤트 삭제 동기화, ⑤ Google 사용자 ↔ Que userId 매핑 테이블. 지금 만든 엔진/인터페이스/엔드포인트는 그대로 재사용.
+
 ## 남은 작업 / 오픈 질문
 
 - ~~알림 채널 결정~~ → **Slack 확정** (2026-07-02): 1단계 Incoming Webhook+딥링크, 2단계 Bot 인터랙티브 버튼으로 Slack 안에서 체크인 응답(`answerCheckIn` 경유, via 기록). 기획서 "알림 정책 > 알림 채널"과 MCP/CLI 계획 Phase E에 반영됨.
 - ~~`que-product-plan.md` 오픈 질문 답변~~ → 2026-07-03 전항목 완료 (31번 항목 참고). Plaud MD 포맷만 샘플 도착 대기.
 - 추가 메뉴 통합 제안(회의록+Action, 히트맵→팀 현황 탭) — CLAUDE.md가 이미 현재 구조(개별 메뉴 유지)로 확정해서 사실상 종결. 재검토 요청 없으면 다음 정리 때 이 줄 제거.
 - 알림/설정 프리뷰 수령 후 해당 프롬프트 갱신
-- ~~백로그 우선순위~~ → 32번 항목에서 확정. **1·2·3·4위 구현 완료 (34·35·36번)** — 다음은 5위(Google Calendar 연동). 실 OAuth 연동은 외부 계정/env 필요 → 지금은 비-env 골격(CalendarProvider 인터페이스 + mock 어댑터)만 착수 가능, 실 연동은 OAuth 앱 등록 가능 여부 확인 후.
+- ~~백로그 우선순위~~ → 32번 항목에서 확정. **1·2·3·4·5위 전부 착수 완료 (34·35·36·37번)**. 5위는 비-env 골격(인터페이스+엔진+엔드포인트+테스트)까지 완료, 실 OAuth 연동만 env/외부 계정 대기(37번 "남은 실 연동 작업" 참고). → **백로그 소진. 다음은 사용자 계획대로 "env 필요한 것들"**: Supabase 어댑터+시드 스크립트, Vercel 배포+Deployment Protection, Sentry DSN, Slack 앱, CLI/MCP 배포(30번). env/키 도착 시 착수.
 - `glados` 등 커스텀 서브에이전트가 이번 세션 Agent tool 레지스트리에 안 잡히는 문제 — 다음 세션에서 재확인 (32번 항목 참고)
 - "프로젝트 참여자" 회의록 공개 범위 — 프로젝트 멤버십 개념이 도메인에 없어 UI에서 제거함(34번). 실제로 필요하면 멤버십 모델부터 기획 확인 필요.
 - MCP/CLI에 반복 템플릿 도구 미구현 — 지금은 웹 전용(35번). 필요하면 후속으로 `create_recurring_template`/`list_recurring_templates` 추가 검토.

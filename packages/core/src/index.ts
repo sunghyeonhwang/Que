@@ -8,5 +8,11 @@ export { USERS, DEFAULT_USER_ID, findUser } from "./mock/users";
 export { MOCK_PATS, MOCK_PAT_PREFIX, resolvePat } from "./mock/tokens";
 export { createQueClient, QueApiError, type QueClient, type QueClientOptions } from "./client";
 export { parseTaskInput, type TaskDraft } from "./parse-task";
+export {
+  externalCalendarEventSchema,
+  type CalendarProvider,
+  type ExternalCalendarEvent,
+} from "./calendar-provider";
+export { MockGoogleCalendarProvider, defaultMockGoogleEvents } from "./mock/mock-google-calendar";
 export { createSeed, type QueSeed } from "./data/seed";
 export { createMockDb, MockQueDb, type QueDb } from "./data/mock-db";

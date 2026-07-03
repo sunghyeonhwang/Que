@@ -31,6 +31,7 @@ import {
   canViewMeetingNote,
   parseScheduleRange,
 } from "../rules";
+import type { CalendarProvider } from "../calendar-provider";
 import { createSeed } from "./seed";
 
 // 인메모리 mock DB. 모든 변경(mutation)은 도메인 규칙을 통과해야 하고
@@ -817,6 +818,76 @@ export class MockQueDb implements QueDb {
       );
     }
     return created;
+  }
+
+  /**
+   * 회사 캘린더 동기화 — 제공자(Google 등)에서 기간 내 외부 일정을 읽어 회사 일정(source:"company")으로
+   * 멱등 upsert 한다. 같은 externalCalendarId가 있으면 변경분만 갱신, 없으면 추가한다.
+   * 회사 일정은 Que에서 수정/이동 불가(canMoveCalendarEvent가 source==="que"만 허용)이므로 읽기 전용이 유지된다.
+   * 매핑 불가(존재하지 않는 ownerId)·시간 역전 일정은 건너뛴다. 삭제 동기화는 후속 과제.
+   * env(OAuth) 도착 후 GoogleCalendarProvider를 같은 인터페이스로 넘기면 실 연동이 된다.
+   */
+  async syncExternalCalendar(
+    provider: CalendarProvider,
+    rangeStart: Date,
+    rangeEnd: Date,
+  ): Promise<{ added: number; updated: number; skipped: number }> {
+    const external = await provider.listEvents(rangeStart, rangeEnd);
+    let added = 0;
+    let updated = 0;
+    let skipped = 0;
+    const nowIso = this.now();
+
+    for (const ext of external) {
+      // 매핑 불가한 소유자, 시간 역전은 신뢰하지 않고 버린다
+      if (!this.users.some((u) => u.id === ext.ownerId)) {
+        skipped += 1;
+        continue;
+      }
+      if (Date.parse(ext.startAt) > Date.parse(ext.endAt)) {
+        skipped += 1;
+        continue;
+      }
+
+      const existing = this.calendarEvents.find(
+        (e) => e.source === "company" && e.externalCalendarId === ext.externalId,
+      );
+      if (existing) {
+        const extAttendees = ext.attendeeIds ?? existing.attendeeIds;
+        const changed =
+          existing.title !== ext.title ||
+          existing.startAt !== ext.startAt ||
+          existing.endAt !== ext.endAt ||
+          existing.ownerId !== ext.ownerId ||
+          (ext.visibility !== undefined && existing.visibility !== ext.visibility) ||
+          JSON.stringify(existing.attendeeIds) !== JSON.stringify(extAttendees);
+        if (changed) {
+          existing.title = ext.title;
+          existing.startAt = ext.startAt;
+          existing.endAt = ext.endAt;
+          existing.ownerId = ext.ownerId;
+          existing.attendeeIds = ext.attendeeIds ?? existing.attendeeIds;
+          existing.visibility = ext.visibility ?? existing.visibility;
+          existing.lastChangedAt = nowIso; // "수정됨" 배지가 반영되도록
+          updated += 1;
+        }
+      } else {
+        this.calendarEvents.push({
+          id: this.nextId("evt"),
+          source: "company",
+          title: ext.title,
+          ownerId: ext.ownerId,
+          startAt: ext.startAt,
+          endAt: ext.endAt,
+          attendeeIds: ext.attendeeIds ?? [],
+          visibility: ext.visibility ?? "team",
+          externalCalendarId: ext.externalId,
+          lastChangedAt: nowIso,
+        });
+        added += 1;
+      }
+    }
+    return { added, updated, skipped };
   }
 
   /** 자동 체크인 응답. 담당자(또는 관리자)만 응답할 수 있고,

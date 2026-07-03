@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { createMockDb } from "./data/mock-db";
-import { QueRuleError, canViewMeetingNote, canViewPrivateEventDetail } from "./rules";
+import { QueRuleError, canMoveCalendarEvent, canViewMeetingNote, canViewPrivateEventDetail } from "./rules";
 import { USERS } from "./mock/users";
+import { MockGoogleCalendarProvider, type ExternalCalendarEvent } from "./index";
 
 // 도메인 규칙이 core 계층에서 실제로 강제되는지 검증한다.
 // 이 규칙들은 CLAUDE.md "도메인 규칙"과 기획서의 운영 규칙에서 온다.
@@ -1118,5 +1119,112 @@ describe("반복 업무 템플릿", () => {
     const createdAgain = d.syncRecurringTemplates(feb3);
     expect(createdAgain.some((t) => t.recurringTemplateId === tmpl.id)).toBe(false);
     expect(d.tasks.filter((t) => t.recurringTemplateId === tmpl.id)).toHaveLength(1);
+  });
+});
+
+describe("회사 캘린더 동기화 (syncExternalCalendar)", () => {
+  const RANGE_START = new Date("2026-06-25T00:00:00+09:00");
+  const RANGE_END = new Date("2026-07-31T00:00:00+09:00");
+  const ev = (over: Partial<ExternalCalendarEvent> = {}): ExternalCalendarEvent => ({
+    externalId: "google:townhall",
+    title: "월간 타운홀",
+    ownerId: "oh-seunghoon",
+    startAt: "2026-07-04T07:00:00.000Z",
+    endAt: "2026-07-04T08:00:00.000Z",
+    visibility: "team",
+    ...over,
+  });
+
+  it("신규 외부 일정은 회사 일정으로 추가되고 읽기 전용이다", async () => {
+    const d = db();
+    const before = d.calendarEvents.length;
+    const r = await d.syncExternalCalendar(
+      new MockGoogleCalendarProvider([ev()]),
+      RANGE_START,
+      RANGE_END,
+    );
+    expect(r).toEqual({ added: 1, updated: 0, skipped: 0 });
+    expect(d.calendarEvents.length).toBe(before + 1);
+    const added = d.calendarEvents.find((e) => e.externalCalendarId === "google:townhall")!;
+    expect(added.source).toBe("company");
+    expect(canMoveCalendarEvent(added)).toBe(false); // 회사 일정은 이동 불가
+  });
+
+  it("같은 데이터로 다시 동기화하면 아무것도 바뀌지 않는다 (멱등)", async () => {
+    const d = db();
+    const provider = new MockGoogleCalendarProvider([ev()]);
+    await d.syncExternalCalendar(provider, RANGE_START, RANGE_END);
+    const after1 = d.calendarEvents.length;
+    const r2 = await d.syncExternalCalendar(provider, RANGE_START, RANGE_END);
+    expect(r2).toEqual({ added: 0, updated: 0, skipped: 0 });
+    expect(d.calendarEvents.length).toBe(after1);
+  });
+
+  it("시간이 바뀐 외부 일정은 추가가 아니라 갱신된다", async () => {
+    const d = db();
+    await d.syncExternalCalendar(new MockGoogleCalendarProvider([ev()]), RANGE_START, RANGE_END);
+    const countAfterAdd = d.calendarEvents.length;
+    const r = await d.syncExternalCalendar(
+      new MockGoogleCalendarProvider([ev({ endAt: "2026-07-04T09:00:00.000Z" })]),
+      RANGE_START,
+      RANGE_END,
+    );
+    expect(r).toEqual({ added: 0, updated: 1, skipped: 0 });
+    expect(d.calendarEvents.length).toBe(countAfterAdd); // 중복 생성 없음
+    const ev2 = d.calendarEvents.find((e) => e.externalCalendarId === "google:townhall")!;
+    expect(ev2.endAt).toBe("2026-07-04T09:00:00.000Z");
+    expect(ev2.lastChangedAt).toBeDefined(); // 수정됨 배지용
+  });
+
+  it("존재하지 않는 소유자·시간 역전 일정은 건너뛴다", async () => {
+    const d = db();
+    const before = d.calendarEvents.length;
+    const r = await d.syncExternalCalendar(
+      new MockGoogleCalendarProvider([
+        ev({ externalId: "google:ghost", ownerId: "not-a-real-user" }),
+        ev({ externalId: "google:reversed", startAt: "2026-07-04T09:00:00.000Z", endAt: "2026-07-04T08:00:00.000Z" }),
+      ]),
+      RANGE_START,
+      RANGE_END,
+    );
+    expect(r).toEqual({ added: 0, updated: 0, skipped: 2 });
+    expect(d.calendarEvents.length).toBe(before);
+  });
+
+  it("기간 밖 일정은 제공자가 반환하지 않는다", async () => {
+    const d = db();
+    const r = await d.syncExternalCalendar(
+      new MockGoogleCalendarProvider([ev({ startAt: "2025-01-01T00:00:00.000Z", endAt: "2025-01-01T01:00:00.000Z" })]),
+      RANGE_START,
+      RANGE_END,
+    );
+    expect(r).toEqual({ added: 0, updated: 0, skipped: 0 });
+  });
+});
+
+describe("회사 캘린더 동기화 — 참석자/공개범위 변경 감지 (글래도스 비차단 관찰 반영)", () => {
+  const RS = new Date("2026-06-25T00:00:00+09:00");
+  const RE = new Date("2026-07-31T00:00:00+09:00");
+  const base: ExternalCalendarEvent = {
+    externalId: "google:townhall",
+    title: "월간 타운홀",
+    ownerId: "oh-seunghoon",
+    startAt: "2026-07-04T07:00:00.000Z",
+    endAt: "2026-07-04T08:00:00.000Z",
+    attendeeIds: ["oh-seunghoon", "hwang-sunghyeon"],
+    visibility: "team",
+  };
+
+  it("시간·제목이 그대로여도 참석자만 바뀌면 갱신으로 감지된다", async () => {
+    const d = db();
+    await d.syncExternalCalendar(new MockGoogleCalendarProvider([base]), RS, RE);
+    const r = await d.syncExternalCalendar(
+      new MockGoogleCalendarProvider([{ ...base, attendeeIds: ["oh-seunghoon"] }]),
+      RS,
+      RE,
+    );
+    expect(r).toEqual({ added: 0, updated: 1, skipped: 0 });
+    const ev = d.calendarEvents.find((e) => e.externalCalendarId === "google:townhall")!;
+    expect(ev.attendeeIds).toEqual(["oh-seunghoon"]);
   });
 });
