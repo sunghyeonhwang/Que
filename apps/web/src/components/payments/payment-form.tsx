@@ -4,7 +4,6 @@ import { useState } from "react";
 import { createPaymentRequestAction } from "@/app/(app)/payments/actions";
 import { useSafeAction } from "@/components/app/use-safe-action";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -60,11 +59,11 @@ export function PaymentForm() {
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">결제 요청 등록</CardTitle>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-3">
+    <section className="flex h-fit flex-col rounded-xl border border-[var(--que-border)] bg-white">
+      <header className="border-b border-[var(--que-border)] px-4 py-3">
+        <h2 className="text-base font-semibold text-[var(--que-text)]">결제 요청 등록</h2>
+      </header>
+      <div className="flex flex-col gap-3 p-4">
         <Field>
           <FieldLabel htmlFor="pay-title">제목</FieldLabel>
           <Input id="pay-title" value={title} onChange={(e) => setTitle(e.target.value)} />
@@ -133,10 +132,14 @@ export function PaymentForm() {
             onChange={(e) => setDescription(e.target.value)}
           />
         </Field>
-        <Button className="h-10" disabled={!canSubmit} onClick={submit}>
+        <Button
+          className="h-10 rounded-lg bg-[var(--que-brand)] text-white hover:bg-[var(--que-brand-hover)]"
+          disabled={!canSubmit}
+          onClick={submit}
+        >
           {pending ? "등록 중…" : "등록"}
         </Button>
-      </CardContent>
-    </Card>
+      </div>
+    </section>
   );
 }

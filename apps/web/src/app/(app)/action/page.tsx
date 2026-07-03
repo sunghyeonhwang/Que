@@ -5,7 +5,6 @@ import { ActionRow, type ActionRowData } from "@/components/action/action-row";
 import { PageHeader } from "@/components/app/page-header";
 import { NoteTabs } from "@/components/app/note-tabs";
 import { StatusBadge } from "@/components/app/status-badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getCurrentUser } from "@/lib/current-user";
 import { getDb } from "@/lib/db";
 import { cn } from "@/lib/utils";
@@ -60,7 +59,7 @@ export default async function ActionPage({
   return (
     <div>
       <PageHeader
-        title="Action"
+        title="확인필요"
         subtitle={`회의록에서 추출된 Task 후보를 확정합니다 · 확인 필요 ${needsReview}건`}
       />
 
@@ -79,9 +78,9 @@ export default async function ActionPage({
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,24rem)]">
-        <div className="flex flex-col gap-2">
+        <div className="flex max-h-[calc(100dvh-18rem)] flex-col gap-2 overflow-y-auto pr-0.5">
           {rows.length === 0 && (
-            <p className="py-6 text-center text-sm text-muted-foreground">
+            <p className="rounded-xl border border-dashed border-[var(--que-border)] bg-[var(--que-bg-muted)] py-10 text-center text-sm text-[var(--que-text-tertiary)]">
               후보가 없습니다. 회의록 화면에서 Action을 추출해주세요.
             </p>
           )}
@@ -90,19 +89,24 @@ export default async function ActionPage({
           ))}
         </div>
 
-        <Card className="h-fit">
-          <CardHeader>
-            <CardTitle className="text-base">생성된 Task</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-2">
+        <section className="flex h-fit flex-col rounded-xl border border-[var(--que-border)] bg-white">
+          <header className="border-b border-[var(--que-border)] px-4 py-3">
+            <h2 className="text-base font-semibold text-[var(--que-text)]">생성된 Task</h2>
+          </header>
+          <div className="flex flex-col gap-2 p-4">
             {createdTasks.length === 0 && (
-              <p className="text-sm text-muted-foreground">아직 생성된 Task가 없습니다.</p>
+              <p className="text-sm text-[var(--que-text-tertiary)]">아직 생성된 Task가 없습니다.</p>
             )}
             {createdTasks.map((task) => (
-              <div key={task.id} className="flex items-center gap-2 rounded-md border px-3 py-2">
+              <div
+                key={task.id}
+                className="flex items-center gap-2 rounded-lg border border-[var(--que-border)] px-3 py-2"
+              >
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-medium">{task.title}</span>
-                  <span className="block truncate text-xs text-muted-foreground">
+                  <span className="block truncate text-sm font-medium text-[var(--que-text)]">
+                    {task.title}
+                  </span>
+                  <span className="block truncate text-xs text-[var(--que-text-tertiary)]">
                     담당 {userById.get(task.assigneeId)?.name ?? task.assigneeId}
                     {task.endAt ? ` · 마감 ${format(new Date(task.endAt), "M/d HH:mm")}` : ""}
                   </span>
@@ -110,8 +114,8 @@ export default async function ActionPage({
                 <StatusBadge status={task.status} />
               </div>
             ))}
-          </CardContent>
-        </Card>
+          </div>
+        </section>
       </div>
     </div>
   );
@@ -123,8 +127,10 @@ function FilterChip({ href, active, label }: { href: string; active: boolean; la
       href={href}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "flex h-10 items-center rounded-md border px-3 text-sm transition-colors",
-        active ? "bg-primary text-primary-foreground" : "hover:bg-accent",
+        "flex h-10 items-center rounded-lg border px-3 text-sm font-medium transition-colors",
+        active
+          ? "border-transparent bg-[var(--que-brand)] text-white"
+          : "border-[var(--que-border)] text-[var(--que-text-secondary)] hover:bg-[var(--que-bg-muted)]",
       )}
     >
       {label}

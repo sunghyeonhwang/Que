@@ -5,7 +5,6 @@ import { USERS, type Project } from "@que/core";
 import { uploadMeetingNoteAction } from "@/app/(app)/meeting-notes/actions";
 import { useSafeAction } from "@/components/app/use-safe-action";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -78,11 +77,11 @@ export function UploadNoteForm({ projects }: { projects: Project[] }) {
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">회의록 업로드</CardTitle>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-3">
+    <section className="flex h-fit flex-col rounded-xl border border-[var(--que-border)] bg-white">
+      <header className="border-b border-[var(--que-border)] px-4 py-3">
+        <h2 className="text-base font-semibold text-[var(--que-text)]">회의록 업로드</h2>
+      </header>
+      <div className="flex flex-col gap-3 p-4">
         <Field>
           <FieldLabel htmlFor="note-file">Markdown 파일 (Plaud Note 내보내기)</FieldLabel>
           <Input
@@ -196,14 +195,18 @@ export function UploadNoteForm({ projects }: { projects: Project[] }) {
               ))}
             </div>
             {restrictedUserIds.length === 0 && (
-              <p className="text-xs text-destructive">1명 이상 지정해야 합니다.</p>
+              <p className="text-xs text-[var(--que-error)]">1명 이상 지정해야 합니다.</p>
             )}
           </Field>
         )}
-        <Button className="h-10" disabled={!canSubmit} onClick={submit}>
+        <Button
+          className="h-10 rounded-lg bg-[var(--que-brand)] text-white hover:bg-[var(--que-brand-hover)]"
+          disabled={!canSubmit}
+          onClick={submit}
+        >
           {pending ? "업로드 중…" : "업로드"}
         </Button>
-      </CardContent>
-    </Card>
+      </div>
+    </section>
   );
 }

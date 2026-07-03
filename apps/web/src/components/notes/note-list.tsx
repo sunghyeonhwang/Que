@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { format } from "date-fns";
+import { FileText } from "lucide-react";
 import { extractActionsAction } from "@/app/(app)/meeting-notes/actions";
 import { useSafeAction } from "@/components/app/use-safe-action";
-import { Badge } from "@/components/ui/badge";
+import { ToneBadge } from "@/components/app/tone-badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Sheet,
@@ -36,7 +37,7 @@ export function NoteList({ notes }: { notes: NoteListItem[] }) {
   return (
     <div className="flex flex-col gap-2">
       {notes.length === 0 && (
-        <p className="py-6 text-center text-sm text-muted-foreground">
+        <p className="rounded-xl border border-dashed border-[var(--que-border)] bg-[var(--que-bg-muted)] py-10 text-center text-sm text-[var(--que-text-tertiary)]">
           업로드된 회의록이 없습니다.
         </p>
       )}
@@ -57,27 +58,33 @@ function NoteRow({ note }: { note: NoteListItem }) {
   };
 
   return (
-    <div className="flex min-h-12 flex-wrap items-center gap-2 rounded-md border px-3 py-2">
+    <div className="flex min-h-12 flex-wrap items-center gap-2 rounded-xl border border-[var(--que-border)] bg-white px-3.5 py-3">
+      <span
+        className="hidden size-9 shrink-0 items-center justify-center rounded-lg bg-[var(--que-brand-subtle)] text-[var(--que-brand)] sm:flex"
+        aria-hidden
+      >
+        <FileText className="size-[18px]" />
+      </span>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium">{note.title}</p>
-        <p className="truncate text-xs text-muted-foreground">
+        <p className="truncate text-sm font-medium text-[var(--que-text)]">{note.title}</p>
+        <p className="truncate text-xs text-[var(--que-text-tertiary)]">
           {note.fileName} · {format(new Date(note.meetingAt), "M/d")} ·{" "}
           {note.projectName ?? "프로젝트 미지정"} · 업로드 {note.uploaderName}
         </p>
       </div>
-      {note.visibility === "admin" && <Badge variant="outline">관리자 전용</Badge>}
+      {note.visibility === "admin" && <ToneBadge tone="violet">관리자 전용</ToneBadge>}
       {note.visibility === "restricted" && (
-        <Badge variant="outline">지정 인원 {note.restrictedCount ?? 0}명만</Badge>
+        <ToneBadge tone="violet">지정 인원 {note.restrictedCount ?? 0}명만</ToneBadge>
       )}
       {note.extractionStatus === "pending" ? (
-        <Badge variant="secondary">추출 대기</Badge>
+        <ToneBadge tone="amber">추출 대기</ToneBadge>
       ) : (
-        <Badge variant="outline">후보 {note.candidateCount}건</Badge>
+        <ToneBadge tone="blue">후보 {note.candidateCount}건</ToneBadge>
       )}
 
       <Sheet>
         <SheetTrigger
-          render={<Button variant="outline" size="sm" className="h-10" />}
+          render={<Button variant="outline" size="sm" className="h-10 rounded-lg" />}
         >
           원문
         </SheetTrigger>
@@ -86,20 +93,25 @@ function NoteRow({ note }: { note: NoteListItem }) {
             <SheetTitle>{note.title}</SheetTitle>
             <SheetDescription>{note.fileName} — 원문은 항상 보존됩니다</SheetDescription>
           </SheetHeader>
-          <ScrollArea className="h-[calc(100dvh-8rem)] rounded-md border p-3">
+          <ScrollArea className="h-[calc(100dvh-8rem)] rounded-lg border border-[var(--que-border)] p-3">
             <pre className="text-xs whitespace-pre-wrap">{note.markdownBody}</pre>
           </ScrollArea>
         </SheetContent>
       </Sheet>
 
       {note.extractionStatus === "pending" ? (
-        <Button size="sm" className="h-10" disabled={pending} onClick={extract}>
+        <Button
+          size="sm"
+          className="h-10 rounded-lg bg-[var(--que-brand)] px-3.5 text-white hover:bg-[var(--que-brand-hover)]"
+          disabled={pending}
+          onClick={extract}
+        >
           {pending ? "추출 중…" : "Action 추출"}
         </Button>
       ) : (
         <Link
           href={`/action?note=${note.id}`}
-          className={cn(buttonVariants({ variant: "secondary", size: "sm" }), "h-10")}
+          className={cn(buttonVariants({ variant: "outline", size: "sm" }), "h-10 rounded-lg")}
         >
           후보 보기
         </Link>

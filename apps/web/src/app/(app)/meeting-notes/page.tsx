@@ -35,7 +35,7 @@ export default async function MeetingNotesPage() {
   return (
     <div>
       <PageHeader
-        title="회의록"
+        title="확인필요"
         subtitle="Plaud 회의록을 업로드하고 Action 추출 대상으로 관리합니다 — 원문은 항상 보존됩니다"
       />
 
@@ -43,9 +43,16 @@ export default async function MeetingNotesPage() {
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,26rem)_minmax(0,1fr)]">
         <UploadNoteForm projects={db.projects} />
-        <div>
-          <h2 className="mb-2 text-base font-semibold">업로드된 회의록</h2>
-          <NoteList notes={notes} />
+        <div className="min-w-0">
+          <div className="mb-2 flex items-baseline gap-2">
+            <h2 className="text-base font-semibold text-[var(--que-text)]">업로드된 회의록</h2>
+            <span className="text-xs text-[var(--que-text-tertiary)] tabular-nums">
+              {notes.length}건
+            </span>
+          </div>
+          <div className="max-h-[calc(100dvh-16rem)] overflow-y-auto pr-0.5">
+            <NoteList notes={notes} />
+          </div>
         </div>
       </div>
     </div>

@@ -8,7 +8,7 @@ import {
   setActionItemStatusAction,
   updateActionItemAction,
 } from "@/app/(app)/action/actions";
-import { Badge } from "@/components/ui/badge";
+import { ToneBadge, type BadgeTone } from "@/components/app/tone-badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -33,12 +33,14 @@ export interface ActionRowData {
 /** Base UI Select가 선택값을 라벨로 표시하도록 하는 매핑 (id 노출 방지) */
 const USER_ITEMS = Object.fromEntries(USERS.map((u) => [u.id, u.name]));
 
-const STATUS_VARIANT: Record<ActionItemStatus, "default" | "secondary" | "outline" | "destructive"> = {
-  needs_review: "outline",
-  candidate: "secondary",
-  created: "default",
-  held: "secondary",
-  ignored: "destructive",
+// 상태 색상 의미 고정: 확인 필요=violet(응답대기) · 후보=blue(정보) · 생성=green(완료) ·
+// 보류=amber(대기) · 무시=red(취소).
+const STATUS_TONE: Record<ActionItemStatus, BadgeTone> = {
+  needs_review: "violet",
+  candidate: "blue",
+  created: "green",
+  held: "amber",
+  ignored: "red",
 };
 
 /** Action 후보 한 줄 — 담당자/마감일 지정과 생성/보류/무시 처리. */
@@ -55,14 +57,16 @@ export function ActionRow({ item }: { item: ActionRowData }) {
   const dirty = assigneeId !== (item.assigneeId ?? "") || dueDate !== (item.dueDate ?? "");
 
   return (
-    <div className="rounded-md border p-3">
+    <div className="rounded-xl border border-[var(--que-border)] bg-white p-3.5">
       <div className="flex flex-wrap items-center gap-2">
-        <Badge variant={STATUS_VARIANT[item.status]}>
+        <ToneBadge tone={STATUS_TONE[item.status]}>
           {ACTION_ITEM_STATUS_LABELS[item.status]}
-        </Badge>
-        <p className="min-w-0 flex-1 truncate text-sm font-medium">{item.title}</p>
+        </ToneBadge>
+        <p className="min-w-0 flex-1 truncate text-sm font-medium text-[var(--que-text)]">
+          {item.title}
+        </p>
       </div>
-      <p className="mt-1 text-xs text-muted-foreground">
+      <p className="mt-1 text-xs text-[var(--que-text-tertiary)]">
         원문: “{item.sourceText}” — {item.noteName}
         {item.projectName ? ` · ${item.projectName}` : ""}
       </p>
@@ -75,7 +79,7 @@ export function ActionRow({ item }: { item: ActionRowData }) {
               value={assigneeId}
               onValueChange={(v) => setAssigneeId(v ?? "")}
             >
-              <SelectTrigger aria-label={`${item.title} 담당자 선택`} className="h-10">
+              <SelectTrigger aria-label={`${item.title} 담당자 선택`} className="h-10 rounded-lg">
                 <SelectValue placeholder="담당자 미지정" />
               </SelectTrigger>
               <SelectContent>
@@ -92,13 +96,13 @@ export function ActionRow({ item }: { item: ActionRowData }) {
             value={dueDate}
             onChange={(e) => setDueDate(e.target.value)}
             aria-label={`${item.title} 마감일`}
-            className="h-10 w-40"
+            className="h-10 w-40 rounded-lg"
           />
           {dirty && (
             <Button
-              variant="secondary"
+              variant="outline"
               size="sm"
-              className="h-10"
+              className="h-10 rounded-lg"
               disabled={pending}
               onClick={() =>
                 run(
@@ -118,7 +122,7 @@ export function ActionRow({ item }: { item: ActionRowData }) {
           <span className="ml-auto flex gap-2">
             <Button
               size="sm"
-              className="h-10"
+              className="h-10 rounded-lg bg-[var(--que-brand)] px-3.5 text-white hover:bg-[var(--que-brand-hover)]"
               disabled={pending || dirty}
               title={dirty ? "먼저 저장해주세요" : undefined}
               onClick={() =>
@@ -133,7 +137,7 @@ export function ActionRow({ item }: { item: ActionRowData }) {
             <Button
               variant="outline"
               size="sm"
-              className="h-10"
+              className="h-10 rounded-lg"
               disabled={pending}
               onClick={() =>
                 run(
@@ -145,9 +149,9 @@ export function ActionRow({ item }: { item: ActionRowData }) {
               보류
             </Button>
             <Button
-              variant="destructive"
+              variant="outline"
               size="sm"
-              className="h-10"
+              className="h-10 rounded-lg border-[var(--que-error)]/40 text-[var(--que-error)] hover:bg-[var(--que-error-bg)] hover:text-[var(--que-error)]"
               disabled={pending}
               onClick={() =>
                 run(
