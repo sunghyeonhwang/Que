@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { ChevronDown, Plus, MoreHorizontal } from "lucide-react";
 import type { ListViewGroup } from "@/lib/pm-data";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -14,7 +15,13 @@ import { cn } from "@/lib/utils";
 const GRID =
   "grid grid-cols-[minmax(0,1fr)_100px_84px] items-center gap-3 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1.7fr)_170px_100px_92px]";
 
-export function TaskGroupSection({ group }: { group: ListViewGroup }) {
+export function TaskGroupSection({
+  group,
+  taskHref,
+}: {
+  group: ListViewGroup;
+  taskHref: (taskId: string) => string;
+}) {
   const [open, setOpen] = useState(true);
 
   return (
@@ -69,14 +76,21 @@ export function TaskGroupSection({ group }: { group: ListViewGroup }) {
               key={task.id}
               className={cn(
                 GRID,
-                "min-h-[52px] border-b border-[var(--que-border)] px-3 py-2.5 transition-colors hover:bg-[var(--que-bg-muted)]",
+                "relative min-h-[52px] border-b border-[var(--que-border)] px-3 py-2.5 transition-colors hover:bg-[var(--que-bg-muted)]",
               )}
             >
+              {/* 행 전체 클릭 → 상세 드로어(URL ?task). 체크박스만 위로 올려 겹치지 않게. */}
+              <Link
+                href={taskHref(task.id)}
+                scroll={false}
+                aria-label={`${task.name} 상세 열기`}
+                className="absolute inset-0 z-10 rounded-md focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--que-brand)]"
+              />
               <div className="flex min-w-0 items-center gap-2.5">
                 <Checkbox
                   defaultChecked={task.done}
                   aria-label={`${task.name} 완료`}
-                  className="shrink-0"
+                  className="relative z-20 shrink-0"
                 />
                 <span
                   className={cn(

@@ -1,16 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { ListChecks, LayoutGrid, Calendar, File, type LucideIcon } from "lucide-react";
+import { ListChecks, LayoutGrid, Calendar, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export type ProjectView = "list" | "board" | "calendar" | "files";
 
+// 파일 뷰는 제외(사용자 결정) — 탭에서 뺀다. (files 타입은 하위호환으로 유지)
 const TABS: { key: ProjectView; label: string; icon: LucideIcon }[] = [
   { key: "list", label: "목록", icon: ListChecks },
   { key: "board", label: "보드", icon: LayoutGrid },
   { key: "calendar", label: "캘린더", icon: Calendar },
-  { key: "files", label: "파일", icon: File },
 ];
 
 /** 프로젝트 뷰 스위처. URL ?view= 에 반영. 목록만 기능, 나머지는 준비 중 안내로 전환. */

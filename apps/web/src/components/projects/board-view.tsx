@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Plus, MoreHorizontal, CalendarDays, MessageSquare, FileText } from "lucide-react";
 import type { BoardViewGroup, BoardViewTask } from "@/lib/pm-data";
 import { IconButton } from "@/components/app/icon-button";
@@ -9,20 +10,32 @@ function tint(hex: string, alpha: string): string {
   return `${hex}${alpha}`;
 }
 
-/** 보드(칸반) 뷰 — 그룹=열(가로 스크롤), 태스크=카드(세로 스크롤). 읽기 전용(P2). */
-export function BoardView({ groups }: { groups: BoardViewGroup[] }) {
+/** 보드(칸반) 뷰 — 그룹=열(가로 스크롤), 태스크=카드(세로 스크롤). 카드 클릭 → 상세 드로어(P4). */
+export function BoardView({
+  groups,
+  taskHref,
+}: {
+  groups: BoardViewGroup[];
+  taskHref: (taskId: string) => string;
+}) {
   return (
     <div className="-mx-4 min-h-0 flex-1 overflow-x-auto px-4 pt-3 md:-mx-5 md:px-5 xl:-mx-6 xl:px-6">
       <div className="flex h-full min-h-0 gap-4">
         {groups.map((group) => (
-          <BoardColumn key={group.id} group={group} />
+          <BoardColumn key={group.id} group={group} taskHref={taskHref} />
         ))}
       </div>
     </div>
   );
 }
 
-function BoardColumn({ group }: { group: BoardViewGroup }) {
+function BoardColumn({
+  group,
+  taskHref,
+}: {
+  group: BoardViewGroup;
+  taskHref: (taskId: string) => string;
+}) {
   return (
     <section
       className="flex h-full min-h-0 w-[318px] shrink-0 flex-col rounded-xl border border-[var(--que-border)] sm:w-[340px]"
@@ -57,16 +70,23 @@ function BoardColumn({ group }: { group: BoardViewGroup }) {
             태스크 없음
           </p>
         ) : (
-          group.tasks.map((task) => <BoardCard key={task.id} task={task} />)
+          group.tasks.map((task) => (
+            <BoardCard key={task.id} task={task} href={taskHref(task.id)} />
+          ))
         )}
       </div>
     </section>
   );
 }
 
-function BoardCard({ task }: { task: BoardViewTask }) {
+function BoardCard({ task, href }: { task: BoardViewTask; href: string }) {
   return (
-    <article className="rounded-xl border border-[var(--que-border)] bg-white p-3.5 shadow-sm transition-shadow hover:shadow-md">
+    <Link
+      href={href}
+      scroll={false}
+      aria-label={`${task.name} 상세 열기`}
+      className="block rounded-xl border border-[var(--que-border)] bg-white p-3.5 shadow-sm transition-shadow hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--que-brand)]"
+    >
       <PriorityBadge priority={task.priority} />
       <h3 className="mt-2.5 text-sm leading-snug font-semibold text-[var(--que-text)]">
         {task.name}
@@ -93,6 +113,6 @@ function BoardCard({ task }: { task: BoardViewTask }) {
           </span>
         </div>
       </div>
-    </article>
+    </Link>
   );
 }

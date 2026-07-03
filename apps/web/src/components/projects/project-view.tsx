@@ -1,6 +1,7 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";
+import { useCallback } from "react";
+import { usePathname, useSearchParams } from "next/navigation";
 import { SlidersHorizontal, Plus } from "lucide-react";
 import type { ProjectListView, ProjectBoardView, ProjectCalendarView } from "@/lib/pm-data";
 import { Button } from "@/components/ui/button";
@@ -33,7 +34,19 @@ export function ProjectView({
   board: ProjectBoardView;
   calendar: ProjectCalendarView;
 }) {
-  const view = resolveView(useSearchParams().get("view"));
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const view = resolveView(searchParams.get("view"));
+
+  // 현재 URL(view/month 등)을 보존하며 `task=<id>`만 추가한 상세 열기 링크.
+  const taskHref = useCallback(
+    (taskId: string) => {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("task", taskId);
+      return `${pathname}?${params.toString()}`;
+    },
+    [pathname, searchParams],
+  );
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -60,13 +73,15 @@ export function ProjectView({
       </div>
 
       {view === "board" ? (
-        <BoardView groups={board.groups} />
+        <BoardView groups={board.groups} taskHref={taskHref} />
       ) : view === "calendar" ? (
-        <CalendarView data={calendar} />
+        <CalendarView data={calendar} taskHref={taskHref} />
       ) : (
         <div className="-mx-4 min-h-0 flex-1 overflow-y-auto px-4 pt-3 md:-mx-5 md:px-5 xl:-mx-6 xl:px-6">
           {view === "list" ? (
-            data.groups.map((group) => <TaskGroupSection key={group.id} group={group} />)
+            data.groups.map((group) => (
+              <TaskGroupSection key={group.id} group={group} taskHref={taskHref} />
+            ))
           ) : (
             <div className="flex min-h-[280px] items-center justify-center rounded-xl border border-dashed border-[var(--que-border)] bg-[var(--que-bg-muted)] text-sm text-[var(--que-text-tertiary)]">
               {VIEW_LABEL[view]} 뷰는 준비 중입니다.

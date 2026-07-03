@@ -47,8 +47,14 @@ function NavIconLink({
   );
 }
 
-/** 프로젝트 캘린더(월 그리드) 뷰 — 마감 태스크를 날짜 셀에 표시. 읽기 전용(P3). */
-export function ProjectCalendarView({ data }: { data: ProjectCalendarView }) {
+/** 프로젝트 캘린더(월 그리드) 뷰 — 마감 태스크를 날짜 셀에 표시. pill 클릭 → 상세 드로어(P4). */
+export function ProjectCalendarView({
+  data,
+  taskHref,
+}: {
+  data: ProjectCalendarView;
+  taskHref: (taskId: string) => string;
+}) {
   return (
     <div className="-mx-4 flex min-h-0 flex-1 flex-col px-4 pt-3 md:-mx-5 md:px-5 xl:-mx-6 xl:px-6">
       <header className="flex shrink-0 items-center justify-between gap-2 pb-3">
@@ -82,7 +88,7 @@ export function ProjectCalendarView({ data }: { data: ProjectCalendarView }) {
             </div>
           ))}
           {data.days.map((day) => (
-            <DayCell key={day.date} day={day} />
+            <DayCell key={day.date} day={day} taskHref={taskHref} />
           ))}
         </div>
       </div>
@@ -90,7 +96,13 @@ export function ProjectCalendarView({ data }: { data: ProjectCalendarView }) {
   );
 }
 
-function DayCell({ day }: { day: CalendarViewDay }) {
+function DayCell({
+  day,
+  taskHref,
+}: {
+  day: CalendarViewDay;
+  taskHref: (taskId: string) => string;
+}) {
   const hidden = day.tasks.length - MAX_PILLS;
   return (
     <div
@@ -120,7 +132,7 @@ function DayCell({ day }: { day: CalendarViewDay }) {
 
       <div className="flex flex-col gap-1">
         {day.tasks.slice(0, MAX_PILLS).map((task) => (
-          <TaskPill key={task.id} task={task} />
+          <TaskPill key={task.id} task={task} href={taskHref(task.id)} />
         ))}
         {hidden > 0 && (
           <span className="px-1 text-xs font-medium text-[var(--que-brand)]">+{hidden}개 작업</span>
@@ -130,10 +142,13 @@ function DayCell({ day }: { day: CalendarViewDay }) {
   );
 }
 
-function TaskPill({ task }: { task: CalendarViewTask }) {
+function TaskPill({ task, href }: { task: CalendarViewTask; href: string }) {
   return (
-    <span
-      className="flex items-center gap-1.5 rounded-md px-1.5 py-1 text-xs text-[var(--que-text)]"
+    <Link
+      href={href}
+      scroll={false}
+      aria-label={`${task.name} 상세 열기`}
+      className="flex items-center gap-1.5 rounded-md px-1.5 py-1 text-xs text-[var(--que-text)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--que-brand)]"
       style={{ backgroundColor: tint(task.color, "1f") }}
       title={task.name}
     >
@@ -143,6 +158,6 @@ function TaskPill({ task }: { task: CalendarViewTask }) {
         aria-hidden
       />
       <span className="truncate">{task.name}</span>
-    </span>
+    </Link>
   );
 }

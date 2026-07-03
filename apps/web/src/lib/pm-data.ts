@@ -16,6 +16,16 @@ import { findUser } from "@que/core";
 
 export type PmPriority = "high" | "normal" | "low";
 
+export type AttachmentKind = "pdf" | "doc" | "img" | "file";
+
+export interface PmAttachment {
+  id: string;
+  name: string;
+  /** 표시용 용량 라벨(예: "12.0 MB"). */
+  sizeLabel: string;
+  kind: AttachmentKind;
+}
+
 export interface Workspace {
   id: string;
   name: string;
@@ -56,6 +66,12 @@ export interface PmTask {
   commentCount: number;
   /** 카드 첨부 수(보드 뷰 푸터). */
   attachmentCount: number;
+  /** 상세 드로어용 분류(예: "UX 리서치"). 없으면 표시 안 함. */
+  category?: string;
+  /** 상세 드로어용 시간대(예: "09:00 - 11:30 AM"). 없으면 표시 안 함. */
+  timeRange?: string;
+  /** 상세 드로어용 첨부 파일. 없으면 섹션 생략. */
+  attachments?: PmAttachment[];
 }
 
 // ---------- seed ----------
@@ -101,7 +117,11 @@ const TASKS: PmTask[] = [
     assigneeIds: ["park-seunghwan"],
     done: false,
     commentCount: 0,
-    attachmentCount: 0,
+    attachmentCount: 1,
+    category: "디자인 시스템",
+    attachments: [
+      { id: "att-1a", name: "Component-Audit.pdf", sizeLabel: "8.4 MB", kind: "pdf" },
+    ],
   },
   {
     id: "task-2",
@@ -114,6 +134,7 @@ const TASKS: PmTask[] = [
     done: false,
     commentCount: 0,
     attachmentCount: 0,
+    category: "디자인 시스템",
   },
   {
     id: "task-3",
@@ -126,6 +147,7 @@ const TASKS: PmTask[] = [
     done: false,
     commentCount: 1,
     attachmentCount: 0,
+    category: "디자인 시스템",
   },
   // 할 일
   {
@@ -139,6 +161,8 @@ const TASKS: PmTask[] = [
     done: false,
     commentCount: 0,
     attachmentCount: 0,
+    category: "디자인 시스템",
+    timeRange: "09:00 - 11:30 AM",
   },
   {
     id: "task-5",
@@ -151,19 +175,27 @@ const TASKS: PmTask[] = [
     done: false,
     commentCount: 0,
     attachmentCount: 0,
+    category: "디자인 시스템",
   },
   // 진행 중
   {
     id: "task-6",
     groupId: "grp-doing",
     name: "정보 아키텍처 매핑",
-    description: "핵심 페이지와 작업 계층 구조를 구성하여 탐색과 사용자 여정을 단순화하세요.",
+    description:
+      "핵심 페이지와 작업 계층 구조를 구성하여 탐색과 사용자 여정을 단순화하세요.\n주요 사용자 시나리오를 기준으로 내비게이션 흐름을 정리하고, 개발 이관 전 최종 검토를 진행합니다.",
     dueAt: "2025-09-08",
     priority: "normal",
     assigneeIds: ["hwang-sunghyeon", "oh-seunghoon"],
     done: false,
     commentCount: 5,
     attachmentCount: 2,
+    category: "UX 리서치",
+    timeRange: "09:00 - 11:30 AM",
+    attachments: [
+      { id: "att-6a", name: "User-Research.pdf", sizeLabel: "12.0 MB", kind: "pdf" },
+      { id: "att-6b", name: "Persona-Analysis.docx", sizeLabel: "3.2 MB", kind: "doc" },
+    ],
   },
   {
     id: "task-7",
@@ -176,6 +208,12 @@ const TASKS: PmTask[] = [
     done: false,
     commentCount: 12,
     attachmentCount: 4,
+    category: "디자인 시스템",
+    timeRange: "14:00 - 16:00 PM",
+    attachments: [
+      { id: "att-7a", name: "Color-Tokens.pdf", sizeLabel: "5.6 MB", kind: "pdf" },
+      { id: "att-7b", name: "Palette-Preview.png", sizeLabel: "2.1 MB", kind: "img" },
+    ],
   },
   {
     id: "task-8",
@@ -188,6 +226,7 @@ const TASKS: PmTask[] = [
     done: false,
     commentCount: 8,
     attachmentCount: 0,
+    category: "디자인 시스템",
   },
   // 완료
   {
@@ -201,6 +240,8 @@ const TASKS: PmTask[] = [
     done: true,
     commentCount: 3,
     attachmentCount: 1,
+    category: "기획",
+    attachments: [{ id: "att-9a", name: "Kickoff-Notes.docx", sizeLabel: "1.1 MB", kind: "doc" }],
   },
   {
     id: "task-10",
@@ -213,6 +254,11 @@ const TASKS: PmTask[] = [
     done: true,
     commentCount: 6,
     attachmentCount: 2,
+    category: "UX 리서치",
+    attachments: [
+      { id: "att-10a", name: "Competitive-Analysis.pdf", sizeLabel: "9.8 MB", kind: "pdf" },
+      { id: "att-10b", name: "Interview-Summary.docx", sizeLabel: "2.4 MB", kind: "doc" },
+    ],
   },
 ];
 
@@ -456,5 +502,47 @@ export function getProjectCalendarView(
     prevMonth: format(subMonths(anchorDate, 1), "yyyy-MM"),
     nextMonth: format(addMonths(anchorDate, 1), "yyyy-MM"),
     days,
+  };
+}
+
+// ---------- 태스크 상세 드로어 뷰 ----------
+
+export interface TaskDetailView {
+  id: string;
+  name: string;
+  description: string;
+  /** 소속 그룹명(상태 뱃지 텍스트). */
+  groupName: string;
+  /** 소속 그룹 색(hex, 상태 뱃지 색). */
+  groupColor: string;
+  /** 분류. 없으면 null. */
+  category: string | null;
+  priority: PmPriority;
+  /** "2025년 9월 12일 금요일" 형태. 없으면 null. */
+  dueLabel: string | null;
+  /** "09:00 - 11:30 AM". 없으면 null. */
+  timeRange: string | null;
+  assignees: ListViewMember[];
+  attachments: PmAttachment[];
+}
+
+/** 태스크 상세 뷰 모델 — 드로어(우측 슬라이드)용. id가 없으면 null. */
+export function getTaskDetail(taskId: string | null | undefined): TaskDetailView | null {
+  if (!taskId) return null;
+  const task = TASKS.find((t) => t.id === taskId);
+  if (!task) return null;
+  const group = GROUPS.find((g) => g.id === task.groupId);
+  return {
+    id: task.id,
+    name: task.name,
+    description: task.description,
+    groupName: group?.name ?? "",
+    groupColor: group?.color ?? "#9ca3af",
+    category: task.category ?? null,
+    priority: task.priority,
+    dueLabel: formatDue(task.dueAt),
+    timeRange: task.timeRange ?? null,
+    assignees: task.assigneeIds.map(resolveMember),
+    attachments: task.attachments ?? [],
   };
 }
