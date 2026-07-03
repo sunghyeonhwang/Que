@@ -5,32 +5,43 @@ import { AlertTriangle, Clock, HandHelping, Pause } from "lucide-react";
 import { PageHeader } from "@/components/app/page-header";
 import { StatusBadge } from "@/components/app/status-badge";
 import { TaskStatusSheet, type TaskRowData } from "@/components/app/task-status-sheet";
+import { AdminReport } from "@/components/team/admin-report";
 import { StandupGrid } from "@/components/team/standup-grid";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getCurrentUser } from "@/lib/current-user";
 import { getCommentViewsByTask } from "@/lib/comments";
 import { getRecentChangeLogs } from "@/lib/calendar-data";
+import { getAdminReportData, type ReportPeriod } from "@/lib/report-data";
 import { getStandupData, getTeamData, type AttentionEntry } from "@/lib/team-data";
 import { josa } from "@/lib/korean";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
-const VIEWS = [
-  { key: "board", label: "운영 보드" },
-  { key: "standup", label: "스탠드업" },
-] as const;
-
 export default async function TeamPage({
   searchParams,
 }: {
-  searchParams: Promise<{ view?: string }>;
+  searchParams: Promise<{ view?: string; period?: string }>;
 }) {
   const params = await searchParams;
-  const view = params.view === "standup" ? "standup" : "board";
   const user = await getCurrentUser();
   const now = new Date();
+
+  // 리포트 뷰는 관리자 전용 — 비관리자가 URL로 접근하면 운영 보드로 되돌린다.
+  const requestedReport = params.view === "report" && user.role === "admin";
+  const view = requestedReport ? "report" : params.view === "standup" ? "standup" : "board";
+
+  const VIEWS = [
+    { key: "board", label: "운영 보드" },
+    { key: "standup", label: "스탠드업" },
+    ...(user.role === "admin" ? [{ key: "report", label: "리포트" }] : []),
+  ] as const;
+
+  const reportPeriod: ReportPeriod = params.period === "month" ? "month" : "week";
+  const reportData =
+    view === "report" ? getAdminReportData(user, reportPeriod, now) : null;
+
   const data = getTeamData(user, now);
   const logs = getRecentChangeLogs(6);
   const commentsByTask = getCommentViewsByTask();
@@ -87,6 +98,27 @@ export default async function TeamPage({
             화면에서.
           </p>
           <StandupGrid rows={getStandupData(now)} />
+        </>
+      )}
+
+      {view === "report" && reportData && (
+        <>
+          <nav aria-label="리포트 기간 전환" className="mb-4 flex w-fit rounded-lg border p-0.5">
+            {(["week", "month"] as const).map((p) => (
+              <Link
+                key={p}
+                href={`/team?view=report&period=${p}`}
+                aria-current={reportPeriod === p ? "page" : undefined}
+                className={cn(
+                  "flex h-10 items-center rounded-md px-3 text-sm font-medium transition-colors",
+                  reportPeriod === p ? "bg-primary text-primary-foreground" : "hover:bg-accent",
+                )}
+              >
+                {p === "week" ? "주간" : "월간"}
+              </Link>
+            ))}
+          </nav>
+          <AdminReport data={reportData} />
         </>
       )}
 

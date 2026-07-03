@@ -595,6 +595,91 @@ export function createSeed(now: Date): QueSeed {
     },
   ];
 
+  // ── 과거 6주 완료/취소 이력 (결정론적 생성) ──────────────────────────
+  // 관리자 리포트의 주간/월간 집계가 빈 표가 아니라 실제 데이터로 검증되도록,
+  // 지난 42~3일의 이력을 만든다. random 없이 인덱스 기반으로 분배해 재현 가능.
+  // 근래(어제·그제)는 기존 시드가 오늘/스탠드업 화면을 책임지므로 건드리지 않는다(d>=3).
+  const HISTORY_TITLES = [
+    "배너 시안 검토",
+    "카피 교정",
+    "QA 리그레션",
+    "결제 로그 분석",
+    "FAQ 항목 추가",
+    "이미지 리터칭",
+    "응답 스키마 점검",
+    "정산 대사",
+    "리뷰 반영",
+    "샘플 재확인",
+  ];
+  const HISTORY_ASSIGNEES = [oh, sungjin, park, song, yejin, riwon, hyejin, hwang];
+  const HISTORY_PROJECTS: (string | undefined)[] = ["prj-summer", "prj-payment", "prj-cs", undefined];
+  let hIdx = 0;
+  for (let d = 42; d >= 3; d -= 1) {
+    const dow = new Date(at(-d, 9)).getDay();
+    if (dow === 0 || dow === 6) continue; // 주말 제외
+    const perDay = (d % 3) + 1; // 하루 1~3건
+    for (let k = 0; k < perDay; k += 1) {
+      hIdx += 1;
+      const assignee = HISTORY_ASSIGNEES[hIdx % HISTORY_ASSIGNEES.length];
+      const projectId = HISTORY_PROJECTS[hIdx % HISTORY_PROJECTS.length];
+      const title = HISTORY_TITLES[hIdx % HISTORY_TITLES.length];
+      const hours = (hIdx % 3) + 1;
+      const startHour = 9 + k * 2;
+      const doneHour = startHour + hours;
+      const id = `task-h${hIdx}`;
+      const cancelled = hIdx % 6 === 0; // 6건마다 1건은 취소(필요없어짐)
+      const finalStatus = cancelled ? "cancelled" : "done";
+      tasks.push({
+        id,
+        title,
+        ownerId: assignee.id,
+        assigneeId: assignee.id,
+        projectId,
+        startAt: at(-d, startHour),
+        endAt: at(-d, doneHour),
+        status: finalStatus,
+        priority: "normal",
+        estimatedHours: hours,
+        source: "manual",
+        visibility: "team",
+        lastChangedBy: assignee.id,
+        lastChangedAt: at(-d, doneHour),
+      });
+      // 완료 건 일부는 중간에 문제발생/홀드를 거쳤다 해소됐다고 기록한다 —
+      // 그래야 리포트의 "병목 유입(raisedIssues/Holds)"이 기간별로 실제로 달라진다.
+      // (전이 로그만 남기고 최종 상태는 done이므로 '현재 막힘'은 오염되지 않는다.)
+      if (!cancelled && hIdx % 5 === 0) {
+        statusLogs.push({
+          id: `slog-h${hIdx}-issue`,
+          taskId: id,
+          actorId: assignee.id,
+          fromStatus: "in_progress",
+          toStatus: "issue",
+          reason: "진행 중 이슈 발견",
+          createdAt: at(-d, startHour, 30),
+        });
+      } else if (!cancelled && hIdx % 7 === 0) {
+        statusLogs.push({
+          id: `slog-h${hIdx}-hold`,
+          taskId: id,
+          actorId: assignee.id,
+          fromStatus: "in_progress",
+          toStatus: "on_hold",
+          reason: "선행 작업 대기",
+          createdAt: at(-d, startHour, 30),
+        });
+      }
+      statusLogs.push({
+        id: `slog-h${hIdx}`,
+        taskId: id,
+        actorId: assignee.id,
+        fromStatus: "in_progress",
+        toStatus: finalStatus,
+        createdAt: at(-d, doneHour),
+      });
+    }
+  }
+
   return {
     projects,
     milestones,
