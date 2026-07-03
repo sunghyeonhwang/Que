@@ -2,11 +2,16 @@
 
 import { useCallback } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
-import { SlidersHorizontal, Plus } from "lucide-react";
-import type { ProjectListView, ProjectBoardView, ProjectCalendarView } from "@/lib/pm-data";
-import { Button } from "@/components/ui/button";
-import { IconButton } from "@/components/app/icon-button";
+import type {
+  ProjectListView,
+  ProjectBoardView,
+  ProjectCalendarView,
+  ProjectMeta,
+} from "@/lib/pm-data";
 import { ProjectHeader } from "./project-header";
+import { ProjectFilter } from "./project-filter";
+import { CreateTaskDialog } from "./create-task-dialog";
+import { CreateGroupDialog } from "./create-group-dialog";
 import { ViewTabs, type ProjectView as ProjectViewKey } from "./view-tabs";
 import { TaskGroupSection } from "./task-group-section";
 import { BoardView } from "./board-view";
@@ -29,10 +34,13 @@ export function ProjectView({
   data,
   board,
   calendar,
+  meta,
 }: {
   data: ProjectListView;
   board: ProjectBoardView;
   calendar: ProjectCalendarView;
+  /** 생성/필터 피커용 프로젝트 메타(담당자·그룹). */
+  meta: ProjectMeta;
 }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -56,19 +64,16 @@ export function ProjectView({
           description={data.project.description}
           members={data.members}
           memberOverflow={data.memberOverflow}
+          allMembers={meta.members}
         />
       </div>
 
       <div className="mt-4 flex shrink-0 flex-wrap items-end justify-between gap-2 border-b border-[var(--que-border)]">
         <ViewTabs current={view} />
         <div className="flex items-center gap-2 pb-2">
-          <IconButton label="필터" variant="outline">
-            <SlidersHorizontal className="size-4" aria-hidden />
-          </IconButton>
-          <Button className="h-10 gap-1.5 rounded-lg bg-[var(--que-brand)] px-3.5 text-white hover:bg-[var(--que-brand-hover)]">
-            <Plus className="size-4" aria-hidden />
-            새로 추가
-          </Button>
+          <ProjectFilter meta={meta} />
+          <CreateGroupDialog projectId={data.project.id} />
+          <CreateTaskDialog meta={meta} />
         </div>
       </div>
 
@@ -80,7 +85,12 @@ export function ProjectView({
         <div className="-mx-4 min-h-0 flex-1 overflow-y-auto px-4 pt-3 md:-mx-5 md:px-5 xl:-mx-6 xl:px-6">
           {view === "list" ? (
             data.groups.map((group) => (
-              <TaskGroupSection key={group.id} group={group} taskHref={taskHref} />
+              <TaskGroupSection
+                key={group.id}
+                group={group}
+                taskHref={taskHref}
+                allGroups={data.groups.map((g) => ({ id: g.id, name: g.name, color: g.color }))}
+              />
             ))
           ) : (
             <div className="flex min-h-[280px] items-center justify-center rounded-xl border border-dashed border-[var(--que-border)] bg-[var(--que-bg-muted)] text-sm text-[var(--que-text-tertiary)]">

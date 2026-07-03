@@ -342,6 +342,15 @@ data/
     - 검증: build exit 0. 실측 — 히트맵셀 hm=7→217(31일)/hm=2→196(28일)/hm=6→210(30일), 홈 동일. 글래도스: cm/ot/lm/dp 전부 mock 직접호출로 데이터 변화 확인(now 20일 되감아 dp 격리검증), 쓰레기입력 8종(hm=99,ot=999,dp[]= 등) 200·폴백, anchorYear 미래월 정상.
     - **⚠️ 알려진 사소(후속)**: (1) **dp 체감 0** — 시드에 향후 7~30일 마감 활성작업이 없어 week↔month 토글해도 화면 불변(메커니즘은 정상). `packages/core/src/data/seed.ts`에 2주 뒤 마감 작업 추가하면 해소. (2) **rangeLabel 불일치** — `performance-data.ts:330` 시작은 cm 반영하나 끝은 now 고정 → cm 바꾸면 meta 라벨과 차트 구간 어긋남. 끝을 `months[5].end`로 맞추면 정직. (3) `heatmap-data.ts`의 7일 폴백 경로는 호출처 0(두 페이지 다 monthAnchor 경유) — 죽은 가지, 다음 정리 때 결정.
 
+50. **프로젝트(/projects) 완전 가동 (2026-07-04)**: 46번 감사에서 '표시 전용 목업'이던 /projects를 실제 조작 가능하게. 사용자 "4번 완벽하게 가동". 워크플로(데이터·액션 backend → 드로어/리스트·보드/헤더 frontend 3병렬) + 글래도스 승인(1차 반려→수정→2차 승인).
+    - **pm-data 가변화**: TASKS `let`·GROUPS push, id=`crypto.randomUUID()`. mutations 6종: createTask/updateTask/deleteTask/setTaskDone/moveTask(그룹 이동+순서)/createGroup. getProjectMeta(멤버·그룹 피커), getProjectListView/BoardView에 filter({priority[],assigneeIds[]}) 인자, TaskDetailView에 원시필드(dueAt/groupId/assigneeIds). **저장은 in-memory(단일 next start 프로세스 생존 동안만, DB화는 후속)**.
+    - **pm-actions.ts(신규 "use server")** 6 액션 + revalidatePath("/projects"). **핵심 패턴: `getCurrentUser()`는 `run()` try 밖(NEXT_REDIRECT 전파), 입력 거부는 로컬 `PmInputError`만 {ok:false} 변환·그 외 rethrow**(reportError 경로 생존). ← 글래도스 1차 반려(try 안에서 getCurrentUser → NEXT_REDIRECT 토스트 노출) 수정. today/actions.ts와 동일 취지.
+    - **UI 배선**: 드로어 편집(제목·설명·우선순위·마감·담당자·상태그룹 + 저장/삭제, 저장 후 baseline 동기화 `detail!==shown`), 리스트 완료토글·인라인 추가·⋮이동(allGroups는 project-view에서 전달), 보드 HTML5 드래그(교차그룹)+⋮이동+인라인추가, 헤더 새로추가 Dialog·필터(URL ?priority=&assignee=, 서버 필터)·그룹추가·공유(데모 표기)·정보. 신규 컴포넌트 7개(create-task-dialog/create-group-dialog/project-filter/project-header-actions/task-card-menu/task-done-toggle/add-task-inline).
+    - **드래그**: 외부 dnd 라이브러리 미설치 → 데스크톱 HTML5 draggable + **전 기기 ⋮메뉴 '이동'**(터치·a11y 커버). 파일 첨부는 저장 인프라 후순위 → '준비 중' 표기(죽은 버튼 아님).
+    - **글래도스 실증**: 빌드 매니페스트에서 서버액션 ID 추출해 **실 HTTP POST로 전체 수명주기**(생성→토글→이동→수정→삭제) + 요청 간 지속 확인, 필터 격리(high→task-1·7 / lee-yejin→2·4·7 / AND→7 / 렌더 행수 일치), 비인증 POST→303 /login, 비정수 toIndex 가드. build/lint/typecheck exit 0.
+    - **⚠️ 후속(중요)**: (1) **PM mutation에 ChangeLog/via 기록 없음** — CLAUDE.md "업무 영향 변경은 ChangeLog에 기록" 원칙. mock 모델엔 인프라가 없어 현 단계 수용하나 **DB화 시 반드시 함께 구현**. (2) **in-memory 저장**이라 서버 재시작 시 seed로 초기화 → DB화 필요(신규 PM 모델 Supabase 스키마). (3) 크래프트 요청으로 존재하지 않는 groupId에 create/move 시 어느 뷰에도 안 보이는 고아 태스크 가능(mock 한정, 정상 UI 경로에선 불가).
+    - **→ 46번 기능감사에서 나온 dead/missing 실기능화 1~4 전부 완료** (전역검색·알림 / 일정 날짜이동 / 홈·성과 기간선택 / 프로젝트 쓰기). 남은 것은 레거시 고아 정리(/calendar·/team·components/templates)와 위 후속들.
+
 ## 남은 작업 / 오픈 질문
 
 - ~~알림 채널 결정~~ → **Slack 확정** (2026-07-02): 1단계 Incoming Webhook+딥링크, 2단계 Bot 인터랙티브 버튼으로 Slack 안에서 체크인 응답(`answerCheckIn` 경유, via 기록). 기획서 "알림 정책 > 알림 채널"과 MCP/CLI 계획 Phase E에 반영됨.

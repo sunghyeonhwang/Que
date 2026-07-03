@@ -4,25 +4,45 @@ import { useState } from "react";
 import Link from "next/link";
 import { ChevronDown, Plus, MoreHorizontal } from "lucide-react";
 import type { ListViewGroup } from "@/lib/pm-data";
-import { Checkbox } from "@/components/ui/checkbox";
 import { IconButton } from "@/components/app/icon-button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { PriorityBadge } from "./priority-badge";
 import { MemberAvatars } from "./member-avatars";
+import { TaskDoneToggle } from "./task-done-toggle";
+import { TaskCardMenu, type GroupOption } from "./task-card-menu";
+import { AddTaskInline } from "./add-task-inline";
 import { cn } from "@/lib/utils";
 
-// 이름 | 설명 | 마감일 | 우선순위 | 사람들.
+// 이름 | 설명 | 마감일 | 우선순위 | 사람들 | ⋮.
 // 좁은 폭(태블릿 세로): 설명·마감일을 숨겨 가로 스크롤 없이 유지.
 const GRID =
-  "grid grid-cols-[minmax(0,1fr)_100px_84px] items-center gap-3 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1.7fr)_170px_100px_92px]";
+  "grid grid-cols-[minmax(0,1fr)_84px_40px] items-center gap-3 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1.7fr)_170px_92px_84px_40px]";
 
 export function TaskGroupSection({
   group,
   taskHref,
+  allGroups,
 }: {
   group: ListViewGroup;
   taskHref: (taskId: string) => string;
+  /** 카드 ⋮ '이동' 대상 목록. project-view가 meta.groups(=data.groups)를 흘려준다. */
+  allGroups?: GroupOption[];
 }) {
   const [open, setOpen] = useState(true);
+  const [adding, setAdding] = useState(false);
+
+  const moveTargets: GroupOption[] =
+    allGroups ?? [{ id: group.id, name: group.name, color: group.color }];
+
+  const startAdding = () => {
+    setOpen(true);
+    setAdding(true);
+  };
 
   return (
     <section className="mb-2">
@@ -47,12 +67,27 @@ export function TaskGroupSection({
         <span className="text-sm font-semibold text-[var(--que-text)]">{group.name}</span>
         <span className="text-sm text-[var(--que-text-tertiary)]">{group.count}</span>
         <div className="ml-auto flex items-center">
-          <IconButton label="태스크 추가" className="size-10 text-[var(--que-text-secondary)]">
+          <IconButton
+            label="태스크 추가"
+            onClick={startAdding}
+            className="size-10 text-[var(--que-text-secondary)]"
+          >
             <Plus className="size-4" aria-hidden />
           </IconButton>
-          <IconButton label="그룹 메뉴" className="size-10 text-[var(--que-text-secondary)]">
-            <MoreHorizontal className="size-4" aria-hidden />
-          </IconButton>
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              aria-label={`${group.name} 메뉴`}
+              className="inline-flex size-10 items-center justify-center rounded-lg text-[var(--que-text-secondary)] transition-colors hover:bg-black/5 focus-visible:outline-2 focus-visible:outline-[var(--que-brand)] data-[popup-open]:bg-black/5"
+            >
+              <MoreHorizontal className="size-4" aria-hidden />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-44">
+              <DropdownMenuItem onClick={startAdding}>
+                <Plus className="size-4" aria-hidden />
+                태스크 추가
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
@@ -69,6 +104,7 @@ export function TaskGroupSection({
             <span className="hidden md:block">마감일</span>
             <span>우선순위</span>
             <span className="text-right">사람들</span>
+            <span className="sr-only">메뉴</span>
           </div>
 
           {group.tasks.map((task) => (
@@ -79,7 +115,7 @@ export function TaskGroupSection({
                 "relative min-h-[52px] border-b border-[var(--que-border)] px-3 py-2.5 transition-colors hover:bg-[var(--que-bg-muted)]",
               )}
             >
-              {/* 행 전체 클릭 → 상세 드로어(URL ?task). 체크박스만 위로 올려 겹치지 않게. */}
+              {/* 행 전체 클릭 → 상세 드로어(URL ?task). 체크박스·메뉴는 위로 올려 겹치지 않게. */}
               <Link
                 href={taskHref(task.id)}
                 scroll={false}
@@ -87,11 +123,7 @@ export function TaskGroupSection({
                 className="absolute inset-0 z-10 rounded-md focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--que-brand)]"
               />
               <div className="flex min-w-0 items-center gap-2.5">
-                <Checkbox
-                  defaultChecked={task.done}
-                  aria-label={`${task.name} 완료`}
-                  className="relative z-20 shrink-0"
-                />
+                <TaskDoneToggle taskId={task.id} taskName={task.name} done={task.done} />
                 <span
                   className={cn(
                     "min-w-0 truncate text-sm font-medium",
@@ -115,8 +147,20 @@ export function TaskGroupSection({
               <div className="flex justify-end">
                 <MemberAvatars members={task.assignees} />
               </div>
+              <div className="flex justify-end">
+                <TaskCardMenu
+                  taskId={task.id}
+                  taskName={task.name}
+                  currentGroupId={group.id}
+                  groups={moveTargets}
+                />
+              </div>
             </div>
           ))}
+
+          {adding && (
+            <AddTaskInline groupId={group.id} onClose={() => setAdding(false)} />
+          )}
         </div>
       )}
     </section>

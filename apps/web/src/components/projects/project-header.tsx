@@ -1,7 +1,6 @@
-import { Share2, MoreHorizontal } from "lucide-react";
 import type { ListViewMember } from "@/lib/pm-data";
-import { IconButton } from "@/components/app/icon-button";
 import { MemberAvatars } from "./member-avatars";
+import { ProjectHeaderActions } from "./project-header-actions";
 
 /** 프로젝트 헤더 — 이름·설명 + 멤버 아바타 스택 + 공유/더보기. */
 export function ProjectHeader({
@@ -9,11 +8,14 @@ export function ProjectHeader({
   description,
   members,
   memberOverflow,
+  allMembers,
 }: {
   name: string;
   description: string;
   members: ListViewMember[];
   memberOverflow: number;
+  /** 공유/정보 Dialog에 노출할 전체 멤버(meta.members). */
+  allMembers: ListViewMember[];
 }) {
   return (
     <header className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
@@ -25,12 +27,11 @@ export function ProjectHeader({
       </div>
       <div className="flex items-center gap-2">
         <MemberAvatars members={members} overflow={memberOverflow} size={34} />
-        <IconButton label="공유" variant="outline">
-          <Share2 className="size-4" aria-hidden />
-        </IconButton>
-        <IconButton label="더보기" variant="outline">
-          <MoreHorizontal className="size-4" aria-hidden />
-        </IconButton>
+        <ProjectHeaderActions
+          projectName={name}
+          description={description}
+          allMembers={allMembers}
+        />
       </div>
     </header>
   );
