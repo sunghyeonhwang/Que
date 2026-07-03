@@ -1,16 +1,16 @@
-import { Bell, Search } from "lucide-react";
 import { rankForUser } from "@que/core";
 import { getCurrentUser } from "@/lib/current-user";
 import { getNoteSummary } from "@/lib/notes-summary";
+import { getAlerts } from "@/lib/alerts-data";
 import { getPrimaryWorkspace } from "@/lib/pm-data";
 import { Brand } from "@/components/app/brand";
 import { SidebarNav } from "@/components/app/sidebar-nav";
 import { WorkspaceSwitcher } from "@/components/app/workspace-switcher";
 import { UserSwitcher } from "@/components/app/user-switcher";
 import { MobileNav } from "@/components/app/mobile-nav";
-import { IconButton } from "@/components/app/icon-button";
+import { GlobalSearch } from "@/components/app/global-search";
+import { NotificationsBell } from "@/components/app/notifications-bell";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Input } from "@/components/ui/input";
 
 // App Shell (재설계).
 // - lg 이상: 좌측 고정 사이드바(로고+워크스페이스+메뉴) + 우측 상단바(검색·알림·사용자)
@@ -26,6 +26,8 @@ export default async function AppLayout({
   // 사이드바 뱃지 실데이터 — 확인필요 = 열람 권한 스코프의 '확인 필요' Action 수(getNoteSummary).
   const noteSummary = await getNoteSummary(user);
   const menuBadges: Record<string, number> = { "/meeting-notes": noteSummary.needsReview };
+  // 상단바 알림 — 운영 신호(문제/기한초과/확인필요/결제) 실데이터.
+  const alerts = await getAlerts(user);
 
   return (
     <div className="flex h-dvh w-full overflow-hidden bg-white text-[var(--que-text)]">
@@ -48,26 +50,12 @@ export default async function AppLayout({
             <Brand compact />
           </div>
 
-          <div className="relative hidden w-full max-w-[440px] flex-1 sm:block">
-            <Search
-              className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-[var(--que-placeholder)]"
-              aria-hidden
-            />
-            <Input
-              type="search"
-              placeholder="무엇이든 검색…"
-              aria-label="검색"
-              className="h-11 rounded-full border-[var(--que-border)] bg-[var(--que-bg-muted)] pl-10 text-sm placeholder:text-[var(--que-placeholder)]"
-            />
+          <div className="hidden w-full max-w-[440px] flex-1 sm:block">
+            <GlobalSearch />
           </div>
 
           <div className="ml-auto flex items-center gap-1 sm:gap-2">
-            <IconButton
-              label="알림"
-              className="size-11 rounded-full text-[var(--que-text-secondary)]"
-            >
-              <Bell className="size-5" aria-hidden />
-            </IconButton>
+            <NotificationsBell alerts={alerts} />
             <UserSwitcher current={user} rank={rank} />
           </div>
         </header>

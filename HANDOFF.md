@@ -324,6 +324,13 @@ data/
     - **레거시 고아 라우트**: `/calendar`·`/team`은 menu.ts에 없음(재설계로 /projects·/schedule가 대체). 내부 인터랙션은 살아있으나 메뉴에서 도달 불가. `components/templates/*`(반복업무 폼·리스트)는 **importer 0 — 어느 페이지에도 연결 안 된 고아**(서버액션은 배선돼 있으나 렌더 안 됨). → 정리 또는 /projects(마일스톤) 연결 결정 필요.
     - 전체 감사 원본: `tasks/wj0p6z2g2.output`(JSON, 화면별 findings). 시각 QA 실측 확인: 검색 dead, 벨 dead, 워크스페이스 크래시→수정후정상, 프로젝트 보드탭·태스크드로어 작동, 팀 ⋮메뉴·KPI 정상.
 
+47. **전역 검색·알림 벨 실기능화 (2026-07-03)**: 46번에서 "dead"로 잡힌 상단바 두 컨트롤을 '준비 중'이 아니라 실동작으로 구현. 사용자 지시 "1번부터 진행". 글래도스 최종 게이트 통과.
+    - **구현 파일(5)**: `lib/search-data.ts`(searchWorkspace), `lib/alerts-data.ts`(getAlerts), `app/(app)/search-actions.ts`("use server" searchAction), `components/app/global-search.tsx`("use client" 디바운스 검색+결과 드롭다운), `components/app/notifications-bell.tsx`("use client" Popover 알림+뱃지). layout.tsx에서 정적 Input/Bell → 두 컴포넌트로 교체하고 getAlerts를 서버에서 주입.
+    - **검색 설계 결정**: 5종(작업/회의록/Action/결제/팀원) 그룹 검색. **작업은 상세 라우트가 없어 `/now`(팀 운영표)로 링크**, 회의록→/meeting-notes, Action→/action, 결제→/payments, 팀원→/members/[id]. 그룹당 최대 5. **권한/PII: 회의록·Action은 canViewMeetingNote로 필터, 결제는 title/category만(금액·계좌 검색대상·결과 제외)**. searchAction은 세션(getCurrentUser)으로 사용자 도출(클라 입력 위조 불가).
+    - **알림 신호 4종**: 문제발생(red)·확인필요 needs_review(violet, viewable)·결제 마감초과(amber)·기한초과 작업(amber). **심각도·다양성 순 정렬**(문제→확인필요→결제→기한초과)로 캡(DISPLAY_CAP=8)에 밀려도 고신호 우선. **문제발생∩기한초과 중복 제거**. count는 실제 총계(뱃지 9+ 표기), 열람권한 스코프(관리자 12 vs song-suyong 11 실측).
+    - **검증**: typecheck/lint/build exit 0. 글래도스 런타임 실측 — searchWorkspace("연봉",송수용)=[], 계좌/금액 검색 0건, restricted 노트/Action은 권한자만, prod 렌더 /now·/members·/today 200·에러 0. **브라우저 클릭 QA는 확장 연결 끊겨 미수행**(curl 서버렌더로 대체: placeholder·벨 aria "알림 12건"·뱃지 9+ 확인). 확장 복구 시 검색 드롭다운·벨 팝오버 클릭 확인 권장.
+    - 남은 후속(46번 목록): 일정 날짜 이동(2), 홈·성과 기간 선택 실연동(3), 프로젝트 쓰기(4). 레거시 고아(/calendar·/team·components/templates) 정리.
+
 ## 남은 작업 / 오픈 질문
 
 - ~~알림 채널 결정~~ → **Slack 확정** (2026-07-02): 1단계 Incoming Webhook+딥링크, 2단계 Bot 인터랙티브 버튼으로 Slack 안에서 체크인 응답(`answerCheckIn` 경유, via 기록). 기획서 "알림 정책 > 알림 채널"과 MCP/CLI 계획 Phase E에 반영됨.
