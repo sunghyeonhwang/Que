@@ -70,7 +70,7 @@ export default async function SchedulePage({
             집중하세요! 마감 작업 {dueTasks}개와 미팅 {meetings}개가 남아 있습니다.
           </p>
         </div>
-        <ScheduleHeader range={range} />
+        <ScheduleHeader range={range} anchorIso={format(anchor, "yyyy-MM-dd")} />
       </header>
 
       {range === "month" ? (

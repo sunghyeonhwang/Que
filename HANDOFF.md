@@ -331,6 +331,10 @@ data/
     - **검증**: typecheck/lint/build exit 0. 글래도스 런타임 실측 — searchWorkspace("연봉",송수용)=[], 계좌/금액 검색 0건, restricted 노트/Action은 권한자만, prod 렌더 /now·/members·/today 200·에러 0. **브라우저 클릭 QA는 확장 연결 끊겨 미수행**(curl 서버렌더로 대체: placeholder·벨 aria "알림 12건"·뱃지 9+ 확인). 확장 복구 시 검색 드롭다운·벨 팝오버 클릭 확인 권장.
     - 남은 후속(46번 목록): 일정 날짜 이동(2), 홈·성과 기간 선택 실연동(3), 프로젝트 쓰기(4). 레거시 고아(/calendar·/team·components/templates) 정리.
 
+48. **일정 날짜 이동 구현 (2026-07-03)**: 46번 감사에서 missing으로 잡힌 "이전/다음/오늘" 부재(캘린더가 항상 오늘 고정) 해소. 사용자 지시 "1번부터 진행"의 2번.
+    - `components/schedule/schedule-header.tsx`에 이전/오늘/다음 버튼 추가. **이동 단위는 range에 맞춤**(일간=±1일, 주간=±1주, 월간=±1월, date-fns addDays/addWeeks/addMonths). 이전/다음→`?date=YYYY-MM-DD` 설정, 오늘→`date` 파라미터 삭제(페이지가 오늘로 폴백). page.tsx가 `anchorIso={format(anchor,"yyyy-MM-dd")}`를 헤더에 주입.
+    - 검증: typecheck/lint/build exit 0. curl 서버렌더 — `/schedule`=오늘(7/3), `?date=2026-07-17`→7/17, `?range=month&date=2026-09-15`→9/15, 에러 0. 버튼이 이 파라미터를 생성(client 로직). **브라우저 클릭 QA는 확장 끊겨 미수행**. 참고: 일정의 필터·새로추가·이벤트 클릭은 여전히 미구현(별도 항목).
+
 ## 남은 작업 / 오픈 질문
 
 - ~~알림 채널 결정~~ → **Slack 확정** (2026-07-02): 1단계 Incoming Webhook+딥링크, 2단계 Bot 인터랙티브 버튼으로 Slack 안에서 체크인 응답(`answerCheckIn` 경유, via 기록). 기획서 "알림 정책 > 알림 채널"과 MCP/CLI 계획 Phase E에 반영됨.
