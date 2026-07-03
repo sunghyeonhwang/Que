@@ -1,7 +1,14 @@
 # Que 배포 가이드 — Vercel + Supabase
 
 마지막 업데이트: 2026-07-03
-상태: **Supabase DB 연동 완료** — 실 프로젝트(`rnsqhipljpdmmkviiypy`)에 스키마·시드 적용됐고, 앱이 `QUE_DB=supabase`로 실 DB를 읽고 쓴다(로컬 검증 완료). 남은 것은 Vercel 배포 + 실 인증.
+상태: **✅ Vercel 프로덕션 배포 완료** — <https://que-rouge-eight.vercel.app> (팀 `griff0120s-projects`, 프로젝트 `que`, Root=`apps/web`, 리전 `icn1`). 실 Supabase DB + Auth.js 실 인증으로 동작. 프로덕션 런타임 E2E 검증 완료(로그인·역할별 진입점·미인증 API 503).
+
+## ⚠️ Deployment Protection 현재 상태 (사용자 조치 필요할 수 있음)
+
+- 배포 시 Vercel Authentication(SSO)이 기본 ON이었으나, **런타임 검증 중 API로 잠시 껐다가 재활성화가 API/재배포로 되지 않는 상태**(대시보드 토글 필요, 플랜 특성으로 추정). 현재 **공개 접근 가능**.
+- **그래도 안전**: 웹은 Auth.js 실 로그인 필수(`getCurrentUser`가 미인증 시 `/login`), 모든 `(app)` 페이지·API는 로그인/PAT 없이는 데이터 0. **`QUE_ALLOW_MOCK_AUTH`를 안 켰기 때문에 mock-PAT API 경로는 전부 503** (미인증·mock PAT 모두 503, 계좌 노출 0 실측).
+- 8명(비개발) 팀이 Vercel 계정 없이 쓰려면 **공개 + Que 로그인**이 실용적 — 지금 상태가 그것. 추가 게이트를 원하면 대시보드 **Settings → Deployment Protection → Vercel Authentication**을 켠다(Standard = 모든 배포 보호). MCP/CLI를 붙이려고 `QUE_ALLOW_MOCK_AUTH=true`를 켜는 순간엔 **반드시** 이 보호를 함께 켜야 한다(추측 가능한 mock PAT 노출 방지).
+- 팀 로그인 안내: 이메일 `<이름>.<성>@griff.co.kr`(예: `sunghyeon.hwang@griff.co.kr`) / 초기 공용 비번 `que-2026!`.
 
 ## 완료된 준비
 

@@ -28,7 +28,7 @@ pnpm -r typecheck && pnpm --filter @que/web lint && pnpm --filter @que/core test
 mock 인증: 쿠키 `que-user=<id>` / PAT `que_pat_<id>` (예: `hwang-sunghyeon`=관리자). 8명 id는 `packages/core/src/mock/users.ts`.
 
 ### 다음 할 일 (사용자가 "하나씩" 진행 중 — env 트랙)
-1. **Vercel 배포** — Root=`apps/web`, **리전 인천(`icn1`) 필수**(Supabase도 서울 `ap-northeast-2` — 같은 리전), env: `QUE_DB=supabase`+`SUPABASE_URL`+`SUPABASE_SECRET_KEY`+`QUE_ALLOW_MOCK_AUTH=true`, **Deployment Protection 필수**. 이제 실 DB가 붙어 배포하면 팀이 실사용 가능. (`data/docs/deploy-vercel-supabase.md`)
+1. ~~**Vercel 배포**~~ → **완료 (43번)**. <https://que-rouge-eight.vercel.app> (Root=`apps/web`, 리전 `icn1`, 실 DB+실 인증). **주의: Deployment Protection이 현재 꺼진 상태**(대시보드에서 재활성화 필요) — 단 실 인증+mock API 503이라 공개라도 안전. `QUE_ALLOW_MOCK_AUTH`는 **안 켬**(mock PAT 봉인). (`data/docs/deploy-vercel-supabase.md`)
 2. ~~**웹 실 인증**~~ → **완료 (42번, Auth.js 이메일+비밀번호)**. 로그인: `<이름>.<성>@griff.co.kr` / 초기 공용 비번 `que-2026!`. **남은 B2**: API/MCP/CLI의 mock PAT를 `personal_access_tokens`(해시)로 교체 + `core/mock/tokens.ts` 폐기 → 그 후 `QUE_ALLOW_MOCK_AUTH` 제거. 첫 로그인 비번 강제 변경 플로우도 후속.
 3. Sentry DSN(에러 리포팅) · Slack 앱(알림/스탠드업) · CLI/MCP 배포(30번) · 스케줄러 Vercel Cron 전환.
 
@@ -287,6 +287,13 @@ data/
     - **역할별 진입점 유지**: 관리자→/now, 팀원→/today (기존 `/` 로직 그대로, 이제 세션 기반). `UserSwitcher`는 "이름+로그아웃" 메뉴로 교체(사용자 전환 제거), `switchUser` 액션→`logout`(signOut). `AUTH_SECRET`는 `data/.env`(gitignore)에 추가, Vercel env 필수.
     - **E2E 실측(실 DB dev + curl)**: 미인증→/login(307), CSRF→로그인 성공(302, 세션쿠키), 관리자→/now·팀원→/today, 틀린 비번 거부(세션 없음), `/now` 렌더(이름 표시), 로그아웃→세션 무효화→/login, 팀 API 유출 0. mock 모드 로그인/거부도 확인. typecheck·lint·`pnpm build`(dev 종료 후) 통과.
     - **범위 제외(B2 후속)**: ① API/MCP/CLI는 여전히 mock PAT(`QUE_ALLOW_MOCK_AUTH` 게이트) — `personal_access_tokens`(해시) 전환 필요, ② 첫 로그인 비밀번호 강제 변경/개별 발급 미구현(사내 프리런치라 공용 임시비번 수용), ③ 글래도스 최종 게이트 미실행(다음 세션에서 커스텀 서브에이전트 인식되면 적대적 재검증 권장 — 특히 유출 방어·세션 위조).
+
+43. **Vercel 프로덕션 배포 (2026-07-03)**: 사용자 "VERCEL에 배포해줘".
+    - **결과**: <https://que-rouge-eight.vercel.app> — 팀 `griff0120s-projects`, 프로젝트 `que`, **Root Directory=`apps/web`**(Vercel API로 설정 — CLI 링크만으론 apps/web 하위만 업로드돼 `npm install` 실패, 루트 링크+rootDirectory로 전체 pnpm workspace 업로드해야 빌드됨), 리전 `icn1`(vercel.json), env 4종(`QUE_DB`/`SUPABASE_URL`/`SUPABASE_SECRET_KEY`/`AUTH_SECRET`, production+preview). **`QUE_ALLOW_MOCK_AUTH`는 의도적으로 미설정** → 웹은 실 인증, mock-PAT API는 503(봉인).
+    - **프로덕션 런타임 E2E 실측**: /login 200, 미인증→/login, 관리자 로그인→세션→/now, 틀린 비번 거부, 미인증·mock PAT API 모두 503(계좌 노출 0). icn1 서빙 확인(`x-vercel-id: icn1::`).
+    - **⚠️ Deployment Protection 사고**: 배포 시 Vercel Authentication(SSO)이 기본 ON이었는데 런타임 검증하려고 API로 `ssoProtection:null` 껐다가, **재활성화가 API/재배포로 안 됨**(값은 `all_except_custom_domains`로 세팅되나 엣지 미강제, `all`은 None 반환 — 플랜/전파 특성 추정). 현재 **공개 접근 가능하나 실 인증+mock API 503이라 데이터 유출 없음**. 재활성화하려면 **대시보드 Settings→Deployment Protection→Vercel Authentication**. 교훈: 보호 재활성화가 API로 안 되니 검증용으로 함부로 끄지 말 것 — automation bypass도 이 프로젝트에선 PATCH 거부됨.
+    - **CLI 참고**: Vercel CLI 인증됨(`sunghyeonhwang-1862`), 토큰은 `~/Library/Application Support/com.vercel.cli/auth.json`. 배포는 `vercel deploy --prod --scope griff0120s-projects`(레포 루트에서). `.vercel/`·`.env.local`은 gitignore됨.
+    - **남은 것**: ① Deployment Protection 재활성화(대시보드, 원하면) ② 팀에 로그인 안내(이메일+공용 임시비번 `que-2026!`, 실제 이메일 검증) ③ B2(PAT 해시화 후 `QUE_ALLOW_MOCK_AUTH`+Protection으로 MCP/CLI 개방) ④ 커스텀 도메인(원하면).
 
 ## 남은 작업 / 오픈 질문
 
