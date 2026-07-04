@@ -2,13 +2,16 @@ import { cookies } from "next/headers";
 import { PageHeader } from "@/components/app/page-header";
 import { FontSettings } from "@/components/settings/font-settings";
 import { PasswordSettings } from "@/components/settings/password-settings";
+import { TokenSettings } from "@/components/settings/token-settings";
 import { getCurrentUser } from "@/lib/current-user";
+import { listPats } from "@/lib/auth/tokens";
 
 export const dynamic = "force-dynamic";
 
-/** 설정 — 모양(폰트) 등. 폰트는 한글/영문 별도 선택, 쿠키로 유지(브라우저 단위). */
+/** 설정 — 모양(폰트)·보안(비밀번호)·액세스 토큰(MCP·CLI). */
 export default async function SettingsPage() {
-  await getCurrentUser();
+  const user = await getCurrentUser();
+  const tokens = await listPats(user.id);
   const cookieStore = await cookies();
   const ko = cookieStore.get("font-ko")?.value ?? "suit";
   const latin = cookieStore.get("font-latin")?.value ?? "inter";
@@ -25,6 +28,7 @@ export default async function SettingsPage() {
         initialDensity={density}
       />
       <PasswordSettings />
+      <TokenSettings tokens={tokens} />
     </div>
   );
 }

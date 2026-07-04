@@ -83,7 +83,11 @@ export default async function ToolsPage() {
             <dd className="font-mono text-[var(--que-text)]">{user.id}</dd>
           </dl>
           <div className="mt-3 rounded-lg border border-[var(--que-warning)]/30 bg-[var(--que-warning-bg)] px-3 py-2 text-sm text-[var(--que-text-secondary)]">
-            <b className="font-semibold text-[var(--que-text)]">토큰(PAT)</b>은 개인 비밀값입니다. 프로덕션 토큰은 <b className="font-semibold text-[var(--que-text)]">운영자에게 요청</b>하세요.
+            <b className="font-semibold text-[var(--que-text)]">토큰(PAT)</b>은 개인 비밀값입니다.{" "}
+            <Link href="/settings" className="font-semibold text-[var(--que-brand)] hover:underline">
+              설정 › 액세스 토큰
+            </Link>
+            에서 <b className="font-semibold text-[var(--que-text)]">직접 발급</b>하세요(발급 순간 1회만 표시).
             로컬 개발용 mock 토큰 형식은 <code className="rounded bg-[var(--que-bg)] px-1 py-0.5 text-xs">{mockToken}</code> 입니다(프로덕션에선 통하지 않음).
           </div>
         </Card>
