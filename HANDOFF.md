@@ -368,7 +368,7 @@ data/
       1. ✅ **[완료 2026-07-04] 프로덕션 DB 퍼지** — `go-live-cleanup.sql`을 Supabase MCP로 실행. 삭제 전 전체 백업 `db/supabase/backup-before-que/golive-purge-20260704.json`(gitignore). 검증: 트랜잭션 테이블 전부 0, users 7·PAT 7 보존, check_ins UNIQUE 제약 적용. (삭제분은 전부 데모 시드, 재생성 가능.)
       2. [승인+실행] 개인 비번 적용(`set-passwords.sql`) + 7명 1:1 전달. `que-2026!` 로그인 실패 확인이 완료 기준.
       3. ✅ **[완료 2026-07-04] 원격 push + Vercel 재배포** — origin push(9a6d7c8), `vercel deploy --prod`(빌드 54s). 프로덕션 별칭 **que-rouge-eight.vercel.app**에 신 코드 라이브. 스모크 PASS: /login 200, 무토큰 /api/team 401, 미인증 라우트 307, que-2026! 로그인 성공(users 보존 확인), /home·/team 200(구버전 404였음), /calendar→/schedule redirect, /projects '미리보기' 배너 + 사이드바에서 제거(nav=home/schedule/heatmap/today/members/team/payments), /team(팀 현황) 노출. ⚠️ **que.griff.co.kr은 여전히 Cloudflare 406**(프록시 앞단 가로챔) — 아래 DNS 조치 전까지 팀엔 que-rouge-eight.vercel.app 안내.
-      4. [실행] 시각 QA 15분(1920/1366/1024/768) — 재설계 화면 프로덕션 육안 검증(확장 끊겨 세션 중 미수행).
+      4. ✅ **[완료 2026-07-04] 시각 QA (4해상도)** — 브라우저 확장이 계속 끊겨, **Playwright 헤드리스(시스템 Chrome) + mock 프로덕션 빌드**로 로그인 후 9화면×4해상도(1920/1366/1024/768) + 검색 드롭다운·알림 팝오버 스크린샷 캡처·검수. 결과: 사이드바 반응형(≥1024 펼침/<1024 햄버거), IA 정확(/projects 미노출·팀 현황 노출), /projects 미리보기 배너, /members 조회전용, /schedule 날짜이동, 검색·알림 실작동, 차트·히트맵·마스킹 렌더 — **깨짐 0, 전항 PASS**. (배포 프로덕션은 동일 코드·빈 데이터 상태.)
       5. [실행] DNS: Cloudflare `que` CNAME→cname.vercel-dns.com + **프록시 OFF(DNS only)**. 미완이면 팀엔 que-rouge-eight.vercel.app 안내(Go 비차단).
       6. [결정] Deployment Protection 재활성화 or 레이트리밋(후속).
     - **Go 조건(전부 충족 시 실사용)**: Batch A·B 글래도스 PASS + origin push + DB퍼지·개인비번(que-2026! 실패 실측) + 재배포 프로덕션 스모크(신 라우트 200·/projects 메뉴 부재·쓰기차단·미인증 /login·mock fail-close·무토큰 API 401) + 시각 QA.
