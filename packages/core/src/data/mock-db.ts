@@ -621,6 +621,95 @@ export class MockQueDb implements QueDb {
     return milestone;
   }
 
+  /** 마일스톤 생성 — 프로젝트 담당자 또는 관리자만. */
+  createMilestone(
+    ctx: ActorContext,
+    input: {
+      projectId: string;
+      title: string;
+      dueAt: string;
+      riskStatus?: Milestone["riskStatus"];
+    },
+  ): Milestone {
+    const actor = this.requireUser(ctx.actorId);
+    const project = this.projects.find((p) => p.id === input.projectId);
+    if (!project) {
+      throw new QueRuleError("NOT_FOUND", `프로젝트 없음: ${input.projectId}`);
+    }
+    if (actor.role !== "admin" && project.ownerId !== actor.id) {
+      throw new QueRuleError(
+        "NOT_AUTHORIZED",
+        "마일스톤은 프로젝트 담당자 또는 관리자만 만들 수 있다",
+      );
+    }
+    if (!input.title.trim()) {
+      throw new QueRuleError("INVALID_INPUT", "제목은 필수다");
+    }
+    const range = parseScheduleRange({ startAt: input.dueAt, endAt: input.dueAt });
+    const milestone: Milestone = {
+      id: this.nextId("ms"),
+      projectId: input.projectId,
+      title: input.title.trim(),
+      dueAt: range.startAt,
+      riskStatus: input.riskStatus ?? "on_track",
+      lastChangedBy: actor.id,
+      lastChangedAt: this.now(),
+    };
+    this.milestones.push(milestone);
+    this.logChange(ctx, {
+      entityType: "milestone",
+      entityId: milestone.id,
+      changeType: "create",
+      afterValue: milestone.title,
+    });
+    return milestone;
+  }
+
+  /** 마일스톤 수정(제목·기한·위험 상태) — 프로젝트 담당자 또는 관리자만. */
+  updateMilestone(
+    ctx: ActorContext,
+    input: {
+      milestoneId: string;
+      title?: string;
+      dueAt?: string;
+      riskStatus?: Milestone["riskStatus"];
+    },
+  ): Milestone {
+    const actor = this.requireUser(ctx.actorId);
+    const milestone = this.milestones.find((m) => m.id === input.milestoneId);
+    if (!milestone) {
+      throw new QueRuleError("NOT_FOUND", `마일스톤 없음: ${input.milestoneId}`);
+    }
+    const project = this.projects.find((p) => p.id === milestone.projectId);
+    if (actor.role !== "admin" && project?.ownerId !== actor.id) {
+      throw new QueRuleError(
+        "NOT_AUTHORIZED",
+        "마일스톤은 프로젝트 담당자 또는 관리자만 수정할 수 있다",
+      );
+    }
+    if (input.title !== undefined) {
+      if (!input.title.trim()) {
+        throw new QueRuleError("INVALID_INPUT", "제목은 필수다");
+      }
+      milestone.title = input.title.trim();
+    }
+    if (input.dueAt !== undefined) {
+      milestone.dueAt = parseScheduleRange({ startAt: input.dueAt, endAt: input.dueAt }).startAt;
+    }
+    if (input.riskStatus !== undefined) {
+      milestone.riskStatus = input.riskStatus;
+    }
+    milestone.lastChangedBy = actor.id;
+    milestone.lastChangedAt = this.now();
+    this.logChange(ctx, {
+      entityType: "milestone",
+      entityId: milestone.id,
+      changeType: "update",
+      afterValue: milestone.title,
+    });
+    return milestone;
+  }
+
   /** 체크인 스케줄러 — 시작 시간이 지난 "예정" 작업에 체크인을 생성한다 (멱등).
    *  기획서 체크인 정책: Que 작업에만 묻고, 이미 상태가 업데이트된 작업(진행중/완료 등)은
    *  묻지 않으며, 회의/휴가(CalendarEvent)는 대상이 아니다.

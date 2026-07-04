@@ -155,6 +155,11 @@ export function assertCanManageRecurringTemplate(actor: User, template: Recurrin
   }
 }
 
+/** 마일스톤은 프로젝트 담당자(owner)와 관리자만 만들고/수정/이동할 수 있다. */
+export function canManageMilestone(actor: User, project: Project | undefined): boolean {
+  return actor.role === "admin" || project?.ownerId === actor.id;
+}
+
 /** Action 후보의 처리(보류/무시)는 담당자, 회의록 업로더, 관리자만 할 수 있다. */
 export function canResolveActionItem(
   actor: User,

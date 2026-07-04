@@ -15,6 +15,7 @@ async function toResult(fn: (db: Db) => Promise<unknown> | unknown): Promise<Act
     await fn(db);
     await db.persist();
     revalidatePath("/projects");
+    revalidatePath("/planning"); // 반복 템플릿 호스트 화면
     return { ok: true };
   } catch (error) {
     if (isQueRuleError(error)) return { ok: false, error: error.message };

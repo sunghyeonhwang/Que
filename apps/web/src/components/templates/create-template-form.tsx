@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { USERS, WEEKDAY_LABELS, type Project, type RecurrenceFrequency } from "@que/core";
+import { USERS, WEEKDAY_LABELS, type RecurrenceFrequency } from "@que/core";
 import { createRecurringTemplateAction } from "@/app/(app)/projects/actions";
 import { useSafeAction } from "@/components/app/use-safe-action";
 import { Button } from "@/components/ui/button";
@@ -19,7 +19,11 @@ import {
 
 /** 반복 업무 템플릿 등록 폼 — 매주/매월 반복되는 정기 업무를 한 번 등록하면
  *  다음 회차 Task를 자동으로 만들어준다 (기획서 "반복 업무 템플릿"). */
-export function CreateTemplateForm({ projects }: { projects: Project[] }) {
+export function CreateTemplateForm({
+  projects,
+}: {
+  projects: { id: string; name: string }[];
+}) {
   const { run, pending } = useSafeAction();
   const [title, setTitle] = useState("");
   const [assigneeId, setAssigneeId] = useState(USERS[0].id);

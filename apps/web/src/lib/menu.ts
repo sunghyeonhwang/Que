@@ -10,6 +10,7 @@ import {
   Settings,
   Terminal,
   CircleHelp,
+  Milestone,
   type LucideIcon,
 } from "lucide-react";
 
@@ -55,6 +56,8 @@ export const MENU_SECTIONS: MenuSection[] = [
         icon: MessageSquareText,
         match: ["/meeting-notes", "/action"],
       },
+      // 반복 업무 템플릿(Task 자동 생성) + 프로젝트 마일스톤 관리. 백엔드는 기존 완성분 재연결.
+      { href: "/planning", label: "반복·마일스톤", icon: Milestone },
     ],
   },
   {
