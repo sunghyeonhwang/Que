@@ -9,6 +9,8 @@ import {
   Receipt,
   Users,
   Plus,
+  ClipboardCheck,
+  Milestone,
   CornerDownLeft,
   type LucideIcon,
 } from "lucide-react";
@@ -36,9 +38,13 @@ const KIND_ICON: Record<SearchKind, LucideIcon> = {
 // 이동 대상 라우트 — menu.ts를 단일 소스로 사용(홈/일정/성과/작업 목록/팀/팀 현황/확인필요/결제요청/설정).
 const NAV_ITEMS = MENU_SECTIONS.flatMap((s) => s.items);
 
-// 빠른 액션 — 작업 추가(작업 목록으로 이동해 등록).
+// 빠른 액션 — 자주 쓰는 화면으로 바로 이동(라벨과 목적지가 정확히 일치하는 것만 둔다).
 const QUICK_ACTIONS: { id: string; label: string; href: string; icon: LucideIcon }[] = [
   { id: "add-task", label: "작업 추가", href: "/today", icon: Plus },
+  { id: "standup", label: "스탠드업 보기", href: "/team?view=standup", icon: ClipboardCheck },
+  { id: "payment", label: "결제 요청", href: "/payments", icon: Receipt },
+  { id: "meeting-note", label: "회의록 업로드", href: "/meeting-notes", icon: FileText },
+  { id: "planning", label: "반복·마일스톤", href: "/planning", icon: Milestone },
 ];
 
 /**

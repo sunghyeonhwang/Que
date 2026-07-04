@@ -1,6 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { format } from "date-fns";
+import { ko } from "date-fns/locale";
 import {
   TASK_STATUS_LABELS,
   type StatusDetail,
@@ -9,6 +11,8 @@ import {
 import {
   changeTaskStatusAction,
   getMergeCandidatesAction,
+  getTaskStatusDetailAction,
+  type TaskStatusDetailView,
 } from "@/app/(app)/today/actions";
 import { moveTaskToDateAction } from "@/app/(app)/calendar/actions";
 import { Button } from "@/components/ui/button";
@@ -79,6 +83,21 @@ export function TaskStatusSheet({
     null,
   );
   const [mergeTargetId, setMergeTargetId] = useState("");
+  const [statusDetail, setStatusDetail] = useState<TaskStatusDetailView | null>(null);
+
+  // 문제발생/홀드 작업의 최신 상세(사유·다음액션·도움·재확인)를 열릴 때 지연 조회한다.
+  // 액션이 issue/on_hold가 아니면 null을 돌려주므로, 열릴 때마다 조회 결과로만 세팅하면
+  // stale도 함께 정리된다(setState는 콜백 안에서만 — effect 본문 동기 setState 금지 규칙).
+  useEffect(() => {
+    if (!open) return;
+    let active = true;
+    getTaskStatusDetailAction(task.id).then((d) => {
+      if (active) setStatusDetail(d);
+    });
+    return () => {
+      active = false;
+    };
+  }, [open, task.id, task.status]);
 
   const change = (to: TaskStatus, detail?: StatusDetail, mergedIntoTaskId?: string) => {
     run(() => changeTaskStatusAction({ taskId: task.id, to, detail, mergedIntoTaskId }), {
@@ -133,6 +152,45 @@ export function TaskStatusSheet({
         <div className="mb-4 flex items-center gap-2 text-sm">
           현재 상태 <StatusBadge status={task.status} />
         </div>
+
+        {statusDetail && (
+          <div className="mb-4 rounded-md border border-dashed p-3 text-sm">
+            <p className="mb-1 font-medium">
+              {task.status === "issue" ? "문제 내용" : "대기 사유"}
+            </p>
+            {statusDetail.reason && (
+              <p className="text-muted-foreground">{statusDetail.reason}</p>
+            )}
+            {(statusDetail.nextAction ||
+              statusDetail.helpUserName ||
+              statusDetail.nextCheckAt) && (
+              <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
+                {statusDetail.nextAction && (
+                  <>
+                    <dt className="text-muted-foreground">다음 액션</dt>
+                    <dd>{statusDetail.nextAction}</dd>
+                  </>
+                )}
+                {statusDetail.helpUserName && (
+                  <>
+                    <dt className="text-muted-foreground">도움 요청</dt>
+                    <dd>{statusDetail.helpUserName}</dd>
+                  </>
+                )}
+                {statusDetail.nextCheckAt && (
+                  <>
+                    <dt className="text-muted-foreground">재확인</dt>
+                    <dd className="tabular-nums">
+                      {format(new Date(statusDetail.nextCheckAt), "M월 d일 HH:mm", {
+                        locale: ko,
+                      })}
+                    </dd>
+                  </>
+                )}
+              </dl>
+            )}
+          </div>
+        )}
 
         {task.canEdit === false ? (
           <p className="rounded-md border border-dashed p-3 text-sm text-muted-foreground">

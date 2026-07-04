@@ -49,6 +49,7 @@ export async function changeTaskStatusAction(input: {
 export async function getMergeCandidatesAction(
   excludeTaskId: string,
 ): Promise<{ id: string; label: string }[]> {
+  await getCurrentUser(); // 세션 강제 — 비인증 서버액션 호출 차단(레포 표준: search-actions와 동일)
   const db = await getDb();
   const userById = new Map(db.users.map((u) => [u.id, u]));
   return db.tasks
@@ -63,6 +64,37 @@ export async function getMergeCandidatesAction(
       id: t.id,
       label: `${t.title} (${userById.get(t.assigneeId)?.name ?? t.assigneeId})`,
     }));
+}
+
+export interface TaskStatusDetailView {
+  reason?: string;
+  nextAction?: string;
+  helpUserName?: string;
+  nextCheckAt?: string;
+}
+
+/**
+ * 현재 문제발생/홀드 상태 작업의 최신 상태 상세(사유·다음액션·도움 요청 대상·재확인 시각).
+ * 시트가 열릴 때 지연 조회한다 — issue/on_hold가 아니면 null. write-only였던 상세를 관리 지점에 노출.
+ */
+export async function getTaskStatusDetailAction(
+  taskId: string,
+): Promise<TaskStatusDetailView | null> {
+  await getCurrentUser(); // 세션 강제 — 비인증 호출 시 실명·사유 노출 방지(레포 표준)
+  const db = await getDb();
+  const task = db.tasks.find((t) => t.id === taskId);
+  if (!task || (task.status !== "issue" && task.status !== "on_hold")) return null;
+  const latest = [...db.statusLogs]
+    .reverse()
+    .find((log) => log.taskId === taskId && log.toStatus === task.status);
+  if (!latest) return null;
+  const userById = new Map(db.users.map((u) => [u.id, u]));
+  return {
+    reason: latest.reason,
+    nextAction: latest.nextAction,
+    helpUserName: latest.helpUserId ? userById.get(latest.helpUserId)?.name : undefined,
+    nextCheckAt: latest.nextCheckAt,
+  };
 }
 
 /** 자연어 해석 — 저장하지 않는다. 확인 카드를 거쳐 createTaskAction으로만 등록된다. */

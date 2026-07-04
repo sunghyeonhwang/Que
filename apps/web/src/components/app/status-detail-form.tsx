@@ -27,7 +27,7 @@ export function StatusDetailForm({
   const [reason, setReason] = useState("");
   const [nextAction, setNextAction] = useState("");
   const [helpUserId, setHelpUserId] = useState<string>("");
-  const [recheckTime, setRecheckTime] = useState("");
+  const [recheckAt, setRecheckAt] = useState("");
 
   const canSubmit = reason.trim().length > 0 && !pending;
 
@@ -35,12 +35,8 @@ export function StatusDetailForm({
     const detail: StatusDetail = { reason: reason.trim() };
     if (nextAction.trim()) detail.nextAction = nextAction.trim();
     if (helpUserId) detail.helpUserId = helpUserId;
-    if (recheckTime) {
-      const [hour, minute] = recheckTime.split(":").map(Number);
-      const d = new Date();
-      d.setHours(hour, minute, 0, 0);
-      detail.recheckAt = d.toISOString();
-    }
+    // 날짜+시간을 함께 받는다 — 시간만 받으면 '내일 재확인'이 오늘 과거 시각이 되는 버그.
+    if (recheckAt) detail.recheckAt = new Date(recheckAt).toISOString();
     onSubmit(detail);
   };
 
@@ -89,9 +85,9 @@ export function StatusDetailForm({
           <FieldLabel htmlFor="status-recheck">다시 확인할 시간</FieldLabel>
           <Input
             id="status-recheck"
-            type="time"
-            value={recheckTime}
-            onChange={(e) => setRecheckTime(e.target.value)}
+            type="datetime-local"
+            value={recheckAt}
+            onChange={(e) => setRecheckAt(e.target.value)}
           />
         </Field>
       </div>

@@ -79,6 +79,7 @@ export function GlobalSearch() {
       />
       <Input
         ref={inputRef}
+        id="global-search-input"
         type="search"
         role="combobox"
         aria-expanded={showPanel}

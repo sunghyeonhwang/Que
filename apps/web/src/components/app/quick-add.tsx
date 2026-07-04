@@ -98,7 +98,21 @@ export function QuickAdd({ currentUserId }: { currentUserId: string }) {
 
       {draft && (
         <Card className="mt-2">
-          <CardContent className="flex flex-col gap-3 pt-4">
+          <CardContent
+            className="flex flex-col gap-3 pt-4"
+            onKeyDown={(e) => {
+              // ⌘↵ 등록 · Esc 취소. 열린 Select/date 피커의 Esc는 Base UI useDismiss가
+              // stopPropagation 하므로 여기까지 오지 않는다(피커부터 닫힘).
+              if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+                e.preventDefault();
+                if (!pending && title.trim()) register();
+              } else if (e.key === "Escape" && !e.nativeEvent.isComposing) {
+                // 한글 IME 조합 중 Esc는 조합 취소용 — 카드까지 폐기하지 않는다.
+                e.preventDefault();
+                setDraft(null);
+              }
+            }}
+          >
             <p className="text-sm font-medium">이렇게 등록할까요?</p>
             {draft.questions.length > 0 && (
               <ul className="flex flex-col gap-1 text-xs text-muted-foreground">
@@ -150,7 +164,7 @@ export function QuickAdd({ currentUserId }: { currentUserId: string }) {
                 />
               </Field>
             </div>
-            <div className="flex gap-2">
+            <div className="flex items-center gap-2">
               <Button className="h-10" disabled={pending || !title.trim()} onClick={register}>
                 등록
               </Button>
@@ -162,6 +176,9 @@ export function QuickAdd({ currentUserId }: { currentUserId: string }) {
               >
                 취소
               </Button>
+              <span className="ml-auto hidden text-xs text-muted-foreground sm:inline">
+                ⌘↵ 등록 · Esc 취소
+              </span>
             </div>
           </CardContent>
         </Card>

@@ -12,6 +12,7 @@ import { UserSwitcher } from "@/components/app/user-switcher";
 import { MobileNav } from "@/components/app/mobile-nav";
 import { GlobalSearch } from "@/components/app/global-search";
 import { CommandPalette } from "@/components/app/command-palette";
+import { KeyboardShortcuts } from "@/components/app/keyboard-shortcuts";
 import { NotificationsBell } from "@/components/app/notifications-bell";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
@@ -38,6 +39,7 @@ export default async function AppLayout({
   return (
     <div className="flex h-dvh w-full overflow-hidden bg-[var(--que-bg)] text-[var(--que-text)]">
       <CommandPalette />
+      <KeyboardShortcuts />
       <aside className="hidden w-[236px] shrink-0 flex-col border-r border-[var(--que-border)] bg-[var(--que-bg)] lg:flex">
         <div className="flex h-[72px] shrink-0 items-center border-b border-[var(--que-border)] px-5">
           <Brand />

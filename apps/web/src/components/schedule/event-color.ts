@@ -20,12 +20,28 @@ const PALETTE: EventSwatch[] = [
   { bg: "var(--ev-teal-bg)", border: "var(--ev-teal-border)", accent: "var(--ev-teal-accent)", text: "var(--ev-teal-text)" },
 ];
 
-// 상태 의미 고정 색. 문제/취소만 강제로 red, 나머지는 팔레트로 넘긴다.
+// 상태 의미 고정 색. 문제=red, 홀드=amber(주의/대기), 완료=흐리게. 나머지는 팔레트로 넘긴다.
 const RED: EventSwatch = {
   bg: "var(--ev-red-bg)",
   border: "var(--ev-red-border)",
   accent: "var(--ev-red-accent)",
   text: "var(--ev-red-text)",
+};
+
+// 홀드=amber. PALETTE[4]와 같은 --ev-amber-* 토큰(주의/대기 의미 고정).
+const AMBER: EventSwatch = {
+  bg: "var(--ev-amber-bg)",
+  border: "var(--ev-amber-border)",
+  accent: "var(--ev-amber-accent)",
+  text: "var(--ev-amber-text)",
+};
+
+// 완료 작업은 중립 톤으로 흐리게 — 지난 일 위에 시선이 안 머물게(달력에서 뒤로 물러남).
+const DONE: EventSwatch = {
+  bg: "var(--que-bg-muted)",
+  border: "var(--que-border)",
+  accent: "var(--que-text-tertiary)",
+  text: "var(--que-text-tertiary)",
 };
 
 /** 문자열 → 안정적 양수 해시 (djb2). */
@@ -37,9 +53,13 @@ function hash(input: string): number {
   return Math.abs(h);
 }
 
-/** 항목 색 배정: 문제/취소 작업은 red, 그 외는 kind+id 해시로 파스텔 팔레트에서 안정 배정. */
+/** 항목 색 배정: 문제=red·홀드=amber·완료=흐리게, 그 외는 kind+id 해시로 파스텔 팔레트에서 안정 배정. */
 export function eventSwatch(item: CalendarViewItem): EventSwatch {
-  if (item.kind === "task" && item.taskStatus === "issue") return RED;
+  if (item.kind === "task") {
+    if (item.taskStatus === "issue") return RED;
+    if (item.taskStatus === "on_hold") return AMBER;
+    if (item.taskStatus === "done") return DONE;
+  }
   const idx = hash(`${item.kind}-${item.id}`) % PALETTE.length;
   return PALETTE[idx];
 }

@@ -439,6 +439,17 @@ data/
     - **Go 조건(전부 충족 시 실사용)**: Batch A·B 글래도스 PASS + origin push + DB퍼지·개인비번(que-2026! 실패 실측) + 재배포 프로덕션 스모크(신 라우트 200·/projects 메뉴 부재·쓰기차단·미인증 /login·mock fail-close·무토큰 API 401) + 시각 QA.
     - **수용한 리스크(기록=수용, 은폐 아님) / 후순위**: 도메인 미연결(vercel.app로 출시), 동시편집 lost-update(8인 저동시성), 스케줄러 요청경로 실행+중복(check_ins/반복 UNIQUE 제약 권장, C3 번들), PM DB화(+권한+ChangeLog via), 로그인 레이트리밋/첫로그인 강제변경, /calendar 컴포넌트·templates/* 고아 삭제, ?view=files 잔재, rangeLabel 끝날짜, 워크스페이스 스위처 단일 mock 축소, mock tokens 빌드타임 가드, dp 체감용 시드.
 
+52. **A+B 편의기능·버그픽스 배치 (2026-07-05)** — 기획 대조 감사(`7aa893c`) 후속. 사용자 "A+B 편의 진행/버그픽스, 결정은 글래도스 위임". 신규 파일 1개(`keyboard-shortcuts.tsx`), 나머지 기존 파일 수정.
+    - **A1 재확인 시각 버그**: `status-detail-form.tsx` 문제발생/홀드의 "다시 확인할 시간"을 `type="time"`→`type="datetime-local"`. **기존 버그**: 시간만 받아 오늘 날짜에 붙여 "내일 재확인"이 오늘 과거 시각이 됐다. 이제 `new Date(recheckAt).toISOString()`(전체 날짜+시각).
+    - **A2 캘린더 색 의미 고정**: `schedule/event-color.ts`에 `on_hold=amber`(--ev-amber-*, "amber=주의/대기"), `done=중립 흐림`(--que-bg-muted/border/text-tertiary, DESIGN.md 10장 "완료=낮은 강조") 추가. 기존엔 issue=red만. cancelled/merged는 calendar-data에서 이미 제외.
+    - **A3 상태 상세 노출**(write-only였던 사유 노출): 신규 서버액션 `today/actions.ts › getTaskStatusDetailAction(taskId)` — 현재 issue/on_hold 작업의 최신 status_log(reason/nextAction/helpUserName/nextCheckAt) 반환, 아니면 null. `task-status-sheet.tsx`가 시트 열릴 때 지연 조회(getMergeCandidates 선례)해 "문제 내용/대기 사유" 패널 렌더. **인증 게이트 `getCurrentUser()` 포함**(아래 글래도스 반려 반영). canEdit=false 뷰어에게도 노출 = 팀 투명성(이미 /team·오늘 화면이 서버 렌더로 노출하던 데이터, 글래도스 승인).
+    - **B ⌘K 빠른 액션 1→5개**: 작업추가/스탠드업(`/team?view=standup`)/결제(`/payments`)/회의록(`/meeting-notes`)/반복마일스톤(`/planning`). **결정: "문제만 보기"·"리포트" 제외** — 팀 페이지에 "문제만" 필터 파라미터 없음(라벨≠동작), `?view=report`는 관리자 전용이라 비관리자가 고르면 board로 조용히 폴백(라벨≠동작). label=목적지 일치하는 것만. (글래도스 반박 시도 실패, 결정 타당 판정.)
+    - **B ⌘Enter/Esc(quick-add)**: 확인 카드 `CardContent onKeyDown` — ⌘/Ctrl+Enter=등록, Esc=취소. **Esc는 `!e.nativeEvent.isComposing` 가드**(한글 IME 조합 취소를 카드 폐기로 오인 방지). 열린 Select/date 피커의 Esc는 Base UI `useDismiss`가 stopPropagation → 카드까지 안 옴(주석 정정: React 포털은 React 트리로 버블링됨, 안전 이유는 stopPropagation).
+    - **B 체크인 숫자키 1~7**: `checkin-panel.tsx` 응답 버튼에 번호 뱃지 + 숫자키. **결정: 전역이 아니라 패널 focus-within 스코프**(오늘 화면에 체크인 패널 여럿이면 전역 키가 어느 패널인지 모호). 가드: `issueOpen이면 return`(사유 폼 열림 중 오응답·사유유실 방지) + input/textarea/contenteditable 포커스 무시 + 수정키 무시.
+    - **B 전역 `?`/`/`**: 신규 `keyboard-shortcuts.tsx`(layout 마운트) — `?`=치트시트 다이얼로그 토글, `/`=검색 입력(`global-search.tsx`에 `id="global-search-input"` 부여) 포커스. 타이핑 대상·수정키면 무시. ⌘K는 CommandPalette 소유 유지.
+    - **글래도스 게이트 1차 반려→수정**: (1) `getTaskStatusDetailAction`+`getMergeCandidatesAction`에 `getCurrentUser()` 인증 게이트 부재(서버액션 ID는 번들에서 추출 가능→비인증 실명 노출) → 둘 다 추가. (2) HANDOFF 미기록 → 이 항목. + 비차단 실버그 2건 동반 수정: 체크인 issueOpen 가드, quick-add IME 가드. build/lint/typecheck exit 0, core 79/79. **브라우저 확장 미연결로 라이브 클릭 검증은 못 함**(코드+빌드+라우트 스모크로 대체).
+    - **⚠️ 후속(비차단, 글래도스 경고)**: (1) **statusLogs "최신" 가정**: `supabase-db.ts` select에 ORDER BY 없어 프로덕션 배열 순서 미보장인데 team-data/today-data/신규액션 3곳이 `.reverse().find()`로 최신 가정 → `createdAt` 정렬로 **일괄** 교정(3곳 동시, 신규만 고치면 불일치). (2) `/` 단축키가 모달 열림 중 배경 검색 인풋 포커스 시도 가능(offsetParent로 오버레이 차폐 미감지) — Base UI 포커스 트랩이 되돌릴 것으로 예상, 관측되면 교정.
+
 ## 남은 작업 / 오픈 질문
 
 - ~~알림 채널 결정~~ → **Slack 확정** (2026-07-02): 1단계 Incoming Webhook+딥링크, 2단계 Bot 인터랙티브 버튼으로 Slack 안에서 체크인 응답(`answerCheckIn` 경유, via 기록). 기획서 "알림 정책 > 알림 채널"과 MCP/CLI 계획 Phase E에 반영됨.
