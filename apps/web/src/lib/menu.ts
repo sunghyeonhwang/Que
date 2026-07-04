@@ -8,6 +8,7 @@ import {
   MessageSquareText,
   Receipt,
   Settings,
+  Terminal,
   type LucideIcon,
 } from "lucide-react";
 
@@ -59,6 +60,7 @@ export const MENU_SECTIONS: MenuSection[] = [
     label: "기타",
     items: [
       { href: "/payments", label: "결제요청", icon: Receipt },
+      { href: "/tools", label: "MCP · CLI", icon: Terminal },
       { href: "/settings", label: "설정", icon: Settings },
     ],
   },
