@@ -59,14 +59,16 @@ mock 인증: 쿠키 `que-user=<id>` / PAT `que_pat_<id>` (예: `hwang-sunghyeon`
 - **히트맵 램프 `--heat-{1..4}-{bg,fg}`**(라이트=파스텔→진초록 / 다크=GitHub 다크 기여 램프 `#0e4429/#006d32/#26a641/#39d353` + 밝은 초록 숫자). `performance-heatmap`·`member-contribution-grid` 공통 참조. 라이트 heat-3 fg는 대비(AA) 위해 흰색→진초록(#06371a).
 - **violet 의미색 신설 `--que-violet`/`--que-violet-bg`**(라이트/다크): 회의록·응답대기(CLAUDE.md 의미색). `tone-badge`·`note-summary-cards`가 참조. 기존 `bg-violet-50/text-violet-700`(다크 미대응) 대체.
 - **차트 구조색은 토큰**(그리드=`--que-border`, 틱=`--que-text-tertiary/secondary`, 커서=`--que-bg-muted`). `home-data` STATUS_COLOR·이벤트 dot도 `--que-*`(소비처가 인라인 backgroundColor·SVG Cell fill이라 var() 해석).
+- **이벤트 스와치 `--ev-{violet,green,blue,pink,amber,teal,red}-{bg,border,accent,text}`**(라이트=파스텔/다크=어두운 틴트+밝은 accent·text). `event-color.ts`가 참조, 소비처(month-view·week-calendar)가 인라인 style이라 var() 해석. `810fbba`.
+- **`--que-on-brand`**(라이트 #fff / 다크 #10121a): 브랜드 배경(버튼·배지·활성칩) 위 텍스트. 다크 `--que-brand(#7488ea)`가 밝은 인디고라 흰 텍스트 3.25:1 미달 → 어둡게 반전(5.9:1). `bg-[var(--que-brand)]` 요소의 `text-white`는 전부 `text-[var(--que-on-brand)]`로 전환. `810fbba`.
 
 ### 의도적 하드코딩 예외(팔레트색 '잔여 0' 아님 — 아래는 의도)
 - **차트 데이터 계열색 고정**(라이트/다크 공용): `performance-line-chart` #157f2f/#d97706/#e33030, `overdue-area-chart` #d97706 — 계열 구분 신호색이라 테마 무관 고정(주석 명시).
 - `notifications-bell` `bg-violet-500`(알림 dot), `pm-data` 그룹 기본색(#3388ff/#9ca3af, 데이터 성격·/projects 프리뷰).
 
-### 알려진 후속(이번 폴리시 범위 밖)
-- **`components/schedule/event-color.ts`**: 캘린더 이벤트 카테고리 스와치(violet/green/blue/pink/amber/teal/red)가 **라이트 전용** → 다크 캘린더에서 밝은 파스텔 칩. 다크 변형 팔레트 필요(7카테고리×4속성).
-- **다크 로그인 버튼**: white on `--que-brand(#7488ea)` = 3.25:1(대형 텍스트 경계) — 다크에서 버튼 텍스트 반전 검토.
+### 알려진 후속 — ✅ 처리 완료(`810fbba`)
+- ~~`event-color.ts` 라이트 전용 스와치 → 다크 파스텔 칩~~ → **해결**: `--ev-*` 토큰 다크 대응.
+- ~~다크 로그인/브랜드 버튼 white 3.25:1~~ → **해결**: `--que-on-brand` 토큰.
 
 ---
 
