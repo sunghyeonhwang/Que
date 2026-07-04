@@ -94,7 +94,7 @@ export default async function ActionPage({
           ))}
         </div>
 
-        <section className="flex h-fit flex-col rounded-xl border border-[var(--que-border)] bg-white">
+        <section className="flex h-fit flex-col rounded-xl border border-[var(--que-border)] bg-[var(--que-bg)]">
           <header className="border-b border-[var(--que-border)] px-4 py-3">
             <h2 className="text-base font-semibold text-[var(--que-text)]">생성된 Task</h2>
           </header>

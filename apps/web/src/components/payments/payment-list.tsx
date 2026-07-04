@@ -45,7 +45,7 @@ function PaymentRowView({ row }: { row: PaymentRow }) {
       className={
         row.overdue
           ? "rounded-xl border border-[var(--que-error)]/40 bg-[var(--que-error-bg)]/40 p-3.5"
-          : "rounded-xl border border-[var(--que-border)] bg-white p-3.5"
+          : "rounded-xl border border-[var(--que-border)] bg-[var(--que-bg)] p-3.5"
       }
     >
       <div className="flex flex-wrap items-center gap-2">

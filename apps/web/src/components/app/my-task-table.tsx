@@ -29,13 +29,13 @@ export function MyTaskTable({
   commentsByTask: Map<string, TaskCommentView[]>;
 }) {
   return (
-    <div className="overflow-hidden rounded-xl border border-[var(--que-border)] bg-white">
+    <div className="overflow-hidden rounded-xl border border-[var(--que-border)] bg-[var(--que-bg)]">
       <div className="max-h-[calc(100dvh-19rem)] overflow-y-auto">
         {/* 헤더 (sticky) */}
         <div
           className={cn(
             GRID,
-            "sticky top-0 z-10 border-b border-[var(--que-border)] bg-white px-4 py-2.5 text-xs font-medium text-[var(--que-text-tertiary)]",
+            "sticky top-0 z-10 border-b border-[var(--que-border)] bg-[var(--que-bg)] px-4 py-2.5 text-xs font-medium text-[var(--que-text-tertiary)]",
           )}
         >
           <span>이름</span>

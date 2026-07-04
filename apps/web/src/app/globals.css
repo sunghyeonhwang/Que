@@ -39,6 +39,10 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
+  /* 한글 본문 가독성 — 본문 스케일만 행간을 넓힌다(헤딩 lg+ 는 타이트 유지). */
+  --text-xs--line-height: 1.5;
+  --text-sm--line-height: 1.55;
+  --text-base--line-height: 1.65;
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -150,6 +154,28 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
+
+  /* Que 디자인 토큰 — Attio 다크(뉴트럴 지배·저채도 인디고 액센트·소프트 elevation). */
+  --que-canvas: #0d0e11; /* 페이지 바탕 */
+  --que-bg: #17181c; /* 카드 — 캔버스 위로 한 단 띄운다 */
+  --que-bg-muted: #202127;
+  --que-border: #292a30;
+  --que-border-strong: #34353c;
+  --que-text: #f2f2f4;
+  --que-text-secondary: #a9abb4;
+  --que-text-tertiary: #7c7e87;
+  --que-placeholder: #6a6c75;
+  --que-brand: #7488ea;
+  --que-brand-hover: #8a9bef;
+  --que-brand-subtle: #22243a;
+  --que-success: #57caa0;
+  --que-success-bg: #132a20;
+  --que-warning: #d6a45c;
+  --que-warning-bg: #2a2216;
+  --que-error: #e97078;
+  --que-error-bg: #2a1a1d;
+  --que-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4), 0 1px 1px rgba(0, 0, 0, 0.3);
+  --que-shadow-md: 0 8px 24px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.4);
 }
 
 @layer base {
@@ -161,9 +187,15 @@
   }
   html {
     @apply font-sans;
+    /* 밀도 프리셋 — rem 기반이라 root font-size로 전체 스케일을 조절한다. */
+    font-size: 16px;
   }
-  /* 한글 가독성: 단어 중간에서 줄바꿈하지 않는다(공백 기준으로만 개행). */
+  html[data-density="compact"] {
+    font-size: 15px;
+  }
+  /* 한글 가독성: 단어 중간에서 줄바꿈하지 않고, 자간을 살짝 조인다. */
   body {
     word-break: keep-all;
+    letter-spacing: -0.011em;
   }
 }

@@ -133,7 +133,7 @@ function BoardColumn({
         />
         <h2 className="text-sm font-semibold text-[var(--que-text)]">{group.name}</h2>
         <span
-          className="flex h-5 min-w-5 items-center justify-center rounded-full bg-white/70 px-1.5 text-xs font-medium text-[var(--que-text-secondary)]"
+          className="flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--que-bg)]/70 px-1.5 text-xs font-medium text-[var(--que-text-secondary)]"
           aria-label={`${group.count}개`}
         >
           {group.count}
@@ -165,7 +165,7 @@ function BoardColumn({
 
       <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto px-2.5 pt-0.5 pb-3">
         {adding && (
-          <div className="rounded-xl border border-[var(--que-border)] bg-white p-2">
+          <div className="rounded-xl border border-[var(--que-border)] bg-[var(--que-bg)] p-2">
             <AddTaskInline
               groupId={group.id}
               onClose={() => setAdding(false)}
@@ -230,7 +230,7 @@ function BoardCard({
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
       className={cn(
-        "relative rounded-xl border border-[var(--que-border)] bg-white p-3.5 shadow-sm transition-shadow hover:shadow-md",
+        "relative rounded-xl border border-[var(--que-border)] bg-[var(--que-bg)] p-3.5 shadow-sm transition-shadow hover:shadow-md",
         dragging ? "cursor-grabbing opacity-50" : "cursor-grab",
       )}
     >

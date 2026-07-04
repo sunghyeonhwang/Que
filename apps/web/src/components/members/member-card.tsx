@@ -12,7 +12,7 @@ export function MemberCard({ member }: { member: TeamMemberCard }) {
   const deptLabel = member.department || member.rank;
 
   return (
-    <div className="flex flex-col rounded-xl border border-[var(--que-border)] bg-white p-4">
+    <div className="flex flex-col rounded-xl border border-[var(--que-border)] bg-[var(--que-bg)] p-4">
       <div className="flex items-start gap-3">
         <Avatar size="lg" className="shrink-0">
           <AvatarFallback

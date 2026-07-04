@@ -37,7 +37,7 @@ export default async function PaymentsPage() {
         {metrics.map((metric) => (
           <div
             key={metric.label}
-            className="rounded-xl border border-[var(--que-border)] bg-white px-4 py-3"
+            className="rounded-xl border border-[var(--que-border)] bg-[var(--que-bg)] px-4 py-3"
           >
             <p
               className={cn(

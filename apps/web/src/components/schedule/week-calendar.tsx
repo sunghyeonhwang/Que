@@ -54,15 +54,15 @@ export function WeekCalendar({ days, items }: { days: Date[]; items: CalendarVie
   const colTemplate = `4rem repeat(${days.length}, minmax(0, 1fr))`;
 
   return (
-    <div className="overflow-hidden rounded-xl border border-[var(--que-border)] bg-white">
+    <div className="overflow-hidden rounded-xl border border-[var(--que-border)] bg-[var(--que-bg)]">
       <div className="max-h-[calc(100dvh-15rem)] overflow-auto">
         <div className="min-w-[760px]">
           {/* 요일 헤더 (sticky top) */}
           <div
-            className="sticky top-0 z-30 grid border-b border-[var(--que-border)] bg-white"
+            className="sticky top-0 z-30 grid border-b border-[var(--que-border)] bg-[var(--que-bg)]"
             style={{ gridTemplateColumns: colTemplate }}
           >
-            <div className="sticky left-0 z-10 flex items-center justify-center border-r border-[var(--que-border)] bg-white px-2 py-3 text-[11px] font-medium text-[var(--que-text-tertiary)]">
+            <div className="sticky left-0 z-10 flex items-center justify-center border-r border-[var(--que-border)] bg-[var(--que-bg)] px-2 py-3 text-[11px] font-medium text-[var(--que-text-tertiary)]">
               {TZ_LABEL}
             </div>
             {days.map((day) => {
@@ -100,7 +100,7 @@ export function WeekCalendar({ days, items }: { days: Date[]; items: CalendarVie
           <div className="flex">
             {/* 시간축 (sticky left) */}
             <div
-              className="sticky left-0 z-20 w-16 shrink-0 border-r border-[var(--que-border)] bg-white"
+              className="sticky left-0 z-20 w-16 shrink-0 border-r border-[var(--que-border)] bg-[var(--que-bg)]"
               style={{ height: GRID_HEIGHT }}
             >
               <div className="relative h-full">
@@ -196,7 +196,7 @@ function EventBlock({ pos }: { pos: PositionedItem }) {
     >
       <div className="flex items-center gap-1">
         <span
-          className="truncate rounded-full bg-white/60 px-1.5 py-px text-[10px] font-semibold tabular-nums"
+          className="truncate rounded-full bg-[var(--que-bg)]/60 px-1.5 py-px text-[10px] font-semibold tabular-nums"
           style={{ color: swatch.accent }}
         >
           {range}

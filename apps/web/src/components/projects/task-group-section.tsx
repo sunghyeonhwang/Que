@@ -96,7 +96,7 @@ export function TaskGroupSection({
           <div
             className={cn(
               GRID,
-              "sticky top-11 z-10 border-b border-[var(--que-border)] bg-white px-3 py-2 text-xs font-medium text-[var(--que-text-tertiary)]",
+              "sticky top-11 z-10 border-b border-[var(--que-border)] bg-[var(--que-bg)] px-3 py-2 text-xs font-medium text-[var(--que-text-tertiary)]",
             )}
           >
             <span>이름</span>

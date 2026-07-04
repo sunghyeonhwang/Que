@@ -11,11 +11,18 @@ export default async function SettingsPage() {
   const cookieStore = await cookies();
   const ko = cookieStore.get("font-ko")?.value ?? "suit";
   const latin = cookieStore.get("font-latin")?.value ?? "inter";
+  const theme = cookieStore.get("theme")?.value ?? "light";
+  const density = cookieStore.get("density")?.value ?? "default";
 
   return (
     <div className="mx-auto max-w-3xl">
       <PageHeader title="설정" subtitle="모양과 환경을 설정합니다." />
-      <FontSettings initialKo={ko} initialLatin={latin} />
+      <FontSettings
+        initialKo={ko}
+        initialLatin={latin}
+        initialTheme={theme}
+        initialDensity={density}
+      />
     </div>
   );
 }

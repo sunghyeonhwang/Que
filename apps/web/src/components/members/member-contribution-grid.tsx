@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 // 색 단독이 아니라 기여 수치(count)를 셀 안에 함께 표기하고 하단 범례를 둔다.
 // 팔레트는 performance-heatmap과 동일하게 맞춘다.
 const GREEN = [
-  { bg: "bg-white", fg: "text-transparent" },
+  { bg: "bg-[var(--que-bg)]", fg: "text-transparent" },
   { bg: "bg-[#dcfce7]", fg: "text-[#166534]" },
   { bg: "bg-[#86efac]", fg: "text-[#14532d]" },
   { bg: "bg-[#22c55e]", fg: "text-white" },

@@ -44,7 +44,7 @@ export function MonthGrid({
               )}
             >
               <div className="flex items-center justify-between px-1">
-                <span className={cn("text-xs tabular-nums", isToday(day) && "font-bold")}>
+                <span className={cn("text-xs tabular-nums", isToday(day) && "font-semibold")}>
                   {format(day, "d")}
                 </span>
                 <span className="flex gap-0.5">

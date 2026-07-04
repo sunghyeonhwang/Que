@@ -9,7 +9,7 @@ export default async function LoginPage() {
   if (session?.user?.id) redirect("/");
 
   return (
-    <main className="flex min-h-svh bg-white">
+    <main className="flex min-h-svh bg-[var(--que-bg)]">
       {/* 좌측 히어로 — lg 이상에서만 */}
       <div className="relative hidden w-1/2 overflow-hidden lg:block">
         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -20,7 +20,7 @@ export default async function LoginPage() {
         />
         <div className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-b from-transparent to-black/70" />
         <div className="absolute inset-x-0 bottom-16 flex flex-col items-center gap-1.5 px-8 text-center text-white">
-          <h2 className="text-[2.6rem] leading-[1.4] font-bold tracking-tight">
+          <h2 className="text-[2.6rem] leading-[1.4] font-semibold tracking-tight">
             프로젝트를 간소화하고
             <br />
             생산성을 높이세요

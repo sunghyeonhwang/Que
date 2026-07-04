@@ -58,7 +58,7 @@ function NoteRow({ note }: { note: NoteListItem }) {
   };
 
   return (
-    <div className="flex min-h-12 flex-wrap items-center gap-2 rounded-xl border border-[var(--que-border)] bg-white px-3.5 py-3">
+    <div className="flex min-h-12 flex-wrap items-center gap-2 rounded-xl border border-[var(--que-border)] bg-[var(--que-bg)] px-3.5 py-3">
       <span
         className="hidden size-9 shrink-0 items-center justify-center rounded-lg bg-[var(--que-brand-subtle)] text-[var(--que-brand)] sm:flex"
         aria-hidden

@@ -36,7 +36,7 @@ export function LoginForm() {
             autoComplete="username"
             required
             placeholder="이메일 주소 입력"
-            className="h-11 rounded-[10px] border border-[#e3e3e8] bg-white px-3 text-sm text-[#0d0d12] outline-none placeholder:text-[#a0a0a8] focus:border-[#3388ff] focus:ring-2 focus:ring-[#3388ff]/20"
+            className="h-11 rounded-[10px] border border-[#e3e3e8] bg-[var(--que-bg)] px-3 text-sm text-[#0d0d12] outline-none placeholder:text-[#a0a0a8] focus:border-[#3388ff] focus:ring-2 focus:ring-[#3388ff]/20"
           />
         </div>
 
@@ -52,7 +52,7 @@ export function LoginForm() {
               autoComplete="current-password"
               required
               placeholder="비밀번호 입력"
-              className="h-11 w-full rounded-[10px] border-[1.5px] border-[#e3e3e8] bg-white pr-11 pl-3 text-sm text-[#0d0d12] outline-none placeholder:text-[#a0a0a8] focus:border-[#3388ff] focus:ring-2 focus:ring-[#3388ff]/20"
+              className="h-11 w-full rounded-[10px] border-[1.5px] border-[#e3e3e8] bg-[var(--que-bg)] pr-11 pl-3 text-sm text-[#0d0d12] outline-none placeholder:text-[#a0a0a8] focus:border-[#3388ff] focus:ring-2 focus:ring-[#3388ff]/20"
             />
             <button
               type="button"

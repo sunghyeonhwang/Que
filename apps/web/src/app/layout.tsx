@@ -49,17 +49,21 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  // 폰트 선택을 쿠키에서 읽어 SSR로 html 속성에 심는다(첫 프레임 깜빡임 없음).
+  // 폰트·테마·밀도 선택을 쿠키에서 읽어 SSR로 html 속성에 심는다(첫 프레임 깜빡임 없음).
   const cookieStore = await cookies();
   const fontKo = cookieStore.get("font-ko")?.value;
   const fontLatin = cookieStore.get("font-latin")?.value;
+  const theme = cookieStore.get("theme")?.value;
+  const density = cookieStore.get("density")?.value;
+  const isDark = theme === "dark";
 
   return (
     <html
       lang="ko"
       data-ko={fontKo}
       data-latin={fontLatin}
-      className={`${interTight.variable} ${suit.variable} ${pretendard.variable} ${notoSansKr.variable} ${geistMono.variable} h-full antialiased`}
+      data-density={density}
+      className={`${interTight.variable} ${suit.variable} ${pretendard.variable} ${notoSansKr.variable} ${geistMono.variable} h-full antialiased${isDark ? " dark" : ""}`}
     >
       <body className="min-h-full flex flex-col">
         <TooltipProvider>{children}</TooltipProvider>

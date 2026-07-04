@@ -20,7 +20,7 @@ export function HomeCard({
   return (
     <section
       className={cn(
-        "flex min-w-0 flex-col rounded-xl border border-[var(--que-border)] bg-white shadow-[var(--que-shadow-sm)]",
+        "flex min-w-0 flex-col rounded-xl border border-[var(--que-border)] bg-[var(--que-bg)] shadow-[var(--que-shadow-sm)]",
         className,
       )}
     >

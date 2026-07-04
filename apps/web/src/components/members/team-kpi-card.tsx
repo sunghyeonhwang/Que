@@ -16,7 +16,7 @@ export function TeamKpiCard({
   unit?: string;
 }) {
   return (
-    <div className="flex flex-col gap-3 rounded-xl border border-[var(--que-border)] bg-white p-4 shadow-[var(--que-shadow-sm)]">
+    <div className="flex flex-col gap-3 rounded-xl border border-[var(--que-border)] bg-[var(--que-bg)] p-4 shadow-[var(--que-shadow-sm)]">
       <span className="flex size-10 items-center justify-center rounded-lg bg-[var(--que-brand-subtle)] text-[var(--que-brand)]">
         <Icon className="size-5" aria-hidden />
       </span>

@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 
 // 초록 강도 5단계(0~4) + 수치 병기 — 색 단독 구분을 피한다(접근성).
 const GREEN = [
-  { bg: "bg-white", fg: "text-transparent", label: "없음" },
+  { bg: "bg-[var(--que-bg)]", fg: "text-transparent", label: "없음" },
   { bg: "bg-[#dcfce7]", fg: "text-[#166534]", label: "낮음" },
   { bg: "bg-[#86efac]", fg: "text-[#14532d]", label: "" },
   { bg: "bg-[#22c55e]", fg: "text-white", label: "" },

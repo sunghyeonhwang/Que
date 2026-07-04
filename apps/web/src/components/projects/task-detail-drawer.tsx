@@ -234,7 +234,7 @@ function DrawerBody({
             onChange={(e) => setName(e.target.value)}
             aria-invalid={nameEmpty}
             placeholder="작업 이름"
-            className="h-auto rounded-md border-transparent bg-transparent px-2 py-1.5 text-xl leading-snug font-bold text-[var(--que-text)] hover:border-[var(--que-border)] md:text-xl"
+            className="h-auto rounded-md border-transparent bg-transparent px-2 py-1.5 text-xl leading-snug font-semibold text-[var(--que-text)] hover:border-[var(--que-border)] md:text-xl"
           />
           {nameEmpty ? (
             <p className="mt-1 px-2 text-xs text-[var(--que-error)]">작업 이름을 입력하세요.</p>

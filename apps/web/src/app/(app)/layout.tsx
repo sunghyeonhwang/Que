@@ -9,6 +9,7 @@ import { WorkspaceSwitcher } from "@/components/app/workspace-switcher";
 import { UserSwitcher } from "@/components/app/user-switcher";
 import { MobileNav } from "@/components/app/mobile-nav";
 import { GlobalSearch } from "@/components/app/global-search";
+import { CommandPalette } from "@/components/app/command-palette";
 import { NotificationsBell } from "@/components/app/notifications-bell";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
@@ -30,8 +31,9 @@ export default async function AppLayout({
   const alerts = await getAlerts(user);
 
   return (
-    <div className="flex h-dvh w-full overflow-hidden bg-white text-[var(--que-text)]">
-      <aside className="hidden w-[236px] shrink-0 flex-col border-r border-[var(--que-border)] bg-white lg:flex">
+    <div className="flex h-dvh w-full overflow-hidden bg-[var(--que-bg)] text-[var(--que-text)]">
+      <CommandPalette />
+      <aside className="hidden w-[236px] shrink-0 flex-col border-r border-[var(--que-border)] bg-[var(--que-bg)] lg:flex">
         <div className="flex h-[72px] shrink-0 items-center border-b border-[var(--que-border)] px-5">
           <Brand />
         </div>
@@ -42,7 +44,7 @@ export default async function AppLayout({
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-[72px] shrink-0 items-center gap-2 border-b border-[var(--que-border)] bg-white px-3 sm:gap-4 sm:px-5 lg:px-6">
+        <header className="flex h-[72px] shrink-0 items-center gap-2 border-b border-[var(--que-border)] bg-[var(--que-bg)] px-3 sm:gap-4 sm:px-5 lg:px-6">
           <div className="lg:hidden">
             <MobileNav workspace={workspace} badges={menuBadges} />
           </div>

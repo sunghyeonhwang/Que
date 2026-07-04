@@ -57,7 +57,7 @@ export function ActionRow({ item }: { item: ActionRowData }) {
   const dirty = assigneeId !== (item.assigneeId ?? "") || dueDate !== (item.dueDate ?? "");
 
   return (
-    <div className="rounded-xl border border-[var(--que-border)] bg-white p-3.5">
+    <div className="rounded-xl border border-[var(--que-border)] bg-[var(--que-bg)] p-3.5">
       <div className="flex flex-wrap items-center gap-2">
         <ToneBadge tone={STATUS_TONE[item.status]}>
           {ACTION_ITEM_STATUS_LABELS[item.status]}

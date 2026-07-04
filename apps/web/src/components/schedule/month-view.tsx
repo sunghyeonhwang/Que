@@ -16,13 +16,13 @@ export function MonthView({
   items: CalendarViewItem[];
 }) {
   return (
-    <div className="overflow-hidden rounded-xl border border-[var(--que-border)] bg-white">
+    <div className="overflow-hidden rounded-xl border border-[var(--que-border)] bg-[var(--que-bg)]">
       <div className="max-h-[calc(100dvh-15rem)] overflow-auto">
         <div className="grid min-w-[760px] grid-cols-7">
           {WEEKDAYS.map((wd) => (
             <div
               key={wd}
-              className="sticky top-0 z-10 border-b border-l border-[var(--que-border)] bg-white px-2 py-2 text-center text-[11px] font-semibold uppercase tracking-wide text-[var(--que-text-tertiary)] first:border-l-0"
+              className="sticky top-0 z-10 border-b border-l border-[var(--que-border)] bg-[var(--que-bg)] px-2 py-2 text-center text-[11px] font-semibold uppercase tracking-wide text-[var(--que-text-tertiary)] first:border-l-0"
             >
               {wd}
             </div>

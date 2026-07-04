@@ -95,9 +95,9 @@ export default async function NowPage({
         ))}
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-[var(--que-border)] bg-white">
+      <div className="overflow-x-auto rounded-xl border border-[var(--que-border)] bg-[var(--que-bg)]">
         <Table className="min-w-[720px]">
-          <TableHeader className="sticky top-0 z-10 bg-white [&_tr]:border-b [&_tr]:border-[var(--que-border)]">
+          <TableHeader className="sticky top-0 z-10 bg-[var(--que-bg)] [&_tr]:border-b [&_tr]:border-[var(--que-border)]">
             <TableRow className="hover:bg-transparent">
               <TableHead className="w-28 text-xs font-medium text-[var(--que-text-tertiary)]">시간/마감</TableHead>
               <TableHead className="w-24 text-xs font-medium text-[var(--que-text-tertiary)]">구분</TableHead>

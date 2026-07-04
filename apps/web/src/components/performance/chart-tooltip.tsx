@@ -11,7 +11,7 @@ export function ChartTooltip({
 }: Partial<TooltipContentProps<number, string>> & { unit?: string }) {
   if (!active || !payload || payload.length === 0) return null;
   return (
-    <div className="rounded-lg border border-[var(--que-border)] bg-white px-3 py-2 text-xs shadow-md">
+    <div className="rounded-lg border border-[var(--que-border)] bg-[var(--que-bg)] px-3 py-2 text-xs shadow-md">
       <p className="mb-1 font-semibold text-[var(--que-text)]">{label}</p>
       <ul className="flex flex-col gap-1">
         {payload.map((entry) => (

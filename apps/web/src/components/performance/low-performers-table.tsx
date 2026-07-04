@@ -11,9 +11,9 @@ import {
 /** 저성과 팀 표 — 이름·부서·기한 초과·완료. 평가가 아니라 부하/병목 진단용. 내부 세로 스크롤 + sticky header. */
 export function LowPerformersTable({ rows }: { rows: LowPerformerRow[] }) {
   return (
-    <div className="max-h-72 overflow-y-auto rounded-xl border border-[var(--que-border)] bg-white">
+    <div className="max-h-72 overflow-y-auto rounded-xl border border-[var(--que-border)] bg-[var(--que-bg)]">
       <Table>
-        <TableHeader className="sticky top-0 z-10 bg-white [&_tr]:border-b [&_tr]:border-[var(--que-border)]">
+        <TableHeader className="sticky top-0 z-10 bg-[var(--que-bg)] [&_tr]:border-b [&_tr]:border-[var(--que-border)]">
           <TableRow className="hover:bg-transparent">
             <TableHead className="text-xs font-medium text-[var(--que-text-tertiary)]">멤버</TableHead>
             <TableHead className="text-xs font-medium text-[var(--que-text-tertiary)]">부서</TableHead>

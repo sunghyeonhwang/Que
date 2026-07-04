@@ -11,7 +11,7 @@ export function Brand({ compact = false }: { compact?: boolean }) {
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src="/auth/logo.svg" alt="" className="size-[34px]" />
       {!compact && (
-        <span className="text-[22px] font-bold tracking-[0.02em] text-[var(--que-text)]">
+        <span className="text-[22px] font-semibold tracking-[0.02em] text-[var(--que-text)]">
           GRIFF
         </span>
       )}
