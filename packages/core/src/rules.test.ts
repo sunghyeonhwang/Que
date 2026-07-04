@@ -714,6 +714,67 @@ describe("마일스톤 이동", () => {
   });
 });
 
+describe("마일스톤 생성·수정", () => {
+  it("무관한 팀원은 마일스톤을 만들 수 없다", () => {
+    const d = db();
+    expect(() =>
+      d.createMilestone(
+        { actorId: "song-suyong", via: "web" },
+        { projectId: "prj-payment", title: "테스트", dueAt: "2026-07-10T09:00:00.000Z" },
+      ),
+    ).toThrowError(/프로젝트 담당자 또는 관리자만/);
+  });
+
+  it("관리자는 만들 수 있고 기본 위험은 on_track, ChangeLog가 남는다", () => {
+    const d = db();
+    const m = d.createMilestone(
+      { actorId: "hwang-sunghyeon", via: "web" },
+      { projectId: "prj-payment", title: "새 마일스톤", dueAt: "2026-07-12T09:00:00.000Z" },
+    );
+    expect(m.riskStatus).toBe("on_track");
+    const clog = d.changeLogs.at(-1)!;
+    expect(clog.entityType).toBe("milestone");
+    expect(clog.changeType).toBe("create");
+  });
+
+  it("[우회 공격] riskStatus에 enum 밖 문자열을 주입하면 생성이 거부된다", () => {
+    const d = db();
+    expect(() =>
+      d.createMilestone(
+        { actorId: "hwang-sunghyeon", via: "web" },
+        {
+          projectId: "prj-payment",
+          title: "공격",
+          dueAt: "2026-07-12T09:00:00.000Z",
+          riskStatus: "GLaDOS_was_here" as never,
+        },
+      ),
+    ).toThrowError(/잘못된 위험 상태/);
+  });
+
+  it("[우회 공격] riskStatus에 enum 밖 문자열을 주입하면 수정이 거부된다", () => {
+    const d = db();
+    expect(() =>
+      d.updateMilestone(
+        { actorId: "oh-seunghoon", via: "web" },
+        { milestoneId: "ms-payment-qa", riskStatus: "on_fire" as never },
+      ),
+    ).toThrowError(/잘못된 위험 상태/);
+  });
+
+  it("프로젝트 담당자는 위험 상태를 바꿀 수 있고 ChangeLog가 남는다", () => {
+    const d = db();
+    const updated = d.updateMilestone(
+      { actorId: "oh-seunghoon", via: "web" },
+      { milestoneId: "ms-payment-qa", riskStatus: "late" },
+    );
+    expect(updated.riskStatus).toBe("late");
+    const clog = d.changeLogs.at(-1)!;
+    expect(clog.entityType).toBe("milestone");
+    expect(clog.changeType).toBe("update");
+  });
+});
+
 describe("자연어 요일 파싱", () => {
   it("'금요일'은 다가오는 금요일, '다음주 화요일'은 다음 주로 해석된다", async () => {
     const { parseTaskInput } = await import("./parse-task");

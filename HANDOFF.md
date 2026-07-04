@@ -74,7 +74,13 @@ mock 인증: 쿠키 `que-user=<id>` / PAT `que_pat_<id>` (예: `hwang-sunghyeon`
 
 ## 기타 화면 신설 (2026-07-04) — 온보딩/도움
 
-메뉴 `기타` 섹션 = 결제요청 · **MCP·CLI** · **도움말** · 설정 (`menu.ts` 정본, CLAUDE.md 동기화됨).
+메뉴 `기타` 섹션 = 결제요청 · **MCP·CLI** · **도움말** · 설정. 메인 `메뉴` 섹션에 **반복·마일스톤** 추가(아래 C-4). (`menu.ts` 정본, CLAUDE.md 동기화됨).
+
+### C-4 반복·마일스톤 (`/planning`, 커밋 `b2fa821` + riskStatus 검증 수정)
+- **결정**: 독립 메뉴(메인 `메뉴` 섹션) · 마일스톤 관리 포함 · 태스크-마일스톤 **간접**(projectId 공유, 스키마 불변·마이그레이션 없음).
+- **반복 업무 템플릿**: 기존 완성 백엔드(스키마·mutation·`syncRecurringTemplates`·영속) 재연결 — 고아였던 `components/templates/*` 부활. 회차 Task 자동 생성은 B-2 Cron/lazy가 담당(planning 액션은 생성 안 함).
+- **마일스톤 관리(신규)**: core `createMilestone`·`updateMilestone`(mock-db.ts, **프로젝트 owner+관리자만** — moveMilestone과 동일 규칙, ChangeLog create/update, `via`). `canManageMilestone`(rules.ts, export). 위험 상태 = on_track/at_risk/late(green/amber/red). **riskStatus는 런타임 enum 검증**(서버 액션 인자=클라 직렬화값이라 TS 타입만 믿지 않음 — `milestoneSchema.shape.riskStatus.safeParse`, 글래도스 반려 수정). 우회 회귀 테스트 추가(core 79).
+- **파일**: `app/(app)/planning/{page,actions}.ts`, `lib/planning-data.ts`(canManage 서버 계산), `components/milestones/{create-milestone-form,milestone-list}.tsx`. `projects/actions.ts`가 `/planning`도 revalidate. `menu.ts`+CLAUDE.md 동기화·보류 해제.
 
 ### 비밀번호 보안 풀세트 (커밋 `b8d1b1a`) — B2 일부 완료
 - **본인 변경**: 설정>보안 카드(`components/settings/password-settings.tsx` + `settings/security-actions.ts`). 현재 비번 확인 후 교체.
@@ -375,7 +381,7 @@ data/
     - **신규 PM 화면은 대체로 표시 전용 목업**: 프로젝트(/projects)=순수 mock(pm-data 조회만, mutation 0) — 작동은 뷰 탭·태스크 드로어·캘린더 월이동·그룹접기뿐, **새로추가/필터/공유/⋯/그룹+/완료체크박스/드로어 편집은 전부 dead**, **칸반 드래그·태스크 생성삭제·상세편집·그룹추가는 미구현(missing)**. 일정(/schedule)=기간 스위처만 작동, **날짜 이동 UI 통째 부재**(항상 오늘 고정), 필터·새로추가·이벤트클릭 dead. 성과·홈=**PeriodSelect(기간/월 select)가 useState만 바꾸고 데이터 미갱신(dead)**. 홈 '오늘 할 일 행 클릭' 미구현.
     - **원본 도메인 기반 화면은 실동작 확인**: 작업목록(/today·/now) 20/22, 확인필요 19/20, 결제요청 11/12 — 탭·완료체크·상태변경·충돌제안·하루마감·체크인·업로드·추출·후보처리·등록폼·상태버튼(권한별) 전부 서버액션 연결. 로그인/인증/로그아웃/사이드바 8링크 정상.
     - **의도적 데모(stub, 버그 아님)**: 팀 초대/확인필요보내기/부서변경/멤버제거(toast), 체크인 '병합'(안내 toast), 워크스페이스 항목(단일 mock).
-    - **레거시 고아 라우트**: `/calendar`·`/team`은 menu.ts에 없음(재설계로 /projects·/schedule가 대체). 내부 인터랙션은 살아있으나 메뉴에서 도달 불가. `components/templates/*`(반복업무 폼·리스트)는 **importer 0 — 어느 페이지에도 연결 안 된 고아**(서버액션은 배선돼 있으나 렌더 안 됨). → 정리 또는 /projects(마일스톤) 연결 결정 필요.
+    - **레거시 고아 라우트**: `/calendar`·`/team`은 menu.ts에 없음(재설계로 /projects·/schedule가 대체). 내부 인터랙션은 살아있으나 메뉴에서 도달 불가. ~~`components/templates/*`는 importer 0 고아~~ → **C-4로 연결됨(2026-07-04)**: `/planning`(반복·마일스톤) 화면에서 렌더. 아래 "기타 화면 신설 > C-4" 참고.
     - 전체 감사 원본: `tasks/wj0p6z2g2.output`(JSON, 화면별 findings). 시각 QA 실측 확인: 검색 dead, 벨 dead, 워크스페이스 크래시→수정후정상, 프로젝트 보드탭·태스크드로어 작동, 팀 ⋮메뉴·KPI 정상.
 
 47. **전역 검색·알림 벨 실기능화 (2026-07-03)**: 46번에서 "dead"로 잡힌 상단바 두 컨트롤을 '준비 중'이 아니라 실동작으로 구현. 사용자 지시 "1번부터 진행". 글래도스 최종 게이트 통과.

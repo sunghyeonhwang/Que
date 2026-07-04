@@ -19,6 +19,7 @@ import type {
   TaskStatus,
   User,
 } from "../domain";
+import { milestoneSchema } from "../domain";
 import { USERS } from "../mock/users";
 import {
   QueRuleError,
@@ -645,13 +646,18 @@ export class MockQueDb implements QueDb {
     if (!input.title.trim()) {
       throw new QueRuleError("INVALID_INPUT", "제목은 필수다");
     }
+    // 서버 액션 인자는 클라이언트 직렬화값 — TS 타입만 믿지 말고 enum을 런타임 검증한다.
+    const riskStatus = input.riskStatus ?? "on_track";
+    if (!milestoneSchema.shape.riskStatus.safeParse(riskStatus).success) {
+      throw new QueRuleError("INVALID_INPUT", "잘못된 위험 상태다");
+    }
     const range = parseScheduleRange({ startAt: input.dueAt, endAt: input.dueAt });
     const milestone: Milestone = {
       id: this.nextId("ms"),
       projectId: input.projectId,
       title: input.title.trim(),
       dueAt: range.startAt,
-      riskStatus: input.riskStatus ?? "on_track",
+      riskStatus,
       lastChangedBy: actor.id,
       lastChangedAt: this.now(),
     };
@@ -697,6 +703,9 @@ export class MockQueDb implements QueDb {
       milestone.dueAt = parseScheduleRange({ startAt: input.dueAt, endAt: input.dueAt }).startAt;
     }
     if (input.riskStatus !== undefined) {
+      if (!milestoneSchema.shape.riskStatus.safeParse(input.riskStatus).success) {
+        throw new QueRuleError("INVALID_INPUT", "잘못된 위험 상태다");
+      }
       milestone.riskStatus = input.riskStatus;
     }
     milestone.lastChangedBy = actor.id;
