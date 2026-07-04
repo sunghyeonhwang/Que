@@ -237,3 +237,40 @@
     letter-spacing: -0.011em;
   }
 }
+
+/* 도움말 본문(마크다운 렌더) — --que-* 토큰이라 라이트/다크 자동 대응. */
+.help-prose {
+  color: var(--que-text-secondary);
+  font-size: 15px;
+  line-height: 1.75;
+}
+.help-prose > :first-child { margin-top: 0; }
+.help-prose h2 {
+  font-size: 19px; font-weight: 640; letter-spacing: -0.02em; color: var(--que-text);
+  margin: 30px 0 10px; padding-bottom: 7px; border-bottom: 1px solid var(--que-border);
+}
+.help-prose h3 { font-size: 16px; font-weight: 640; color: var(--que-text); margin: 22px 0 8px; }
+.help-prose h4 { font-size: 14px; font-weight: 640; color: var(--que-text); margin: 16px 0 6px; }
+.help-prose p { margin: 10px 0; }
+.help-prose strong { color: var(--que-text); font-weight: 640; }
+.help-prose code {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.88em;
+  background: var(--que-bg-muted); color: var(--que-brand); border-radius: 5px; padding: 1px 6px;
+}
+.help-prose ul, .help-prose ol { margin: 10px 0; padding-left: 22px; display: flex; flex-direction: column; gap: 6px; }
+.help-prose ul { list-style: disc; }
+.help-prose ol { list-style: decimal; }
+.help-prose li { padding-left: 2px; }
+.help-prose li::marker { color: var(--que-text-tertiary); }
+.help-prose ul ul, .help-prose ol ul, .help-prose ol ol, .help-prose ul ol { margin: 6px 0 2px; }
+.help-prose hr { border: none; border-top: 1px solid var(--que-border); margin: 24px 0; }
+.help-prose blockquote {
+  border-left: 3px solid var(--que-brand); background: var(--que-bg-muted);
+  padding: 10px 14px; border-radius: 0 8px 8px 0; margin: 14px 0; color: var(--que-text-secondary);
+}
+.help-prose .help-tbl { overflow-x: auto; border: 1px solid var(--que-border); border-radius: 10px; margin: 14px 0; }
+.help-prose table { border-collapse: collapse; width: 100%; min-width: 320px; font-size: 14px; }
+.help-prose th, .help-prose td { text-align: left; padding: 9px 13px; border-bottom: 1px solid var(--que-border); vertical-align: top; }
+.help-prose th { background: var(--que-bg-muted); color: var(--que-text-tertiary); font-weight: 600; font-size: 12px; }
+.help-prose tr:last-child td { border-bottom: none; }
+.help-prose td { color: var(--que-text-secondary); }

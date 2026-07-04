@@ -9,6 +9,7 @@ import {
   Receipt,
   Settings,
   Terminal,
+  CircleHelp,
   type LucideIcon,
 } from "lucide-react";
 
@@ -61,6 +62,7 @@ export const MENU_SECTIONS: MenuSection[] = [
     items: [
       { href: "/payments", label: "결제요청", icon: Receipt },
       { href: "/tools", label: "MCP · CLI", icon: Terminal },
+      { href: "/help", label: "도움말", icon: CircleHelp },
       { href: "/settings", label: "설정", icon: Settings },
     ],
   },
