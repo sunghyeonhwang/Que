@@ -56,7 +56,13 @@
    | `AUTH_SECRET` | 랜덤 32바이트 base64 (`openssl rand -base64 32`) | **Auth.js 세션 서명 — 필수.** 로컬은 `data/.env`에 있음 |
    | `QUE_ALLOW_MOCK_AUTH` | `true` (API/MCP/CLI의 mock PAT 경로 게이트) | **웹 로그인은 이제 실 인증이라 이 값과 무관.** PAT 해시화(B2) 완료 후 제거 |
 4. ✅ **웹 실 인증 완료 (Auth.js, 이메일+비밀번호)** — `getCurrentUser`가 세션을 읽고 미인증 시 `/login`으로 리다이렉트. 8명 계정은 `<이름>.<성>@griff.co.kr` + 초기 공용 비밀번호 `que-2026!`(bcrypt, DB 저장). **첫 로그인 강제 변경/개별 비밀번호는 후속(B2).** ⏳ 남은 것: API/MCP/CLI의 mock PAT를 무작위 발급 + `personal_access_tokens` 테이블(해시)로 교체(`core/mock/tokens.ts` 폐기) — 이게 되면 `QUE_ALLOW_MOCK_AUTH` 제거.
-4-1. ✅ **체크인 스케줄러 Cron 전환** (2026-07-04, B-2) — `vercel.json` crons가 10분마다 `GET /api/cron/sync` 호출 → `syncCheckIns`+`syncRecurringTemplates`+`persist`. 인증은 `CRON_SECRET`(Vercel Cron이 `Authorization: Bearer`로 자동 부착, 미설정/불일치 시 401). 요청 경로 lazy 실행은 `QUE_CRON_ACTIVE` 플래그로 제어(기본=lazy 유지 안전망, Cron 검증 후 `QUE_CRON_ACTIVE=1`로 끄면 조회가 write 미유발). **운영 체크리스트**: (1) Vercel env `CRON_SECRET` 설정(`openssl rand -base64 32`), (2) **Vercel 플랜이 10분 주기 지원하는지 확인 — Hobby는 하루 1회 한계라 Pro 이상 필요**, (3) Cron 동작 확인은 **HTTP 200 + `ok:true`**로 판정(⚠️ `QUE_CRON_ACTIVE` 미설정 동안은 요청 경로 lazy가 먼저 생성하므로 Cron 응답의 `checkInsCreated`가 **항상 0**이다 — 건수>0은 플래그=1 이후에만 유의미), 확인 후 `QUE_CRON_ACTIVE=1` 설정.
+4-1. 🟡 **체크인 스케줄러 Cron 전환** (2026-07-04, B-2 — 엔드포인트 완성, 스케줄 활성화만 대기)
+- **완료**: `GET /api/cron/sync`(라이브) → `syncCheckIns`+`syncRecurringTemplates`+`persist`, 생성 건수 JSON. 인증 `CRON_SECRET`(`Authorization: Bearer`, 미설정/불일치 401). 요청 경로 lazy는 `QUE_CRON_ACTIVE` 플래그 제어(기본=lazy 유지 안전망 → 지금도 체크인 정상 생성).
+- **⚠️ Hobby 플랜 제약**: Vercel Hobby는 cron **하루 1회**만 허용 → `vercel.json`에 `*/10` crons를 넣으면 **배포 자체가 거부**된다(실측). 그래서 `vercel.json`에서 crons를 **뺀 상태로 배포**함(엔드포인트는 그대로 라이브·호출 가능).
+- **활성화 경로(택1)**:
+  - **(A) Vercel Pro 업그레이드** → `vercel.json`에 `"crons": [{ "path": "/api/cron/sync", "schedule": "*/10 * * * *" }]` 추가·재배포. Vercel이 `CRON_SECRET`을 자동 Bearer로 붙임.
+  - **(B) 외부 스케줄러**(Pro 불필요) → GitHub Actions cron 등이 10분마다 `curl -H "Authorization: Bearer $CRON_SECRET" https://que.griff.co.kr/api/cron/sync` 호출.
+- **공통 운영 순서**: (1) Vercel env `CRON_SECRET` 설정(`openssl rand -base64 32`), (2) 위 A/B 중 하나로 주기 호출, (3) 동작 확인은 **HTTP 200 + `ok:true`**(⚠️ 플래그 미설정 동안은 lazy가 먼저 생성해 응답 건수가 **항상 0** — 건수>0은 `QUE_CRON_ACTIVE=1` 이후에만 유의미), (4) 확인 후 Vercel env `QUE_CRON_ACTIVE=1` → lazy 종료·디커플링 완성.
 5. ⏳ MCP/CLI 전환 — `.mcp.json`/`~/.que/config.json`의 `QUE_API_URL`을 배포 URL로
 
 ### 배포 후 검증 (글래도스 게이트 항목)
