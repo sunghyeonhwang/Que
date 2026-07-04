@@ -76,6 +76,16 @@ mock 인증: 쿠키 `que-user=<id>` / PAT `que_pat_<id>` (예: `hwang-sunghyeon`
 
 메뉴 `기타` 섹션 = 결제요청 · **MCP·CLI** · **도움말** · 설정 (`menu.ts` 정본, CLAUDE.md 동기화됨).
 
+### 비밀번호 보안 풀세트 (커밋 `b8d1b1a`) — B2 일부 완료
+- **본인 변경**: 설정>보안 카드(`components/settings/password-settings.tsx` + `settings/security-actions.ts`). 현재 비번 확인 후 교체.
+- **첫 로그인/재설정 후 강제 변경**: `must_change_password` 참이면 `(app)/layout.tsx`가 `/change-password`(그룹 밖 격리 화면)로 리다이렉트. 완료 시 signOut→`/login?changed=1`.
+- **관리자 재설정**: `/members/[id]` 관리자 전용 카드(`admin-reset-password.tsx` + `[id]/reset-actions.ts`) → 임시 비번 1회 발급 + must_change=true. 권한은 **서버(`adminResetPassword`)에서** actorRole 검사.
+- **로그인 레이트리밋**: `verify.ts` — 연속 5회 실패 시 15분 잠금(`failed_login_attempts`/`locked_until` 컬럼, 서버리스 다중 인스턴스 안전). 상수는 `lib/auth/policy.ts`.
+- 비번 쓰기 정본 = `lib/auth/password.ts`(SECRET_KEY로 users 직접 UPDATE — supabase-db는 users write-back 금지). 정책: 8자↑·전부동일 금지·이메일 동일 금지.
+- **DB**: users 4컬럼 추가(`add-password-security.sql`·schema.sql). 프로덕션 마이그레이션 적용됨.
+- **알려진 한계**: JWT 세션이라 **설정에서 본인 비번을 바꿔도 다른 기기의 기존 세션은 만료까지 유지**된다(강제 변경은 signOut으로 즉시 무효화). 8인 내부·짧은 세션이라 수용. 잠긴 사용자에겐 "비번 틀림"으로만 응답(전용 잠금 메시지 미노출).
+- **운영 주의**: 개인 비번 배포(`set-passwords.sql`) 시 `must_change_password=true`로 넣으면 첫 로그인에 강제 변경됨(권장). 현재 전원 `good121930`·must_change=false.
+
 ### MCP · CLI (`/tools`, 커밋 `1038e8e`·`931faee`)
 - 터미널(CLI)·AI(MCP)로 Que 쓰는 온보딩 화면. 현재 사용자 맞춤(계정·mock 토큰 형식 `que_pat_<id>`), 복사 가능한 설정 블록, Claude Code/Desktop·Gemini CLI 등록법. **조회 전용, 실 PAT 미노출**(운영자 요청 안내).
 - **전체 레퍼런스**: `data/docs/que-tools-guide.md` — CLI 19명령·MCP 19도구 전체 + **§7 AI 명령어 세트 186개**(8카테고리 표). MCP 실행: `pnpm -C <repo> --filter @que/mcp start`, env `QUE_API_URL`(=que.griff.co.kr)·`QUE_TOKEN`(PAT).
