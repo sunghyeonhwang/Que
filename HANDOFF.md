@@ -365,7 +365,7 @@ data/
       - **/members 조회 전용화** — 새 멤버 다이얼로그·카드 ⋮ 메뉴 미노출(파일은 잔존, unrender).
       - CLAUDE.md 메뉴 구조 절을 현행 배포 IA로 갱신.
     - **⚠️ 사용자 액션 체크리스트(내가 못 하거나 승인 필요) — Go 조건**:
-      1. [승인] 프로덕션 DB 퍼지+클린 리시드(데모데이터 제거, users 유지) — SQL 번들(C3) 실행.
+      1. ✅ **[완료 2026-07-04] 프로덕션 DB 퍼지** — `go-live-cleanup.sql`을 Supabase MCP로 실행. 삭제 전 전체 백업 `db/supabase/backup-before-que/golive-purge-20260704.json`(gitignore). 검증: 트랜잭션 테이블 전부 0, users 7·PAT 7 보존, check_ins UNIQUE 제약 적용. (삭제분은 전부 데모 시드, 재생성 가능.)
       2. [승인+실행] 개인 비번 적용(`set-passwords.sql`) + 7명 1:1 전달. `que-2026!` 로그인 실패 확인이 완료 기준.
       3. [실행] 원격 push + Vercel 재배포(신 코드). **⚠️ 로컬 main이 origin보다 앞서므로 push 필수(백업).**
       4. [실행] 시각 QA 15분(1920/1366/1024/768) — 재설계 화면 프로덕션 육안 검증(확장 끊겨 세션 중 미수행).
