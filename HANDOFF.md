@@ -29,7 +29,7 @@ mock 인증: 쿠키 `que-user=<id>` / PAT `que_pat_<id>` (예: `hwang-sunghyeon`
 
 ### 다음 할 일 (사용자가 "하나씩" 진행 중 — env 트랙)
 1. ~~**Vercel 배포**~~ → **완료 (43번)**. <https://que-rouge-eight.vercel.app> (Root=`apps/web`, 리전 `icn1`, 실 DB+실 인증). **주의: Deployment Protection이 현재 꺼진 상태**(대시보드에서 재활성화 필요) — 단 실 인증+mock API 503이라 공개라도 안전. `QUE_ALLOW_MOCK_AUTH`는 **안 켬**(mock PAT 봉인). (`data/docs/deploy-vercel-supabase.md`)
-2. ~~**웹 실 인증**~~ → **완료 (42번, Auth.js 이메일+비밀번호)**. 로그인: `<이름>.<성>@griff.co.kr` / 초기 공용 비번 `que-2026!`. **남은 B2**: API/MCP/CLI의 mock PAT를 `personal_access_tokens`(해시)로 교체 + `core/mock/tokens.ts` 폐기 → 그 후 `QUE_ALLOW_MOCK_AUTH` 제거. 첫 로그인 비번 강제 변경 플로우도 후속.
+2. ~~**웹 실 인증**~~ → **완료 (42번, Auth.js 이메일+비밀번호)**. 로그인: `<이름>.<성>@griff.co.kr`. **프로덕션 비번(2026-07-04): 테스트용 공용 비번으로 전 팀원 7명 통일 적용**(평문은 `data/passwords.txt` gitignore 참조, 여기엔 평문 금지). 프로덕션 `users.password_hash`에 bcrypt(rounds10) 직접 UPDATE, E2E 로그인 검증 완료. **테스트+개인 비번 작성 후 개인별 교체 예정**(`gen-passwords.mts` → `set-passwords.sql`). 로컬 dev 상수 `DEV_PASSWORD(que-2026!)`는 mock 전용(프로덕션 무관). **남은 B2**: API/MCP/CLI의 mock PAT를 `personal_access_tokens`(해시)로 교체 + `core/mock/tokens.ts` 폐기 → 그 후 `QUE_ALLOW_MOCK_AUTH` 제거.
 3. Sentry DSN(에러 리포팅) · Slack 앱(알림/스탠드업) · CLI/MCP 배포(30번) · 스케줄러 Vercel Cron 전환.
 
 ### 반드시 지킬 규칙 / 함정
