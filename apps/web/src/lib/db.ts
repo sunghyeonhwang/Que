@@ -22,11 +22,14 @@ export const getDb = cache(async (): Promise<MockQueDb> => {
   if (useSupabase) {
     const db = new SupabaseQueDb(SUPABASE_URL!, SUPABASE_SECRET_KEY!, now);
     await db.load();
-    // 스케줄러는 멱등 — 이미 생성된 체크인/반복 Task는 다시 만들지 않는다. steady state에선
-    // persist가 변경 없음(네트워크 호출 0). 배포 후엔 Vercel Cron으로 옮길 수 있다.
-    db.syncCheckIns(now);
-    db.syncRecurringTemplates(now);
-    await db.persist();
+    // 스케줄러 권위는 Vercel Cron(`/api/cron/sync`)으로 이관한다.
+    // QUE_CRON_ACTIVE=1 이면 여기서 lazy 실행을 끄고(조회는 순수 load, 요청이 write를 유발 안 함),
+    // 미설정이면 안전을 위해 기존 lazy 유지(Cron 등록 전 배포에서도 체크인이 끊기지 않게).
+    if (process.env.QUE_CRON_ACTIVE !== "1") {
+      db.syncCheckIns(now);
+      db.syncRecurringTemplates(now);
+      await db.persist();
+    }
     return db;
   }
 
