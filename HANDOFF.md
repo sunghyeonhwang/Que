@@ -45,9 +45,9 @@ mock 인증: 쿠키 `que-user=<id>` / PAT `que_pat_<id>` (예: `hwang-sunghyeon`
 
 ---
 
-## 디자인 리프레시 (`design/modern-neutral` 브랜치, 2026-07-04) — main 미병합
+## 디자인 리프레시 (2026-07-04) — ✅ main 병합 + 프로덕션 배포 완료
 
-전면 재스킨을 별도 브랜치에 쌓는 중. **main·프로덕션(que-rouge-eight)은 무영향.** 커밋: `231a50f`(P1 토큰) → `94fa764`(P2 표면/배지) → `77d1487`(P3 ⌘K·다크·밀도·폰트설정) → `89f0a80`(폴리시) → 차트/로그인/violet 토큰화(글래도스 반려 후 수정).
+전면 재스킨을 `design/modern-neutral`에 쌓아 글래도스 승인 후 **main에 fast-forward 병합(`ac8b179`) + Vercel 프로덕션 재배포**(que-rouge-eight.vercel.app, 새 디자인 라이브 확인). 커밋: `231a50f`(P1 토큰) → `94fa764`(P2 표면/배지) → `77d1487`(P3 ⌘K·다크·밀도·폰트설정) → `89f0a80`(폴리시) → `9bbb4ee`(차트/상태색 토큰화, 글래도스 반려 후) → `810fbba`(후속: 이벤트 다크 팔레트·브랜드 버튼 대비). **que.griff.co.kr는 Cloudflare 406 지속 — DNS proxy-off 필요(사용자 쪽).**
 
 ### 방향·기본값
 - **퓨어 Attio**: 뉴트럴 지배·저채도 인디고 액센트(`--que-brand #3b5bd9`)·하이라인 보더·소프트 elevation(그림자 '속삭이듯'). `globals.css` `--que-*` 토큰이 정본.
