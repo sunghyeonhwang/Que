@@ -367,7 +367,7 @@ data/
     - **⚠️ 사용자 액션 체크리스트(내가 못 하거나 승인 필요) — Go 조건**:
       1. ✅ **[완료 2026-07-04] 프로덕션 DB 퍼지** — `go-live-cleanup.sql`을 Supabase MCP로 실행. 삭제 전 전체 백업 `db/supabase/backup-before-que/golive-purge-20260704.json`(gitignore). 검증: 트랜잭션 테이블 전부 0, users 7·PAT 7 보존, check_ins UNIQUE 제약 적용. (삭제분은 전부 데모 시드, 재생성 가능.)
       2. [승인+실행] 개인 비번 적용(`set-passwords.sql`) + 7명 1:1 전달. `que-2026!` 로그인 실패 확인이 완료 기준.
-      3. [실행] 원격 push + Vercel 재배포(신 코드). **⚠️ 로컬 main이 origin보다 앞서므로 push 필수(백업).**
+      3. ✅ **[완료 2026-07-04] 원격 push + Vercel 재배포** — origin push(9a6d7c8), `vercel deploy --prod`(빌드 54s). 프로덕션 별칭 **que-rouge-eight.vercel.app**에 신 코드 라이브. 스모크 PASS: /login 200, 무토큰 /api/team 401, 미인증 라우트 307, que-2026! 로그인 성공(users 보존 확인), /home·/team 200(구버전 404였음), /calendar→/schedule redirect, /projects '미리보기' 배너 + 사이드바에서 제거(nav=home/schedule/heatmap/today/members/team/payments), /team(팀 현황) 노출. ⚠️ **que.griff.co.kr은 여전히 Cloudflare 406**(프록시 앞단 가로챔) — 아래 DNS 조치 전까지 팀엔 que-rouge-eight.vercel.app 안내.
       4. [실행] 시각 QA 15분(1920/1366/1024/768) — 재설계 화면 프로덕션 육안 검증(확장 끊겨 세션 중 미수행).
       5. [실행] DNS: Cloudflare `que` CNAME→cname.vercel-dns.com + **프록시 OFF(DNS only)**. 미완이면 팀엔 que-rouge-eight.vercel.app 안내(Go 비차단).
       6. [결정] Deployment Protection 재활성화 or 레이트리밋(후속).
