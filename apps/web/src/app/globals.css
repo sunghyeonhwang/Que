@@ -7,9 +7,9 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-inter-tight), var(--font-noto-kr), sans-serif;
+  --font-sans: var(--font-latin-active, var(--font-inter-tight)), var(--font-ko-active, var(--font-suit)), sans-serif;
   --font-mono: var(--font-geist-mono);
-  --font-heading: var(--font-inter-tight), var(--font-noto-kr), sans-serif;
+  --font-heading: var(--font-latin-active, var(--font-inter-tight)), var(--font-ko-active, var(--font-suit)), sans-serif;
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -64,8 +64,8 @@
   --accent: oklch(0.97 0 0);
   --accent-foreground: oklch(0.205 0 0);
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
+  --border: oklch(0.94 0 0);
+  --input: oklch(0.94 0 0);
   --ring: oklch(0.708 0 0);
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
@@ -79,28 +79,44 @@
   --sidebar-primary-foreground: oklch(0.985 0 0);
   --sidebar-accent: oklch(0.97 0 0);
   --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-border: oklch(0.94 0 0);
   --sidebar-ring: oklch(0.708 0 0);
 
-  /* Que 재설계 토큰 (신규 — 위의 shadcn theme 토큰은 덮어쓰지 않는다).
-     새 화면(셸/프로젝트 등)은 이 변수 또는 arbitrary 값을 쓴다. */
-  --que-brand: #3388ff;
-  --que-brand-hover: #1f7bff;
-  --que-brand-subtle: #e9f1fa;
-  --que-text: #0d0d12;
-  --que-text-secondary: #55555e;
-  --que-text-tertiary: #74747d;
-  --que-placeholder: #a0a0a8;
-  --que-border: #e3e3e8;
+  /* 활성 폰트(라틴/한글) — 기본 Inter Tight / SUIT. 설정에서 html[data-latin]/[data-ko]로 교체. */
+  --font-latin-active: var(--font-inter-tight);
+  --font-ko-active: var(--font-suit);
+
+  /* Que 디자인 토큰 — 퓨어 Attio 방향: 뉴트럴 지배·저채도 액센트·하이라인 보더·소프트 elevation. */
+  --que-brand: #3b5bd9;
+  --que-brand-hover: #2f49bd;
+  --que-brand-subtle: #eef1fb;
+  --que-text: #14151a;
+  --que-text-secondary: #5b5d66;
+  --que-text-tertiary: #8a8c96;
+  --que-placeholder: #a8aab4;
+  --que-border: #ececee;
+  --que-border-strong: #e1e1e4;
+  --que-canvas: #f7f7f8; /* 페이지 바탕 — 카드는 흰색으로 띄운다(Attio 레이어링) */
   --que-bg: #ffffff;
-  --que-bg-muted: #f4f4f6;
-  --que-success: #157f2f;
-  --que-success-bg: #e9feea;
-  --que-warning: #9a6300;
-  --que-warning-bg: #fdf3e2;
-  --que-error: #e33030;
-  --que-error-bg: #fdeaea;
+  --que-bg-muted: #f2f2f4;
+  --que-success: #167c46;
+  --que-success-bg: #eaf6ee;
+  --que-warning: #8a5a12;
+  --que-warning-bg: #f6efe2;
+  --que-error: #cf4045;
+  --que-error-bg: #fbedee;
+  /* 소프트 elevation(그림자는 '속삭이듯') */
+  --que-shadow-sm: 0 1px 2px rgba(16, 17, 20, 0.04), 0 1px 1px rgba(16, 17, 20, 0.03);
+  --que-shadow-md: 0 6px 16px rgba(16, 17, 20, 0.06), 0 1px 4px rgba(16, 17, 20, 0.04);
 }
+
+/* 폰트 스위처 — html[data-ko]/[data-latin] 값으로 활성 폰트 선택(설정 > 모양). */
+:root[data-ko="suit"] { --font-ko-active: var(--font-suit); }
+:root[data-ko="pretendard"] { --font-ko-active: var(--font-pretendard); }
+:root[data-ko="noto"] { --font-ko-active: var(--font-noto-kr); }
+:root[data-ko="system"] { --font-ko-active: ui-sans-serif, system-ui, sans-serif; }
+:root[data-latin="inter"] { --font-latin-active: var(--font-inter-tight); }
+:root[data-latin="system"] { --font-latin-active: ui-sans-serif, system-ui, sans-serif; }
 
 .dark {
   --background: oklch(0.145 0 0);
@@ -109,7 +125,7 @@
   --card-foreground: oklch(0.985 0 0);
   --popover: oklch(0.205 0 0);
   --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
+  --primary: oklch(0.94 0 0);
   --primary-foreground: oklch(0.205 0 0);
   --secondary: oklch(0.269 0 0);
   --secondary-foreground: oklch(0.985 0 0);

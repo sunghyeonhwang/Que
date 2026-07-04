@@ -60,7 +60,7 @@ export default async function AppLayout({
           </div>
         </header>
 
-        <main className="min-h-0 min-w-0 flex-1 overflow-y-auto p-4 md:p-5 xl:p-6">
+        <main className="min-h-0 min-w-0 flex-1 overflow-y-auto bg-[var(--que-canvas)] p-4 md:p-5 xl:p-6">
           {children}
         </main>
       </div>

@@ -7,6 +7,7 @@ import {
   LayoutDashboard,
   MessageSquareText,
   Receipt,
+  Settings,
   type LucideIcon,
 } from "lucide-react";
 
@@ -56,6 +57,9 @@ export const MENU_SECTIONS: MenuSection[] = [
   },
   {
     label: "기타",
-    items: [{ href: "/payments", label: "결제요청", icon: Receipt }],
+    items: [
+      { href: "/payments", label: "결제요청", icon: Receipt },
+      { href: "/settings", label: "설정", icon: Settings },
+    ],
   },
 ];
