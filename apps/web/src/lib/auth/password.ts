@@ -2,7 +2,11 @@ import "server-only";
 import { randomBytes } from "node:crypto";
 import bcrypt from "bcryptjs";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { validateNewPassword } from "@/lib/auth/policy";
+import {
+  LOGIN_LOCK_MINUTES,
+  LOGIN_LOCK_THRESHOLD,
+  validateNewPassword,
+} from "@/lib/auth/policy";
 
 // 비밀번호 쓰기 작업(본인 변경 · 관리자 재설정). SECRET_KEY로 users 테이블에 직접 UPDATE한다.
 // (supabase-db는 users write-back을 금지하므로 여기서 별도 처리한다.)
@@ -49,13 +53,24 @@ export async function changeOwnPassword(input: {
   const client = admin();
   const { data, error } = await client
     .from("users")
-    .select("password_hash")
+    .select("password_hash,locked_until")
     .eq("id", userId)
     .maybeSingle();
   if (error || !data?.password_hash) return { ok: false, error: "계정을 확인할 수 없습니다." };
 
+  // 로그인과 같은 잠금을 공유 — 세션 탈취자가 폼으로 현재 비밀번호를 무제한 추측하지 못하게.
+  if (data.locked_until && new Date(data.locked_until as string) > new Date())
+    return { ok: false, error: "시도가 너무 많아 잠시 잠겼어요. 잠시 후 다시 시도해주세요." };
+
   const currentOk = await bcrypt.compare(currentPassword, data.password_hash as string);
-  if (!currentOk) return { ok: false, error: "현재 비밀번호가 올바르지 않습니다." };
+  if (!currentOk) {
+    await client.rpc("register_login_failure", {
+      p_user_id: userId,
+      p_threshold: LOGIN_LOCK_THRESHOLD,
+      p_lock_minutes: LOGIN_LOCK_MINUTES,
+    });
+    return { ok: false, error: "현재 비밀번호가 올바르지 않습니다." };
+  }
 
   if (newPassword === currentPassword)
     return { ok: false, error: "새 비밀번호가 지금 쓰는 비밀번호와 같아요." };

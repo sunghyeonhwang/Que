@@ -6,7 +6,8 @@ import { verifyCredentials } from "@/lib/auth/verify";
 // getCurrentUser·서버 액션·[...nextauth] 라우트가 여기서 나온 handlers/auth/signIn/signOut을 쓴다.
 export const { handlers, auth, signIn, signOut } = NextAuth({
   trustHost: true,
-  session: { strategy: "jwt" },
+  // JWT 세션. maxAge를 명시(기본 30일은 과함) — 비번 변경/재설정 후 기존 세션의 잔존 창을 제한한다.
+  session: { strategy: "jwt", maxAge: 60 * 60 * 24 * 7 }, // 7일
   pages: { signIn: "/login" },
   providers: [
     Credentials({

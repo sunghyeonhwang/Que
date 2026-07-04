@@ -48,14 +48,13 @@ export async function verifyCredentials(
 
     const ok = await bcrypt.compare(password, data.password_hash as string);
     if (!ok) {
-      // 실패 누적. 임계 도달 시 잠그고 카운터를 리셋(잠금 해제 후 다시 N번 기회).
-      const attempts = ((data.failed_login_attempts as number) ?? 0) + 1;
-      const patch: Record<string, unknown> = { failed_login_attempts: attempts };
-      if (attempts >= LOGIN_LOCK_THRESHOLD) {
-        patch.locked_until = new Date(now.getTime() + LOGIN_LOCK_MINUTES * 60_000).toISOString();
-        patch.failed_login_attempts = 0;
-      }
-      await client.from("users").update(patch).eq("id", data.id as string);
+      // 실패 누적 — 원자적 단일 UPDATE(RPC). 동시 요청에도 카운터가 언더카운트되지 않는다.
+      // 임계 도달 시 잠그고 카운터 리셋(잠금 해제 후 다시 N번 기회).
+      await client.rpc("register_login_failure", {
+        p_user_id: data.id as string,
+        p_threshold: LOGIN_LOCK_THRESHOLD,
+        p_lock_minutes: LOGIN_LOCK_MINUTES,
+      });
       return null;
     }
 

@@ -50,6 +50,8 @@ export function AdminResetPassword({
       <p className="mt-1.5 text-sm text-[var(--que-text-secondary)]">
         {targetName}님이 비밀번호를 잊었을 때, 임시 비밀번호를 새로 발급해요. 발급하면 지금 쓰던
         비밀번호는 바로 무효가 되고, {targetName}님은 다음 로그인 때 새 비밀번호로 바꾸게 돼요.
+        (이미 로그인돼 있는 기기의 접속은 최대 7일까지 유지될 수 있어요. 분실·유출이 의심되면
+        본인에게 로그아웃을 안내해주세요.)
       </p>
 
       {state.tempPassword ? (
