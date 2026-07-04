@@ -115,7 +115,7 @@ export function WeekCalendar({ days, items }: { days: Date[]; items: CalendarVie
                 ))}
                 {showNow && (
                   <div
-                    className="absolute right-1 z-10 -translate-y-1/2 rounded bg-[var(--que-brand)] px-1 py-0.5 text-[10px] font-semibold tabular-nums text-white"
+                    className="absolute right-1 z-10 -translate-y-1/2 rounded bg-[var(--que-brand)] px-1 py-0.5 text-[10px] font-semibold tabular-nums text-[var(--que-on-brand)]"
                     style={{ top: nowY }}
                   >
                     {format(now!, "hh:mm a")}

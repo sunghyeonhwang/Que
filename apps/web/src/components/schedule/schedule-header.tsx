@@ -133,7 +133,7 @@ export function ScheduleHeader({
             <Button
               aria-label="새로 추가 (준비 중)"
               aria-disabled
-              className="h-10 gap-1.5 rounded-lg bg-[var(--que-brand)] px-3.5 font-medium text-white opacity-60"
+              className="h-10 gap-1.5 rounded-lg bg-[var(--que-brand)] px-3.5 font-medium text-[var(--que-on-brand)] opacity-60"
             />
           }
         >

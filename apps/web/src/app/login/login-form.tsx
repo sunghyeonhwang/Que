@@ -74,7 +74,7 @@ export function LoginForm() {
         <button
           type="submit"
           disabled={pending}
-          className="flex h-12 items-center justify-center rounded-lg bg-[var(--que-brand)] text-base font-semibold text-white transition-colors hover:bg-[var(--que-brand-hover)] disabled:opacity-60"
+          className="flex h-12 items-center justify-center rounded-lg bg-[var(--que-brand)] text-base font-semibold text-[var(--que-on-brand)] transition-colors hover:bg-[var(--que-brand-hover)] disabled:opacity-60"
         >
           {pending ? "로그인 중…" : "로그인"}
         </button>

@@ -76,7 +76,7 @@ export function CreateGroupDialog({ projectId }: { projectId: string }) {
             취소
           </Button>
           <Button
-            className="h-10 bg-[var(--que-brand)] text-white hover:bg-[var(--que-brand-hover)]"
+            className="h-10 bg-[var(--que-brand)] text-[var(--que-on-brand)] hover:bg-[var(--que-brand-hover)]"
             disabled={!canSubmit}
             onClick={submit}
           >

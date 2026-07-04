@@ -84,7 +84,7 @@ export default async function HomePage({
           <MemberAvatars members={home.headerMembers} overflow={home.memberOverflow} size={32} />
           <Link
             href="/today"
-            className="inline-flex h-11 min-h-11 items-center gap-1.5 rounded-lg bg-[var(--que-brand)] px-4 text-sm font-medium text-white transition-colors hover:bg-[var(--que-brand-hover)] focus-visible:ring-3 focus-visible:ring-[var(--que-brand)]/40 focus-visible:outline-none"
+            className="inline-flex h-11 min-h-11 items-center gap-1.5 rounded-lg bg-[var(--que-brand)] px-4 text-sm font-medium text-[var(--que-on-brand)] transition-colors hover:bg-[var(--que-brand-hover)] focus-visible:ring-3 focus-visible:ring-[var(--que-brand)]/40 focus-visible:outline-none"
           >
             <Plus className="size-4" aria-hidden />
             작업 추가

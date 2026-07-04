@@ -133,7 +133,7 @@ export function PaymentForm() {
           />
         </Field>
         <Button
-          className="h-10 rounded-lg bg-[var(--que-brand)] text-white hover:bg-[var(--que-brand-hover)]"
+          className="h-10 rounded-lg bg-[var(--que-brand)] text-[var(--que-on-brand)] hover:bg-[var(--que-brand-hover)]"
           disabled={!canSubmit}
           onClick={submit}
         >

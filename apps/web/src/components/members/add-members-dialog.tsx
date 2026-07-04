@@ -36,7 +36,7 @@ export function AddMembersDialog({ members }: { members: TeamMemberCard[] }) {
     <Dialog>
       <DialogTrigger
         render={
-          <Button className="h-10 gap-1.5 bg-[var(--que-brand)] text-white hover:bg-[var(--que-brand-hover)]" />
+          <Button className="h-10 gap-1.5 bg-[var(--que-brand)] text-[var(--que-on-brand)] hover:bg-[var(--que-brand-hover)]" />
         }
       >
         <Plus className="size-4" aria-hidden />새 멤버
@@ -63,7 +63,7 @@ export function AddMembersDialog({ members }: { members: TeamMemberCard[] }) {
             </SelectContent>
           </Select>
           <Button
-            className="h-10 bg-[var(--que-brand)] text-white hover:bg-[var(--que-brand-hover)]"
+            className="h-10 bg-[var(--que-brand)] text-[var(--que-on-brand)] hover:bg-[var(--que-brand-hover)]"
             onClick={() => toast("데모: 초대가 전송되었습니다")}
           >
             초대 보내기

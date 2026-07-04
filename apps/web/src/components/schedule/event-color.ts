@@ -8,19 +8,25 @@ export interface EventSwatch {
   text: string;
 }
 
-// 파스텔 카테고리 팔레트 (디자인: 보라/초록/파랑/분홍/노랑/청록).
+// 카테고리 팔레트 (보라/초록/파랑/분홍/노랑/청록). 값은 globals.css --ev-* 토큰(라이트=파스텔·
+// 다크=어두운 틴트)을 참조 — 소비처(month-view·week-calendar)가 인라인 style이라 var() 해석됨.
 // 일반 이벤트·작업은 id 해시로 안정 배정한다(같은 항목 = 항상 같은 색).
 const PALETTE: EventSwatch[] = [
-  { bg: "#f3f0ff", border: "#d8ccf7", accent: "#6b4fbb", text: "#3f2d78" }, // violet
-  { bg: "#e9f9ef", border: "#c3ecd1", accent: "#1f8b4c", text: "#155f33" }, // green
-  { bg: "#eaf2ff", border: "#c9ddfb", accent: "#2f6fdb", text: "#204a91" }, // blue
-  { bg: "#fdeef4", border: "#f5cfe0", accent: "#c14b86", text: "#8a3360" }, // pink
-  { bg: "#fef6e6", border: "#f5e2b8", accent: "#a6791b", text: "#775410" }, // amber
-  { bg: "#e7f8f7", border: "#c0e9e6", accent: "#2a8f8a", text: "#1c635f" }, // teal
+  { bg: "var(--ev-violet-bg)", border: "var(--ev-violet-border)", accent: "var(--ev-violet-accent)", text: "var(--ev-violet-text)" },
+  { bg: "var(--ev-green-bg)", border: "var(--ev-green-border)", accent: "var(--ev-green-accent)", text: "var(--ev-green-text)" },
+  { bg: "var(--ev-blue-bg)", border: "var(--ev-blue-border)", accent: "var(--ev-blue-accent)", text: "var(--ev-blue-text)" },
+  { bg: "var(--ev-pink-bg)", border: "var(--ev-pink-border)", accent: "var(--ev-pink-accent)", text: "var(--ev-pink-text)" },
+  { bg: "var(--ev-amber-bg)", border: "var(--ev-amber-border)", accent: "var(--ev-amber-accent)", text: "var(--ev-amber-text)" },
+  { bg: "var(--ev-teal-bg)", border: "var(--ev-teal-border)", accent: "var(--ev-teal-accent)", text: "var(--ev-teal-text)" },
 ];
 
-// 상태 의미 고정 색(파스텔). 문제/취소만 강제로 red, 나머지는 팔레트로 넘긴다.
-const RED: EventSwatch = { bg: "#fdeaea", border: "#f3c9c9", accent: "#c62d2d", text: "#8f2020" };
+// 상태 의미 고정 색. 문제/취소만 강제로 red, 나머지는 팔레트로 넘긴다.
+const RED: EventSwatch = {
+  bg: "var(--ev-red-bg)",
+  border: "var(--ev-red-border)",
+  accent: "var(--ev-red-accent)",
+  text: "var(--ev-red-text)",
+};
 
 /** 문자열 → 안정적 양수 해시 (djb2). */
 function hash(input: string): number {

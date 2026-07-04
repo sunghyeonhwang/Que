@@ -100,6 +100,7 @@
   --que-brand: #3b5bd9;
   --que-brand-hover: #2f49bd;
   --que-brand-subtle: #eef1fb;
+  --que-on-brand: #ffffff; /* 브랜드 배경 위 텍스트(버튼·배지). 다크는 밝은 인디고라 어둡게 반전. */
   --que-text: #14151a;
   --que-text-secondary: #5b5d66;
   --que-text-tertiary: #8a8c96;
@@ -125,6 +126,14 @@
   --heat-2-bg: #86efac; --heat-2-fg: #14532d;
   --heat-3-bg: #22c55e; --heat-3-fg: #06371a; /* 밝은 초록 위 숫자 대비(AA) 위해 어두운 fg */
   --heat-4-bg: #15803d; --heat-4-fg: #ffffff;
+  /* 일정 이벤트 카테고리 스와치(라이트=파스텔). 소비처가 인라인 style이라 var() 해석됨. */
+  --ev-violet-bg: #f3f0ff; --ev-violet-border: #d8ccf7; --ev-violet-accent: #6b4fbb; --ev-violet-text: #3f2d78;
+  --ev-green-bg: #e9f9ef; --ev-green-border: #c3ecd1; --ev-green-accent: #1f8b4c; --ev-green-text: #155f33;
+  --ev-blue-bg: #eaf2ff; --ev-blue-border: #c9ddfb; --ev-blue-accent: #2f6fdb; --ev-blue-text: #204a91;
+  --ev-pink-bg: #fdeef4; --ev-pink-border: #f5cfe0; --ev-pink-accent: #c14b86; --ev-pink-text: #8a3360;
+  --ev-amber-bg: #fef6e6; --ev-amber-border: #f5e2b8; --ev-amber-accent: #a6791b; --ev-amber-text: #775410;
+  --ev-teal-bg: #e7f8f7; --ev-teal-border: #c0e9e6; --ev-teal-accent: #2a8f8a; --ev-teal-text: #1c635f;
+  --ev-red-bg: #fdeaea; --ev-red-border: #f3c9c9; --ev-red-accent: #c62d2d; --ev-red-text: #8f2020;
 }
 
 /* 폰트 스위처 — html[data-ko]/[data-latin] 값으로 활성 폰트 선택(설정 > 모양). */
@@ -181,6 +190,7 @@
   --que-brand: #7488ea;
   --que-brand-hover: #8a9bef;
   --que-brand-subtle: #22243a;
+  --que-on-brand: #10121a; /* 밝은 인디고 배경 위 텍스트는 어둡게(흰 텍스트 3.25:1 미달 해소) */
   --que-success: #57caa0;
   --que-success-bg: #132a20;
   --que-warning: #d6a45c;
@@ -196,6 +206,14 @@
   --heat-2-bg: #006d32; --heat-2-fg: #b9f6ca;
   --heat-3-bg: #26a641; --heat-3-fg: #04260f;
   --heat-4-bg: #39d353; --heat-4-fg: #04260f;
+  /* 일정 이벤트 스와치 다크 — 어두운 틴트 bg·밝은 accent·밝은 text(파스텔 칩이 다크에서 튀는 문제 해소). */
+  --ev-violet-bg: #241a38; --ev-violet-border: #3a2d55; --ev-violet-accent: #b79bf0; --ev-violet-text: #cdbef5;
+  --ev-green-bg: #12271b; --ev-green-border: #1f3d2b; --ev-green-accent: #57caa0; --ev-green-text: #9fe6c2;
+  --ev-blue-bg: #16233c; --ev-blue-border: #24375c; --ev-blue-accent: #7ba0f0; --ev-blue-text: #b3ccf5;
+  --ev-pink-bg: #331a26; --ev-pink-border: #4d2a3c; --ev-pink-accent: #e78bb5; --ev-pink-text: #f2b8d2;
+  --ev-amber-bg: #2a2216; --ev-amber-border: #443722; --ev-amber-accent: #d6a45c; --ev-amber-text: #ecca8f;
+  --ev-teal-bg: #123030; --ev-teal-border: #1f4a49; --ev-teal-accent: #4fbdb6; --ev-teal-text: #9fe0db;
+  --ev-red-bg: #2a1a1d; --ev-red-border: #4a2a2d; --ev-red-accent: #e97078; --ev-red-text: #f2b0b4;
 }
 
 @layer base {

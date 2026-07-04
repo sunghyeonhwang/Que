@@ -71,7 +71,7 @@ function PaymentRowView({ row }: { row: PaymentRow }) {
           {row.canComplete && (
             <Button
               size="sm"
-              className="h-10 rounded-lg bg-[var(--que-brand)] px-3.5 text-white hover:bg-[var(--que-brand-hover)]"
+              className="h-10 rounded-lg bg-[var(--que-brand)] px-3.5 text-[var(--que-on-brand)] hover:bg-[var(--que-brand-hover)]"
               disabled={pending}
               onClick={() => change("done")}
             >

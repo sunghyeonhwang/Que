@@ -81,7 +81,7 @@ export function ProjectFilter({ meta }: { meta: ProjectMeta }) {
       >
         <SlidersHorizontal className="size-4" aria-hidden />
         {activeCount > 0 && (
-          <span className="absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full bg-[var(--que-brand)] text-[10px] font-semibold text-white">
+          <span className="absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full bg-[var(--que-brand)] text-[10px] font-semibold text-[var(--que-on-brand)]">
             {activeCount}
           </span>
         )}

@@ -134,7 +134,7 @@ function FilterChip({ href, active, label }: { href: string; active: boolean; la
       className={cn(
         "flex h-10 items-center rounded-lg border px-3 text-sm font-medium transition-colors",
         active
-          ? "border-transparent bg-[var(--que-brand)] text-white"
+          ? "border-transparent bg-[var(--que-brand)] text-[var(--que-on-brand)]"
           : "border-[var(--que-border)] text-[var(--que-text-secondary)] hover:bg-[var(--que-bg-muted)]",
       )}
     >

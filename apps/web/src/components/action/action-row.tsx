@@ -122,7 +122,7 @@ export function ActionRow({ item }: { item: ActionRowData }) {
           <span className="ml-auto flex gap-2">
             <Button
               size="sm"
-              className="h-10 rounded-lg bg-[var(--que-brand)] px-3.5 text-white hover:bg-[var(--que-brand-hover)]"
+              className="h-10 rounded-lg bg-[var(--que-brand)] px-3.5 text-[var(--que-on-brand)] hover:bg-[var(--que-brand-hover)]"
               disabled={pending || dirty}
               title={dirty ? "먼저 저장해주세요" : undefined}
               onClick={() =>
