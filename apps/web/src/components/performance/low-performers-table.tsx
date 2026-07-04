@@ -11,20 +11,23 @@ import {
 /** 저성과 팀 표 — 이름·부서·기한 초과·완료. 평가가 아니라 부하/병목 진단용. 내부 세로 스크롤 + sticky header. */
 export function LowPerformersTable({ rows }: { rows: LowPerformerRow[] }) {
   return (
-    <div className="max-h-72 overflow-y-auto rounded-lg border border-[var(--que-border)]">
+    <div className="max-h-72 overflow-y-auto rounded-xl border border-[var(--que-border)] bg-white">
       <Table>
-        <TableHeader className="sticky top-0 z-10 bg-[var(--que-bg-muted)]">
+        <TableHeader className="sticky top-0 z-10 bg-white [&_tr]:border-b [&_tr]:border-[var(--que-border)]">
           <TableRow className="hover:bg-transparent">
-            <TableHead className="text-[var(--que-text-secondary)]">멤버</TableHead>
-            <TableHead className="text-[var(--que-text-secondary)]">부서</TableHead>
-            <TableHead className="text-right text-[var(--que-text-secondary)]">기한 초과</TableHead>
-            <TableHead className="text-right text-[var(--que-text-secondary)]">완료</TableHead>
+            <TableHead className="text-xs font-medium text-[var(--que-text-tertiary)]">멤버</TableHead>
+            <TableHead className="text-xs font-medium text-[var(--que-text-tertiary)]">부서</TableHead>
+            <TableHead className="text-right text-xs font-medium text-[var(--que-text-tertiary)]">기한 초과</TableHead>
+            <TableHead className="text-right text-xs font-medium text-[var(--que-text-tertiary)]">완료</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {rows.map((r) => (
-            <TableRow key={r.userId}>
-              <TableCell>
+            <TableRow
+              key={r.userId}
+              className="border-[var(--que-border)] transition-colors hover:bg-[var(--que-bg-muted)]"
+            >
+              <TableCell className="h-11">
                 <span className="flex items-center gap-2">
                   <span
                     className="size-6 shrink-0 rounded-full text-[10px] font-medium text-white"

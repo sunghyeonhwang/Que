@@ -35,7 +35,7 @@ export function MyTaskTable({
         <div
           className={cn(
             GRID,
-            "sticky top-0 z-10 border-b border-[var(--que-border)] bg-[var(--que-bg-muted)] px-4 py-2.5 text-xs font-medium text-[var(--que-text-tertiary)]",
+            "sticky top-0 z-10 border-b border-[var(--que-border)] bg-white px-4 py-2.5 text-xs font-medium text-[var(--que-text-tertiary)]",
           )}
         >
           <span>이름</span>

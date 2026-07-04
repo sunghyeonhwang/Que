@@ -23,7 +23,7 @@ export function NoteSummaryCards({ summary }: { summary: NoteSummary }) {
       {metrics.map((metric) => (
         <div
           key={metric.label}
-          className="rounded-xl border border-[var(--que-border)] bg-white px-4 py-3"
+          className="rounded-xl border border-[var(--que-border)] bg-white px-4 py-3 shadow-[var(--que-shadow-sm)]"
         >
           <p
             className={cn(

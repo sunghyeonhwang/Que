@@ -133,7 +133,7 @@ export default async function TeamPage({
             {data.members.map(({ user: member, items, conflictCount }) => (
               <div
                 key={member.id}
-                className="flex min-h-12 flex-wrap items-center gap-2 border-b py-2 last:border-b-0"
+                className="flex min-h-12 flex-wrap items-center gap-2 border-b border-[var(--que-border)] py-2 last:border-b-0"
               >
                 <span className="flex w-24 shrink-0 items-center gap-2 text-sm font-medium">
                   <span
@@ -150,18 +150,18 @@ export default async function TeamPage({
                 </span>
                 <span className="flex min-w-0 flex-1 flex-wrap gap-1.5">
                   {items.length === 0 && (
-                    <span className="text-xs text-muted-foreground">오늘 일정 없음</span>
+                    <span className="text-xs text-[var(--que-text-tertiary)]">오늘 일정 없음</span>
                   )}
                   {items.map((item) => {
                     const chip = (
                       <span
                         className={
                           item.readonly
-                            ? "flex items-center gap-1 rounded-md border border-dashed px-2 py-1 text-xs text-muted-foreground"
-                            : "flex min-h-10 items-center gap-1 rounded-md border px-2 py-1 text-xs transition-colors hover:bg-accent/50"
+                            ? "flex items-center gap-1 rounded-md border border-dashed border-[var(--que-border)] px-2 py-1 text-xs text-[var(--que-text-tertiary)]"
+                            : "flex min-h-10 items-center gap-1 rounded-md border border-[var(--que-border)] px-2 py-1 text-xs transition-colors hover:bg-[var(--que-bg-muted)]"
                         }
                       >
-                        <span className="tabular-nums text-muted-foreground">
+                        <span className="tabular-nums text-[var(--que-text-tertiary)]">
                           {format(new Date(item.startAt), "HH:mm")}
                         </span>
                         <span className="max-w-40 truncate">{item.title}</span>

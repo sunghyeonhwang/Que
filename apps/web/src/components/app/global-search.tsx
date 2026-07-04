@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -33,6 +33,26 @@ export function GlobalSearch() {
   const [loading, setLoading] = useState(false);
   const reqId = useRef(0);
   const blurTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
+  // 플랫폼 감지 — kbd 힌트 표기용. SSR 스냅샷은 false, 클라이언트에서만 판별(하이드레이션 안전).
+  const isMac = useSyncExternalStore(
+    () => () => {},
+    () => /mac|iphone|ipad|ipod/i.test(navigator.platform),
+    () => false,
+  );
+
+  // ⌘K / Ctrl+K 로 검색 입력에 포커스. 기존 검색 동작은 불변.
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        inputRef.current?.focus();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   // 디바운스 검색 + 최신 요청만 반영(stale 응답 무시).
   // setState는 전부 디바운스 콜백 안에서만 호출한다(effect 본문 직접 호출 금지).
@@ -76,6 +96,7 @@ export function GlobalSearch() {
         aria-hidden
       />
       <Input
+        ref={inputRef}
         type="search"
         role="combobox"
         aria-expanded={showPanel}
@@ -101,8 +122,17 @@ export function GlobalSearch() {
             (e.target as HTMLInputElement).blur();
           }
         }}
-        className="h-11 rounded-full border-[var(--que-border)] bg-[var(--que-bg-muted)] pl-10 text-sm placeholder:text-[var(--que-placeholder)]"
+        className="h-11 rounded-full border-[var(--que-border)] bg-[var(--que-bg-muted)] pl-10 pr-14 text-sm placeholder:text-[var(--que-placeholder)]"
       />
+
+      {!open && query.trim().length === 0 && (
+        <kbd
+          aria-hidden
+          className="pointer-events-none absolute top-1/2 right-3.5 z-10 hidden -translate-y-1/2 items-center gap-0.5 rounded-md border border-[var(--que-border)] bg-[var(--que-bg)] px-1.5 py-0.5 font-sans text-[11px] leading-none font-medium text-[var(--que-text-tertiary)] sm:inline-flex"
+        >
+          {isMac ? "⌘K" : "Ctrl K"}
+        </kbd>
+      )}
 
       {showPanel && (
         <div

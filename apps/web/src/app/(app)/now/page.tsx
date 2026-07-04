@@ -95,32 +95,35 @@ export default async function NowPage({
         ))}
       </div>
 
-      <div className="overflow-x-auto rounded-lg border">
+      <div className="overflow-x-auto rounded-xl border border-[var(--que-border)] bg-white">
         <Table className="min-w-[720px]">
-          <TableHeader className="sticky top-0 bg-background">
-            <TableRow>
-              <TableHead className="w-28">시간/마감</TableHead>
-              <TableHead className="w-24">구분</TableHead>
-              <TableHead>항목</TableHead>
-              <TableHead className="w-24">담당자</TableHead>
-              <TableHead className="w-32">상태</TableHead>
-              <TableHead className="w-40">출처</TableHead>
+          <TableHeader className="sticky top-0 z-10 bg-white [&_tr]:border-b [&_tr]:border-[var(--que-border)]">
+            <TableRow className="hover:bg-transparent">
+              <TableHead className="w-28 text-xs font-medium text-[var(--que-text-tertiary)]">시간/마감</TableHead>
+              <TableHead className="w-24 text-xs font-medium text-[var(--que-text-tertiary)]">구분</TableHead>
+              <TableHead className="text-xs font-medium text-[var(--que-text-tertiary)]">항목</TableHead>
+              <TableHead className="w-24 text-xs font-medium text-[var(--que-text-tertiary)]">담당자</TableHead>
+              <TableHead className="w-32 text-xs font-medium text-[var(--que-text-tertiary)]">상태</TableHead>
+              <TableHead className="w-40 text-xs font-medium text-[var(--que-text-tertiary)]">출처</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {data.rows.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
+              <TableRow className="hover:bg-transparent">
+                <TableCell colSpan={6} className="py-8 text-center text-[var(--que-text-tertiary)]">
                   표시할 항목이 없습니다.
                 </TableCell>
               </TableRow>
             )}
             {data.rows.map((row) => (
-              <TableRow key={row.key} className="min-h-12">
-                <TableCell className="tabular-nums">
+              <TableRow
+                key={row.key}
+                className="border-[var(--que-border)] transition-colors hover:bg-[var(--que-bg-muted)]"
+              >
+                <TableCell className="h-12 tabular-nums">
                   {row.at ? format(new Date(row.at), "HH:mm") : "—"}
                   {row.at && (
-                    <span className="block text-xs text-muted-foreground">
+                    <span className="block text-xs text-[var(--que-text-tertiary)]">
                       {format(new Date(row.at), "M/d")}
                     </span>
                   )}
@@ -135,7 +138,7 @@ export default async function NowPage({
                 </TableCell>
                 <TableCell>
                   {row.assigneeName ?? (
-                    <span className="text-destructive">미지정</span>
+                    <span className="text-[var(--que-error)]">미지정</span>
                   )}
                 </TableCell>
                 <TableCell>
@@ -147,7 +150,7 @@ export default async function NowPage({
                   )}
                   {row.eventLabel && <Badge variant="outline">{row.eventLabel}</Badge>}
                 </TableCell>
-                <TableCell className="text-xs text-muted-foreground">{row.source}</TableCell>
+                <TableCell className="text-xs text-[var(--que-text-tertiary)]">{row.source}</TableCell>
               </TableRow>
             ))}
           </TableBody>

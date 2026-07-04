@@ -10,7 +10,7 @@ export function KpiCard({ kpi, icon: Icon }: { kpi: PerfKpi; icon: LucideIcon })
   const deltaText = direction === "flat" ? "0%" : `${deltaPct > 0 ? "+" : ""}${deltaPct}%`;
 
   return (
-    <div className="flex flex-col gap-3 rounded-xl border border-[var(--que-border)] bg-white p-4">
+    <div className="flex flex-col gap-3 rounded-xl border border-[var(--que-border)] bg-white p-4 shadow-[var(--que-shadow-sm)]">
       <div className="flex items-center justify-between gap-2">
         <span className="flex size-9 items-center justify-center rounded-lg bg-[var(--que-brand-subtle)] text-[var(--que-brand)]">
           <Icon className="size-[18px]" aria-hidden />
