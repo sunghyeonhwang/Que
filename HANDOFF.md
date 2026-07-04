@@ -1,6 +1,6 @@
 # Que 핸드오프 문서
 
-마지막 업데이트: 2026-07-03
+마지막 업데이트: 2026-07-04
 
 ---
 
@@ -42,6 +42,31 @@ mock 인증: 쿠키 `que-user=<id>` / PAT `que_pat_<id>` (예: `hwang-sunghyeon`
 - **글래도스 게이트**: 의미 있는 변경은 커밋 전 글래도스(general-purpose+페르소나 주입, `model:fable`) 적대적 심사 — 커스텀 `glados` 서브에이전트가 이번 세션 레지스트리에 안 잡혀 우회 중.
 
 상세 이력은 아래 번호 항목(1~39)과 "남은 작업" 절 참고.
+
+---
+
+## 디자인 리프레시 (`design/modern-neutral` 브랜치, 2026-07-04) — main 미병합
+
+전면 재스킨을 별도 브랜치에 쌓는 중. **main·프로덕션(que-rouge-eight)은 무영향.** 커밋: `231a50f`(P1 토큰) → `94fa764`(P2 표면/배지) → `77d1487`(P3 ⌘K·다크·밀도·폰트설정) → `89f0a80`(폴리시) → 차트/로그인/violet 토큰화(글래도스 반려 후 수정).
+
+### 방향·기본값
+- **퓨어 Attio**: 뉴트럴 지배·저채도 인디고 액센트(`--que-brand #3b5bd9`)·하이라인 보더·소프트 elevation(그림자 '속삭이듯'). `globals.css` `--que-*` 토큰이 정본.
+- **기본 폰트 SUIT(한글) + Inter Tight(영문)**. `/settings > 모양`에서 테마(라이트/다크)·밀도(기본16px/컴팩트15px)·한글폰트(SUIT/Pretendard/Noto/시스템)·영문폰트(Inter Tight/시스템) 개별 선택. **쿠키 기반 SSR**(html[data-ko]/[data-latin]/[data-density]/.dark)로 FOUC 없음.
+- **⌘K 커맨드 팔레트**(`components/app/command-palette.tsx`): 이동+검색+빠른액션. 전역검색은 ⌘K 힌트 제거(팔레트가 소유).
+
+### 토큰 결정(다음 세션이 알아야 함)
+- **한글 타이포**: 본문 line-height 1.5~1.65, body letter-spacing −1.1%, 헤딩 크기별 트래킹 토큰 `--text-{lg..4xl}--letter-spacing` = **−1.4%~−2.7%**(클수록 조임, Attio display). Bold→SemiBold 매핑.
+- **히트맵 램프 `--heat-{1..4}-{bg,fg}`**(라이트=파스텔→진초록 / 다크=GitHub 다크 기여 램프 `#0e4429/#006d32/#26a641/#39d353` + 밝은 초록 숫자). `performance-heatmap`·`member-contribution-grid` 공통 참조. 라이트 heat-3 fg는 대비(AA) 위해 흰색→진초록(#06371a).
+- **violet 의미색 신설 `--que-violet`/`--que-violet-bg`**(라이트/다크): 회의록·응답대기(CLAUDE.md 의미색). `tone-badge`·`note-summary-cards`가 참조. 기존 `bg-violet-50/text-violet-700`(다크 미대응) 대체.
+- **차트 구조색은 토큰**(그리드=`--que-border`, 틱=`--que-text-tertiary/secondary`, 커서=`--que-bg-muted`). `home-data` STATUS_COLOR·이벤트 dot도 `--que-*`(소비처가 인라인 backgroundColor·SVG Cell fill이라 var() 해석).
+
+### 의도적 하드코딩 예외(팔레트색 '잔여 0' 아님 — 아래는 의도)
+- **차트 데이터 계열색 고정**(라이트/다크 공용): `performance-line-chart` #157f2f/#d97706/#e33030, `overdue-area-chart` #d97706 — 계열 구분 신호색이라 테마 무관 고정(주석 명시).
+- `notifications-bell` `bg-violet-500`(알림 dot), `pm-data` 그룹 기본색(#3388ff/#9ca3af, 데이터 성격·/projects 프리뷰).
+
+### 알려진 후속(이번 폴리시 범위 밖)
+- **`components/schedule/event-color.ts`**: 캘린더 이벤트 카테고리 스와치(violet/green/blue/pink/amber/teal/red)가 **라이트 전용** → 다크 캘린더에서 밝은 파스텔 칩. 다크 변형 팔레트 필요(7카테고리×4속성).
+- **다크 로그인 버튼**: white on `--que-brand(#7488ea)` = 3.25:1(대형 텍스트 경계) — 다크에서 버튼 텍스트 반전 검토.
 
 ---
 

@@ -261,7 +261,7 @@ function DrawerBody({
               >
                 <span
                   className="size-2 shrink-0 rounded-full"
-                  style={{ backgroundColor: currentGroup?.color ?? "#9ca3af" }}
+                  style={{ backgroundColor: currentGroup?.color ?? "var(--que-text-tertiary)" }}
                   aria-hidden
                 />
                 <SelectValue />

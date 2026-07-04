@@ -14,6 +14,7 @@ import type { PerformancePoint } from "@/lib/performance-data";
 import { ChartTooltip } from "./chart-tooltip";
 
 // 상태 색 의미 고정: 완료=green, 새작업=amber, 기한초과=red.
+// 데이터 계열색은 라이트/다크 공용 고정 팔레트(계열 구분 우선). 차트 구조색(그리드·틱)만 --que-* 토큰.
 const SERIES = [
   { key: "completed", name: "완료", color: "#157f2f" },
   { key: "created", name: "새 작업", color: "#d97706" },
@@ -26,18 +27,18 @@ export function PerformanceLineChart({ data }: { data: PerformancePoint[] }) {
     <div className="h-56 w-full">
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={data} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#e3e3e8" vertical={false} />
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--que-border)" vertical={false} />
           <XAxis
             dataKey="label"
             tickLine={false}
             axisLine={false}
-            tick={{ fill: "#74747d", fontSize: 12 }}
+            tick={{ fill: "var(--que-text-tertiary)", fontSize: 12 }}
           />
           <YAxis
             tickLine={false}
             axisLine={false}
             width={40}
-            tick={{ fill: "#74747d", fontSize: 12 }}
+            tick={{ fill: "var(--que-text-tertiary)", fontSize: 12 }}
           />
           <Tooltip content={<ChartTooltip unit="건" />} />
           <Legend

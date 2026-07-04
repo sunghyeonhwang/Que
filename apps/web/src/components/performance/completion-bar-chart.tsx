@@ -20,25 +20,25 @@ export function CompletionBarChart({ data }: { data: MonthlyCompletion[] }) {
         <BarChart data={data} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
           <defs>
             <linearGradient id="que-bar-blue" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#3388ff" stopOpacity={0.95} />
-              <stop offset="100%" stopColor="#3388ff" stopOpacity={0.35} />
+              <stop offset="0%" stopColor="var(--que-brand)" stopOpacity={0.95} />
+              <stop offset="100%" stopColor="var(--que-brand)" stopOpacity={0.35} />
             </linearGradient>
           </defs>
-          <CartesianGrid strokeDasharray="3 3" stroke="#e3e3e8" vertical={false} />
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--que-border)" vertical={false} />
           <XAxis
             dataKey="label"
             tickLine={false}
             axisLine={false}
-            tick={{ fill: "#74747d", fontSize: 12 }}
+            tick={{ fill: "var(--que-text-tertiary)", fontSize: 12 }}
           />
           <YAxis
             tickLine={false}
             axisLine={false}
             width={40}
-            tick={{ fill: "#74747d", fontSize: 12 }}
+            tick={{ fill: "var(--que-text-tertiary)", fontSize: 12 }}
           />
           <Tooltip
-            cursor={{ fill: "#3388ff", fillOpacity: 0.08 }}
+            cursor={{ fill: "var(--que-brand)", fillOpacity: 0.08 }}
             content={<ChartTooltip unit="건" />}
           />
           <Bar

@@ -18,7 +18,7 @@ export function ChartTooltip({
           <li key={String(entry.dataKey)} className="flex items-center gap-2">
             <span
               className="size-2.5 shrink-0 rounded-[3px]"
-              style={{ backgroundColor: entry.color ?? "#74747d" }}
+              style={{ backgroundColor: entry.color ?? "var(--que-text-tertiary)" }}
               aria-hidden
             />
             <span className="text-[var(--que-text-secondary)]">{entry.name}</span>

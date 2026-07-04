@@ -29,7 +29,7 @@ export function TaskDistributionChart({ data }: { data: HomeDistributionRow[] })
             allowDecimals={false}
             tickLine={false}
             axisLine={false}
-            tick={{ fill: "#74747d", fontSize: 12 }}
+            tick={{ fill: "var(--que-text-tertiary)", fontSize: 12 }}
           />
           <YAxis
             type="category"
@@ -37,9 +37,9 @@ export function TaskDistributionChart({ data }: { data: HomeDistributionRow[] })
             width={56}
             tickLine={false}
             axisLine={false}
-            tick={{ fill: "#55555e", fontSize: 12 }}
+            tick={{ fill: "var(--que-text-secondary)", fontSize: 12 }}
           />
-          <Tooltip cursor={{ fill: "#f4f4f6" }} content={<ChartTooltip unit="건" />} />
+          <Tooltip cursor={{ fill: "var(--que-bg-muted)" }} content={<ChartTooltip unit="건" />} />
           <Bar dataKey="value" name="활성 작업" radius={[0, 4, 4, 0]} maxBarSize={20}>
             {data.map((row) => (
               <Cell key={row.id} fill={row.color} />

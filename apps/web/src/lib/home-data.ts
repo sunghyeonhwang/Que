@@ -71,15 +71,16 @@ export interface HomeData {
 }
 
 // 상태색(의미 고정): green=진행/완료, blue=예정/정보, amber=주의/대기, red=문제/취소.
+// --que-* 토큰이라 다크모드 대응(소비처가 인라인 backgroundColor·SVG Cell fill이라 var() 해석됨).
 const STATUS_COLOR: Record<TaskStatus, string> = {
-  scheduled: "#3388ff",
-  in_progress: "#157f2f",
-  done: "#157f2f",
-  needs_reschedule: "#9a6300",
-  on_hold: "#9a6300",
-  issue: "#e33030",
-  cancelled: "#e33030",
-  merged: "#9ca3af",
+  scheduled: "var(--que-brand)",
+  in_progress: "var(--que-success)",
+  done: "var(--que-success)",
+  needs_reschedule: "var(--que-warning)",
+  on_hold: "var(--que-warning)",
+  issue: "var(--que-error)",
+  cancelled: "var(--que-error)",
+  merged: "var(--que-text-tertiary)",
 };
 
 export interface HomeOptions {
@@ -168,7 +169,7 @@ export async function getHomeData(
       timeLabel: t.startAt
         ? `${fmtTime(t.startAt)}${t.endAt ? ` - ${fmtTime(t.endAt)}` : ""}`
         : "시간 미정",
-      color: STATUS_COLOR[t.status] ?? "#9ca3af",
+      color: STATUS_COLOR[t.status] ?? "var(--que-text-tertiary)",
     }));
 
   const scheduleEvents: HomeScheduleItem[] = db.calendarEvents
@@ -185,7 +186,7 @@ export async function getHomeData(
           ? "자리비움"
           : e.title,
       timeLabel: `${fmtTime(e.startAt)} - ${fmtTime(e.endAt)}`,
-      color: "#74747d",
+      color: "var(--que-text-tertiary)",
     }));
 
   const schedule = [...scheduleTasks, ...scheduleEvents].sort((a, b) =>

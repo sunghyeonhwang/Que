@@ -123,7 +123,7 @@
   /* 히트맵 초록 강도(0~4) — 테마 대응. 라이트=파스텔→진초록, 셀 숫자 대비를 fg로 함께 관리. */
   --heat-1-bg: #dcfce7; --heat-1-fg: #166534;
   --heat-2-bg: #86efac; --heat-2-fg: #14532d;
-  --heat-3-bg: #22c55e; --heat-3-fg: #ffffff;
+  --heat-3-bg: #22c55e; --heat-3-fg: #06371a; /* 밝은 초록 위 숫자 대비(AA) 위해 어두운 fg */
   --heat-4-bg: #15803d; --heat-4-fg: #ffffff;
 }
 

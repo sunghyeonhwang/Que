@@ -12,7 +12,8 @@ import {
 import type { OverduePoint } from "@/lib/performance-data";
 import { ChartTooltip } from "./chart-tooltip";
 
-/** 기한 초과 추이(영역) — 앰버(주의). 주별 기한 초과(마감 지남·미완료) 수. */
+/** 기한 초과 추이(영역) — 앰버(주의). 주별 기한 초과(마감 지남·미완료) 수.
+ *  계열색 #d97706은 라이트/다크 공용 고정(계열 신호색). 구조색(그리드·틱)만 --que-* 토큰. */
 export function OverdueAreaChart({ data }: { data: OverduePoint[] }) {
   return (
     <div className="h-56 w-full">
@@ -24,18 +25,18 @@ export function OverdueAreaChart({ data }: { data: OverduePoint[] }) {
               <stop offset="100%" stopColor="#d97706" stopOpacity={0.02} />
             </linearGradient>
           </defs>
-          <CartesianGrid strokeDasharray="3 3" stroke="#e3e3e8" vertical={false} />
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--que-border)" vertical={false} />
           <XAxis
             dataKey="label"
             tickLine={false}
             axisLine={false}
-            tick={{ fill: "#74747d", fontSize: 12 }}
+            tick={{ fill: "var(--que-text-tertiary)", fontSize: 12 }}
           />
           <YAxis
             tickLine={false}
             axisLine={false}
             width={40}
-            tick={{ fill: "#74747d", fontSize: 12 }}
+            tick={{ fill: "var(--que-text-tertiary)", fontSize: 12 }}
           />
           <Tooltip content={<ChartTooltip unit="건" />} />
           <Area
