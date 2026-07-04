@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ExternalLink, Terminal, Bot, KeyRound, ShieldCheck } from "lucide-react";
+import { ExternalLink, Terminal, Bot, KeyRound, ShieldCheck, MessageSquareQuote } from "lucide-react";
 import { emailForUser } from "@que/core";
 import { PageHeader } from "@/components/app/page-header";
 import { CopyBlock } from "@/components/tools/copy-block";
@@ -12,6 +12,18 @@ export const dynamic = "force-dynamic";
 const PROD_URL = "https://que.griff.co.kr";
 const DOC_URL =
   "https://github.com/sunghyeonhwang/Que/blob/main/data/docs/que-tools-guide.md";
+
+// 자주 쓰는 AI(MCP) 자연어 명령 예시. 전체 186개는 que-tools-guide.md의 'AI 명령어 세트' 참고.
+const AI_EXAMPLES: { ko: string; tools: string[] }[] = [
+  { ko: "오늘 내 Que 일정 요약해주고, 못 끝낼 것 같은 건 내일로 옮겨줘.", tools: ["get_my_day", "move_task"] },
+  { ko: "내일 오후 3시에 상세페이지 QA 잡아줘. 두 시간쯤 걸릴 듯.", tools: ["parse_task_input", "create_task"] },
+  { ko: "그 작업 API 오류로 막혔어. 오승훈한테 도움 요청하고 오후 3시에 재확인. issue로 올려줘.", tools: ["change_task_status"] },
+  { ko: "지금 대기 중인 체크인 있어? 첫 번째 건 작업중으로 답해줘.", tools: ["get_my_day", "respond_checkin"] },
+  { ko: "이 회의록 액션 담당 김리원, 마감 금요일로 넣고 Task로 확정해줘.", tools: ["update_action_item", "confirm_action"] },
+  { ko: "지금 팀에서 막혀 있는 사람 있어? 이슈 난 거 위주로.", tools: ["get_now_board"] },
+  { ko: "대기 중인 결제 요청 보여줘. 마감 지난 거 있으면 위에.", tools: ["list_payment_requests"] },
+  { ko: "김리원 디자인 작업에 '아이콘 두 단계만 키워주세요' 댓글 남겨줘.", tools: ["add_task_comment"] },
+];
 
 export default async function ToolsPage() {
   const user = await getCurrentUser();
@@ -133,6 +145,41 @@ que pay list                                 # 결제 요청 목록`}
           <p className="mt-2 text-xs text-[var(--que-text-tertiary)]">
             ※ Gemini 웹앱은 로컬 MCP를 직접 연결하지 못합니다 → Gemini CLI를 사용하세요. Cursor·VS Code 등도 같은 형식으로 등록됩니다.
           </p>
+        </Card>
+
+        {/* AI 명령어 예시 */}
+        <Card icon={MessageSquareQuote} title="자주 쓰는 AI 명령 예시">
+          <p className="mb-3 text-sm text-[var(--que-text-secondary)]">
+            연결하고 나면 이렇게 말하면 됩니다. 전체 <b className="font-semibold text-[var(--que-text)]">186개</b> 예시는{" "}
+            <Link href={DOC_URL} target="_blank" rel="noreferrer" className="text-[var(--que-brand)] hover:underline">
+              전체 문서
+            </Link>
+            의 ‘AI 명령어 세트’를 참고하세요.
+          </p>
+          <ul className="flex flex-col gap-2">
+            {AI_EXAMPLES.map((ex) => (
+              <li
+                key={ex.ko}
+                className="rounded-lg border border-[var(--que-border)] bg-[var(--que-bg-muted)] px-3 py-2.5"
+              >
+                <p className="text-sm text-[var(--que-text)]">
+                  <span className="font-semibold text-[var(--que-brand)]">“</span>
+                  {ex.ko}
+                  <span className="font-semibold text-[var(--que-brand)]">”</span>
+                </p>
+                <p className="mt-1.5 flex flex-wrap gap-1.5">
+                  {ex.tools.map((t) => (
+                    <code
+                      key={t}
+                      className="rounded bg-[var(--que-violet-bg)] px-1.5 py-0.5 text-[11px] text-[var(--que-violet)]"
+                    >
+                      {t}
+                    </code>
+                  ))}
+                </p>
+              </li>
+            ))}
+          </ul>
         </Card>
 
         {/* 도구 요약 */}
