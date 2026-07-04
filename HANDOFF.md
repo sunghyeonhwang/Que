@@ -92,8 +92,13 @@ mock 인증: 쿠키 `que-user=<id>` / PAT `que_pat_<id>` (예: `hwang-sunghyeon`
 - **알려진 한계(정직 기록)**: ① JWT 세션(`auth.ts` `maxAge=7일` 명시)이라 **설정에서 본인 비번을 바꿔도/관리자가 재설정해도 다른 기기의 기존 세션은 최대 7일 유지**된다(강제 변경 완료·본인 재로그인은 signOut으로 즉시 무효화). 관리자 재설정 카드도 "기존 세션 최대 7일 유지" 명시. 즉시 강제 로그아웃이 필요하면 후속으로 JWT에 `password_changed_at`을 넣고 세션 콜백에서 대조해야 함(현재 미구현). ② `must_change_password` 리다이렉트는 `(app)` **페이지 렌더링**만 막는다 — 서버 액션·`/api/*`(PAT 경로)는 별개(인증된 사용자 대상 넛지라 수용). ③ 잠긴 사용자에겐 "비번 틀림"으로만 응답(전용 잠금 메시지 미노출).
 - **운영 주의**: 개인 비번 배포(`set-passwords.sql`) 시 `must_change_password=true`로 넣으면 첫 로그인에 강제 변경됨(권장). 현재 전원 `good121930`·must_change=false.
 
+### 액세스 토큰 셀프 발급 (B-3, 커밋 `d1a69a8`)
+- **설정 › 액세스 토큰(MCP·CLI)**: 팀원이 직접 PAT 발급/폐기. 평문 발급 순간 1회만 표시, DB엔 SHA-256 해시만(`lib/auth/tokens.ts`, `api/auth.ts` `hashToken` 단일 출처 재사용). 폐기는 `user_id` 스코프 소프트(`revoked_at`) → 즉시 401. 활성 상한 10·라벨 필수. `settings/token-actions.ts`+`components/settings/token-settings.tsx`, `settings/page.tsx`가 `listPats` 로드. tools 화면 안내를 셀프 발급으로 교체.
+- **컷오버 보류(글래도스 승인한 결정)**: mock PAT 폴백(`api/auth.ts` L54-58) 제거·`mock/tokens.ts` 삭제는 **안 함**. 이유: 프로덕션은 이미 mock PAT를 이중 차단(resolveToken supabase 분기만 도달 + `NODE_ENV=production`+옵트인 부재로 503, `que_pat_<id>` 실측 401) → 수용기준4 이미 충족. 제거 시 로컬 dev MCP/CLI mock 테스트가 깨짐. **후속 순서(계획서 준수)**: 발급 UI 배포 → 팀 8명 각자 설정에서 재발급·CLI/MCP `QUE_TOKEN` 교체 → **그 다음** mock 폴백 제거+`mock/tokens.ts` 삭제(+ 이후 별도로 `QUE_ALLOW_MOCK_AUTH` 완전 제거, 단 이 플래그는 로그인 mock도 게이트하므로 신중). 현재 프로덕션 PAT 7개(전원 label='initial') 유지 중.
+- **비차단 후속**: 폐기/복사 버튼 40px 상향(현 36px), MAX_ACTIVE TOCTOU(8인 무시 가능), revokePat 0행에도 ok:true.
+
 ### MCP · CLI (`/tools`, 커밋 `1038e8e`·`931faee`)
-- 터미널(CLI)·AI(MCP)로 Que 쓰는 온보딩 화면. 현재 사용자 맞춤(계정·mock 토큰 형식 `que_pat_<id>`), 복사 가능한 설정 블록, Claude Code/Desktop·Gemini CLI 등록법. **조회 전용, 실 PAT 미노출**(운영자 요청 안내).
+- 터미널(CLI)·AI(MCP)로 Que 쓰는 온보딩 화면. 현재 사용자 맞춤(계정·mock 토큰 형식 `que_pat_<id>`), 복사 가능한 설정 블록, Claude Code/Desktop·Gemini CLI 등록법. **실 PAT는 이제 설정 › 액세스 토큰에서 셀프 발급**(B-3, 아래) — tools 화면이 그리로 안내.
 - **전체 레퍼런스**: `data/docs/que-tools-guide.md` — CLI 19명령·MCP 19도구 전체 + **§7 AI 명령어 세트 186개**(8카테고리 표). MCP 실행: `pnpm -C <repo> --filter @que/mcp start`, env `QUE_API_URL`(=que.griff.co.kr)·`QUE_TOKEN`(PAT).
 - AI 명령어 세트 인터랙티브 렌더본(검색·복사)은 별도 Artifact로 사용자에게 제공.
 

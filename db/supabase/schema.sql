@@ -205,6 +205,8 @@ create table if not exists personal_access_tokens (
   created_at timestamptz not null default now(),
   revoked_at timestamptz
 );
+-- 설정 화면 본인 활성 토큰 목록 쿼리용(B-3). 프로덕션 적용됨.
+create index if not exists idx_pat_user on personal_access_tokens (user_id) where revoked_at is null;
 
 -- 조회 패턴 기반 인덱스
 create index if not exists idx_tasks_assignee_start on tasks (assignee_id, start_at);
