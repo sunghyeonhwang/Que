@@ -10,7 +10,7 @@ const TONE: Record<BadgeTone, string> = {
   blue: "bg-[var(--que-brand-subtle)] text-[var(--que-brand)]",
   amber: "bg-[var(--que-warning-bg)] text-[var(--que-warning)]",
   red: "bg-[var(--que-error-bg)] text-[var(--que-error)]",
-  violet: "bg-violet-50 text-violet-700",
+  violet: "bg-[var(--que-violet-bg)] text-[var(--que-violet)]",
   neutral: "bg-[var(--que-bg-muted)] text-[var(--que-text-secondary)]",
 };
 

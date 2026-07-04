@@ -55,7 +55,7 @@ export function TaskCardMenu({
               onPointerDown={stop}
               onClick={stop}
               className={cn(
-                "relative z-20 inline-flex size-10 items-center justify-center rounded-lg text-[var(--que-text-secondary)] transition-colors hover:bg-black/5 focus-visible:outline-2 focus-visible:outline-[var(--que-brand)] data-[popup-open]:bg-black/5",
+                "relative z-20 inline-flex size-10 items-center justify-center rounded-lg text-[var(--que-text-secondary)] transition-colors hover:bg-[var(--que-bg-muted)] focus-visible:outline-2 focus-visible:outline-[var(--que-brand)] data-[popup-open]:bg-[var(--que-bg-muted)]",
                 className,
               )}
             />

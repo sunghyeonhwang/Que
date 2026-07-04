@@ -6,13 +6,13 @@ import { cn } from "@/lib/utils";
 
 // 히트맵(서버, 정적) — 초록 강도 5단계 그리드. 태블릿 우선(hover 없음)·색약 대응을 위해
 // 색 단독이 아니라 기여 수치(count)를 셀 안에 함께 표기하고 하단 범례를 둔다.
-// 팔레트는 performance-heatmap과 동일하게 맞춘다.
+// 팔레트는 globals.css --heat-* 토큰(performance-heatmap과 동일, 테마 대응)을 참조한다.
 const GREEN = [
   { bg: "bg-[var(--que-bg)]", fg: "text-transparent" },
-  { bg: "bg-[#dcfce7]", fg: "text-[#166534]" },
-  { bg: "bg-[#86efac]", fg: "text-[#14532d]" },
-  { bg: "bg-[#22c55e]", fg: "text-white" },
-  { bg: "bg-[#15803d]", fg: "text-white" },
+  { bg: "bg-[var(--heat-1-bg)]", fg: "text-[var(--heat-1-fg)]" },
+  { bg: "bg-[var(--heat-2-bg)]", fg: "text-[var(--heat-2-fg)]" },
+  { bg: "bg-[var(--heat-3-bg)]", fg: "text-[var(--heat-3-fg)]" },
+  { bg: "bg-[var(--heat-4-bg)]", fg: "text-[var(--heat-4-fg)]" },
 ];
 
 const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];

@@ -19,14 +19,14 @@ export function LoginForm() {
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/auth/logo.svg" alt="Que" className="size-[70px]" />
         <div className="flex flex-col items-center gap-0.5 text-center">
-          <h1 className="text-2xl font-medium text-[#0d0d12]">다시 오셨군요!</h1>
-          <p className="text-sm text-[#55555e]">여기서 프로젝트와 작업을 관리하세요.</p>
+          <h1 className="text-2xl font-medium text-[var(--que-text)]">다시 오셨군요!</h1>
+          <p className="text-sm text-[var(--que-text-secondary)]">여기서 프로젝트와 작업을 관리하세요.</p>
         </div>
       </div>
 
       <form action={formAction} className="flex w-full flex-col gap-5">
         <div className="flex flex-col gap-1.5">
-          <label htmlFor="email" className="text-sm font-medium text-[#0d0d12]">
+          <label htmlFor="email" className="text-sm font-medium text-[var(--que-text)]">
             이메일
           </label>
           <input
@@ -36,12 +36,12 @@ export function LoginForm() {
             autoComplete="username"
             required
             placeholder="이메일 주소 입력"
-            className="h-11 rounded-[10px] border border-[#e3e3e8] bg-[var(--que-bg)] px-3 text-sm text-[#0d0d12] outline-none placeholder:text-[#a0a0a8] focus:border-[#3388ff] focus:ring-2 focus:ring-[#3388ff]/20"
+            className="h-11 rounded-[10px] border border-[var(--que-border-strong)] bg-[var(--que-bg)] px-3 text-sm text-[var(--que-text)] outline-none placeholder:text-[var(--que-placeholder)] focus:border-[var(--que-brand)] focus:ring-2 focus:ring-[var(--que-brand)]/20"
           />
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <label htmlFor="password" className="text-sm font-medium text-[#0d0d12]">
+          <label htmlFor="password" className="text-sm font-medium text-[var(--que-text)]">
             비밀번호
           </label>
           <div className="relative">
@@ -52,13 +52,13 @@ export function LoginForm() {
               autoComplete="current-password"
               required
               placeholder="비밀번호 입력"
-              className="h-11 w-full rounded-[10px] border-[1.5px] border-[#e3e3e8] bg-[var(--que-bg)] pr-11 pl-3 text-sm text-[#0d0d12] outline-none placeholder:text-[#a0a0a8] focus:border-[#3388ff] focus:ring-2 focus:ring-[#3388ff]/20"
+              className="h-11 w-full rounded-[10px] border-[1.5px] border-[var(--que-border-strong)] bg-[var(--que-bg)] pr-11 pl-3 text-sm text-[var(--que-text)] outline-none placeholder:text-[var(--que-placeholder)] focus:border-[var(--que-brand)] focus:ring-2 focus:ring-[var(--que-brand)]/20"
             />
             <button
               type="button"
               onClick={() => setShowPw((v) => !v)}
               aria-label={showPw ? "비밀번호 숨기기" : "비밀번호 표시"}
-              className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-[#a0a0a8] hover:text-[#55555e]"
+              className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-[var(--que-placeholder)] hover:text-[var(--que-text-secondary)]"
             >
               {showPw ? <EyeOff className="size-5" aria-hidden /> : <Eye className="size-5" aria-hidden />}
             </button>
@@ -66,7 +66,7 @@ export function LoginForm() {
         </div>
 
         {state.error && (
-          <p role="alert" className="-mt-2 text-center text-sm text-red-600">
+          <p role="alert" className="-mt-2 text-center text-sm text-[var(--que-error)]">
             {state.error}
           </p>
         )}
@@ -74,7 +74,7 @@ export function LoginForm() {
         <button
           type="submit"
           disabled={pending}
-          className="flex h-12 items-center justify-center rounded-lg bg-[#3388ff] text-base font-semibold text-white transition-colors hover:bg-[#2a78ee] disabled:opacity-60"
+          className="flex h-12 items-center justify-center rounded-lg bg-[var(--que-brand)] text-base font-semibold text-white transition-colors hover:bg-[var(--que-brand-hover)] disabled:opacity-60"
         >
           {pending ? "로그인 중…" : "로그인"}
         </button>

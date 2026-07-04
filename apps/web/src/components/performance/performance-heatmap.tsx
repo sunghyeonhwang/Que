@@ -4,12 +4,13 @@ import type { HeatmapData } from "@/lib/heatmap-data";
 import { cn } from "@/lib/utils";
 
 // 초록 강도 5단계(0~4) + 수치 병기 — 색 단독 구분을 피한다(접근성).
+// 팔레트는 globals.css의 --heat-* 토큰(테마 대응: 라이트=파스텔, 다크=진초록)을 참조한다.
 const GREEN = [
   { bg: "bg-[var(--que-bg)]", fg: "text-transparent", label: "없음" },
-  { bg: "bg-[#dcfce7]", fg: "text-[#166534]", label: "낮음" },
-  { bg: "bg-[#86efac]", fg: "text-[#14532d]", label: "" },
-  { bg: "bg-[#22c55e]", fg: "text-white", label: "" },
-  { bg: "bg-[#15803d]", fg: "text-white", label: "높음" },
+  { bg: "bg-[var(--heat-1-bg)]", fg: "text-[var(--heat-1-fg)]", label: "낮음" },
+  { bg: "bg-[var(--heat-2-bg)]", fg: "text-[var(--heat-2-fg)]", label: "" },
+  { bg: "bg-[var(--heat-3-bg)]", fg: "text-[var(--heat-3-fg)]", label: "" },
+  { bg: "bg-[var(--heat-4-bg)]", fg: "text-[var(--heat-4-fg)]", label: "높음" },
 ];
 
 /** 히트맵(멤버×일) — 초록 강도 그리드. heatmap-data 재사용. 내부 가로 스크롤. */

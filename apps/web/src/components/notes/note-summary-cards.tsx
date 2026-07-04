@@ -7,7 +7,7 @@ const TONE: Record<string, string> = {
   neutral: "text-[var(--que-text)]",
   amber: "text-[var(--que-warning)]",
   blue: "text-[var(--que-brand)]",
-  violet: "text-violet-700",
+  violet: "text-[var(--que-violet)]",
 };
 
 export function NoteSummaryCards({ summary }: { summary: NoteSummary }) {
