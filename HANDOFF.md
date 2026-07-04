@@ -72,6 +72,23 @@ mock 인증: 쿠키 `que-user=<id>` / PAT `que_pat_<id>` (예: `hwang-sunghyeon`
 
 ---
 
+## 기타 화면 신설 (2026-07-04) — 온보딩/도움
+
+메뉴 `기타` 섹션 = 결제요청 · **MCP·CLI** · **도움말** · 설정 (`menu.ts` 정본, CLAUDE.md 동기화됨).
+
+### MCP · CLI (`/tools`, 커밋 `1038e8e`·`931faee`)
+- 터미널(CLI)·AI(MCP)로 Que 쓰는 온보딩 화면. 현재 사용자 맞춤(계정·mock 토큰 형식 `que_pat_<id>`), 복사 가능한 설정 블록, Claude Code/Desktop·Gemini CLI 등록법. **조회 전용, 실 PAT 미노출**(운영자 요청 안내).
+- **전체 레퍼런스**: `data/docs/que-tools-guide.md` — CLI 19명령·MCP 19도구 전체 + **§7 AI 명령어 세트 186개**(8카테고리 표). MCP 실행: `pnpm -C <repo> --filter @que/mcp start`, env `QUE_API_URL`(=que.griff.co.kr)·`QUE_TOKEN`(PAT).
+- AI 명령어 세트 인터랙티브 렌더본(검색·복사)은 별도 Artifact로 사용자에게 제공.
+
+### 도움말 (`/help`, 커밋 `452c3cb`→수정 `6fe52d2`)
+- **비개발 팀원용 사용 설명서.** 8섹션(소개·처음시작 / 홈·일정 / 성과·작업목록 / 팀·팀현황 / 확인필요·결제 / 설정·MCP안내 / 자주하는일 / 규칙·FAQ·문제해결). 왼쪽 목차(스크롤 스파이) + 섹션 카드, 해요체·단계별.
+- **콘텐츠 정본**: `apps/web/src/app/(app)/help/help-content.ts`(HELP_SECTIONS md 배열, 편집 가능). 렌더: `help-markdown.ts`(경량 MD→HTML, 신뢰 콘텐츠라 dangerouslySetInnerHTML) + `globals.css` `.help-prose`(토큰 기반 다크 대응). 목차: `help-toc.tsx`(IntersectionObserver).
+- 콘텐츠는 화면을 근거로 병렬 초안(워크플로) 후 **글래도스 콘텐츠 검수**. 반려 4건 수정: ①로그인 이메일 예시 한글→로마자 실형식(`users.ts`는 명시 맵, 유도 불가) ②설정에 없는 '글자 크기' 문구 삭제 ③운영보드 라벨 '재조정 필요'→'시간변경필요'(`labels.ts`) ④좁은 화면 메뉴 ≡→옆 서랍(`mobile-nav.tsx`). 권고 3건(팀원별 표·관리자/담당자 예외·하루 마감 보완)도 반영.
+- **주의**: 화면 라벨·규칙을 바꾸면 `help-content.ts`도 같이 갱신할 것(설명서가 실제와 어긋나면 "따라 하면 실패").
+
+---
+
 ## 프로젝트 개요
 
 Que는 **캘린더 UI를 가진 팀 작업 상태 관리 도구**다. 8명 규모 팀이 회사 캘린더, 개인 작업, 프로젝트 마일스톤, 회의록 Action, 결제 요청, 업무량 현황을 한 곳에서 확인하고 수정한다. 감시 도구가 아니라 업무 병목과 일정 충돌을 빨리 드러내는 운영 도구다.
