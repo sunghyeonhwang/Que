@@ -46,11 +46,15 @@ writeFileSync(txtPath, txt, { mode: 0o600 });
 // 2) UPDATE SQL (사용자 승인 후 실행)
 const sqlPath = path.join(repoRoot, "db/supabase/set-passwords.sql");
 const sql =
-  "-- Que 개인 비밀번호 적용 (공용 que-2026! 교체). gen-passwords.mts 산출물.\n" +
+  "-- Que 개인 비밀번호 적용 (공용 비번 교체). gen-passwords.mts 산출물.\n" +
   "-- ⚠️ 적용 전 백업 불가 — 실행하면 기존 비번 즉시 무효. 평문은 data/passwords.txt.\n" +
+  "-- must_change_password=true → 각자 첫 로그인 때 본인 비번으로 강제 변경(설정>보안/강제 화면).\n" +
   "begin;\n" +
   issued
-    .map((t) => `update users set password_hash = '${t.hash}' where id = '${t.id}';`)
+    .map(
+      (t) =>
+        `update users set password_hash = '${t.hash}', must_change_password = true, failed_login_attempts = 0, locked_until = null where id = '${t.id}';`,
+    )
     .join("\n") +
   "\ncommit;\n";
 writeFileSync(sqlPath, sql, { mode: 0o600 });
