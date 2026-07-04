@@ -10,6 +10,7 @@ alter table users add column if not exists locked_until timestamptz;
 create or replace function register_login_failure(p_user_id text, p_threshold integer, p_lock_minutes integer)
 returns void
 language sql
+set search_path = public   -- search_path 주입 방지(방어 강화)
 as $$
   update users set
     locked_until = case
@@ -20,3 +21,5 @@ as $$
       else failed_login_attempts + 1 end
   where id = p_user_id;
 $$;
+-- service_role(SECRET_KEY)만 호출. PostgREST rpc/ 외부 노출 차단(RLS와 겹치는 방어).
+revoke execute on function register_login_failure(text, integer, integer) from public, anon, authenticated;
