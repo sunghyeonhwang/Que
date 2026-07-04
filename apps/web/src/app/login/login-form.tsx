@@ -8,7 +8,7 @@ const initial: LoginState = {};
 
 // 디자인(Figma QUE_All_Pages / 0 1 0 - Login) 기준 로그인 폼.
 // 소셜 로그인·비밀번호 재설정·회원가입은 범위 밖(보류/미도입)이라 뺐다.
-export function LoginForm() {
+export function LoginForm({ notice }: { notice?: string }) {
   const [state, formAction, pending] = useActionState(loginAction, initial);
   const [showPw, setShowPw] = useState(false);
 
@@ -23,6 +23,12 @@ export function LoginForm() {
           <p className="text-sm text-[var(--que-text-secondary)]">여기서 프로젝트와 작업을 관리하세요.</p>
         </div>
       </div>
+
+      {notice && (
+        <p className="w-full rounded-lg border border-[var(--que-success)]/30 bg-[var(--que-success-bg)] px-3 py-2 text-center text-sm text-[var(--que-success)]">
+          {notice}
+        </p>
+      )}
 
       <form action={formAction} className="flex w-full flex-col gap-5">
         <div className="flex flex-col gap-1.5">

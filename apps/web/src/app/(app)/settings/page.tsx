@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { PageHeader } from "@/components/app/page-header";
 import { FontSettings } from "@/components/settings/font-settings";
+import { PasswordSettings } from "@/components/settings/password-settings";
 import { getCurrentUser } from "@/lib/current-user";
 
 export const dynamic = "force-dynamic";
@@ -15,14 +16,15 @@ export default async function SettingsPage() {
   const density = cookieStore.get("density")?.value ?? "default";
 
   return (
-    <div className="mx-auto max-w-3xl">
-      <PageHeader title="설정" subtitle="모양과 환경을 설정합니다." />
+    <div className="mx-auto flex max-w-3xl flex-col gap-5">
+      <PageHeader title="설정" subtitle="모양과 보안을 설정합니다." />
       <FontSettings
         initialKo={ko}
         initialLatin={latin}
         initialTheme={theme}
         initialDensity={density}
       />
+      <PasswordSettings />
     </div>
   );
 }

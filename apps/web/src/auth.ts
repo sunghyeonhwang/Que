@@ -24,6 +24,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (user) {
         token.id = user.id as string;
         token.role = (user as { role?: "admin" | "member" }).role ?? "member";
+        token.mustChangePassword =
+          (user as { mustChangePassword?: boolean }).mustChangePassword ?? false;
         if (user.name) token.name = user.name;
       }
       return token;
@@ -32,6 +34,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (session.user) {
         session.user.id = (token.id as string) ?? "";
         session.user.role = (token.role as "admin" | "member") ?? "member";
+        session.user.mustChangePassword = (token.mustChangePassword as boolean | undefined) ?? false;
         if (token.name) session.user.name = token.name;
       }
       return session;

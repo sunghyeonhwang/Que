@@ -1,6 +1,7 @@
 import { ChevronLeft } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { AdminResetPassword } from "@/components/members/admin-reset-password";
 import { MemberActivityFeed } from "@/components/members/member-activity-feed";
 import { MemberContributionGrid } from "@/components/members/member-contribution-grid";
 import { MemberProfileCard } from "@/components/members/member-profile-card";
@@ -17,7 +18,7 @@ export default async function MemberDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  await getCurrentUser();
+  const me = await getCurrentUser();
   const { id } = await params;
   const detail = await getMemberDetail(id);
   if (!detail) notFound();
@@ -39,6 +40,9 @@ export default async function MemberDetailPage({
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <div className="flex flex-col gap-6">
           <MemberProfileCard detail={detail} />
+          {me.role === "admin" && (
+            <AdminResetPassword targetId={detail.user.id} targetName={detail.user.name} />
+          )}
           <MemberActivityFeed activities={detail.activities} />
         </div>
         <div className="flex flex-col gap-6">

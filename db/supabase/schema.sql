@@ -15,6 +15,10 @@ create table if not exists users (
   avatar_color text not null,
   email        text,          -- 실 로그인 식별자 (Auth.js Credentials)
   password_hash text,         -- bcrypt 해시. 서버에서만 읽고 도메인 User/세션 밖으로 내보내지 않는다.
+  must_change_password boolean not null default false, -- 참이면 로그인 후 비밀번호 변경 강제(임시 비번)
+  password_changed_at  timestamptz,                    -- 마지막 변경 시각
+  failed_login_attempts integer not null default 0,    -- 연속 로그인 실패 횟수(브루트포스 방어)
+  locked_until timestamptz,                            -- 잠금 해제 시각(초과 실패 시)
   created_at  timestamptz not null default now()
 );
 -- 이메일 유니크(대소문자 무시). email이 NULL인 계정도 허용.

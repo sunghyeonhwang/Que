@@ -4,9 +4,14 @@ import { LoginForm } from "./login-form";
 
 // Figma QUE_All_Pages / 0 1 0 - Login 기준 2단 레이아웃.
 // 좌: 히어로 이미지+헤드라인(lg 이상), 우: 로그인 폼. 태블릿 세로(<lg)에서는 폼만 중앙.
-export default async function LoginPage() {
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ changed?: string }>;
+}) {
   const session = await auth();
   if (session?.user?.id) redirect("/");
+  const { changed } = await searchParams;
 
   return (
     <main className="flex min-h-svh bg-[var(--que-bg)]">
@@ -39,7 +44,9 @@ export default async function LoginPage() {
             "radial-gradient(60rem 40rem at 15% -10%, rgba(112,234,255,0.12), transparent 60%), radial-gradient(50rem 40rem at 110% 0%, rgba(191,151,255,0.14), transparent 60%)",
         }}
       >
-        <LoginForm />
+        <LoginForm
+          notice={changed ? "비밀번호를 바꿨어요. 새 비밀번호로 로그인해주세요." : undefined}
+        />
       </div>
     </main>
   );

@@ -1,4 +1,6 @@
+import { redirect } from "next/navigation";
 import { rankForUser } from "@que/core";
+import { auth } from "@/auth";
 import { getCurrentUser } from "@/lib/current-user";
 import { getNoteSummary } from "@/lib/notes-summary";
 import { getAlerts } from "@/lib/alerts-data";
@@ -21,6 +23,9 @@ export default async function AppLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   const user = await getCurrentUser();
+  // 임시 비밀번호 상태면 앱을 열기 전에 비밀번호 변경을 강제한다(격리 화면).
+  const session = await auth();
+  if (session?.user?.mustChangePassword) redirect("/change-password");
   const rank = rankForUser(user.id);
   const workspace = getPrimaryWorkspace();
 
