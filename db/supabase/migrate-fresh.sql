@@ -198,7 +198,8 @@ create table if not exists check_ins (
   answered_at        timestamptz,
   response           text check (response in
     ('working','done','needs_reschedule','issue','not_needed','merged','later')),
-  follow_up_required boolean not null default false
+  follow_up_required boolean not null default false,
+  constraint uq_check_ins_task_scheduled unique (task_id, scheduled_at)
 );
 
 create table if not exists recurring_templates (

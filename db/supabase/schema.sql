@@ -173,7 +173,9 @@ create table if not exists check_ins (
   answered_at        timestamptz,
   response           text check (response in
     ('working','done','needs_reschedule','issue','not_needed','merged','later')),
-  follow_up_required boolean not null default false
+  follow_up_required boolean not null default false,
+  -- 스케줄러 중복 생성 백스톱(작업당 회차 1개). Cron 단일화로 경합은 없으나 프레시 설치도 보호.
+  constraint uq_check_ins_task_scheduled unique (task_id, scheduled_at)
 );
 
 create table if not exists recurring_templates (
