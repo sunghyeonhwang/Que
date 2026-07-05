@@ -538,6 +538,17 @@ data/
     - **검증**: core **129**, core/web/mcp/cli typecheck, web lint, **web build(/projects 라우트 생성)** 통과. qa Playwright **4해상도 전 시나리오 PASS**(메뉴노출·보드4열·드래그이동·홀드Dialog취소원위치·드로어편집/재배정/soft삭제·태스크생성·목록/캘린더·**비관리자 읽기전용 Lock**, pageerror/console.error **0건**). glados **[PASS]**.
     - **후속(비차단)**: (1) COLUMN_ORDER/LABEL이 projects-data·pm-columns 이중정의(주석 의존) → pm-columns 단일출처로 정리 권장. (2) 프로젝트 필터(우선순위·담당자)는 v1 제외 — 필요 시 클라이언트 전용 필터 재도입. (3) 헤더 공유/정보 Dialog는 데모 유지(초대·권한 후속). (4) 태블릿 순수 터치 드래그는 HTML5 DnD 미동작 → 카드 ⋮ 메뉴 경로 사용(코드 주석 명시). (5) 배포 직후 프로덕션서 드래그 1회·드로어 1회 눈으로 확인 권장(glados 권고).
 
+62. **view.griff.co.kr 공개 읽기전용 현황판 (2026-07-05)** — 사용자 "별도 모니터용 공개 페이지, que DB 연동 10분 갱신, 조회 위주". dev-lead 설계 → 사용자 결정 2건(view 먼저·조회전용) → backend(라우팅·데이터·read-only 로더) → frontend(2뷰 UI) → qa(2해상도) → glados PASS.
+    - **무엇**: 로그인 없는 공개 대형 디스플레이(1920×1080). Figma XhDXyGhG2PYKNRKRpgXheQ(node 15-12361 할일보드·20-12361 주간스케줄). FAB로 두 뷰 전환: ① 할일 보드(사람별 열·오늘 할 일 카드·완료 상태표시·X/Y), ② 주간 스케줄(사람별 완료 요약 + 월~금 그리드·이벤트). 상단 날짜·요일·라이브 시계·기온. Hide-completed(URL hc=1), 날짜/주 이동, 10분 자동갱신(router.refresh). **조회 전용**(완료 체크는 상태표시일 뿐 토글/쓰기 없음).
+    - **결정(사용자)**: view 먼저(구글 캘린더는 OAuth 준비 후 다음 배치), **조회 전용**(공개 페이지 쓰기 보안 이슈 회피), 완전 공개+noindex(거래처명 노출은 사용자 승인).
+    - **라우팅/인증(핵심)**: 인증이 미들웨어가 아니라 (app) 레이아웃의 getCurrentUser라 → 공개 route group `(view)/view`(auth 미호출)를 (app) 밖에 두면 공개 성립, 기존 라우트 무영향. **`proxy.ts` 신설(Next 16: middleware→proxy 개명)**: host=view.griff.co.kr/view.localhost면 전 경로 `/view` rewrite + `X-Robots-Tag: noindex`, 아니면 즉시 통과. 내비는 상대 쿼리(?view=…)로 host rewrite 환경 보존.
+    - **⚠️ 익명 쓰기 차단(급소)**: `getDb()`는 QUE_CRON_ACTIVE≠1(현 프로덕션)이면 요청마다 syncCheckIns+persist **쓰기 유발** → 공개 익명 GET이 DB에 쓰게 됨. `db.ts`에 `loadReadOnlyDb()`(SupabaseQueDb load()만, sync/persist 미실행) 추가하고 view-data만 사용. getDb 소비자 무변경. glados 런타임 재확인.
+    - **데이터 노출**: `view-data.ts`(getViewBoard/getViewWeek) 전원 unscoped 읽기, **화이트리스트 필드만**(제목·시간·상태·담당자 이름/색·클라이언트 라벨). description·사유·금액·회의록·체크인·PII 미접근(렌더 HTML 실측 검증). **private 작업 제외·private 이벤트 "자리비움"** 마스킹(board·week 양쪽). 그날/그주 판정은 today-data/calendar-data 준거(KST, instrumentation.ts).
+    - **UI**: components/view/*(board-grid·week-grid·view-header·view-clock(1s)·view-auto-refresh(600s)·hide-completed-toggle·view-fab·view-format). 담당자색 틴트 카드, green=완료. 앱 셸 없는 독립 (view) 레이아웃. 기온 open-meteo(무키, 서울 좌표, revalidate 600, 실패 시 숨김 — 유일 외부 fetch).
+    - **검증**: web typecheck·lint·**build(/view 생성)** 통과. qa Playwright 1920/1366 PASS(보드·주간·라이브시계·조회전용 클릭무반응·hide-completed·FAB전환·proxy host rewrite+noindex·기존 /today 로그인게이트 무영향, console/pageerror 0). glados **[PASS]**(익명쓰기차단·화이트리스트·private마스킹·proxy범위·noindex 런타임 재확인).
+    - **⚠️ 운영자(사용자) 액션 필요 — 서브도메인 미완**: view.griff.co.kr는 (1) Vercel 프로젝트에 도메인 추가 (2) Cloudflare DNS `view` CNAME→vercel(que와 동일 SSL 모드, 406 이력) 이 되어야 라이브. 그 전엔 **que.griff.co.kr/view**로 접근 가능(동일 공개 화면).
+    - **후속(비차단)**: (1) 메인 host의 /view도 공개 접근됨(같은 화이트리스트라 무위험, 원하면 proxy에서 view host 전용 제한). (2) 8명 초과·동시간 이벤트 다수 시 페이지네이션/겹침분할(v1 생략). (3) 주간 뷰 하단 검은 장식 띠(Figma 원본 요소, 무정보 — 정리 여부 검토). (4) 구글 캘린더 연동 시 이벤트가 que 일정→view 자동 반영.
+
 ## 남은 작업 / 오픈 질문
 
 - ~~알림 채널 결정~~ → **Slack 확정** (2026-07-02): 1단계 Incoming Webhook+딥링크, 2단계 Bot 인터랙티브 버튼으로 Slack 안에서 체크인 응답(`answerCheckIn` 경유, via 기록). 기획서 "알림 정책 > 알림 채널"과 MCP/CLI 계획 Phase E에 반영됨.

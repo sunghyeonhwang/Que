@@ -38,3 +38,18 @@ export const getDb = cache(async (): Promise<MockQueDb> => {
   store.__queDb.syncRecurringTemplates(now);
   return store.__queDb;
 });
+
+// 읽기 전용 로더 — 공개 현황판(view.griff.co.kr, 익명)이 유일한 소비자다.
+// getDb와 달리 스케줄러(syncCheckIns/syncRecurringTemplates)와 persist를 절대 실행하지 않는다.
+// → 익명 GET 요청이 DB 쓰기를 유발할 수 없다. Supabase면 새 인스턴스에 load()만, 그 외는
+// mock 스냅샷을 sync 없이 그대로 돌려준다. React cache로 렌더당 1회 로드.
+export const loadReadOnlyDb = cache(async (): Promise<MockQueDb> => {
+  if (useSupabase) {
+    const db = new SupabaseQueDb(SUPABASE_URL!, SUPABASE_SECRET_KEY!, new Date());
+    await db.load(); // sync/persist 경로 없음 — 순수 스냅샷 로드
+    return db;
+  }
+  // mock: 이미 시드된 싱글톤을 sync 없이 읽기만 한다(mutation/persist 미실행).
+  store.__queDb ??= createMockDb();
+  return store.__queDb;
+});
