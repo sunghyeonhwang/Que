@@ -577,6 +577,11 @@ data/
     - **더미 대폭 증량**: 58→**299개**(UF 150 + MW 149), 8명 각 37~38, **모든 날짜(2026-06-29~07-17 평일 + 오늘 07-05) 8명 전원 18~19개**(멤버당 2~3). 담당자 정렬 버그 방지(멤버 루프 내측→모든 날짜 8명). 프로덕션 재적용: **supabase-js 서비스키 스크립트**(`$JOB/tmp/apply-dummy-data.mjs`, `dummy-%` 삭제 후 삽입, apps/web 안에서 실행해 모듈 해석). `dummy-data-view-test.sql` 갱신(커밋), `remove-dummy-data-view-test.sql` 그대로 유효(`id like 'dummy-%'`).
     - **검증**: typecheck·lint·build, qa Playwright 전부 PASS(설정 저장/영속·슬라이드쇼 설정반영[초·전체모드·1day·순회토글]·SUIT computed fontFamily·조회전용·proxy·기존 게이트, console/pageerror 0). glados 생략(read-only 계층 무변경).
 
+67. **앱 검수 배치1 — 빠른수정 5 + 버그18 (2026-07-06)** — 사용자 18항목 검수 중 1차(15는 회의 후 대기). 나머지는 배치 2~5 예정(일정 9·10·11 / 전역추가 4·5·6·7 / 회의록 13·16 / 설정직원 19 / 프로젝트 20).
+    - **8** 일정 월간뷰 높이 풀사이즈(`schedule/month-view.tsx`: `flex h-[calc(100dvh-13rem)]` + `grid-rows-[auto_repeat(6,minmax(6.5rem,1fr))]`로 6주 남는 세로 채움). **12** 회의록 파일선택 `file:text-xs`(네이티브 라벨은 브라우저 로케일). **14** 회의록 마크다운 잔존(`**볼드**` 등) → 신규 `lib/markdown.ts stripMarkdown`, `notes/note-list.tsx` 원문 평문 렌더(원본 core 보존). **17** Action 담당자 Select/날짜 크기 불일치 → `action-row.tsx` SelectTrigger `!h-10`(공용 select.tsx `data-[size=default]:h-8` 이김) 둘 다 40px. **21** 프로젝트 보드 톤 25% 밝게(`pm-columns.ts` TONE_STYLE.tint = `color-mix(... white)`, 의미색 유지).
+    - **18 버그(Action→Task 캘린더 미표시)**: `confirmActionItem`이 Task를 `startAt: undefined`로 생성 → `calendar-data.ts:59` `t.startAt && overlaps` 필터에서 제외(담당·관리자 무관, 데이터 누락이 원인). 수정: 마감(dueAt) 기준 **1시간 블록**(dueAt-1h~dueAt) 부여(assertCanConfirmActionItem이 dueAt 보장, seed 동작·시간그리드 모델과 일관). core **130**(회귀+1). qa e2e PASS(확정 후 관리자·담당자 주간/월간에 표시).
+    - **검증**: typecheck·lint·build·core 130, qa Playwright PASS(월간높이 4해상도·마크다운 평문·보드색 명도·버그18 e2e; 17 재수정 후 40px 통일). glados 생략(소규모·qa 갈음).
+
 ## 남은 작업 / 오픈 질문
 
 - ~~알림 채널 결정~~ → **Slack 확정** (2026-07-02): 1단계 Incoming Webhook+딥링크, 2단계 Bot 인터랙티브 버튼으로 Slack 안에서 체크인 응답(`answerCheckIn` 경유, via 기록). 기획서 "알림 정책 > 알림 채널"과 MCP/CLI 계획 Phase E에 반영됨.

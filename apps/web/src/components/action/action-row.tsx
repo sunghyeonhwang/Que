@@ -79,7 +79,10 @@ export function ActionRow({ item }: { item: ActionRowData }) {
               value={assigneeId}
               onValueChange={(v) => setAssigneeId(v ?? "")}
             >
-              <SelectTrigger aria-label={`${item.title} 담당자 선택`} className="h-10 rounded-lg">
+              <SelectTrigger
+                aria-label={`${item.title} 담당자 선택`}
+                className="!h-10 w-full rounded-lg text-sm"
+              >
                 <SelectValue placeholder="담당자 미지정" />
               </SelectTrigger>
               <SelectContent>
@@ -96,7 +99,7 @@ export function ActionRow({ item }: { item: ActionRowData }) {
             value={dueDate}
             onChange={(e) => setDueDate(e.target.value)}
             aria-label={`${item.title} 마감일`}
-            className="h-10 w-40 rounded-lg"
+            className="h-10 w-40 rounded-lg text-sm"
           />
           {dirty && (
             <Button

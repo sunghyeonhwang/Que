@@ -99,7 +99,7 @@ export function UploadNoteForm({ projects }: { projects: UploadNoteProjectOption
             ref={fileRef}
             type="file"
             accept=".md,.markdown,.txt"
-            className="h-11 cursor-pointer file:mr-3 file:cursor-pointer file:rounded-md file:border-0 file:bg-[var(--que-brand)] file:px-3 file:py-1.5 file:text-[var(--que-on-brand)] hover:file:bg-[var(--que-brand-hover)]"
+            className="h-11 cursor-pointer text-sm file:mr-3 file:cursor-pointer file:rounded-md file:border-0 file:bg-[var(--que-brand)] file:px-3 file:py-1.5 file:text-xs file:text-[var(--que-on-brand)] hover:file:bg-[var(--que-brand-hover)]"
             onChange={(e) => onFileChange(e.target.files?.[0])}
           />
           {fileName ? (

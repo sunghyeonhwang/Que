@@ -36,22 +36,32 @@ export const SIMPLE_COLUMN_STATUS: Record<Exclude<BoardColumnKey, "blocked">, Ta
 
 export type StatusTone = "blue" | "green" | "amber" | "red" | "neutral";
 
+// tint는 보드 컬럼/이벤트 배경. 명도만 상향(흰색 25% 혼합)해 더 밝은 틴트로 보이게 한다.
+// dot/text의 의미색(green=완료 등)은 유지 — 밝기만 조정.
 export const TONE_STYLE: Record<StatusTone, { dot: string; tint: string; text: string }> = {
-  blue: { dot: "var(--que-brand)", tint: "var(--que-brand-subtle)", text: "var(--que-brand)" },
+  blue: {
+    dot: "var(--que-brand)",
+    tint: "color-mix(in srgb, var(--que-brand-subtle) 75%, white)",
+    text: "var(--que-brand)",
+  },
   green: {
     dot: "var(--que-success)",
-    tint: "var(--que-success-bg)",
+    tint: "color-mix(in srgb, var(--que-success-bg) 75%, white)",
     text: "var(--que-success)",
   },
   amber: {
     dot: "var(--que-warning)",
-    tint: "var(--que-warning-bg)",
+    tint: "color-mix(in srgb, var(--que-warning-bg) 75%, white)",
     text: "var(--que-warning)",
   },
-  red: { dot: "var(--que-error)", tint: "var(--que-error-bg)", text: "var(--que-error)" },
+  red: {
+    dot: "var(--que-error)",
+    tint: "color-mix(in srgb, var(--que-error-bg) 75%, white)",
+    text: "var(--que-error)",
+  },
   neutral: {
     dot: "var(--que-text-tertiary)",
-    tint: "var(--que-bg-muted)",
+    tint: "color-mix(in srgb, var(--que-bg-muted) 75%, white)",
     text: "var(--que-text-secondary)",
   },
 };

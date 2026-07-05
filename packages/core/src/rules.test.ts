@@ -175,6 +175,19 @@ describe("Action → Task 확정", () => {
     expect(item.status).toBe("created");
     expect(item.createdTaskId).toBe(task.id);
   });
+
+  it("생성된 Task는 마감(dueAt) 기준 시간 블록을 가져 캘린더 시간 그리드에 노출된다", () => {
+    // 회귀: startAt이 undefined면 calendar-data의 `t.startAt && overlaps(...)` 필터에
+    // 걸려 어떤 캘린더 뷰에도 그려지지 않았다.
+    const d = db();
+    const source = d.actionItems.find((a) => a.id === "act-error-doc")!;
+    const task = d.confirmActionItem({ actorId: "hwang-sunghyeon", via: "web" }, "act-error-doc");
+    expect(task.startAt).toBeTruthy();
+    expect(task.endAt).toBe(source.dueAt);
+    // 종료(마감)는 시작 이후여야 하고, 같은 날에 놓여 마감일 캘린더에 뜬다.
+    expect(Date.parse(task.startAt!)).toBeLessThan(Date.parse(task.endAt!));
+    expect(new Date(task.startAt!).toDateString()).toBe(new Date(task.endAt!).toDateString());
+  });
 });
 
 describe("게이트 반려 회귀 (글래도스 공격 케이스)", () => {

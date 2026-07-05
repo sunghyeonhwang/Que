@@ -16,6 +16,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { stripMarkdown } from "@/lib/markdown";
 import { cn } from "@/lib/utils";
 
 export interface NoteListItem {
@@ -94,7 +95,9 @@ function NoteRow({ note }: { note: NoteListItem }) {
             <SheetDescription>{note.fileName} — 원문은 항상 보존됩니다</SheetDescription>
           </SheetHeader>
           <ScrollArea className="h-[calc(100dvh-8rem)] rounded-lg border border-[var(--que-border)] p-3">
-            <pre className="text-xs whitespace-pre-wrap">{note.markdownBody}</pre>
+            <div className="whitespace-pre-wrap text-xs leading-relaxed text-[var(--que-text-secondary)]">
+              {stripMarkdown(note.markdownBody)}
+            </div>
           </ScrollArea>
         </SheetContent>
       </Sheet>

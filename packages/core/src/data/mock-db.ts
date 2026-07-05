@@ -364,6 +364,12 @@ export class MockQueDb implements QueDb {
     }
 
     const nowIso = this.now();
+    // 캘린더는 시간 그리드라 startAt이 없는 Task는 어떤 뷰에도 그려지지 않는다
+    // (calendar-data의 `t.startAt && overlaps(...)` 필터). Action의 마감(dueAt)을
+    // 종료로, 그 1시간 전을 시작으로 하는 기본 블록을 부여해 마감일 캘린더에 노출한다.
+    // dueAt은 canConfirmActionItem이 이미 보장한다(담당자·마감 없는 Action은 위에서 거부).
+    const dueMs = Date.parse(item.dueAt!);
+    const startAt = Number.isNaN(dueMs) ? undefined : new Date(dueMs - 60 * 60 * 1000).toISOString();
     const task: Task = {
       id: this.nextId("task"),
       // title/description은 DB check 제약(200/2000자)과 동일한 상한으로 절단
@@ -371,7 +377,7 @@ export class MockQueDb implements QueDb {
       ownerId: actor.id,
       assigneeId: item.assigneeId!,
       projectId: item.projectId,
-      startAt: undefined,
+      startAt,
       endAt: item.dueAt,
       status: "scheduled",
       priority: "normal",

@@ -16,9 +16,9 @@ export function MonthView({
   items: CalendarViewItem[];
 }) {
   return (
-    <div className="overflow-hidden rounded-xl border border-[var(--que-border)] bg-[var(--que-bg)]">
-      <div className="max-h-[calc(100dvh-15rem)] overflow-auto">
-        <div className="grid min-w-[760px] grid-cols-7">
+    <div className="flex h-[calc(100dvh-13rem)] flex-col overflow-hidden rounded-xl border border-[var(--que-border)] bg-[var(--que-bg)]">
+      <div className="min-h-0 flex-1 overflow-auto">
+        <div className="grid h-full min-w-[760px] grid-cols-7 grid-rows-[auto_repeat(6,minmax(6.5rem,1fr))]">
           {WEEKDAYS.map((wd) => (
             <div
               key={wd}
@@ -38,7 +38,7 @@ export function MonthView({
                 <div
                   key={day.toISOString()}
                   className={cn(
-                    "min-h-[104px] border-b border-l border-[var(--que-border)] p-1.5 [&:nth-child(7n+1)]:border-l-0",
+                    "min-h-[6.5rem] border-b border-l border-[var(--que-border)] p-1.5 [&:nth-child(7n+1)]:border-l-0",
                     outside && "bg-[var(--que-bg-muted)]/50",
                     today && "bg-[var(--que-brand-subtle)]/50",
                   )}
