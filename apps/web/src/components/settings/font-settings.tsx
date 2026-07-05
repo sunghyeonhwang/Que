@@ -12,10 +12,14 @@ const KO_FONTS: FontOption[] = [
   { value: "suit", label: "SUIT", css: "var(--font-suit)" },
   { value: "pretendard", label: "Pretendard", css: "var(--font-pretendard)" },
   { value: "noto", label: "Noto Sans KR", css: "var(--font-noto-kr)" },
+  { value: "paperlogy", label: "페이퍼로지", css: "'Paperozi'" },
+  { value: "freesentation", label: "프리젠테이션", css: "'Presentation'" },
   { value: "system", label: "시스템", css: "ui-sans-serif, system-ui, sans-serif" },
 ];
 const LATIN_FONTS: FontOption[] = [
   { value: "inter", label: "Inter Tight", css: "var(--font-inter-tight)" },
+  { value: "paperlogy", label: "Paperlogy", css: "'Paperozi'" },
+  { value: "freesentation", label: "Freesentation", css: "'Presentation'" },
   { value: "system", label: "System", css: "ui-sans-serif, system-ui, sans-serif" },
 ];
 
