@@ -98,6 +98,7 @@ create table if not exists meeting_notes (
   id                text primary key,
   title             text not null check (char_length(title) <= 200),
   project_id        text references projects(id),
+  project_ids       text[] default '{}',
   meeting_at        timestamptz not null,
   attendee_ids      text[] not null default '{}',
   uploader_id       text not null references users(id),

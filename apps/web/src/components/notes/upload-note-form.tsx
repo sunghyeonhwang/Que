@@ -1,7 +1,8 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { USERS } from "@que/core";
+import { X } from "lucide-react";
+import { USERS, extractMeetingDateTime } from "@que/core";
 import { uploadMeetingNoteAction } from "@/app/(app)/meeting-notes/actions";
 import { useSafeAction } from "@/components/app/use-safe-action";
 import { Button } from "@/components/ui/button";
@@ -27,7 +28,8 @@ export function UploadNoteForm({ projects }: { projects: UploadNoteProjectOption
   const fileRef = useRef<HTMLInputElement>(null);
   const { run, pending } = useSafeAction();
   const [title, setTitle] = useState("");
-  const [projectId, setProjectId] = useState("");
+  // 다중 프로젝트(주간회의 등 여러 건 걸침) — 드롭다운에서 골라 칩으로 쌓고 X로 제거.
+  const [projectIds, setProjectIds] = useState<string[]>([]);
   const [meetingDateTime, setMeetingDateTime] = useState(() => {
     const d = new Date();
     const p = (n: number) => String(n).padStart(2, "0");
@@ -45,8 +47,13 @@ export function UploadNoteForm({ projects }: { projects: UploadNoteProjectOption
   const onFileChange = async (file: File | undefined) => {
     if (!file) return;
     setFileName(file.name);
-    setMarkdownBody(await file.text());
+    const text = await file.text();
+    setMarkdownBody(text);
     if (!title) setTitle(file.name.replace(/\.md$/i, ""));
+    // 본문에서 회의 일시를 찾으면 기본값을 채운다(못 찾으면 기존 기본값 유지).
+    // 자동 등록이 아니라 폼 기본값 제안이므로 사용자가 그대로 수정할 수 있다.
+    const draft = extractMeetingDateTime(text);
+    if (draft) setMeetingDateTime(draft.dateTime);
   };
 
   const missing: string[] = [];
@@ -61,7 +68,7 @@ export function UploadNoteForm({ projects }: { projects: UploadNoteProjectOption
       () =>
         uploadMeetingNoteAction({
           title,
-          projectId: projectId || undefined,
+          projectIds: projectIds.length ? projectIds : undefined,
           meetingDateTime,
           attendeeIds,
           fileName,
@@ -73,6 +80,7 @@ export function UploadNoteForm({ projects }: { projects: UploadNoteProjectOption
         success: `"${title}" 회의록이 업로드됐습니다. Action 추출 대기 상태입니다.`,
         onSuccess: () => {
           setTitle("");
+          setProjectIds([]);
           setFileName("");
           setMarkdownBody("");
           setAttendeeIds([]);
@@ -128,21 +136,65 @@ export function UploadNoteForm({ projects }: { projects: UploadNoteProjectOption
           </Field>
         </div>
         <Field>
-          <FieldLabel>프로젝트</FieldLabel>
+          <FieldLabel>
+            프로젝트 (복수 선택)
+            {projectIds.length > 0 && (
+              <span className="ml-1 font-normal text-muted-foreground">
+                · {projectIds.length}개 선택
+              </span>
+            )}
+          </FieldLabel>
+          {projectIds.length > 0 && (
+            <div className="mb-1.5 flex flex-wrap gap-1.5">
+              {projectIds.map((id) => {
+                const project = projects.find((p) => p.id === id);
+                if (!project) return null;
+                return (
+                  <span
+                    key={id}
+                    className="flex items-center gap-1 rounded-full bg-muted py-1 pr-1 pl-2.5 text-sm"
+                  >
+                    {project.name}
+                    <button
+                      type="button"
+                      aria-label={`${project.name} 제거`}
+                      onClick={() => setProjectIds((prev) => prev.filter((x) => x !== id))}
+                      className="grid size-5 place-items-center rounded-full hover:bg-border"
+                    >
+                      <X className="size-3.5" aria-hidden />
+                    </button>
+                  </span>
+                );
+              })}
+            </div>
+          )}
           <Select
-            items={Object.fromEntries(projects.map((p) => [p.id, p.name]))}
-            value={projectId}
-            onValueChange={(v) => setProjectId(v ?? "")}
+            items={Object.fromEntries(
+              projects.filter((p) => !projectIds.includes(p.id)).map((p) => [p.id, p.name]),
+            )}
+            value=""
+            onValueChange={(v) => {
+              if (v) setProjectIds((prev) => (prev.includes(v as string) ? prev : [...prev, v as string]));
+            }}
+            disabled={projects.every((p) => projectIds.includes(p.id))}
           >
-            <SelectTrigger aria-label="프로젝트 선택">
-              <SelectValue placeholder="선택 안 함" />
+            <SelectTrigger aria-label="프로젝트 추가" className="h-11 w-full">
+              <SelectValue
+                placeholder={
+                  projects.every((p) => projectIds.includes(p.id))
+                    ? "모두 추가됨"
+                    : "선택 안 함 (프로젝트 추가)"
+                }
+              />
             </SelectTrigger>
             <SelectContent>
-              {projects.map((project) => (
-                <SelectItem key={project.id} value={project.id}>
-                  {project.name}
-                </SelectItem>
-              ))}
+              {projects
+                .filter((p) => !projectIds.includes(p.id))
+                .map((project) => (
+                  <SelectItem key={project.id} value={project.id}>
+                    {project.name}
+                  </SelectItem>
+                ))}
             </SelectContent>
           </Select>
         </Field>

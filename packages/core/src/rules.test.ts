@@ -11,6 +11,7 @@ import { USERS } from "./mock/users";
 import {
   MockGoogleCalendarProvider,
   calendarEventSchema,
+  extractMeetingDateTime,
   type ExternalCalendarEvent,
   type StatusLog,
 } from "./index";
@@ -2050,5 +2051,132 @@ describe("체크인 스누즈 (answerCheckIn snoozeUntil)", () => {
       response: "done",
     });
     expect(chk.snoozeUntil).toBeUndefined();
+  });
+});
+
+describe("회의록 md에서 회의 일시 추출 (extractMeetingDateTime)", () => {
+  const NOW_2026 = new Date("2026-07-06T09:00:00+09:00");
+
+  it("ISO 날짜와 24시간 시각을 뽑는다", () => {
+    const md = "# 주간 회의\n\n## 일시\n2026-07-06 14:00\n\n## 할 일\n- ...";
+    const got = extractMeetingDateTime(md, NOW_2026);
+    expect(got).toEqual({ dateTime: "2026-07-06T14:00", hasTime: true });
+  });
+
+  it("한국어 날짜와 오후 시각(반)을 뽑는다", () => {
+    const md = "회의 일시: 2026년 7월 6일 오후 2시 반";
+    const got = extractMeetingDateTime(md, NOW_2026);
+    expect(got).toEqual({ dateTime: "2026-07-06T14:30", hasTime: true });
+  });
+
+  it("연도 없는 날짜는 now 연도를 쓰고 시각 없으면 10:00 기본(hasTime=false)", () => {
+    const md = "## 회의록\n7월 6일 킥오프";
+    const got = extractMeetingDateTime(md, NOW_2026);
+    expect(got).toEqual({ dateTime: "2026-07-06T10:00", hasTime: false });
+  });
+
+  it("라벨 줄(일시)의 날짜를 본문 다른 날짜보다 우선한다", () => {
+    const md = "만료: 2025-01-01\n일시: 2026-07-06 09:30\n메모: 2024-12-31";
+    const got = extractMeetingDateTime(md, NOW_2026);
+    expect(got).toEqual({ dateTime: "2026-07-06T09:30", hasTime: true });
+  });
+
+  it("날짜가 없으면 undefined(폼 기본값 유지)", () => {
+    expect(extractMeetingDateTime("# 제목만 있는 회의록\n\n- 할 일", NOW_2026)).toBeUndefined();
+  });
+});
+
+describe("회의록 다중 프로젝트 (createMeetingNote projectIds)", () => {
+  it("여러 프로젝트를 배열로 저장하고 대표값(projectId)은 첫 항목으로 맞춘다", () => {
+    const d = db();
+    const note = d.createMeetingNote(
+      { actorId: "hwang-sunghyeon", via: "web" },
+      {
+        title: "주간 전체 회의",
+        projectIds: ["prj-summer", "prj-payment"],
+        meetingAt: NOW.toISOString(),
+        attendeeIds: [],
+        fileName: "주간.md",
+        markdownBody: "# 주간",
+      },
+    );
+    expect(note.projectIds).toEqual(["prj-summer", "prj-payment"]);
+    expect(note.projectId).toBe("prj-summer");
+  });
+
+  it("단일 projectId만 오면 projectIds에도 반영된다(하위호환)", () => {
+    const d = db();
+    const note = d.createMeetingNote(
+      { actorId: "hwang-sunghyeon", via: "web" },
+      {
+        title: "결제 회의",
+        projectId: "prj-payment",
+        meetingAt: NOW.toISOString(),
+        attendeeIds: [],
+        fileName: "결제.md",
+        markdownBody: "# 결제",
+      },
+    );
+    expect(note.projectId).toBe("prj-payment");
+    expect(note.projectIds).toEqual(["prj-payment"]);
+  });
+
+  it("존재하지 않는 프로젝트는 거부한다", () => {
+    const d = db();
+    expect(() =>
+      d.createMeetingNote(
+        { actorId: "hwang-sunghyeon", via: "web" },
+        {
+          title: "회의",
+          projectIds: ["prj-summer", "prj-ghost"],
+          meetingAt: NOW.toISOString(),
+          attendeeIds: [],
+          fileName: "x.md",
+          markdownBody: "# x",
+        },
+      ),
+    ).toThrowError(/프로젝트 없음/);
+  });
+});
+
+describe("Action 확정 override (담당자·프로젝트·날짜·시간)", () => {
+  it("마감일 없는 후보도 confirm 시 dueAt override로 확정되고 시간 블록을 반영한다", () => {
+    const d = db();
+    // act-banner-copy: needs_review, 담당자(리원) 있음, dueAt 없음 → 그냥 confirm은 거부
+    expect(() =>
+      d.confirmActionItem({ actorId: "kim-riwon", via: "web" }, "act-banner-copy"),
+    ).toThrowError(/담당자 또는 마감일/);
+
+    const task = d.confirmActionItem({ actorId: "kim-riwon", via: "web" }, "act-banner-copy", {
+      dueAt: "2026-07-10T18:00:00+09:00",
+      startAt: "2026-07-10T15:00:00+09:00",
+      endAt: "2026-07-10T18:00:00+09:00",
+    });
+    expect(task.assigneeId).toBe("kim-riwon");
+    expect(new Date(task.startAt!).toISOString()).toBe("2026-07-10T06:00:00.000Z");
+    expect(new Date(task.endAt!).toISOString()).toBe("2026-07-10T09:00:00.000Z");
+    const item = d.actionItems.find((a) => a.id === "act-banner-copy")!;
+    expect(item.status).toBe("created");
+  });
+
+  it("confirm override로 담당자·프로젝트를 함께 지정할 수 있다", () => {
+    const d = db();
+    // act-refund-copy: needs_review, dueAt 있음, 담당자 없음
+    const task = d.confirmActionItem({ actorId: "hwang-sunghyeon", via: "web" }, "act-refund-copy", {
+      assigneeId: "oh-seunghoon",
+      projectId: "prj-cs",
+    });
+    expect(task.assigneeId).toBe("oh-seunghoon");
+    expect(task.projectId).toBe("prj-cs");
+  });
+
+  it("override의 유령 프로젝트는 거부한다", () => {
+    const d = db();
+    expect(() =>
+      d.confirmActionItem({ actorId: "hwang-sunghyeon", via: "web" }, "act-refund-copy", {
+        assigneeId: "oh-seunghoon",
+        projectId: "prj-ghost",
+      }),
+    ).toThrowError(/프로젝트 없음/);
   });
 });

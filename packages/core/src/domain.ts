@@ -151,7 +151,10 @@ export type Milestone = z.infer<typeof milestoneSchema>;
 export const meetingNoteSchema = z.object({
   id: z.string().min(1),
   title: z.string().min(1),
+  /** 대표 프로젝트(단일). 하위호환용 — 다중은 projectIds를 본다. projectIds[0]과 동일하게 유지된다. */
   projectId: z.string().optional(),
+  /** 다중 프로젝트 배경(주간회의 등 여러 프로젝트 아젠다). 미지정 회의록은 빈 배열/undefined. */
+  projectIds: z.array(z.string()).optional(),
   meetingAt: isoDateTime,
   attendeeIds: z.array(z.string()).default([]),
   uploaderId: z.string().min(1),

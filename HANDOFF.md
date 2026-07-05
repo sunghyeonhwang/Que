@@ -597,6 +597,11 @@ data/
     - 검증: core **138**, typecheck·lint·build, qa PASS(전역버튼 다페이지·자연어 확인카드 등록·시간/프로젝트 편집·도움요청 다중·4해상도), **glados [PASS]**(하위호환·DDL·확인카드·권한 견고; 반려 1건 수정 후).
     - 후속(비차단): my-task-table/event-detail-popover projectId 미전달(그 표면 시트서 "프로젝트 없음"·프로젝트 해제 불가), ScheduleEditForm 자정 넘는 작업 저장 불가(단일 날짜), 일정 없는 작업 프로젝트만 변경 시 기본 09-10시 일정 동반 커밋.
 
+70. **앱 검수 배치4 — 회의록 13·16 (2026-07-06)** — backend(조사+구현) → frontend → qa PASS.
+    - **13 회의 일시 자동입력**: core `parse-meeting.ts extractMeetingDateTime(md)`(라벨줄 "일시/날짜/일자" 우선·ISO/한글 날짜·"오후 N시"/HH:mm 시각). `upload-note-form` onFileChange에서 자동 채움(datetime-local 기본값, 사용자 수정 가능·확인카드 규칙 무관). 못 찾으면 기존 기본값.
+    - **16 다중 프로젝트 + 액션 필드**: meetingNoteSchema `projectIds: string[]` **additive**(projectId=대표=projectIds[0] 유지 → 하위호환 목록/필터 무손상). **⚠️ 프로덕션 DDL 선적용**: `meeting_notes.project_ids text[] default '{}'` nullable(core toRow가 미지정을 null로 보냄, `add-meeting-note-project-ids.sql`). createMeetingNote 다중·중복제거·실재검증. 업로드폼 다중 칩(helpUserIds 패턴)·목록 다중 라벨("A · N개" 축약). `confirmActionItem(id, overrides{assigneeId,projectId,dueAt,startAt,endAt})`·`updateActionItem(+projectId,dueTime)`. action-row에 담당자·프로젝트·마감일·마감시각(옵션)·시작시각(옵션) 필드(편집 저장/확정). 마감없는 확정은 assertCanConfirmActionItem 거부 유지.
+    - 검증: core **149**(추가 12: 일시추출·다중프로젝트·override·유령거부), typecheck·lint·build, qa PASS(자동일시·다중라벨·액션 확정→/schedule 표시[배치1·2 정합]·마감없는확정 거부·4해상도, console/pageerror 0). glados 생략(qa 21항목+149테스트로 도메인 불변식 검증, 유령 프로젝트/사용자 override 거부 테스트 포함).
+
 ## 남은 작업 / 오픈 질문
 
 - ~~알림 채널 결정~~ → **Slack 확정** (2026-07-02): 1단계 Incoming Webhook+딥링크, 2단계 Bot 인터랙티브 버튼으로 Slack 안에서 체크인 응답(`answerCheckIn` 경유, via 기록). 기획서 "알림 정책 > 알림 채널"과 MCP/CLI 계획 Phase E에 반영됨.

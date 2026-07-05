@@ -35,6 +35,12 @@ export default async function ActionPage({
   };
   const userById = new Map(db.users.map((u) => [u.id, u]));
 
+  // Action 확정/편집 시 프로젝트 재배정을 위한 옵션(라벨에 "클라이언트 · 프로젝트" 병기).
+  const projectOptions = db.projects.map((p) => ({
+    id: p.id,
+    name: formatProjectLabel(p, p.clientId ? clientById.get(p.clientId) : undefined),
+  }));
+
   const noteFilter = params.note && noteById.has(params.note) ? params.note : undefined;
 
   const rows: ActionRowData[] = [...db.actionItems]
@@ -53,7 +59,9 @@ export default async function ActionPage({
       noteName: noteById.get(item.meetingNoteId)?.fileName ?? item.meetingNoteId,
       status: item.status,
       assigneeId: item.assigneeId,
+      projectId: item.projectId,
       dueDate: item.dueAt ? format(new Date(item.dueAt), "yyyy-MM-dd") : undefined,
+      dueTime: item.dueAt ? format(new Date(item.dueAt), "HH:mm") : undefined,
       projectName: projectLabel(item.projectId),
     }));
 
@@ -97,7 +105,7 @@ export default async function ActionPage({
             </p>
           )}
           {rows.map((row) => (
-            <ActionRow key={row.id} item={row} />
+            <ActionRow key={row.id} item={row} projects={projectOptions} />
           ))}
         </div>
 

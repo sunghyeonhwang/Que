@@ -27,6 +27,8 @@ async function toResult(fn: (db: Db) => Promise<unknown> | unknown): Promise<Act
 export async function uploadMeetingNoteAction(input: {
   title: string;
   projectId?: string;
+  /** 다중 프로젝트(주간회의 등). 지정 시 projectId보다 우선한다. */
+  projectIds?: string[];
   meetingDateTime: string; // YYYY-MM-DDTHH:mm (구 형식 YYYY-MM-DD도 방어적 허용)
   attendeeIds: string[];
   fileName: string;
@@ -52,6 +54,7 @@ export async function uploadMeetingNoteAction(input: {
       {
         title: input.title,
         projectId: input.projectId || undefined,
+        projectIds: input.projectIds?.length ? input.projectIds : undefined,
         meetingAt: meetingAt.toISOString(),
         attendeeIds: input.attendeeIds,
         fileName: input.fileName,

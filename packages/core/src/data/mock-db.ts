@@ -399,11 +399,44 @@ export class MockQueDb implements QueDb {
   }
 
   /** Action 후보를 Task로 확정. 담당자·마감일 없으면 거부하고 확인 필요로 남긴다.
-   *  이미 처리된(created/ignored) Action의 재확정은 거부한다 — 중복 Task 방지. */
-  confirmActionItem(ctx: ActorContext, actionItemId: string): Task {
+   *  이미 처리된(created/ignored) Action의 재확정은 거부한다 — 중복 Task 방지.
+   *
+   *  overrides로 확정과 동시에 담당자·프로젝트·마감(dueAt) 및 Task 시간 블록(startAt/endAt)을
+   *  지정할 수 있다(확인 다이얼로그에서 편집→확정 한 번에). startAt/endAt 미지정 시 마감 1시간
+   *  전~마감을 기본 블록으로 부여한다. */
+  confirmActionItem(
+    ctx: ActorContext,
+    actionItemId: string,
+    overrides?: {
+      assigneeId?: string;
+      projectId?: string;
+      dueAt?: string;
+      startAt?: string;
+      endAt?: string;
+    },
+  ): Task {
     const actor = this.requireUser(ctx.actorId);
     const item = this.requireActionItem(actionItemId);
     assertCanResolveActionItem(actor, item, this.meetingNoteOf(item));
+
+    // 확정 전 편집: 아직 처리되지 않은 후보에만 override를 적용한다(이미 created/ignored면
+    // 아래 assert가 거부하므로 필드를 건드리지 않는다 — 처리된 Action 오염 방지).
+    if (overrides && item.status !== "created" && item.status !== "ignored") {
+      if (overrides.assigneeId) {
+        this.requireUser(overrides.assigneeId);
+        item.assigneeId = overrides.assigneeId;
+      }
+      if (overrides.projectId) {
+        if (!this.projects.some((p) => p.id === overrides.projectId)) {
+          throw new QueRuleError("NOT_FOUND", `프로젝트 없음: ${overrides.projectId}`);
+        }
+        item.projectId = overrides.projectId;
+      }
+      if (overrides.dueAt) {
+        item.dueAt = parseScheduleRange({ startAt: overrides.dueAt, endAt: overrides.dueAt }).startAt;
+      }
+    }
+
     try {
       assertCanConfirmActionItem(item);
     } catch (error) {
@@ -435,7 +468,20 @@ export class MockQueDb implements QueDb {
     // 종료로, 그 1시간 전을 시작으로 하는 기본 블록을 부여해 마감일 캘린더에 노출한다.
     // dueAt은 canConfirmActionItem이 이미 보장한다(담당자·마감 없는 Action은 위에서 거부).
     const dueMs = Date.parse(item.dueAt!);
-    const startAt = Number.isNaN(dueMs) ? undefined : new Date(dueMs - 60 * 60 * 1000).toISOString();
+    const defaultStart = Number.isNaN(dueMs)
+      ? undefined
+      : new Date(dueMs - 60 * 60 * 1000).toISOString();
+    // 시간 블록: override로 시작/종료를 직접 받으면 그 값을(시작≤종료 검증), 없으면 기본 블록.
+    let startAt = defaultStart;
+    let endAt = item.dueAt;
+    if (overrides?.startAt || overrides?.endAt) {
+      const block = parseScheduleRange({
+        startAt: overrides.startAt ?? defaultStart ?? item.dueAt!,
+        endAt: overrides.endAt ?? item.dueAt!,
+      });
+      startAt = block.startAt;
+      endAt = block.endAt;
+    }
     const task: Task = {
       id: this.nextId("task"),
       // title/description은 DB check 제약(200/2000자)과 동일한 상한으로 절단
@@ -444,7 +490,7 @@ export class MockQueDb implements QueDb {
       assigneeId: item.assigneeId!,
       projectId: item.projectId,
       startAt,
-      endAt: item.dueAt,
+      endAt,
       status: "scheduled",
       priority: "normal",
       description: `회의록 출처: ${this.meetingNoteName(item.meetingNoteId)} — "${item.sourceText}"`.slice(0, 2000),
@@ -689,7 +735,10 @@ export class MockQueDb implements QueDb {
     ctx: ActorContext,
     input: {
       title: string;
+      /** 대표 프로젝트(단일). projectIds가 오면 무시하고 projectIds[0]을 대표로 삼는다. */
       projectId?: string;
+      /** 다중 프로젝트(주간회의 등). 지정 시 projectId보다 우선한다. */
+      projectIds?: string[];
       meetingAt: string;
       attendeeIds: string[];
       fileName: string;
@@ -717,11 +766,26 @@ export class MockQueDb implements QueDb {
     // meetingAt ISO 검증 (단일 시점)
     const range = parseScheduleRange({ startAt: input.meetingAt, endAt: input.meetingAt });
 
+    // 다중 프로젝트 정규화: projectIds 우선, 없으면 단일 projectId. 중복 제거 후 실재 검증.
+    const rawProjectIds = input.projectIds?.length
+      ? input.projectIds
+      : input.projectId
+        ? [input.projectId]
+        : [];
+    const projectIds = rawProjectIds.filter((id, i) => rawProjectIds.indexOf(id) === i);
+    for (const pid of projectIds) {
+      if (!this.projects.some((p) => p.id === pid)) {
+        throw new QueRuleError("NOT_FOUND", `프로젝트 없음: ${pid}`);
+      }
+    }
+
     const nowIso = this.now();
     const note: MeetingNote = {
       id: this.nextId("note"),
       title: input.title.trim(),
-      projectId: input.projectId,
+      // 대표값(projectId)은 목록·필터의 하위호환을 위해 projectIds[0]과 일치시킨다.
+      projectId: projectIds[0],
+      projectIds: projectIds.length ? projectIds : undefined,
       meetingAt: range.startAt,
       attendeeIds: input.attendeeIds,
       uploaderId: actor.id,

@@ -17,6 +17,7 @@ export {
 export { MOCK_PATS, MOCK_PAT_PREFIX, resolvePat } from "./mock/tokens";
 export { createQueClient, QueApiError, type QueClient, type QueClientOptions } from "./client";
 export { parseTaskInput, type TaskDraft } from "./parse-task";
+export { extractMeetingDateTime, type MeetingDateTimeDraft } from "./parse-meeting";
 export {
   externalCalendarEventSchema,
   type CalendarProvider,

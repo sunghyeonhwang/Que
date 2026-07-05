@@ -23,6 +23,14 @@ export default async function MeetingNotesPage() {
     if (!project) return undefined;
     return formatProjectLabel(project, project.clientId ? clientById.get(project.clientId) : undefined);
   };
+  // 다중 프로젝트 라벨 — projectIds 우선, 없으면 단일 projectId. 넘치면 "· N개"로 축약.
+  const multiProjectLabel = (ids: string[] | undefined, single?: string): string | undefined => {
+    const source = ids?.length ? ids : single ? [single] : [];
+    const labels = source.map(projectLabel).filter((l): l is string => Boolean(l));
+    if (labels.length === 0) return undefined;
+    if (labels.length === 1) return labels[0];
+    return `${labels[0]} · ${labels.length}개`;
+  };
   // 업로드 폼 프로젝트 선택 — 옵션 라벨에 "클라이언트 · 프로젝트"를 병기해 어느 거래처 건인지 명확히.
   const projectOptions = db.projects.map((p) => ({
     id: p.id,
@@ -37,7 +45,7 @@ export default async function MeetingNotesPage() {
       id: note.id,
       title: note.title,
       fileName: note.fileName,
-      projectName: projectLabel(note.projectId),
+      projectName: multiProjectLabel(note.projectIds, note.projectId),
       meetingAt: note.meetingAt,
       uploaderName: userById.get(note.uploaderId)?.name ?? note.uploaderId,
       extractionStatus: note.extractionStatus,
