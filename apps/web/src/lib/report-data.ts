@@ -41,6 +41,7 @@ export interface AdminReportData {
   raisedHolds: number;
   currentBlockers: ReportBlocker[];
   loadByMember: {
+    userId: string;
     name: string;
     openTasks: number;
     openHours: number;
@@ -178,6 +179,7 @@ export async function getAdminReportData(
       return sum + w;
     }, 0);
     return {
+      userId: u.id,
       name: u.name,
       openTasks: open.length,
       openHours,

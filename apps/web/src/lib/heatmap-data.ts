@@ -45,6 +45,9 @@ export interface HeatmapOptions {
   monthAnchor?: Date;
   /** 클라이언트 필터. 지정 시 그 클라이언트 소속 프로젝트 작업만 집계(무소속 제외). */
   clientId?: string;
+  /** 사람 스코프(userId 화이트리스트). 지정 시 이 userId들만 rows로 만든다(대표=전원/관리=대표
+   *  제외/사원=본인). 세션 grade에서만 유도한다(URL로 확대 불가). 미지정이면 전원. */
+  personScope?: string[];
 }
 
 export async function getHeatmapData(
@@ -81,7 +84,12 @@ export async function getHeatmapData(
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   };
 
-  const rows: HeatRow[] = db.users.map((user) => {
+  // 사람 스코프: 지정 시 화이트리스트 userId만 rows로(부하 노출 범위 = 직급 스코프). 순서는
+  // db.users 원 순서를 유지한다. 미지정이면 전원.
+  const personSet = opts.personScope ? new Set(opts.personScope) : undefined;
+  const scopedUsers = personSet ? db.users.filter((u) => personSet.has(u.id)) : db.users;
+
+  const rows: HeatRow[] = scopedUsers.map((user) => {
     const cells: HeatCell[] = days.map((date) => {
       const dayTasks = clientTasks.filter(
         (t) =>
@@ -115,7 +123,7 @@ export async function getHeatmapData(
 
   const totals = rows.map((r) => r.totalScore);
   const maxTotal = Math.max(...totals, 1);
-  const avg = totals.reduce((a, b) => a + b, 0) / rows.length;
+  const avg = rows.length > 0 ? totals.reduce((a, b) => a + b, 0) / rows.length : 0;
 
   return {
     days,

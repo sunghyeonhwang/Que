@@ -1,5 +1,11 @@
 import { format, startOfMonth, startOfWeek, subMonths, subWeeks } from "date-fns";
-import { departmentForUser, formatProjectLabel } from "@que/core";
+import {
+  departmentForUser,
+  formatProjectLabel,
+  gradeForUser,
+  personScopeForGrade,
+  type User,
+} from "@que/core";
 import { getDb } from "./db";
 import { getHeatmapData, type HeatmapData } from "./heatmap-data";
 
@@ -95,6 +101,11 @@ export interface PerformanceOptions {
   lm?: number;
   /** 클라이언트 필터. 지정 시 그 클라이언트 소속 프로젝트 작업만 집계(무소속 제외). */
   clientId?: string;
+  /** 성과 사람-위젯 스코프 뷰어. 지정 시 이 사용자의 grade에서 히트맵 rows·부하표 스코프를
+   *  유도한다(대표=전원/관리=대표 제외/사원=본인). URL로 확대 불가 — 세션 사용자만 넘긴다.
+   *  사원이면 KPI·작업 성과 라인도 본인 스코프로 좁힌다(완료율·기한초과 추이·프로젝트 진행률은
+   *  grade와 무관하게 전원). 데이터 계층이 viewer.id에서 스코프를 재유도해 재검증한다. */
+  viewer?: User;
 }
 
 export async function getPerformanceData(
@@ -115,6 +126,22 @@ export async function getPerformanceData(
     : undefined;
   const inClientScope = (taskId: string): boolean =>
     clientTaskIds === undefined || clientTaskIds.has(taskId);
+
+  // ── 사람 스코프(뷰어 grade에서만 유도) ──
+  // personSet: 히트맵 rows·부하표(lowPerformers)를 이 userId들로 제한(대표=전원/관리=대표
+  //   제외/사원=본인). KPI·완료율·추이·프로젝트 진행률에는 적용하지 않는다(전원 동일).
+  // kpiSelfId: 사원이면 KPI·작업 성과 라인을 본인 작업으로 좁힌다(요구). 관리/대표는 전체.
+  // 스코프는 viewer.id에서 재유도하므로 호출부가 URL로 넓혀도 무의미하다(데이터 계층 재검증).
+  const viewerGrade = opts.viewer ? gradeForUser(opts.viewer.id) : undefined;
+  const personScope = opts.viewer ? personScopeForGrade(opts.viewer.id) : undefined;
+  const personSet = personScope ? new Set(personScope) : undefined;
+  const kpiSelfId = viewerGrade === "staff" ? opts.viewer!.id : undefined;
+  const kpiTasks = kpiSelfId
+    ? clientTasks.filter((t) => t.assigneeId === kpiSelfId)
+    : clientTasks;
+  const kpiTaskIds = kpiSelfId ? new Set(kpiTasks.map((t) => t.id)) : undefined;
+  const inKpiScope = (taskId: string): boolean =>
+    inClientScope(taskId) && (kpiTaskIds === undefined || kpiTaskIds.has(taskId));
 
   // 화이트리스트 검증은 호출부(페이지)에서 하고, 여기선 숫자/enum을 그대로 신뢰한다.
   const hm = opts.hm ?? now.getMonth() + 1;
@@ -149,33 +176,36 @@ export async function getPerformanceData(
   const inCur = (ms: number | undefined) => ms !== undefined && ms > curStart && ms <= nowMs;
   const inPrev = (ms: number | undefined) => ms !== undefined && ms > prevStart && ms <= curStart;
 
+  // liveTasks: 클라이언트 스코프 전체(프로젝트 진행률·전체 진척률·주간 성과의 created 소스).
   const liveTasks = clientTasks.filter((t) => t.status !== "cancelled" && t.status !== "merged");
-  const totalValue = liveTasks.length;
-  const newCur = liveTasks.filter((t) => inCur(creationMs(t.id))).length;
-  const newPrev = liveTasks.filter((t) => inPrev(creationMs(t.id))).length;
+  // kpiLiveTasks: KPI·작업 성과 라인용(사원이면 본인, 그 외 전체). inKpiScope는 status_log 집계용.
+  const kpiLiveTasks = kpiTasks.filter((t) => t.status !== "cancelled" && t.status !== "merged");
+  const totalValue = kpiLiveTasks.length;
+  const newCur = kpiLiveTasks.filter((t) => inCur(creationMs(t.id))).length;
+  const newPrev = kpiLiveTasks.filter((t) => inPrev(creationMs(t.id))).length;
 
-  const inProgressValue = clientTasks.filter((t) => t.status === "in_progress").length;
+  const inProgressValue = kpiTasks.filter((t) => t.status === "in_progress").length;
   const ipLogCur = db.statusLogs.filter(
-    (l) => l.toStatus === "in_progress" && inClientScope(l.taskId) && inCur(new Date(l.createdAt).getTime()),
+    (l) => l.toStatus === "in_progress" && inKpiScope(l.taskId) && inCur(new Date(l.createdAt).getTime()),
   ).length;
   const ipLogPrev = db.statusLogs.filter(
-    (l) => l.toStatus === "in_progress" && inClientScope(l.taskId) && inPrev(new Date(l.createdAt).getTime()),
+    (l) => l.toStatus === "in_progress" && inKpiScope(l.taskId) && inPrev(new Date(l.createdAt).getTime()),
   ).length;
 
-  const completedValue = clientTasks.filter((t) => t.status === "done").length;
+  const completedValue = kpiTasks.filter((t) => t.status === "done").length;
   const doneCur = db.statusLogs.filter(
-    (l) => l.toStatus === "done" && inClientScope(l.taskId) && inCur(new Date(l.createdAt).getTime()),
+    (l) => l.toStatus === "done" && inKpiScope(l.taskId) && inCur(new Date(l.createdAt).getTime()),
   ).length;
   const donePrev = db.statusLogs.filter(
-    (l) => l.toStatus === "done" && inClientScope(l.taskId) && inPrev(new Date(l.createdAt).getTime()),
+    (l) => l.toStatus === "done" && inKpiScope(l.taskId) && inPrev(new Date(l.createdAt).getTime()),
   ).length;
 
-  const overdueValue = clientTasks.filter((t) => isOverdue(t.endAt, t.status)).length;
+  const overdueValue = kpiTasks.filter((t) => isOverdue(t.endAt, t.status)).length;
   // 기한 초과 증감 근사: 마감이 각 기간에 걸리고 아직 열려 있는(초과) 작업 수 비교
-  const overdueEndCur = clientTasks.filter(
+  const overdueEndCur = kpiTasks.filter(
     (t) => t.endAt && inCur(new Date(t.endAt).getTime()) && OPEN.has(t.status),
   ).length;
-  const overdueEndPrev = clientTasks.filter(
+  const overdueEndPrev = kpiTasks.filter(
     (t) => t.endAt && inPrev(new Date(t.endAt).getTime()) && OPEN.has(t.status),
   ).length;
 
@@ -261,15 +291,16 @@ export async function getPerformanceData(
   });
 
   // ── 작업 성과(3계열 라인): 8주 고정 ──
+  // 작업 성과 라인은 KPI와 같은 스코프(사원=본인/그 외=전체) — 개인 대시보드에서 "내 성과"가 되게.
   const performanceTrend: PerformancePoint[] = buildWeeks(8).map(({ start, end, label }) => {
     const completed = db.statusLogs.filter(
-      (l) => l.toStatus === "done" && inClientScope(l.taskId) && new Date(l.createdAt).getTime() >= start && new Date(l.createdAt).getTime() < end,
+      (l) => l.toStatus === "done" && inKpiScope(l.taskId) && new Date(l.createdAt).getTime() >= start && new Date(l.createdAt).getTime() < end,
     ).length;
-    const created = liveTasks.filter((t) => {
+    const created = kpiLiveTasks.filter((t) => {
       const c = creationMs(t.id);
       return c !== undefined && c >= start && c < end;
     }).length;
-    const overdue = clientTasks.filter((t) => {
+    const overdue = kpiTasks.filter((t) => {
       if (!t.endAt) return false;
       const e = new Date(t.endAt).getTime();
       return e >= start && e < end && OPEN.has(t.status);
@@ -281,6 +312,7 @@ export async function getPerformanceData(
   const heatmap = await getHeatmapData(now, {
     monthAnchor: new Date(anchorYear(hm), hm - 1, 1),
     clientId: opts.clientId,
+    personScope,
   });
 
   // ── 저성과 팀 표: lm월 내 활동 기준 (초과 많고 완료 적은 순) ──
@@ -297,7 +329,10 @@ export async function getPerformanceData(
     const assignee = taskAssignee.get(l.taskId);
     if (assignee) doneInLmByUser.set(assignee, (doneInLmByUser.get(assignee) ?? 0) + 1);
   }
-  const lowPerformers: LowPerformerRow[] = db.users
+  // 부하표(lowPerformers)는 사람 스코프로 제한(대표=전원/관리=대표 제외/사원=본인). 사원은
+  // 프론트가 표 자체를 숨기므로 본인 1행만 나가도 노출 문제 없음.
+  const scopedUsers = personSet ? db.users.filter((u) => personSet.has(u.id)) : db.users;
+  const lowPerformers: LowPerformerRow[] = scopedUsers
     .map((u) => {
       const mine = clientTasks.filter((t) => t.assigneeId === u.id);
       return {

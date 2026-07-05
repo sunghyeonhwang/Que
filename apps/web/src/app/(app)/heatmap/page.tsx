@@ -6,6 +6,7 @@ import {
   TriangleAlert,
   type LucideIcon,
 } from "lucide-react";
+import { gradeForUser } from "@que/core";
 import { getCurrentUser } from "@/lib/current-user";
 import { getClientFilter, getClientFilterName } from "@/lib/client-filter";
 import { getPerformanceData, type PerfKpi } from "@/lib/performance-data";
@@ -52,7 +53,7 @@ export default async function PerformancePage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  await getCurrentUser();
+  const user = await getCurrentUser();
   const now = new Date();
   const currentMonth = now.getMonth() + 1;
   const sp = await searchParams;
@@ -68,7 +69,14 @@ export default async function PerformancePage({
     getClientFilterName(),
   ]);
 
-  const data = await getPerformanceData(now, { hm, cm, ot, lm, clientId });
+  // 사람-위젯(히트맵 rows·부하표) 스코프와 사원 KPI 스코프는 세션 사용자 grade에서만 유도한다.
+  // viewer를 넘기면 데이터 계층이 viewer.id로 스코프를 재유도한다 — URL 파라미터로 넓힐 수 없다.
+  const data = await getPerformanceData(now, { hm, cm, ot, lm, clientId, viewer: user });
+
+  // 사원은 팀 부하표(다른 사람 나열)를 숨기고 본인 월간 요약만 본다. 관리자/대표는 데이터가
+  // 이미 스코프돼 있어(대표=전원·관리=대표 제외) 표를 그대로 유지한다.
+  const isStaff = gradeForUser(user.id) === "staff";
+  const selfRow = data.lowPerformers[0];
 
   return (
     <div className="flex flex-col gap-4">
@@ -142,21 +150,57 @@ export default async function PerformancePage({
         </SectionCard>
       </div>
 
-      {/* 4행: 저성과 팀 표 | 프로젝트 진행률 */}
+      {/* 4행: (관리자/대표) 팀 부하 표 · (사원) 내 월간 요약 | 프로젝트 진행률 */}
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-        <SectionCard
-          title="팀 부하 현황"
-          action={
-            <PeriodSelect
-              param="lm"
-              ariaLabel="팀 부하 현황 기준 월 선택"
-              options={MONTH_OPTIONS}
-              value={String(lm)}
-            />
-          }
-        >
-          <LowPerformersTable rows={data.lowPerformers} />
-        </SectionCard>
+        {isStaff ? (
+          <SectionCard
+            title="내 월간 요약"
+            action={
+              <PeriodSelect
+                param="lm"
+                ariaLabel="내 월간 요약 기준 월 선택"
+                options={MONTH_OPTIONS}
+                value={String(lm)}
+              />
+            }
+          >
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-lg border border-[var(--que-border)] p-4">
+                <p className="text-3xl font-semibold tabular-nums text-[var(--que-success)]">
+                  {selfRow?.completed ?? 0}
+                </p>
+                <p className="mt-1 text-sm text-[var(--que-text-secondary)]">이번 달 완료</p>
+              </div>
+              <div className="rounded-lg border border-[var(--que-border)] p-4">
+                <p
+                  className={
+                    "text-3xl font-semibold tabular-nums " +
+                    ((selfRow?.overdue ?? 0) > 0
+                      ? "text-[var(--que-error)]"
+                      : "text-[var(--que-text-tertiary)]")
+                  }
+                >
+                  {selfRow?.overdue ?? 0}
+                </p>
+                <p className="mt-1 text-sm text-[var(--que-text-secondary)]">기한 초과</p>
+              </div>
+            </div>
+          </SectionCard>
+        ) : (
+          <SectionCard
+            title="팀 부하 현황"
+            action={
+              <PeriodSelect
+                param="lm"
+                ariaLabel="팀 부하 현황 기준 월 선택"
+                options={MONTH_OPTIONS}
+                value={String(lm)}
+              />
+            }
+          >
+            <LowPerformersTable rows={data.lowPerformers} />
+          </SectionCard>
+        )}
 
         <SectionCard
           title="프로젝트 진행률"

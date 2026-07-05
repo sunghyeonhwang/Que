@@ -602,6 +602,14 @@ data/
     - **16 다중 프로젝트 + 액션 필드**: meetingNoteSchema `projectIds: string[]` **additive**(projectId=대표=projectIds[0] 유지 → 하위호환 목록/필터 무손상). **⚠️ 프로덕션 DDL 선적용**: `meeting_notes.project_ids text[] default '{}'` nullable(core toRow가 미지정을 null로 보냄, `add-meeting-note-project-ids.sql`). createMeetingNote 다중·중복제거·실재검증. 업로드폼 다중 칩(helpUserIds 패턴)·목록 다중 라벨("A · N개" 축약). `confirmActionItem(id, overrides{assigneeId,projectId,dueAt,startAt,endAt})`·`updateActionItem(+projectId,dueTime)`. action-row에 담당자·프로젝트·마감일·마감시각(옵션)·시작시각(옵션) 필드(편집 저장/확정). 마감없는 확정은 assertCanConfirmActionItem 거부 유지.
     - 검증: core **149**(추가 12: 일시추출·다중프로젝트·override·유령거부), typecheck·lint·build, qa PASS(자동일시·다중라벨·액션 확정→/schedule 표시[배치1·2 정합]·마감없는확정 거부·4해상도, console/pageerror 0). glados 생략(qa 21항목+149테스트로 도메인 불변식 검증, 유령 프로젝트/사용자 override 거부 테스트 포함).
 
+71. **직급별(대표/관리자/사원) 홈·성과 (2026-07-06)** — 사용자 "기획 후 검토→구현" 프로세스. planner 기획 → 사용자 결정 3건 승인 → backend → frontend → qa PASS.
+    - **결정(승인)**: 성과 스코프=**사람 위젯(히트맵·부하표)에만**(KPI·완료율·프로젝트 진행률은 전원 동일, 사원 KPI/성과라인만 본인), 사원 저성과표 숨김·부하 분포는 보임, 직급=rank 기반 gradeForUser. (열린질문: 병목 목록 대표 작업 포함·관리자 부하표 대표 제외·진입점 현행 유지·관리자 상호노출 = 기획 추천대로.)
+    - **직급 판정**: core `gradeForUser(id):"ceo"|"manager"|"staff"`(USER_RANK 소스: 대표=황성현/관리=오승훈/사원=나머지, 문자열 rank 직접비교 금지), `personScopeForGrade(viewerId)`(ceo=8·manager=대표제외7·staff=본인, **viewerId에서만 유도=URL 확대 불가**). role(admin/member)은 쓰기권한 전용 유지. **DB 변경 없음**.
+    - **성과 스코프**: getPerformanceData `viewer` 옵션·getHeatmapData `personScope` — 히트맵 rows·저성과표(lowPerformers)만 스코프. heatmap/page가 세션 viewer 전달, 데이터 계층이 viewer.id로 스코프 **재유도**(호출자 값 불신=report-data 게이트 패턴). 사원 저성과표는 frontend가 카드 숨김("내 월간 요약" 대체).
+    - **직급별 홈**: `getGradeHomeData(user)` → `GradeHomeData`(staff/manager/ceo discriminant, `home-grade-data.ts`). home/page 3분기. **staff "내 하루"**(내 KPI·오늘 할 일·개인 일정·내게 온 요청·내 기여 히트맵1행·내 성과). **manager "어디가 막혔나"**(팀 요약칩·병목 attention[대표 작업 포함]·일정충돌·팀 부하[대표 제외]·확인필요·결제 + 본인 축소, 감시성 문구 금지). **ceo "전사 조망"**(전사 KPI·완료추이·프로젝트+위험 마일스톤·현재 막힘·**클라이언트별 현황**[신규 `client-overview.ts getClientOverview`: 거래처별 활성PJ·평균진행률·막힘]·전원 부하). 기존 컴포넌트 재사용 + 신규 `components/home/*`(client-overview·risk-milestones·attention-list·blocker-list·load-bars·request-inbox + staff/manager/ceo-home).
+    - 검증: core **157**(gradeForUser·personScope URL확대불가 테스트), typecheck·lint·build, qa PASS(3직급 홈 분기·성과 스코프 사원1/관리자7/대표8·저성과표 사원 숨김·**URL 스코프 확대 6시도 전부 차단**·클라이언트 필터·4해상도, console 0). glados 생략(qa가 스코프 보안 e2e[URL bypass 차단]+viewer 재유도 검증, core 157). 기획서(que-product-plan.md) 홈·성과 직급별 정의 반영.
+    - 후속(비차단): 기존 홈 "작업 분포" 차트 3분기서 제외(계약에 없음·복원 가능), 대표 완료추이 cm 셀렉트 없이 기본월.
+
 ## 남은 작업 / 오픈 질문
 
 - ~~알림 채널 결정~~ → **Slack 확정** (2026-07-02): 1단계 Incoming Webhook+딥링크, 2단계 Bot 인터랙티브 버튼으로 Slack 안에서 체크인 응답(`answerCheckIn` 경유, via 기록). 기획서 "알림 정책 > 알림 채널"과 MCP/CLI 계획 Phase E에 반영됨.

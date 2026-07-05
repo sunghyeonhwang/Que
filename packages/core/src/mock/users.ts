@@ -57,6 +57,31 @@ export function rankForUser(id: string): string {
   return USER_RANK[id] ?? "사원";
 }
 
+// 직급(grade) — 홈·성과 화면의 스코프 판정용. role(admin/member)은 쓰기 권한 전용이라
+// 그대로 두고, "누구의 작업/부하가 보이는가"는 이 grade로 판정한다. USER_RANK가 유일한 소스 —
+// 문자열 rank("대표"/"관리")를 화면·데이터 계층에서 직접 비교하지 말고 반드시 이 헬퍼로 감싼다.
+export type UserGrade = "ceo" | "manager" | "staff";
+
+export function gradeForUser(id: string): UserGrade {
+  const rank = USER_RANK[id];
+  if (rank === "대표") return "ceo";
+  if (rank === "관리") return "manager";
+  return "staff";
+}
+
+// 성과 "사람 위젯"(히트맵 rows·부하표) 스코프. 뷰어의 grade에서만 유도한다 —
+// 대표=전원, 관리자=대표 제외 전원, 사원=본인. 세션 사용자 id로만 호출하고 URL 파라미터로
+// 넓힐 수 없게 한다(웹/MCP/CLI가 공유하는 방어 지점). KPI·완료율·추이·프로젝트 진행률에는
+// 적용하지 않는다(그건 전원 동일; 사원 KPI만 별도로 본인 스코프).
+export function personScopeForGrade(viewerId: string): string[] {
+  const grade = gradeForUser(viewerId);
+  if (grade === "ceo") return USERS.map((u) => u.id);
+  if (grade === "manager") {
+    return USERS.filter((u) => gradeForUser(u.id) !== "ceo").map((u) => u.id);
+  }
+  return [viewerId];
+}
+
 // 부서 — 성과 화면(저성과 팀 표) 표시용. ⚠️ 임시 placeholder — 실제 값은 사용자 제공 후 교체.
 // (que-user-info.md엔 부서가 없어 임시 배정. DB 컬럼화는 실제 값 확정 시.)
 const USER_DEPARTMENT: Record<string, string> = {
