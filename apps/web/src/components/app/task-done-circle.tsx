@@ -1,10 +1,30 @@
 "use client";
 
 import type { MouseEvent } from "react";
+import confetti from "canvas-confetti";
 import { TASK_STATUS_LABELS, type TaskStatus } from "@que/core";
 import { changeTaskStatusAction } from "@/app/(app)/today/actions";
 import { cn } from "@/lib/utils";
 import { useSafeAction } from "./use-safe-action";
+
+/** 완료 순간 버튼 위치에서 폭죽(confetti). reduced-motion이면 자동 생략. */
+function burstConfetti(el: HTMLElement) {
+  const rect = el.getBoundingClientRect();
+  confetti({
+    particleCount: 70,
+    spread: 60,
+    startVelocity: 32,
+    gravity: 0.9,
+    ticks: 120,
+    scalar: 0.85,
+    origin: {
+      x: (rect.left + rect.width / 2) / window.innerWidth,
+      y: (rect.top + rect.height / 2) / window.innerHeight,
+    },
+    colors: ["#16a34a", "#22c55e", "#4ade80", "#86efac", "#3b5bd9"],
+    disableForReducedMotion: true,
+  });
+}
 
 /** 작업 목록 행 우측의 원형 완료 버튼.
  *  TaskDoneCheckbox와 같은 상태 변경 액션(changeTaskStatusAction)을 재사용한다.
@@ -30,6 +50,8 @@ export function TaskDoneCircle({
     // 부모 행의 상세 Sheet 트리거로 이벤트가 전파되지 않게 막는다.
     event.stopPropagation();
     const to: TaskStatus = done ? "in_progress" : "done";
+    // 완료로 바뀌는 순간에만 폭죽을 쏜다(되돌리기엔 생략). 낙관적 즉시 발사.
+    if (to === "done") burstConfetti(event.currentTarget);
     run(() => changeTaskStatusAction({ taskId, to }), {
       success: `"${title}" → ${TASK_STATUS_LABELS[to]}`,
     });

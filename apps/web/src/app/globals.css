@@ -323,8 +323,14 @@
     border-color 0.24s ease,
     transform 0.2s ease;
 }
-.que-done-circle:hover .que-done-circle-ring {
+/* hover(미완료 한정): 완료될 모습을 미리보기 — green으로 채우고 체크마크를 옅게 그린다. */
+.que-done-circle:hover:not([data-done]) .que-done-circle-ring {
+  background: var(--que-success);
   border-color: var(--que-success);
+}
+.que-done-circle:hover:not([data-done]) .que-done-circle-mark {
+  stroke-dashoffset: 0;
+  opacity: 0.55;
 }
 .que-done-circle:active .que-done-circle-ring {
   transform: scale(0.9);

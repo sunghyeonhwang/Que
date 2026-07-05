@@ -23,7 +23,6 @@ export function MemberAvatars({
       {members.map((m) => (
         <Avatar
           key={m.id}
-          className="ring-2 ring-white"
           style={{ width: px, height: px }}
         >
           <AvatarFallback
@@ -36,7 +35,7 @@ export function MemberAvatars({
       ))}
       {overflow > 0 && (
         <span
-          className="flex items-center justify-center rounded-full bg-[var(--que-bg-muted)] text-[11px] font-semibold text-[var(--que-text-secondary)] ring-2 ring-white"
+          className="flex items-center justify-center rounded-full bg-[var(--que-bg-muted)] text-[11px] font-semibold text-[var(--que-text-secondary)]"
           style={{ width: px, height: px }}
           aria-label={`외 ${overflow}명`}
         >
