@@ -188,6 +188,7 @@ function mapToTaskRow(item: CalendarViewItem, timeText: string): TaskRowData {
     timeText,
     metaText: item.projectName,
     startAt: item.startAt,
+    endAt: item.endAt,
     assigneeId: item.ownerId,
     assigneeName: item.ownerName,
     canEdit: item.canEdit,

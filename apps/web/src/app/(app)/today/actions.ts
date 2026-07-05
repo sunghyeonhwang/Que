@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import {
+  helpUserIdsOf,
   isQueRuleError,
   latestStatusLog,
   parseTaskInput,
@@ -70,13 +71,24 @@ export async function getMergeCandidatesAction(
 export interface TaskStatusDetailView {
   reason?: string;
   nextAction?: string;
+  /** @deprecated 도움 요청 대상(첫 번째) — 하위호환. 다중 표시는 helpUserNames를 쓴다. */
   helpUserName?: string;
+  /** 도움 요청 대상 전체(다중). 비어 있으면 undefined. */
+  helpUserNames?: string[];
   nextCheckAt?: string;
+  /** 병합된(merged) 작업일 때 — 어느 작업으로 합쳐졌는지. 프론트가 "병합됨 → OO 작업" 표시에 쓴다. */
+  mergedIntoTaskId?: string;
+  mergedIntoTitle?: string;
+  /** 역방향 — 이 작업으로 흡수된(merged) 작업들. 살아남은 B의 시트에서 "이 작업에 병합된 작업" 표시용.
+   *  merged 작업은 모든 목록에서 숨겨져 순방향 배너에 도달할 수 없으므로, 보이는 B 쪽에서 노출한다. */
+  mergedFrom?: { id: string; title: string }[];
 }
 
 /**
- * 현재 문제발생/홀드 상태 작업의 최신 상태 상세(사유·다음액션·도움 요청 대상·재확인 시각).
- * 시트가 열릴 때 지연 조회한다 — issue/on_hold가 아니면 null. write-only였던 상세를 관리 지점에 노출.
+ * 작업의 상태 상세를 시트 오픈 시 지연 조회한다.
+ * - 문제발생/홀드: 최신 StatusLog의 사유·다음액션·도움 요청 대상(다중)·재확인 시각.
+ * - 병합(merged): 병합 대상 작업의 id·제목(item 7 — "무엇과 병합됐는지" 표시용).
+ * 해당 없으면 null. write-only였던 상세를 관리 지점에 노출한다.
  */
 export async function getTaskStatusDetailAction(
   taskId: string,
@@ -84,15 +96,42 @@ export async function getTaskStatusDetailAction(
   await getCurrentUser(); // 세션 강제 — 비인증 호출 시 실명·사유 노출 방지(레포 표준)
   const db = await getDb();
   const task = db.tasks.find((t) => t.id === taskId);
-  if (!task || (task.status !== "issue" && task.status !== "on_hold")) return null;
+  if (!task) return null;
+
+  // 역방향 — 이 작업으로 흡수된(merged) 작업들. merged 작업은 모든 목록에서 숨겨져 순방향
+  // 배너(A→B)에 도달할 수 없으므로, 살아남아 보이는 B의 시트에서 이 목록으로 병합을 드러낸다.
+  const mergedFromList = db.tasks
+    .filter((t) => t.status === "merged" && t.mergedIntoTaskId === taskId)
+    .map((t) => ({ id: t.id, title: t.title }));
+  const mergedFrom = mergedFromList.length > 0 ? mergedFromList : undefined;
+
+  // 병합된 작업: 대상 작업 제목을 파생 제공한다(프론트가 taskById 없이 바로 표시).
+  if (task.status === "merged" && task.mergedIntoTaskId) {
+    const target = db.tasks.find((t) => t.id === task.mergedIntoTaskId);
+    return {
+      mergedIntoTaskId: task.mergedIntoTaskId,
+      mergedIntoTitle: target?.title,
+      mergedFrom,
+    };
+  }
+
+  if (task.status !== "issue" && task.status !== "on_hold") {
+    // 문제/홀드 상세는 없지만 역방향 병합 목록은 있을 수 있다 — 그때만 객체를 돌려준다.
+    return mergedFrom ? { mergedFrom } : null;
+  }
   const latest = latestStatusLog(db.statusLogs, taskId, task.status);
-  if (!latest) return null;
+  if (!latest) return mergedFrom ? { mergedFrom } : null;
   const userById = new Map(db.users.map((u) => [u.id, u]));
+  const helpNames = helpUserIdsOf(latest)
+    .map((id) => userById.get(id)?.name)
+    .filter((n): n is string => Boolean(n));
   return {
     reason: latest.reason,
     nextAction: latest.nextAction,
-    helpUserName: latest.helpUserId ? userById.get(latest.helpUserId)?.name : undefined,
+    helpUserName: helpNames[0],
+    helpUserNames: helpNames.length > 0 ? helpNames : undefined,
     nextCheckAt: latest.nextCheckAt,
+    mergedFrom,
   };
 }
 
@@ -225,4 +264,38 @@ export async function getAssignableUsersAction(): Promise<{ id: string; name: st
   await getCurrentUser(); // 세션 강제 — 비인증 호출 차단(레포 표준)
   const db = await getDb();
   return db.users.map((u) => ({ id: u.id, name: u.name }));
+}
+
+/** 작업 상세 시트의 프로젝트 Select용 — 활성(보관 아님) 프로젝트 {id,name}. lazy 조회. */
+export async function getAssignableProjectsAction(): Promise<{ id: string; name: string }[]> {
+  await getCurrentUser(); // 세션 강제 — 비인증 호출 차단(레포 표준)
+  const db = await getDb();
+  return db.projects
+    .filter((p) => p.status !== "archived")
+    .map((p) => ({ id: p.id, name: p.name }));
+}
+
+/**
+ * 작업의 시작·마감 시각과 소속 프로젝트를 함께 편집한다(작업 상세 시트의 일정/프로젝트 편집).
+ * startAt/endAt/projectId는 null로 해제, undefined면 유지. core(updateTaskDetails)가
+ * startAt≤endAt·프로젝트 실재·편집 권한을 강제하고 바뀐 항목만 ChangeLog(via:"web")에 남긴다.
+ * 여러 운영 화면에 파급되므로 revalidateOps로 관련 경로를 함께 무효화한다.
+ */
+export async function updateTaskScheduleAction(input: {
+  taskId: string;
+  startAt?: string | null;
+  endAt?: string | null;
+  projectId?: string | null;
+}): Promise<ActionResult> {
+  const user = await getCurrentUser();
+  try {
+    const db = await getDb();
+    db.updateTaskDetails({ actorId: user.id, via: "web" }, input);
+    await db.persist();
+    revalidateOps();
+    return { ok: true };
+  } catch (error) {
+    if (isQueRuleError(error)) return { ok: false, error: error.message };
+    throw error;
+  }
 }

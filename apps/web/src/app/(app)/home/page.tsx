@@ -4,7 +4,6 @@ import {
   ClipboardList,
   LoaderCircle,
   Maximize2,
-  Plus,
   TriangleAlert,
   type LucideIcon,
 } from "lucide-react";
@@ -22,6 +21,7 @@ import { HomeCard } from "@/components/home/home-card";
 import { HomeTodoList } from "@/components/home/home-todo-list";
 import { HomeSchedule } from "@/components/home/home-schedule";
 import { TaskDistributionChart } from "@/components/home/task-distribution-chart";
+import { AddTaskDialog } from "@/components/app/add-task-dialog";
 
 export const dynamic = "force-dynamic";
 
@@ -92,13 +92,7 @@ export default async function HomePage({
         </div>
         <div className="flex items-center gap-3">
           <MemberAvatars members={home.headerMembers} overflow={home.memberOverflow} size={32} />
-          <Link
-            href="/today"
-            className="inline-flex h-11 min-h-11 items-center gap-1.5 rounded-lg bg-[var(--que-brand)] px-4 text-sm font-medium text-[var(--que-on-brand)] transition-colors hover:bg-[var(--que-brand-hover)] focus-visible:ring-3 focus-visible:ring-[var(--que-brand)]/40 focus-visible:outline-none"
-          >
-            <Plus className="size-4" aria-hidden />
-            작업 추가
-          </Link>
+          <AddTaskDialog currentUserId={user.id} />
         </div>
       </header>
 
@@ -173,6 +167,13 @@ export default async function HomePage({
         >
           <TaskDistributionChart data={home.distribution} />
         </HomeCard>
+      </div>
+
+      {/* 우하단 플로팅 작업 추가(FAB) — 상단바 버튼과 같은 자연어 모달을 연다. */}
+      <div className="pointer-events-none fixed right-5 bottom-5 z-30 md:right-8 md:bottom-8">
+        <div className="pointer-events-auto">
+          <AddTaskDialog currentUserId={user.id} variant="fab" />
+        </div>
       </div>
     </div>
   );

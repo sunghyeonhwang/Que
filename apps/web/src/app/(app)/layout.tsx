@@ -14,6 +14,7 @@ import { GlobalSearch } from "@/components/app/global-search";
 import { CommandPalette } from "@/components/app/command-palette";
 import { KeyboardShortcuts } from "@/components/app/keyboard-shortcuts";
 import { NotificationsBell } from "@/components/app/notifications-bell";
+import { AddTaskDialog } from "@/components/app/add-task-dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 // App Shell (재설계).
@@ -76,6 +77,7 @@ export default async function AppLayout({
           </div>
 
           <div className="ml-auto flex items-center gap-1 sm:gap-2">
+            <AddTaskDialog currentUserId={user.id} />
             <NotificationsBell alerts={alerts} />
             <UserSwitcher current={user} rank={rank} />
           </div>

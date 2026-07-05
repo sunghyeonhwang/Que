@@ -13,13 +13,14 @@ import {
 import {
   cancelTaskAction,
   changeTaskStatusAction,
+  getAssignableProjectsAction,
   getAssignableUsersAction,
   getMergeCandidatesAction,
   getTaskStatusDetailAction,
   reassignTaskAction,
+  updateTaskScheduleAction,
   type TaskStatusDetailView,
 } from "@/app/(app)/today/actions";
-import { moveTaskToDateAction } from "@/app/(app)/calendar/actions";
 import { reportError } from "@/lib/report-error";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -76,6 +77,10 @@ export interface TaskRowData {
   metaText?: string;
   /** 일정 변경 폼 프리필용 시작 시각 (ISO) */
   startAt?: string;
+  /** 일정 변경 폼 프리필용 마감 시각 (ISO) — 끝 시간 편집용. */
+  endAt?: string;
+  /** 현재 소속 프로젝트 id — 프로젝트 Select 프리필. 없으면 무소속. */
+  projectId?: string;
   /** 현재 담당자 id — 재배정 Select의 현재 값. 없으면 미배정으로 표시. */
   assigneeId?: string;
   /** 현재 담당자 이름 — 사용자 목록 로딩 전 즉시 표시용 fallback. */
@@ -109,6 +114,10 @@ export function TaskStatusSheet({
   const [assignableUsers, setAssignableUsers] = useState<{ id: string; name: string }[] | null>(
     null,
   );
+  // 일정/프로젝트 편집의 프로젝트 Select 옵션 — 시트가 열릴 때 지연 조회.
+  const [assignableProjects, setAssignableProjects] = useState<
+    { id: string; name: string }[] | null
+  >(null);
   // 재배정 픽커 열림 여부 — 숫자키 상태 변경 가드에 포함한다(Select 포커스 중 오변경 방지).
   const [reassignPickerOpen, setReassignPickerOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -134,6 +143,18 @@ export function TaskStatusSheet({
     let active = true;
     getAssignableUsersAction().then((u) => {
       if (active) setAssignableUsers(u);
+    });
+    return () => {
+      active = false;
+    };
+  }, [open]);
+
+  // 프로젝트 Select 옵션(활성 프로젝트)을 열릴 때 지연 조회한다 — 재배정 lazy와 같은 패턴.
+  useEffect(() => {
+    if (!open) return;
+    let active = true;
+    getAssignableProjectsAction().then((p) => {
+      if (active) setAssignableProjects(p);
     });
     return () => {
       active = false;
@@ -277,7 +298,32 @@ export function TaskStatusSheet({
           현재 상태 <StatusBadge status={task.status} />
         </div>
 
-        {statusDetail && (
+        {/* 순방향 — 이 작업(A)이 어디로 흡수됐는지. 검색 등으로 merged 작업을 직접 열 때 대비. */}
+        {statusDetail?.mergedIntoTaskId && (
+          <div className="mb-4 rounded-md border border-l-4 border-l-violet-500 bg-violet-50 p-3 text-sm dark:bg-violet-950/30">
+            <p className="font-medium text-violet-700 dark:text-violet-300">
+              이 작업은{" "}
+              {statusDetail.mergedIntoTitle ? (
+                <>&ldquo;{statusDetail.mergedIntoTitle}&rdquo; 작업</>
+              ) : (
+                "다른 작업"
+              )}
+              에 병합되었습니다.
+            </p>
+          </div>
+        )}
+
+        {/* 역방향 — 이 작업(B)으로 흡수된 작업들. merged 작업은 목록에서 숨겨지므로 살아남은 B에서 노출. */}
+        {statusDetail?.mergedFrom && statusDetail.mergedFrom.length > 0 && (
+          <div className="mb-4 rounded-md border border-l-4 border-l-violet-500 bg-violet-50 p-3 text-sm dark:bg-violet-950/30">
+            <p className="font-medium text-violet-700 dark:text-violet-300">
+              이 작업에 병합된 작업:{" "}
+              {statusDetail.mergedFrom.map((m) => m.title).join(", ")}
+            </p>
+          </div>
+        )}
+
+        {statusDetail?.reason && !statusDetail.mergedIntoTaskId && (
           <div className="mb-4 rounded-md border border-dashed p-3 text-sm">
             <p className="mb-1 font-medium">
               {task.status === "issue" ? "문제 내용" : "대기 사유"}
@@ -286,7 +332,7 @@ export function TaskStatusSheet({
               <p className="text-muted-foreground">{statusDetail.reason}</p>
             )}
             {(statusDetail.nextAction ||
-              statusDetail.helpUserName ||
+              statusDetail.helpUserNames?.length ||
               statusDetail.nextCheckAt) && (
               <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
                 {statusDetail.nextAction && (
@@ -295,10 +341,10 @@ export function TaskStatusSheet({
                     <dd>{statusDetail.nextAction}</dd>
                   </>
                 )}
-                {statusDetail.helpUserName && (
+                {statusDetail.helpUserNames && statusDetail.helpUserNames.length > 0 && (
                   <>
                     <dt className="text-muted-foreground">도움 요청</dt>
-                    <dd>{statusDetail.helpUserName}</dd>
+                    <dd>{statusDetail.helpUserNames.join(", ")}</dd>
                   </>
                 )}
                 {statusDetail.nextCheckAt && (
@@ -430,10 +476,13 @@ export function TaskStatusSheet({
             </div>
 
             <Separator className="my-5" />
-            <ScheduleMoveForm
+            <ScheduleEditForm
               taskId={task.id}
               taskTitle={task.title}
               startAt={task.startAt}
+              endAt={task.endAt}
+              projectId={task.projectId}
+              projects={assignableProjects}
               onDone={() => setOpen(false)}
             />
 
@@ -480,65 +529,146 @@ export function TaskStatusSheet({
   );
 }
 
-/** 드래그가 어려운 터치 환경용 날짜/시간 변경 폼 (DESIGN.md 11장). */
-function ScheduleMoveForm({
+const NO_PROJECT = "__no_project__";
+
+/** 로컬 날짜/시간 문자열 → KST 기준 ISO. create-schedule-dialog toIso와 동일 규약. */
+function toIso(date: string, time: string): string {
+  return new Date(`${date}T${time}:00`).toISOString();
+}
+
+function toDateStr(iso?: string): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function toTimeStr(iso?: string): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
+/**
+ * 드래그가 어려운 터치 환경용 일정/프로젝트 편집 폼 (DESIGN.md 11장).
+ * 날짜·시작·끝 시간과 소속 프로젝트를 한 번에 편집한다. 저장 시 바뀐 항목만
+ * updateTaskScheduleAction으로 커밋(core가 start≤end·프로젝트 실재·권한을 강제).
+ */
+function ScheduleEditForm({
   taskId,
   taskTitle,
   startAt,
+  endAt,
+  projectId,
+  projects,
   onDone,
 }: {
   taskId: string;
   taskTitle: string;
   startAt?: string;
+  endAt?: string;
+  projectId?: string;
+  projects: { id: string; name: string }[] | null;
   onDone: () => void;
 }) {
-  const initial = startAt ? new Date(startAt) : new Date();
-  const [date, setDate] = useState(
-    `${initial.getFullYear()}-${String(initial.getMonth() + 1).padStart(2, "0")}-${String(initial.getDate()).padStart(2, "0")}`,
-  );
-  const [time, setTime] = useState(
-    `${String(initial.getHours()).padStart(2, "0")}:${String(initial.getMinutes()).padStart(2, "0")}`,
-  );
+  const [date, setDate] = useState(toDateStr(startAt) || toDateStr(new Date().toISOString()));
+  const [startTime, setStartTime] = useState(toTimeStr(startAt) || "09:00");
+  const [endTime, setEndTime] = useState(toTimeStr(endAt) || "10:00");
+  const [selectedProject, setSelectedProject] = useState(projectId ?? NO_PROJECT);
   const { run, pending } = useSafeAction();
 
+  const timeError = endTime <= startTime ? "끝 시간은 시작 시간보다 늦어야 합니다." : null;
+
   const submit = () => {
-    const hour = Number(time.split(":")[0]);
-    run(() => moveTaskToDateAction({ taskId, date, hour }), {
-      success: `"${taskTitle}" 일정이 변경되어 로그에 기록됐습니다.`,
+    if (timeError || !date) return;
+    // 바뀐 항목만 전송한다. 프로젝트는 NO_PROJECT → null(해제), 그 외는 id.
+    const patch: Parameters<typeof updateTaskScheduleAction>[0] = { taskId };
+    const nextStart = toIso(date, startTime);
+    const nextEnd = toIso(date, endTime);
+    if (nextStart !== startAt) patch.startAt = nextStart;
+    if (nextEnd !== endAt) patch.endAt = nextEnd;
+    const nextProjectId = selectedProject === NO_PROJECT ? null : selectedProject;
+    if (nextProjectId !== (projectId ?? null)) patch.projectId = nextProjectId;
+    run(() => updateTaskScheduleAction(patch), {
+      success: `"${taskTitle}" 일정을 변경했습니다.`,
       onSuccess: onDone,
     });
   };
 
+  const projectItems: Record<string, string> = {
+    [NO_PROJECT]: "프로젝트 없음",
+    ...Object.fromEntries((projects ?? []).map((p) => [p.id, p.name])),
+  };
+
   return (
     <div>
-      <h3 className="mb-2 text-sm font-medium">날짜/시간 변경</h3>
-      <div className="grid grid-cols-2 gap-3">
+      <h3 className="mb-2 text-sm font-medium">일정 · 프로젝트 변경</h3>
+      <div className="grid grid-cols-3 gap-3">
         <Field>
-          <FieldLabel htmlFor="move-date">날짜</FieldLabel>
+          <FieldLabel htmlFor="sched-date">날짜</FieldLabel>
           <Input
-            id="move-date"
+            id="sched-date"
             type="date"
             value={date}
             onChange={(e) => setDate(e.target.value)}
+            className="h-10"
           />
         </Field>
         <Field>
-          <FieldLabel htmlFor="move-time">시작 시간</FieldLabel>
+          <FieldLabel htmlFor="sched-start">시작</FieldLabel>
           <Input
-            id="move-time"
+            id="sched-start"
             type="time"
-            value={time}
-            onChange={(e) => setTime(e.target.value)}
+            value={startTime}
+            onChange={(e) => setStartTime(e.target.value)}
+            className="h-10"
           />
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="sched-end">끝</FieldLabel>
+          <Input
+            id="sched-end"
+            type="time"
+            value={endTime}
+            onChange={(e) => setEndTime(e.target.value)}
+            className="h-10"
+            aria-invalid={timeError ? true : undefined}
+          />
+        </Field>
+      </div>
+      {timeError && <p className="mt-1 text-sm text-destructive">{timeError}</p>}
+      <div className="mt-3">
+        <Field>
+          <FieldLabel>프로젝트</FieldLabel>
+          {projects ? (
+            <Select
+              items={projectItems}
+              value={selectedProject}
+              onValueChange={(v) => setSelectedProject((v as string) ?? NO_PROJECT)}
+            >
+              <SelectTrigger aria-label="프로젝트 선택" className="h-10 w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={NO_PROJECT}>프로젝트 없음</SelectItem>
+                {projects.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <div className="h-10 w-full animate-pulse rounded-lg border border-input bg-muted/40" />
+          )}
         </Field>
       </div>
       <Button
         variant="secondary"
         className="mt-3 h-10 w-full"
-        disabled={pending || !date}
+        disabled={pending || !date || !!timeError}
         onClick={submit}
       >
-        {pending ? "변경 중…" : "일정 변경"}
+        {pending ? "변경 중…" : "일정 · 프로젝트 저장"}
       </Button>
     </div>
   );

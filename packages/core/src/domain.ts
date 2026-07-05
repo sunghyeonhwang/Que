@@ -38,7 +38,11 @@ export type TaskStatus = z.infer<typeof taskStatusSchema>;
 export const statusDetailSchema = z.object({
   reason: z.string().trim().min(1, "사유는 필수다").max(500, "사유는 500자 이내"),
   nextAction: z.string().max(500).optional(),
+  /** @deprecated 단일 도움 대상 — 하위호환용. 신규 입력은 helpUserIds(배열)를 쓴다.
+   *  둘 다 오면 helpUserIds가 우선이다(helpUserIdsOf 참고). */
   helpUserId: z.string().max(100).optional(),
+  /** 도움 필요한 사람들 — 여러 명 지정 가능. 최대 10명. */
+  helpUserIds: z.array(z.string().max(100)).max(10).optional(),
   recheckAt: isoDateTime.optional(),
 });
 export type StatusDetail = z.infer<typeof statusDetailSchema>;
@@ -273,8 +277,12 @@ export const statusLogSchema = z.object({
   toStatus: taskStatusSchema,
   reason: z.string().optional(),
   nextAction: z.string().optional(),
-  /** 문제발생/홀드에서 지목된 도움 필요한 사람 — 오늘/팀 현황 화면의 "내 관련" 판정에 쓴다 */
+  /** @deprecated 문제발생/홀드에서 지목된 도움 필요한 사람(단일) — 레거시 컬럼(status_logs.help_user_id).
+   *  다중 지원 후에도 하위호환 읽기·FK 유지를 위해 남긴다. 새 로그는 helpUserIds[0]과 동일값을 채운다.
+   *  "내 관련" 판정은 helpUserIdsOf(log)로 통일해 단일/다중 모두 커버한다. */
   helpUserId: z.string().optional(),
+  /** 문제발생/홀드에서 지목된 도움 필요한 사람들(다중) — status_logs.help_user_ids(text[]) */
+  helpUserIds: z.array(z.string()).optional(),
   nextCheckAt: isoDateTime.optional(),
   createdAt: isoDateTime,
 });

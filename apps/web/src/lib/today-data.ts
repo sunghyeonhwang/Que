@@ -1,5 +1,6 @@
 import {
   canViewPrivateEventDetail,
+  helpUserIdsOf,
   latestStatusLog,
   type CalendarEvent,
   type CheckIn,
@@ -29,7 +30,10 @@ export interface PendingCheckIn {
 export interface AttentionTask {
   task: Task;
   reason?: string;
+  /** @deprecated 도움 요청 대상(첫 번째) — 하위호환. 다중은 helpUserNames를 쓴다. */
   helpUserName?: string;
+  /** 도움 요청 대상 전체(다중). 비어 있으면 undefined. */
+  helpUserNames?: string[];
   nextCheckAt?: string;
 }
 
@@ -156,21 +160,24 @@ export async function getTodayData(
     .filter((t) => t.status === "issue" || t.status === "on_hold")
     .flatMap((task) => {
       const latestLog = latestStatusLog(db.statusLogs, task.id, task.status);
-      // 내가 관련된 문제/홀드: 담당자, 소유자, 도움 요청 대상. 관리자는 전체를 본다.
+      const helpIds = helpUserIdsOf(latestLog);
+      // 내가 관련된 문제/홀드: 담당자, 소유자, 도움 요청 대상(다중 중 하나라도). 관리자는 전체를 본다.
       const involved =
         task.assigneeId === user.id ||
         task.ownerId === user.id ||
-        latestLog?.helpUserId === user.id ||
+        helpIds.includes(user.id) ||
         user.role === "admin";
       if (!involved) return [];
+      const helpNames = helpIds
+        .map((id) => userById.get(id)?.name)
+        .filter((n): n is string => Boolean(n));
       return [
         {
           task,
           reason: latestLog?.reason,
           nextCheckAt: latestLog?.nextCheckAt,
-          helpUserName: latestLog?.helpUserId
-            ? userById.get(latestLog.helpUserId)?.name
-            : undefined,
+          helpUserName: helpNames[0],
+          helpUserNames: helpNames.length > 0 ? helpNames : undefined,
         },
       ];
     });

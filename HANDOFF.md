@@ -590,6 +590,13 @@ data/
     - **검증**: core **135**, typecheck·lint·build, qa PASS(팝오버 task/event·필터·작업/일정 생성 캘린더 반영·**마스킹 3계정 교차 미유출**·종료≤시작 검증·4해상도). **glados [PASS] 적대적 침투 6/6 방어**(source/owner 주입·visibility 위조·유령 actor·외부/비공개 일정 이동 전부 거부).
     - 후속(비차단): schema.sql 헤더 주석 낡음(calendar_events title 코드검증 이제 있음), event `canEdit`이 `canMoveCalendarEvent` 인라인 복제(드리프트 위험), core에 visibility 위조·200자초과 회귀 테스트 추가 권장, 1024×768 월간 마지막 요일 스크롤 전 잘림(내부 스크롤로 처리됨·타깃 아님).
 
+69. **앱 검수 배치3 — 전역 작업추가 4·5 / 내작업 편집 6 / 병합표시 7 (2026-07-06)** — backend(조사+구현) → frontend → qa → glados.
+    - **4/5 전역 작업추가**: QuickAdd(자연어 파싱+**확인카드**) → `QuickAddForm` 추출·공용화, `add-task-dialog.tsx`(header/fab 변형). 앱 상단바(전 페이지) + 홈 FAB. 확인카드 규칙 유지(우회 등록 경로 없음).
+    - **6 내작업 편집**: `updateTaskDetails` +startAt/projectId(부분 업데이트·start≤end·프로젝트 실재·canEditTask·diff-only). task-status-sheet `ScheduleEditForm`(날짜+시작+끝+프로젝트, `updateTaskScheduleAction`+revalidateOps). **도움요청 다중**: statusDetail `helpUserIds: string[]`(레거시 `helpUserId` FK 컬럼 유지=하위호환, changeTaskStatus가 첫원소→help_user_id·전체→help_user_ids 동시 저장, `helpUserIdsOf()` 정규화 읽기). status-detail-form 단일 Select→다중 칩. **⚠️ 프로덕션 DDL 선적용**: `status_logs.help_user_ids text[]`(additive+backfill, `add-status-log-help-user-ids.sql`).
+    - **7 병합표시**: getTaskStatusDetailAction에 `mergedIntoTitle`(순방향 A→B)+`mergedFrom`(역방향 B에 흡수된 작업들). **⚠️ QA 회귀**: merged 작업은 전 화면 숨김이라 순방향 배너 도달 불가 → 역방향(살아남은 B에 "이 작업에 병합된 작업:") 추가. **glados 반려**: mergedFrom-only 객체(reason 없음)에 빈 "대기 사유" 박스 렌더 → 상세 박스 게이트 `statusDetail?.reason && !mergedIntoTaskId`로 수정.
+    - 검증: core **138**, typecheck·lint·build, qa PASS(전역버튼 다페이지·자연어 확인카드 등록·시간/프로젝트 편집·도움요청 다중·4해상도), **glados [PASS]**(하위호환·DDL·확인카드·권한 견고; 반려 1건 수정 후).
+    - 후속(비차단): my-task-table/event-detail-popover projectId 미전달(그 표면 시트서 "프로젝트 없음"·프로젝트 해제 불가), ScheduleEditForm 자정 넘는 작업 저장 불가(단일 날짜), 일정 없는 작업 프로젝트만 변경 시 기본 09-10시 일정 동반 커밋.
+
 ## 남은 작업 / 오픈 질문
 
 - ~~알림 채널 결정~~ → **Slack 확정** (2026-07-02): 1단계 Incoming Webhook+딥링크, 2단계 Bot 인터랙티브 버튼으로 Slack 안에서 체크인 응답(`answerCheckIn` 경유, via 기록). 기획서 "알림 정책 > 알림 채널"과 MCP/CLI 계획 Phase E에 반영됨.

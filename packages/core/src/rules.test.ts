@@ -88,10 +88,28 @@ describe("작업 상태 변경", () => {
     const slog = d.statusLogs.at(-1)!;
     expect(slog.toStatus).toBe("on_hold");
     expect(slog.reason).toBe("디자인 확정 대기");
+    // 레거시 단일 helpUserId 입력도 다중 배열로 정규화되고, 레거시 컬럼(첫 번째)도 유지된다.
+    expect(slog.helpUserId).toBe("kim-riwon");
+    expect(slog.helpUserIds).toEqual(["kim-riwon"]);
 
     const clog = d.changeLogs.at(-1)!;
     expect(clog.via).toBe("mcp");
     expect(clog.changeType).toBe("status_change");
+  });
+
+  it("도움 필요한 사람을 여러 명 지정하면 StatusLog에 배열로 저장된다(단일 컬럼=첫 번째)", () => {
+    const d = db();
+    d.changeTaskStatus(
+      { actorId: "hwang-sunghyeon", via: "web" },
+      {
+        taskId: "task-landing-copy",
+        to: "issue",
+        detail: { reason: "API·디자인 동시 블로킹", helpUserIds: ["kim-riwon", "song-suyong"] },
+      },
+    );
+    const slog = d.statusLogs.at(-1)!;
+    expect(slog.helpUserIds).toEqual(["kim-riwon", "song-suyong"]);
+    expect(slog.helpUserId).toBe("kim-riwon");
   });
 
   it("타인 작업은 팀원이 수정할 수 없다", () => {
@@ -604,6 +622,52 @@ describe("작업 상세 편집 (updateTaskDetails)", () => {
     );
     expect(updated.description).toBe("관리자 메모");
     expect(d.changeLogs.at(-1)!.via).toBe("cli");
+  });
+
+  it("시작 시각을 변경하면 ChangeLog에 남고, 시작>마감이면 거부된다", () => {
+    const d = db();
+    // task-banner-design: 시작 10시·마감 13시. 시작을 12시로 당기면 통과.
+    const before = d.requireTask("task-banner-design");
+    const newStart = new Date(before.endAt!);
+    newStart.setHours(newStart.getHours() - 1); // 12시
+    const updated = d.updateTaskDetails(
+      { actorId: "kim-riwon", via: "web" },
+      { taskId: "task-banner-design", startAt: newStart.toISOString() },
+    );
+    expect(updated.startAt).toBe(newStart.toISOString());
+    expect(d.changeLogs.at(-1)!.afterValue).toContain("시작:");
+    // 마감(13시)보다 늦은 시작은 거부.
+    const afterEnd = new Date(before.endAt!);
+    afterEnd.setHours(afterEnd.getHours() + 1);
+    expect(() =>
+      d.updateTaskDetails(
+        { actorId: "kim-riwon", via: "web" },
+        { taskId: "task-banner-design", startAt: afterEnd.toISOString() },
+      ),
+    ).toThrowError(/시작 시각보다 빠를 수 없다/);
+  });
+
+  it("프로젝트를 변경·해제할 수 있고, 없는 프로젝트는 거부된다", () => {
+    const d = db();
+    const moved = d.updateTaskDetails(
+      { actorId: "kim-riwon", via: "web" },
+      { taskId: "task-banner-design", projectId: "prj-payment" },
+    );
+    expect(moved.projectId).toBe("prj-payment");
+    expect(d.changeLogs.at(-1)!.afterValue).toContain("프로젝트:");
+    // null로 프로젝트 해제
+    const cleared = d.updateTaskDetails(
+      { actorId: "kim-riwon", via: "web" },
+      { taskId: "task-banner-design", projectId: null },
+    );
+    expect(cleared.projectId).toBeUndefined();
+    // 유령 프로젝트는 거부
+    expect(() =>
+      d.updateTaskDetails(
+        { actorId: "kim-riwon", via: "web" },
+        { taskId: "task-banner-design", projectId: "prj-ghost" },
+      ),
+    ).toThrowError(/프로젝트 없음/);
   });
 });
 

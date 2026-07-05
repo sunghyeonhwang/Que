@@ -32,8 +32,29 @@ function toLocalTime(iso?: string): string {
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
-/** 자연어 빠른 입력 + 확인 카드 (기획: 등록 전 확인 단계를 반드시 둔다). */
+/** 자연어 빠른 입력 + 확인 카드 (기획: 등록 전 확인 단계를 반드시 둔다).
+ *  /today 입력 탭의 인라인 배치용 얇은 래퍼. 실제 흐름은 QuickAddForm에 있다. */
 export function QuickAdd({ currentUserId }: { currentUserId: string }) {
+  return (
+    <div className="mb-4">
+      <QuickAddForm currentUserId={currentUserId} />
+    </div>
+  );
+}
+
+/**
+ * 자연어 빠른등록 폼(입력 → 해석 → 확인 카드 → 등록). 인라인(/today)과 모달(전역 "작업 추가")이
+ * 공유한다. onDone은 등록 성공 시 호출되어 모달을 닫는 데 쓴다(인라인은 미지정).
+ */
+export function QuickAddForm({
+  currentUserId,
+  onDone,
+  autoFocus = false,
+}: {
+  currentUserId: string;
+  onDone?: () => void;
+  autoFocus?: boolean;
+}) {
   const { run, pending, startTransition } = useSafeAction();
   const [text, setText] = useState("");
   const [draft, setDraft] = useState<TaskDraft | null>(null);
@@ -74,12 +95,13 @@ export function QuickAdd({ currentUserId }: { currentUserId: string }) {
       onSuccess: () => {
         setDraft(null);
         setText("");
+        onDone?.();
       },
     });
   };
 
   return (
-    <div className="mb-4">
+    <div>
       <div className="flex gap-2">
         <Input
           value={text}
@@ -90,6 +112,7 @@ export function QuickAdd({ currentUserId }: { currentUserId: string }) {
           placeholder='예: "내일 오후 3시에 황성현씨 상세페이지 QA 넣어줘"'
           aria-label="자연어 작업 입력"
           className="h-10 flex-1"
+          autoFocus={autoFocus}
         />
         <Button className="h-10" disabled={pending || !text.trim()} onClick={parse}>
           {pending && !draft ? "해석 중…" : "해석"}

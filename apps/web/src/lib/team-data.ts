@@ -1,6 +1,7 @@
 import {
   canEditTask,
   canViewPrivateEventDetail,
+  helpUserIdsOf,
   latestStatusLog,
   type CheckIn,
   type Task,
@@ -36,7 +37,10 @@ export interface AttentionEntry {
   title: string;
   assigneeName: string;
   detail?: string;
+  /** @deprecated 도움 요청 대상(첫 번째) — 하위호환. 다중은 helpUserNames를 쓴다. */
   helpUserName?: string;
+  /** 도움 요청 대상 전체(다중). 비어 있으면 undefined. */
+  helpUserNames?: string[];
   nextCheckAt?: string;
 }
 
@@ -174,15 +178,17 @@ export async function getTeamData(
   const attention: AttentionEntry[] = [];
   for (const task of clientTasks.filter((t) => t.status === "issue" || t.status === "on_hold")) {
     const latestLog = latestStatusLog(db.statusLogs, task.id, task.status);
+    const helpNames = helpUserIdsOf(latestLog)
+      .map((id) => userById.get(id)?.name)
+      .filter((n): n is string => Boolean(n));
     attention.push({
       type: task.status === "issue" ? "issue" : "on_hold",
       taskId: task.id,
       title: task.title,
       assigneeName: userById.get(task.assigneeId)?.name ?? task.assigneeId,
       detail: latestLog?.reason,
-      helpUserName: latestLog?.helpUserId
-        ? userById.get(latestLog.helpUserId)?.name
-        : undefined,
+      helpUserName: helpNames[0],
+      helpUserNames: helpNames.length > 0 ? helpNames : undefined,
       nextCheckAt: latestLog?.nextCheckAt,
     });
   }

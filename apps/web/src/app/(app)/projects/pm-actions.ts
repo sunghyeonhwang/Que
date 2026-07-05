@@ -65,13 +65,17 @@ export async function createTaskAction(input: {
   );
 }
 
-/** 카드 상세 편집(제목·설명·우선순위·마감). 담당자·상태 변경은 별도 액션. */
+/** 카드 상세 편집(제목·설명·우선순위·시작·마감·프로젝트). 담당자·상태 변경은 별도 액션.
+ *  startAt/endAt/projectId는 null로 해제, 미지정(undefined)이면 유지. core가 startAt≤endAt·
+ *  프로젝트 실재를 강제하고 바뀐 항목만 ChangeLog(via:"web")에 남긴다. */
 export async function updateTaskDetailsAction(input: {
   taskId: string;
   title?: string;
   description?: string | null;
   priority?: Task["priority"];
+  startAt?: string | null;
   endAt?: string | null;
+  projectId?: string | null;
 }): Promise<ActionResult> {
   const user = await getCurrentUser();
   return toResult((db) => db.updateTaskDetails({ actorId: user.id, via: "web" }, input));

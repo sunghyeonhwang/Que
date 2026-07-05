@@ -33,6 +33,7 @@ import {
   canManageClient,
   canManageProject,
   canViewMeetingNote,
+  helpUserIdsOf,
   latestStatusLog,
   parseEventVisibility,
   parseScheduleRange,
@@ -181,6 +182,10 @@ export class MockQueDb implements QueDb {
     task.lastChangedBy = actor.id;
     task.lastChangedAt = nowIso;
 
+    // 도움 필요한 사람은 단일/다중이 섞여 들어올 수 있으므로 배열로 정규화해 저장한다.
+    // 레거시 컬럼(help_user_id)엔 첫 번째를 넣어 FK·하위호환을 유지하고,
+    // help_user_ids(text[])엔 전체를 담는다(비어 있으면 undefined → 컬럼 null).
+    const helpIds = helpUserIdsOf(input.detail);
     this.statusLogs.push({
       id: this.nextId("slog"),
       taskId: task.id,
@@ -189,7 +194,8 @@ export class MockQueDb implements QueDb {
       toStatus: input.to,
       reason: input.detail?.reason,
       nextAction: input.detail?.nextAction,
-      helpUserId: input.detail?.helpUserId,
+      helpUserId: helpIds[0],
+      helpUserIds: helpIds.length > 0 ? helpIds : undefined,
       nextCheckAt: input.detail?.recheckAt,
       createdAt: nowIso,
     });
@@ -259,10 +265,11 @@ export class MockQueDb implements QueDb {
     if (previousStatus === "issue" || previousStatus === "on_hold") {
       const log = latestStatusLog(this.statusLogs, task.id, previousStatus);
       if (log?.reason) {
+        const helpIds = helpUserIdsOf(log);
         previousStatusDetail = {
           reason: log.reason,
           nextAction: log.nextAction,
-          helpUserId: log.helpUserId,
+          helpUserIds: helpIds.length > 0 ? helpIds : undefined,
           recheckAt: log.nextCheckAt,
         };
       }
@@ -575,8 +582,12 @@ export class MockQueDb implements QueDb {
       title?: string;
       description?: string | null;
       priority?: Task["priority"];
-      /** 마감(종료) 시각 ISO. null이면 마감 해제. startAt은 유지한다. */
+      /** 시작 시각 ISO. null이면 시작 해제. */
+      startAt?: string | null;
+      /** 마감(종료) 시각 ISO. null이면 마감 해제. */
       endAt?: string | null;
+      /** 소속 프로젝트 id. null이면 프로젝트 해제(무소속 잡무). */
+      projectId?: string | null;
     },
   ): Task {
     const actor = this.requireUser(ctx.actorId);
@@ -617,22 +628,44 @@ export class MockQueDb implements QueDb {
         task.priority = input.priority;
       }
     }
-    if (input.endAt !== undefined) {
-      let endAt: string | undefined;
-      if (input.endAt === null) {
-        endAt = undefined;
-      } else {
-        // ISO 형식 강제(단일 시점도 range 파서로 검증하는 다른 mutation 선례).
-        endAt = parseScheduleRange({ startAt: input.endAt, endAt: input.endAt }).startAt;
-        // startAt이 있으면 endAt이 그보다 빠를 수 없다.
-        if (task.startAt && Date.parse(endAt) < Date.parse(task.startAt)) {
-          throw new QueRuleError("INVALID_SCHEDULE", "마감 시각은 시작 시각보다 빠를 수 없다");
-        }
+    // 시작·마감을 함께 검증한다. 둘 중 하나만 바뀌어도 "최종" 시작·마감 조합으로 startAt≤endAt를
+    // 판정해야 한다(한쪽만 보면 다른 쪽과의 역전을 놓친다). null은 해제, 미지정(undefined)은 유지.
+    const parseSlot = (v: string | null): string | undefined =>
+      // ISO 형식 강제(단일 시점도 range 파서로 검증하는 다른 mutation 선례).
+      v === null ? undefined : parseScheduleRange({ startAt: v, endAt: v }).startAt;
+    const nextStartAt = input.startAt !== undefined ? parseSlot(input.startAt) : task.startAt;
+    const nextEndAt = input.endAt !== undefined ? parseSlot(input.endAt) : task.endAt;
+    if (
+      nextStartAt !== undefined &&
+      nextEndAt !== undefined &&
+      Date.parse(nextEndAt) < Date.parse(nextStartAt)
+    ) {
+      throw new QueRuleError("INVALID_SCHEDULE", "마감 시각은 시작 시각보다 빠를 수 없다");
+    }
+    if (input.startAt !== undefined && nextStartAt !== task.startAt) {
+      before.push(`시작: ${task.startAt ?? "(없음)"}`);
+      changes.push(`시작: ${nextStartAt ?? "(없음)"}`);
+      task.startAt = nextStartAt;
+    }
+    if (input.endAt !== undefined && nextEndAt !== task.endAt) {
+      before.push(`마감: ${task.endAt ?? "(없음)"}`);
+      changes.push(`마감: ${nextEndAt ?? "(없음)"}`);
+      task.endAt = nextEndAt;
+    }
+    if (input.projectId !== undefined) {
+      const projectId = input.projectId === null ? undefined : input.projectId;
+      // 지정 시 실재 프로젝트여야 한다(유령 id 차단). 해제(null)는 검증 없이 통과.
+      const nextProject = projectId
+        ? this.projects.find((p) => p.id === projectId)
+        : undefined;
+      if (projectId && !nextProject) {
+        throw new QueRuleError("NOT_FOUND", `프로젝트 없음: ${projectId}`);
       }
-      if (endAt !== task.endAt) {
-        before.push(`마감: ${task.endAt ?? "(없음)"}`);
-        changes.push(`마감: ${endAt ?? "(없음)"}`);
-        task.endAt = endAt;
+      if (projectId !== task.projectId) {
+        const prevProject = this.projects.find((p) => p.id === task.projectId);
+        before.push(`프로젝트: ${prevProject?.name ?? "(없음)"}`);
+        changes.push(`프로젝트: ${nextProject?.name ?? "(없음)"}`);
+        task.projectId = projectId;
       }
     }
 

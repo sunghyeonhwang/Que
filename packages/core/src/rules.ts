@@ -69,6 +69,23 @@ export function assertStatusDetail(
   }
 }
 
+/**
+ * "도움 필요한 사람"을 항상 배열로 정규화한다. StatusDetail(입력)과 StatusLog(저장) 양쪽에서
+ * 단일 레거시(helpUserId)와 다중(helpUserIds)이 공존할 수 있으므로, 읽는 쪽은 모두 이 함수를 거친다.
+ * helpUserIds가 있으면 그것을, 없으면 레거시 단일값을 배열로 승격한다(중복 제거).
+ */
+export function helpUserIdsOf(
+  source: { helpUserId?: string; helpUserIds?: string[] } | undefined,
+): string[] {
+  if (!source) return [];
+  const ids = source.helpUserIds?.length
+    ? source.helpUserIds
+    : source.helpUserId
+      ? [source.helpUserId]
+      : [];
+  return [...new Set(ids.filter((id) => id.length > 0))];
+}
+
 /** 본인, 프로젝트 담당자, 관리자만 작업을 수정할 수 있다. 그 외는 요청만 가능. */
 export function canEditTask(actor: User, task: Task, project?: Project): boolean {
   if (actor.role === "admin") return true;

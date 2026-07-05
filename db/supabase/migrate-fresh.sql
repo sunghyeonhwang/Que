@@ -162,6 +162,7 @@ create table if not exists status_logs (
   reason        text check (char_length(reason) <= 500),
   next_action   text check (char_length(next_action) <= 500),
   help_user_id  text references users(id),
+  help_user_ids text[],
   next_check_at timestamptz,
   created_at    timestamptz not null default now()
 );

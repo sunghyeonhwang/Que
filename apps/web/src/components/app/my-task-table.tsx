@@ -62,6 +62,7 @@ export function MyTaskTable({
             timeText: dueLabel(item),
             metaText: item.description,
             startAt: item.startAt,
+            endAt: item.endAt,
             assigneeId: item.assignees[0]?.id,
             assigneeName: item.assignees[0]?.name,
             comments: commentsByTask.get(item.id) ?? [],
