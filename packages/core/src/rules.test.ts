@@ -1406,6 +1406,52 @@ describe("클라이언트(거래처) — 관리자만 생성·수정", () => {
     expect(updated.status).toBe("archived");
     expect(d.changeLogs.at(-1)!.entityType).toBe("client");
   });
+
+  it("새 클라이언트는 표시 순서 맨 끝(max+1)으로 붙는다", () => {
+    const d = db();
+    const maxBefore = Math.max(...d.clients.map((c) => c.sortOrder));
+    const created = d.createClient({ actorId: "hwang-sunghyeon", via: "web" }, { name: "새 거래처" });
+    expect(created.sortOrder).toBe(maxBefore + 1);
+  });
+});
+
+describe("클라이언트 표시 순서 변경 (reorderClients)", () => {
+  it("orderedIds 순서대로 sortOrder를 0..n-1로 재설정하고 ChangeLog(via)를 남긴다", () => {
+    const d = db();
+    const reversed = [...d.clients].sort((a, b) => a.sortOrder - b.sortOrder).map((c) => c.id).reverse();
+    const result = d.reorderClients({ actorId: "hwang-sunghyeon", via: "mcp" }, { orderedIds: reversed });
+    // 반환값과 저장값 모두 인덱스대로 sortOrder가 매겨진다
+    reversed.forEach((id, i) => {
+      expect(d.clientById(id)!.sortOrder).toBe(i);
+      expect(result[i].id).toBe(id);
+    });
+    const clog = d.changeLogs.at(-1)!;
+    expect(clog.entityType).toBe("client");
+    expect(clog.changeType).toBe("update");
+    expect(clog.via).toBe("mcp");
+  });
+
+  it("비관리자는 순서를 바꿀 수 없다(아무것도 반영되지 않음)", () => {
+    const d = db();
+    const before = d.clients.map((c) => ({ id: c.id, sortOrder: c.sortOrder }));
+    expect(() =>
+      d.reorderClients({ actorId: "kim-riwon", via: "web" }, { orderedIds: ["client-epic", "client-mendix"] }),
+    ).toThrowError(/관리자만/);
+    for (const b of before) expect(d.clientById(b.id)!.sortOrder).toBe(b.sortOrder);
+  });
+
+  it("존재하지 않는 id나 중복이 있으면 거부하고 순서를 바꾸지 않는다", () => {
+    const d = db();
+    const before = d.clients.map((c) => ({ id: c.id, sortOrder: c.sortOrder }));
+    expect(() =>
+      d.reorderClients({ actorId: "hwang-sunghyeon", via: "web" }, { orderedIds: ["client-mendix", "client-none"] }),
+    ).toThrowError(/클라이언트 없음/);
+    expect(() =>
+      d.reorderClients({ actorId: "hwang-sunghyeon", via: "web" }, { orderedIds: ["client-mendix", "client-mendix"] }),
+    ).toThrowError(/중복/);
+    // 두 실패 모두 원본 순서를 보존한다
+    for (const b of before) expect(d.clientById(b.id)!.sortOrder).toBe(b.sortOrder);
+  });
 });
 
 describe("프로젝트 — 생성은 관리자, 수정은 관리자 또는 담당자", () => {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Building2, ChevronDown } from "lucide-react";
 import { CLIENT_FILTER_COOKIE } from "@/lib/client-filter-cookie";
@@ -34,6 +34,7 @@ export function ClientSwitcher({
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const [open, setOpen] = useState(false);
 
   if (clients.length === 0) return null;
 
@@ -42,6 +43,7 @@ export function ClientSwitcher({
   const isFiltered = Boolean(active);
 
   const onSelect = (value: string) => {
+    setOpen(false); // 선택 즉시 드롭다운 닫기(base-ui 라디오는 기본으로 열린 채 유지됨)
     if (value === ALL) {
       // 전체 보기 = 쿠키 삭제(max-age=0).
       document.cookie = `${CLIENT_FILTER_COOKIE}=; path=/; max-age=0; samesite=lax`;
@@ -52,7 +54,7 @@ export function ClientSwitcher({
   };
 
   return (
-    <DropdownMenu>
+    <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger
         render={
           <Button

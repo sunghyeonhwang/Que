@@ -43,11 +43,8 @@ export default async function ClientsPage() {
   }
 
   const clientGroups: ClientGroup[] = [...db.clients]
-    .sort((a, b) => {
-      // 활성 먼저, 그 안에서 이름순 — 보관(archived)은 아래로 내린다.
-      if (a.status !== b.status) return a.status === "active" ? -1 : 1;
-      return a.name.localeCompare(b.name, "ko");
-    })
+    // 관리자가 정한 표시 순서(sortOrder 오름차순). 드래그 재정렬이 이 순서를 바꾼다.
+    .sort((a, b) => a.sortOrder - b.sortOrder)
     .map((c) => ({
       id: c.id,
       name: c.name,

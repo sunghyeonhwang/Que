@@ -56,6 +56,10 @@ export class SupabaseQueDb extends MockQueDb {
       if (table === "status_logs" || table === "change_logs") {
         query.order("created_at", { ascending: true });
       }
+      // 클라이언트는 관리자가 정한 표시 순서(sort_order)로 로드해 배열 순서 자체를 정렬해 둔다.
+      if (table === "clients") {
+        query.order("sort_order", { ascending: true });
+      }
       const { data, error } = await query;
       if (error) throw new Error(`Supabase load ${table} 실패: ${error.message}`);
       const rows = (data ?? []).map((r) => fromRow(r as Record<string, unknown>));

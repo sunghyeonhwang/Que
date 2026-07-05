@@ -769,10 +769,13 @@ export class MockQueDb implements QueDb {
       );
     }
 
+    // 새 클라이언트는 표시 순서 맨 끝에 붙인다(현재 max + 1). 빈 목록이면 0.
+    const maxSort = this.clients.reduce((m, c) => Math.max(m, c.sortOrder), -1);
     const client: Client = {
       id: this.nextId("client"),
       name: parsed.data.name,
       status: parsed.data.status,
+      sortOrder: maxSort + 1,
     };
     this.clients.push(client);
     this.logChange(ctx, {
@@ -782,6 +785,41 @@ export class MockQueDb implements QueDb {
       afterValue: client.name,
     });
     return client;
+  }
+
+  /** 클라이언트 표시 순서 변경 — 관리자만. orderedIds 순서대로 sortOrder를 0..n-1로 재설정한다.
+   *  존재하지 않는 id나 중복은 거부한다(부분 반영 없이 통째로 실패). ChangeLog(via) 1건 기록. */
+  reorderClients(ctx: ActorContext, input: { orderedIds: string[] }): Client[] {
+    const actor = this.requireUser(ctx.actorId);
+    if (!canManageClient(actor)) {
+      throw new QueRuleError("NOT_AUTHORIZED", "클라이언트 순서는 관리자만 변경할 수 있다");
+    }
+    const ids = input.orderedIds;
+    if (!Array.isArray(ids) || ids.length === 0) {
+      throw new QueRuleError("INVALID_INPUT", "정렬할 클라이언트 목록이 비어 있다");
+    }
+    if (new Set(ids).size !== ids.length) {
+      throw new QueRuleError("INVALID_INPUT", "정렬 목록에 중복된 클라이언트가 있다");
+    }
+    // 먼저 전부 검증한 뒤에 반영한다 — 잘못된 id가 하나라도 있으면 아무것도 바꾸지 않는다.
+    const targets = ids.map((id) => {
+      const client = this.clients.find((c) => c.id === id);
+      if (!client) throw new QueRuleError("NOT_FOUND", `클라이언트 없음: ${id}`);
+      return client;
+    });
+    const before = targets.map((c) => `${c.id}:${c.sortOrder}`).join(",");
+    targets.forEach((client, index) => {
+      client.sortOrder = index;
+    });
+    this.logChange(ctx, {
+      entityType: "client",
+      entityId: targets[0].id, // 대표 — before/after에 전체 순서를 담는다
+      changeType: "update",
+      beforeValue: before,
+      afterValue: ids.map((id, i) => `${id}:${i}`).join(","),
+      reason: "표시 순서 변경",
+    });
+    return targets;
   }
 
   /** 클라이언트 수정(이름·상태) — 관리자만. */

@@ -42,6 +42,13 @@ export async function updateClientAction(input: {
   return toResult((db) => db.updateClient({ actorId: user.id, via: "web" }, input));
 }
 
+export async function reorderClientsAction(input: {
+  orderedIds: string[];
+}): Promise<ActionResult> {
+  const user = await getCurrentUser();
+  return toResult((db) => db.reorderClients({ actorId: user.id, via: "web" }, input));
+}
+
 export async function createProjectAction(input: {
   name: string;
   clientId?: string;

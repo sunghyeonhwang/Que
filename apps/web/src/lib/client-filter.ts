@@ -40,6 +40,7 @@ export const getClientOptions = cache(
     const db = await getDb();
     return db.clients
       .filter((c) => c.status === "active")
+      .sort((a, b) => a.sortOrder - b.sortOrder)
       .map((c) => ({ id: c.id, name: c.name }));
   },
 );

@@ -29,6 +29,8 @@ create table if not exists clients (
   id         text primary key,
   name       text not null check (char_length(name) <= 200),
   status     text not null check (status in ('active', 'archived')),
+  -- 관리자가 정한 표시 순서(오름차순). 스위처·관리화면·집계 소스가 공유. 기존 DB엔 add-client-sort.sql로 추가.
+  sort_order integer not null default 0,
   created_at timestamptz not null default now()
 );
 

@@ -1,7 +1,12 @@
 "use client";
 
-import { useState } from "react";
-import { updateClientAction, updateProjectAction } from "@/app/(app)/clients/actions";
+import { useState, type DragEvent } from "react";
+import { ChevronDown, ChevronUp, GripVertical } from "lucide-react";
+import {
+  reorderClientsAction,
+  updateClientAction,
+  updateProjectAction,
+} from "@/app/(app)/clients/actions";
 import { useSafeAction } from "@/components/app/use-safe-action";
 import { ToneBadge } from "@/components/app/tone-badge";
 import { Button } from "@/components/ui/button";
@@ -17,6 +22,9 @@ import type { Client, Project } from "@que/core";
 
 // 클라이언트 미배정을 나타내는 select 센티널 — 서버로는 clientId: null(연결 해제)로 변환한다.
 const NO_CLIENT = "__none__";
+
+// 드래그 재정렬 MIME (projects 보드 선례와 동일한 방식의 커스텀 타입).
+const DRAG_MIME = "application/x-que-client";
 
 export interface UserOption {
   id: string;
@@ -50,6 +58,52 @@ export function ClientGroups({
   clientOptions: { id: string; name: string }[];
   users: UserOption[];
 }) {
+  const { run, pending } = useSafeAction();
+  // 표시 순서의 로컬 상태(id 배열). 서버가 재검증으로 새 목록을 주면 동기화한다.
+  const [order, setOrder] = useState<string[]>(() => clients.map((c) => c.id));
+  const [dragId, setDragId] = useState<string | null>(null);
+  // 서버 목록이 바뀌면(추가/보관/재정렬 확정) 렌더 중 로컬 순서를 맞춘다.
+  // (effect+setState 대신 React 권장 "이전 렌더 정보 저장" 패턴 — 연쇄 렌더 없음)
+  const serverKey = clients.map((c) => c.id).join(",");
+  const [prevKey, setPrevKey] = useState(serverKey);
+  if (prevKey !== serverKey) {
+    setPrevKey(serverKey);
+    setOrder(clients.map((c) => c.id));
+  }
+
+  const byId = new Map(clients.map((c) => [c.id, c]));
+  const ordered = order.map((id) => byId.get(id)).filter((c): c is ClientGroup => Boolean(c));
+
+  // 낙관적으로 로컬 순서를 먼저 바꾸고, 서버에 확정 요청한다. 실패 시 재검증으로 원복된다.
+  const commit = (next: string[]) => {
+    setOrder(next);
+    run(() => reorderClientsAction({ orderedIds: next }), {
+      success: "클라이언트 순서를 바꿨습니다.",
+    });
+  };
+
+  const moveBy = (id: string, dir: -1 | 1) => {
+    const from = order.indexOf(id);
+    const to = from + dir;
+    if (from < 0 || to < 0 || to >= order.length) return;
+    const next = [...order];
+    [next[from], next[to]] = [next[to], next[from]];
+    commit(next);
+  };
+
+  const dropOn = (targetId: string) => {
+    const src = dragId;
+    setDragId(null);
+    if (!src || src === targetId) return;
+    const from = order.indexOf(src);
+    const to = order.indexOf(targetId);
+    if (from < 0 || to < 0) return;
+    const next = [...order];
+    next.splice(from, 1);
+    next.splice(to, 0, src);
+    commit(next);
+  };
+
   const hasNothing = clients.length === 0 && unassigned.length === 0;
   if (hasNothing) {
     return (
@@ -59,14 +113,26 @@ export function ClientGroups({
     );
   }
 
+  const reorderable = ordered.length > 1;
+
   return (
     <div className="flex flex-col gap-3">
-      {clients.map((c) => (
+      {ordered.map((c, index) => (
         <ClientCard
           key={c.id}
           client={c}
           clientOptions={clientOptions}
           users={users}
+          reorderable={reorderable}
+          reorderPending={pending}
+          isFirst={index === 0}
+          isLast={index === ordered.length - 1}
+          isDragging={dragId === c.id}
+          onMoveUp={() => moveBy(c.id, -1)}
+          onMoveDown={() => moveBy(c.id, 1)}
+          onDragStart={() => setDragId(c.id)}
+          onDragEnd={() => setDragId(null)}
+          onDropOn={() => dropOn(c.id)}
         />
       ))}
 
@@ -94,10 +160,30 @@ function ClientCard({
   client: c,
   clientOptions,
   users,
+  reorderable,
+  reorderPending,
+  isFirst,
+  isLast,
+  isDragging,
+  onMoveUp,
+  onMoveDown,
+  onDragStart,
+  onDragEnd,
+  onDropOn,
 }: {
   client: ClientGroup;
   clientOptions: { id: string; name: string }[];
   users: UserOption[];
+  reorderable: boolean;
+  reorderPending: boolean;
+  isFirst: boolean;
+  isLast: boolean;
+  isDragging: boolean;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
+  onDragStart: () => void;
+  onDragEnd: () => void;
+  onDropOn: () => void;
 }) {
   const { run, pending } = useSafeAction();
   const [editing, setEditing] = useState(false);
@@ -105,6 +191,22 @@ function ClientCard({
 
   const archived = c.status === "archived";
   const trimmed = name.trim();
+
+  const handleDragStart = (event: DragEvent) => {
+    event.dataTransfer.setData(DRAG_MIME, c.id);
+    event.dataTransfer.effectAllowed = "move";
+    onDragStart();
+  };
+  const handleDragOver = (event: DragEvent) => {
+    if (!event.dataTransfer.types.includes(DRAG_MIME)) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+  };
+  const handleDrop = (event: DragEvent) => {
+    if (!event.dataTransfer.types.includes(DRAG_MIME)) return;
+    event.preventDefault();
+    onDropOn();
+  };
 
   const saveName = () => {
     if (!trimmed || trimmed.length > 200) return;
@@ -122,9 +224,50 @@ function ClientCard({
     );
   };
 
+  // 편집 중에는 드래그를 끈다 — draggable 부모가 자식 input의 텍스트 선택을 방해하지 않도록.
+  const canDrag = reorderable && !editing;
+
   return (
-    <div className="rounded-xl border border-[var(--que-border)] bg-[var(--que-bg)] p-4 shadow-[var(--que-shadow-sm)]">
+    <div
+      draggable={canDrag}
+      onDragStart={canDrag ? handleDragStart : undefined}
+      onDragEnd={canDrag ? onDragEnd : undefined}
+      onDragOver={reorderable ? handleDragOver : undefined}
+      onDrop={reorderable ? handleDrop : undefined}
+      data-dragging={isDragging ? "" : undefined}
+      className="rounded-xl border border-[var(--que-border)] bg-[var(--que-bg)] p-4 shadow-[var(--que-shadow-sm)] data-[dragging]:opacity-50"
+    >
       <div className="flex flex-wrap items-center gap-2">
+        {reorderable && (
+          <div className="flex items-center gap-1">
+            <span
+              className="hidden cursor-grab text-[var(--que-text-tertiary)] active:cursor-grabbing sm:flex"
+              aria-hidden
+              title="드래그해서 순서 변경"
+            >
+              <GripVertical className="size-4" />
+            </span>
+            {/* 터치(태블릿) 대응 — 드래그 대신 40px 버튼으로 한 칸씩 이동한다 */}
+            <button
+              type="button"
+              aria-label={`${c.name} 위로 이동`}
+              disabled={isFirst || reorderPending}
+              onClick={onMoveUp}
+              className="flex size-10 items-center justify-center rounded-lg border border-[var(--que-border)] text-[var(--que-text-secondary)] hover:bg-[var(--que-bg-muted)] disabled:opacity-30"
+            >
+              <ChevronUp className="size-4" />
+            </button>
+            <button
+              type="button"
+              aria-label={`${c.name} 아래로 이동`}
+              disabled={isLast || reorderPending}
+              onClick={onMoveDown}
+              className="flex size-10 items-center justify-center rounded-lg border border-[var(--que-border)] text-[var(--que-text-secondary)] hover:bg-[var(--que-bg-muted)] disabled:opacity-30"
+            >
+              <ChevronDown className="size-4" />
+            </button>
+          </div>
+        )}
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <p className="truncate text-sm font-semibold text-[var(--que-text)]">{c.name}</p>

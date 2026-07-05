@@ -46,9 +46,9 @@ export function createSeed(now: Date): QueSeed {
 
   // 상위 분류 = 클라이언트(거래처). 자사 그리프도 클라이언트 한 행으로 동일 취급한다.
   const clients: Client[] = [
-    { id: "client-mendix", name: "멘딕스", status: "active" },
-    { id: "client-epic", name: "에픽게임즈", status: "active" },
-    { id: "client-griff", name: "그리프", status: "active" },
+    { id: "client-mendix", name: "멘딕스", status: "active", sortOrder: 0 },
+    { id: "client-epic", name: "에픽게임즈", status: "active", sortOrder: 1 },
+    { id: "client-griff", name: "그리프", status: "active", sortOrder: 2 },
   ];
 
   const projects: Project[] = [

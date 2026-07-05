@@ -106,11 +106,13 @@ export type CalendarEvent = z.infer<typeof calendarEventSchema>;
 
 // 2단 분류의 상위 개념 — 거래처(멘딕스·에픽게임즈 등). 자사 그리프도 클라이언트 행 하나로
 // 동일하게 취급한다(특수 분기 없음). 8인 MVP라 최소 필드만 둔다 —
-// color/initials/ownerId/sortOrder는 넣지 않는다. 사용자 라벨은 "클라이언트".
+// color/initials/ownerId는 넣지 않는다. 사용자 라벨은 "클라이언트".
+// sortOrder: 관리자가 정한 표시 순서(오름차순). 스위처·관리화면·집계 소스가 이 순서를 공유한다.
 export const clientSchema = z.object({
   id: z.string().min(1),
   name: z.string().trim().min(1, "이름은 필수다").max(200, "이름은 200자 이내"),
   status: z.enum(["active", "archived"]),
+  sortOrder: z.number().int().default(0),
 });
 export type Client = z.infer<typeof clientSchema>;
 

@@ -25,6 +25,7 @@ const NUMERIC_FIELDS = new Set([
   "durationMinutes",
   "dayOfWeek",
   "dayOfMonth",
+  "sortOrder",
 ]);
 
 /** DB 행 → 도메인 객체. null은 undefined로, numeric 문자열은 숫자로 되돌린다. */
