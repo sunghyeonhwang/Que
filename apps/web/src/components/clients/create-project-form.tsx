@@ -34,6 +34,14 @@ export function CreateProjectForm({
   const [clientId, setClientId] = useState<string>(NO_CLIENT);
   const [ownerId, setOwnerId] = useState(defaultOwnerId);
 
+  // base-ui Select는 items(value→label 맵)가 있어야 트리거에 선택값의 '라벨'을 보여준다.
+  // 없으면 선택 후 raw value(id·__none__)가 그대로 노출된다.
+  const clientItems: Record<string, string> = {
+    [NO_CLIENT]: "미배정 (내부)",
+    ...Object.fromEntries(clients.map((c) => [c.id, c.name])),
+  };
+  const userItems = Object.fromEntries(users.map((u) => [u.id, u.name]));
+
   const trimmed = name.trim();
   const tooLong = trimmed.length > 200;
   const canSubmit = trimmed.length > 0 && !tooLong && !!ownerId && !pending;
@@ -79,7 +87,7 @@ export function CreateProjectForm({
 
         <Field>
           <FieldLabel>클라이언트</FieldLabel>
-          <Select value={clientId} onValueChange={(v) => v && setClientId(v)}>
+          <Select items={clientItems} value={clientId} onValueChange={(v) => v && setClientId(v)}>
             <SelectTrigger aria-label="클라이언트 선택" className="w-full">
               <SelectValue />
             </SelectTrigger>
@@ -96,7 +104,7 @@ export function CreateProjectForm({
 
         <Field>
           <FieldLabel>담당자</FieldLabel>
-          <Select value={ownerId} onValueChange={(v) => v && setOwnerId(v)}>
+          <Select items={userItems} value={ownerId} onValueChange={(v) => v && setOwnerId(v)}>
             <SelectTrigger aria-label="담당자 선택" className="w-full">
               <SelectValue />
             </SelectTrigger>

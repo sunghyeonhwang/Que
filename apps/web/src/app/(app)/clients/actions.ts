@@ -18,6 +18,9 @@ async function toResult(fn: (db: Db) => Promise<unknown> | unknown): Promise<Act
     await fn(db);
     await db.persist();
     revalidatePath("/clients");
+    // 상단 클라이언트 스위처는 (app) layout에서 렌더된다. layout은 soft navigation 간
+    // 재실행되지 않으므로, 클라이언트 추가/변경이 즉시 스위처에 반영되도록 layout을 갱신한다.
+    revalidatePath("/", "layout");
     return { ok: true };
   } catch (error) {
     if (isQueRuleError(error)) return { ok: false, error: error.message };

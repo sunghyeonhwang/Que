@@ -209,6 +209,14 @@ function ProjectRow({
   const [ownerId, setOwnerId] = useState(p.ownerId);
   const [status, setStatus] = useState<Project["status"]>(p.status);
 
+  // base-ui Select는 items(value→label)가 있어야 트리거에 라벨을 표시한다(없으면 raw value 노출).
+  const clientItems: Record<string, string> = {
+    [NO_CLIENT]: "미배정 (내부)",
+    ...Object.fromEntries(clientOptions.map((c) => [c.id, c.name])),
+  };
+  const userItems = Object.fromEntries(users.map((u) => [u.id, u.name]));
+  const statusItems: Record<string, string> = { active: "진행", archived: "보관" };
+
   const archived = p.status === "archived";
   const trimmed = name.trim();
 
@@ -263,7 +271,7 @@ function ProjectRow({
           <div className="flex flex-wrap gap-2">
             <label className="flex min-w-40 flex-1 flex-col gap-1 text-xs text-[var(--que-text-secondary)]">
               클라이언트
-              <Select value={clientId} onValueChange={(v) => v && setClientId(v)}>
+              <Select items={clientItems} value={clientId} onValueChange={(v) => v && setClientId(v)}>
                 <SelectTrigger aria-label="클라이언트 재배정" className="h-10 w-full">
                   <SelectValue />
                 </SelectTrigger>
@@ -279,7 +287,7 @@ function ProjectRow({
             </label>
             <label className="flex min-w-32 flex-1 flex-col gap-1 text-xs text-[var(--que-text-secondary)]">
               담당자
-              <Select value={ownerId} onValueChange={(v) => v && setOwnerId(v)}>
+              <Select items={userItems} value={ownerId} onValueChange={(v) => v && setOwnerId(v)}>
                 <SelectTrigger aria-label="담당자 변경" className="h-10 w-full">
                   <SelectValue />
                 </SelectTrigger>
@@ -295,6 +303,7 @@ function ProjectRow({
             <label className="flex min-w-28 flex-col gap-1 text-xs text-[var(--que-text-secondary)]">
               상태
               <Select
+                items={statusItems}
                 value={status}
                 onValueChange={(v) => v && setStatus(v as Project["status"])}
               >

@@ -35,6 +35,10 @@ export default async function AppLayout({
   // 상단바 알림 — 운영 신호(문제/기한초과/확인필요/결제) 실데이터.
   const alerts = await getAlerts(user);
   const isAdmin = user.role === "admin";
+  // 클라이언트 스위처 데이터 — 데스크톱은 사이드바 상단, 모바일(사이드바 숨김)은 상단바에 렌더.
+  // getClientOptions/getClientFilter는 cache()라 두 번 호출해도 로드는 1회.
+  const clientOptions = await getClientOptions();
+  const clientFilter = await getClientFilter();
 
   return (
     <div className="flex h-dvh w-full overflow-hidden bg-[var(--que-bg)] text-[var(--que-text)]">
@@ -45,6 +49,11 @@ export default async function AppLayout({
           <Brand />
         </div>
         <ScrollArea className="min-h-0 flex-1 px-4 py-4">
+          {clientOptions.length > 0 && (
+            <div className="mb-3 [&_button]:w-full [&_button]:justify-between">
+              <ClientSwitcher clients={clientOptions} current={clientFilter} />
+            </div>
+          )}
           <SidebarNav badges={menuBadges} isAdmin={isAdmin} />
         </ScrollArea>
       </aside>
@@ -58,7 +67,9 @@ export default async function AppLayout({
             <Brand compact />
           </div>
 
-          <ClientSwitcher clients={await getClientOptions()} current={await getClientFilter()} />
+          <div className="lg:hidden">
+            <ClientSwitcher clients={clientOptions} current={clientFilter} />
+          </div>
 
           <div className="hidden w-full max-w-[440px] flex-1 sm:block">
             <GlobalSearch />
