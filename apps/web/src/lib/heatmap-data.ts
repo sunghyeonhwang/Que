@@ -43,6 +43,8 @@ const COUNTED = new Set(["scheduled", "in_progress", "needs_reschedule", "on_hol
 export interface HeatmapOptions {
   /** 지정 시 그 달의 1일~말일 전체를 days로 만든다(월 단위 히트맵). 없으면 now부터 7일. */
   monthAnchor?: Date;
+  /** 클라이언트 필터. 지정 시 그 클라이언트 소속 프로젝트 작업만 집계(무소속 제외). */
+  clientId?: string;
 }
 
 export async function getHeatmapData(
@@ -50,6 +52,8 @@ export async function getHeatmapData(
   opts: HeatmapOptions = {},
 ): Promise<HeatmapData> {
   const db = await getDb();
+  // 히트맵의 모든 셀 강도·부하 집계 소스. clientId 미지정이면 전체 작업.
+  const clientTasks = db.tasksForClient(opts.clientId);
   const days: string[] = [];
   if (opts.monthAnchor) {
     // 월 단위: 앵커 달의 1일~말일 각 날짜 셀.
@@ -79,7 +83,7 @@ export async function getHeatmapData(
 
   const rows: HeatRow[] = db.users.map((user) => {
     const cells: HeatCell[] = days.map((date) => {
-      const dayTasks = db.tasks.filter(
+      const dayTasks = clientTasks.filter(
         (t) =>
           t.assigneeId === user.id &&
           t.startAt &&
@@ -103,7 +107,7 @@ export async function getHeatmapData(
       cells,
       totalScore: cells.reduce((sum, c) => sum + c.score, 0),
       totalHours: cells.reduce((sum, c) => sum + c.hours, 0),
-      issueOrHold: db.tasks.filter(
+      issueOrHold: clientTasks.filter(
         (t) => t.assigneeId === user.id && (t.status === "issue" || t.status === "on_hold"),
       ).length,
     };

@@ -62,8 +62,15 @@ export interface TeamData {
 
 const ACTIVE = new Set(["scheduled", "in_progress", "needs_reschedule", "on_hold", "issue"]);
 
-export async function getTeamData(viewer: User, now: Date = new Date()): Promise<TeamData> {
+export async function getTeamData(
+  viewer: User,
+  now: Date = new Date(),
+  clientId?: string,
+): Promise<TeamData> {
   const db = await getDb();
+  // 표시/집계 소스는 클라이언트 필터를 반영한다. taskById(아래)는 조회용이라 전체를 유지한다.
+  const clientTasks = db.tasksForClient(clientId);
+  const clientTaskIds = new Set(clientTasks.map((t) => t.id));
   const dayStart = new Date(now);
   dayStart.setHours(0, 0, 0, 0);
   const dayEnd = new Date(now);
@@ -78,11 +85,14 @@ export async function getTeamData(viewer: User, now: Date = new Date()): Promise
   };
 
   const userById = new Map(db.users.map((u) => [u.id, u]));
+  // ID→작업 조회 맵: 권한/이름/체크인 참조용. 필터하면 숨은 작업 참조가 깨지므로 전체 유지.
   const taskById = new Map(db.tasks.map((t) => [t.id, t]));
 
   // ---- 상단 요약 ----
-  const activeTasks = db.tasks.filter((t) => ACTIVE.has(t.status));
-  const pendingCheckIns = db.checkIns.filter((c) => isAwaiting(c, taskById));
+  const activeTasks = clientTasks.filter((t) => ACTIVE.has(t.status));
+  const pendingCheckIns = db.checkIns.filter(
+    (c) => isAwaiting(c, taskById) && clientTaskIds.has(c.taskId),
+  );
   const summary = {
     inProgress: activeTasks.filter((t) => t.status === "in_progress").length,
     issues: activeTasks.filter((t) => t.status === "issue").length,
@@ -96,7 +106,7 @@ export async function getTeamData(viewer: User, now: Date = new Date()): Promise
   // ---- 사람별 오늘 시간표 + 충돌 ----
   const conflicts: ConflictEntry[] = [];
   const members: TeamMemberRow[] = db.users.map((user) => {
-    const taskItems: TeamScheduleItem[] = db.tasks
+    const taskItems: TeamScheduleItem[] = clientTasks
       .filter(
         (t) =>
           t.assigneeId === user.id &&
@@ -162,7 +172,7 @@ export async function getTeamData(viewer: User, now: Date = new Date()): Promise
 
   // ---- Attention Queue ----
   const attention: AttentionEntry[] = [];
-  for (const task of db.tasks.filter((t) => t.status === "issue" || t.status === "on_hold")) {
+  for (const task of clientTasks.filter((t) => t.status === "issue" || t.status === "on_hold")) {
     const latestLog = latestStatusLog(db.statusLogs, task.id, task.status);
     attention.push({
       type: task.status === "issue" ? "issue" : "on_hold",
@@ -190,7 +200,7 @@ export async function getTeamData(viewer: User, now: Date = new Date()): Promise
   // 도움 요청 댓글 — 요청받은 사람이 팀 전체에 보이게 (기획: Attention Queue에 도움 요청 포함)
   for (const comment of db.taskComments.filter((c) => c.helpUserId)) {
     const task = taskById.get(comment.taskId);
-    if (!task) continue;
+    if (!task || !clientTaskIds.has(task.id)) continue;
     attention.push({
       type: "help_request",
       taskId: `${task.id}-${comment.id}`,
@@ -218,8 +228,12 @@ export interface StandupRow {
 }
 
 /** 데일리 스탠드업 뷰 — 아침 회의에서 이 화면 하나로 "어제/오늘/막힘"을 돈다. */
-export async function getStandupData(now: Date = new Date()): Promise<StandupRow[]> {
+export async function getStandupData(
+  now: Date = new Date(),
+  clientId?: string,
+): Promise<StandupRow[]> {
   const db = await getDb();
+  const clientTasks = db.tasksForClient(clientId);
   const dayStart = new Date(now);
   dayStart.setHours(0, 0, 0, 0);
   const yesterdayStart = new Date(dayStart);
@@ -232,7 +246,7 @@ export async function getStandupData(now: Date = new Date()): Promise<StandupRow
   };
 
   return db.users.map((user) => {
-    const mine = db.tasks.filter(
+    const mine = clientTasks.filter(
       (t) => t.assigneeId === user.id && t.status !== "cancelled" && t.status !== "merged",
     );
     const yesterday = mine.filter((t) => startedIn(t, yesterdayStart, dayStart));

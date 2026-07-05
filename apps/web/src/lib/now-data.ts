@@ -41,8 +41,15 @@ export interface NowData {
 
 const UNRESOLVED: ActionItemStatus[] = ["needs_review", "candidate", "held"];
 
-export async function getNowData(viewer: User, filter: NowFilter, now: Date = new Date()): Promise<NowData> {
+export async function getNowData(
+  viewer: User,
+  filter: NowFilter,
+  now: Date = new Date(),
+  clientId?: string,
+): Promise<NowData> {
   const db = await getDb();
+  // 운영표 행/집계에 쓰는 작업 소스만 클라이언트 필터. 회사 일정·Action은 필터 대상 아님.
+  const clientTasks = db.tasksForClient(clientId);
   const dayStart = new Date(now);
   dayStart.setHours(0, 0, 0, 0);
   const dayEnd = new Date(now);
@@ -53,7 +60,7 @@ export async function getNowData(viewer: User, filter: NowFilter, now: Date = ne
   const userById = new Map(db.users.map((u) => [u.id, u]));
   const noteById = new Map(db.meetingNotes.map((n) => [n.id, n]));
 
-  const taskRows: NowRow[] = db.tasks
+  const taskRows: NowRow[] = clientTasks
     .filter(
       (t) =>
         inToday(t.startAt) && t.status !== "cancelled" && t.status !== "merged",
@@ -122,7 +129,7 @@ export async function getNowData(viewer: User, filter: NowFilter, now: Date = ne
   let scheduleConflicts = 0;
   for (const member of db.users) {
     const items: { startAt: string; endAt: string }[] = [
-      ...db.tasks
+      ...clientTasks
         .filter(
           (t) =>
             t.assigneeId === member.id &&
@@ -156,7 +163,7 @@ export async function getNowData(viewer: User, filter: NowFilter, now: Date = ne
     actionCount: actionRows.length,
     issueHold: taskRows.filter((r) => r.attention).length,
     dueToday:
-      db.tasks.filter(
+      clientTasks.filter(
         (t) =>
           inToday(t.endAt) && t.status !== "done" && t.status !== "cancelled" && t.status !== "merged",
       ).length + actionRows.filter((r) => inToday(r.at)).length,

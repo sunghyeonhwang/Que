@@ -87,6 +87,8 @@ const STATUS_COLOR: Record<TaskStatus, string> = {
 export interface HomeOptions {
   /** 작업 분포 창: week=향후 7일, month=향후 30일 내 마감. 기본 "week". */
   dp?: "week" | "month";
+  /** 클라이언트 필터. 지정 시 그 클라이언트 소속 프로젝트 작업만(무소속 제외). */
+  clientId?: string;
 }
 
 export async function getHomeData(
@@ -95,6 +97,9 @@ export async function getHomeData(
   opts: HomeOptions = {},
 ): Promise<HomeData> {
   const db = await getDb();
+  // 오늘 할 일·개인 일정(task)·작업 분포의 task 소스만 클라이언트로 좁힌다(미지정 시 전체).
+  // 개인 일정의 calendar_event는 사람 단위 일정이라 필터하지 않는다(constraint).
+  const clientTasks = db.tasksForClient(opts.clientId);
   const userById = new Map(db.users.map((u) => [u.id, u]));
   const projectById = new Map(db.projects.map((p) => [p.id, p]));
   const clientById = new Map(db.clients.map((c) => [c.id, c]));
@@ -122,7 +127,7 @@ export async function getHomeData(
   const memberOverflow = Math.max(0, allMembers.length - 4);
 
   // ── 오늘 할 일: 내 미완료 작업 중 마감이 오늘 이내(오늘/기한초과) ──
-  const todosRaw = db.tasks.filter(
+  const todosRaw = clientTasks.filter(
     (t) =>
       t.assigneeId === user.id &&
       ACTIVE.has(t.status) &&
@@ -162,7 +167,7 @@ export async function getHomeData(
   };
   const fmtTime = (iso: string) => format(new Date(iso), "HH:mm");
 
-  const scheduleTasks: HomeScheduleItem[] = db.tasks
+  const scheduleTasks: HomeScheduleItem[] = clientTasks
     .filter(
       (t) =>
         t.assigneeId === user.id &&
@@ -211,7 +216,7 @@ export async function getHomeData(
     .map((u) => ({
       id: u.id,
       name: u.name,
-      value: db.tasks.filter((t) => {
+      value: clientTasks.filter((t) => {
         if (t.assigneeId !== u.id || !ACTIVE.has(t.status) || !t.endAt) return false;
         const e = new Date(t.endAt).getTime();
         return e >= nowMs && e <= windowEndMs;

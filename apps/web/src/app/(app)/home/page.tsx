@@ -9,8 +9,10 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { getCurrentUser } from "@/lib/current-user";
+import { getClientFilter, getClientFilterName } from "@/lib/client-filter";
 import { getPerformanceData, type PerfKpi } from "@/lib/performance-data";
 import { getHomeData } from "@/lib/home-data";
+import { ClientFilterBadge } from "@/components/app/client-filter-badge";
 import { KpiCard } from "@/components/performance/kpi-card";
 import { PerformanceHeatmap } from "@/components/performance/performance-heatmap";
 import { PerformanceLineChart } from "@/components/performance/performance-line-chart";
@@ -57,9 +59,14 @@ export default async function HomePage({
   const dpRaw = Array.isArray(sp.dp) ? sp.dp[0] : sp.dp;
   const dp = dpRaw === "month" ? "month" : "week";
 
+  const [clientId, clientName] = await Promise.all([
+    getClientFilter(),
+    getClientFilterName(),
+  ]);
+
   const [perf, home] = await Promise.all([
-    getPerformanceData(now, { hm }),
-    getHomeData(user, now, { dp }),
+    getPerformanceData(now, { hm, clientId }),
+    getHomeData(user, now, { dp, clientId }),
   ]);
 
   const selectedMonth = String(hm);
@@ -73,9 +80,12 @@ export default async function HomePage({
       {/* 헤더 */}
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-[var(--que-text)]">
-            어서오세요, {home.givenName}님!
-          </h1>
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-2xl font-semibold tracking-tight text-[var(--que-text)]">
+              어서오세요, {home.givenName}님!
+            </h1>
+            <ClientFilterBadge clientName={clientName} />
+          </div>
           <p className="mt-1 text-sm text-[var(--que-text-secondary)]">
             여기서 프로젝트와 작업을 관리하세요.
           </p>

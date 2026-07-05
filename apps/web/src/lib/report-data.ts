@@ -58,6 +58,7 @@ export async function getAdminReportData(
   viewer: User,
   period: ReportPeriod,
   now: Date = new Date(),
+  clientId?: string,
 ): Promise<AdminReportData> {
   const empty: AdminReportData = {
     isAdmin: false,
@@ -93,7 +94,13 @@ export async function getAdminReportData(
     if (!project) return undefined;
     return formatProjectLabel(project, project.clientId ? clientById.get(project.clientId) : undefined);
   };
+  // ID→작업 조회 맵: 로그/병목의 이름·프로젝트 참조용이라 전체 유지(필터 금지).
   const taskById = new Map(db.tasks.map((t) => [t.id, t]));
+  // 표시/집계 소스는 클라이언트 필터를 반영한다.
+  const clientTasks = db.tasksForClient(clientId);
+  const clientTaskIds = clientId ? new Set(clientTasks.map((t) => t.id)) : null;
+  // 상태 전이 로그의 집계도 필터와 정합하도록: 필터 시 해당 클라이언트 작업의 로그만 센다.
+  const inClient = (taskId: string): boolean => !clientTaskIds || clientTaskIds.has(taskId);
 
   // 월간은 정확히 4주(28일)로 잡아 헤드라인 완료 수 == 주별 추세 합이 되게 한다 (수치 정합).
   const spanDays = period === "week" ? 7 : 28;
@@ -108,7 +115,7 @@ export async function getAdminReportData(
   };
 
   // ── 기간 집계: StatusLog가 상태 전이 타임라인의 유일한 출처(시드 이력 + 런타임 변경 모두 포함) ──
-  const logsInRange = db.statusLogs.filter((l) => inRange(l.createdAt));
+  const logsInRange = db.statusLogs.filter((l) => inRange(l.createdAt) && inClient(l.taskId));
   const doneLogs = logsInRange.filter((l) => l.toStatus === "done");
   const cancelledInPeriod = logsInRange.filter((l) => l.toStatus === "cancelled").length;
   const raisedIssues = logsInRange.filter((l) => l.toStatus === "issue").length;
@@ -134,7 +141,7 @@ export async function getAdminReportData(
   };
 
   // ── 병목: 현재 막혀 있는 작업 (도움 필요 관점) ──
-  const blockedTasks = db.tasks.filter((t) => t.status === "issue" || t.status === "on_hold");
+  const blockedTasks = clientTasks.filter((t) => t.status === "issue" || t.status === "on_hold");
   const currentBlockers: ReportBlocker[] = blockedTasks
     .map((t) => {
       // 해당 작업의 가장 최근 issue/hold 전이 로그에서 사유를 가져온다
@@ -161,7 +168,7 @@ export async function getAdminReportData(
   // 아니라 고정 멤버 순서(db.users)로 둬 순위 인상을 없앤다.
   const dueSoonMs = now.getTime() + 3 * 864e5;
   const loadByMember = db.users.map((u) => {
-    const open = db.tasks.filter((t) => t.assigneeId === u.id && OPEN_STATUSES.has(t.status));
+    const open = clientTasks.filter((t) => t.assigneeId === u.id && OPEN_STATUSES.has(t.status));
     const openHours = open.reduce((sum, t) => sum + (t.estimatedHours ?? 1), 0);
     const weight = open.reduce((sum, t) => {
       let w = 0;
@@ -192,6 +199,7 @@ export async function getAdminReportData(
     const completed = db.statusLogs.filter(
       (l) =>
         l.toStatus === "done" &&
+        inClient(l.taskId) &&
         new Date(l.createdAt).getTime() >= wStart.getTime() &&
         new Date(l.createdAt).getTime() <= wEnd.getTime(),
     ).length;
@@ -208,8 +216,12 @@ export async function getAdminReportData(
     rangeStart: ymd(start),
     rangeEnd: ymd(end),
     overall: {
-      activeProjects: db.projects.filter((p) => p.status === "active").length,
-      openTasks: db.tasks.filter((t) => OPEN_STATUSES.has(t.status)).length,
+      // 클라이언트 필터 시 그 거래처의 활성 프로젝트만 — 성과 화면(performance-data)과 같은 술어로
+      // 맞춰 "진행 프로젝트"와 "열린 작업"이 같은 모집단을 보게 한다(화면 간 숫자 불일치 방지).
+      activeProjects: db.projects.filter(
+        (p) => p.status === "active" && (!clientId || p.clientId === clientId),
+      ).length,
+      openTasks: clientTasks.filter((t) => OPEN_STATUSES.has(t.status)).length,
       blockedNow: blockedTasks.length,
       pendingPayments: db.paymentRequests.filter((p) => p.status === "waiting").length,
       overduePayments: db.paymentRequests.filter(

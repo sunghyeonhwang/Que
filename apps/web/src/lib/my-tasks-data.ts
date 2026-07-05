@@ -83,8 +83,11 @@ export function filterMyTasks(
 export async function getMyTaskList(
   user: User,
   now: Date = new Date(),
+  clientId?: string,
 ): Promise<MyTaskListData> {
   const db = await getDb();
+  // 목록/카운트 소스만 클라이언트 필터. userById는 이름 조회라 전체 유지.
+  const clientTasks = db.tasksForClient(clientId);
   const userById = new Map(db.users.map((u) => [u.id, u]));
 
   const toMember = (id: string): ListViewMember | null => {
@@ -92,7 +95,7 @@ export async function getMyTaskList(
     return u ? { id: u.id, name: u.name, avatarColor: u.avatarColor } : null;
   };
 
-  const items: MyTaskItem[] = db.tasks
+  const items: MyTaskItem[] = clientTasks
     .filter((t) => t.assigneeId === user.id && !HIDDEN.has(t.status))
     .map((t) => {
       const ids = t.ownerId !== t.assigneeId ? [t.assigneeId, t.ownerId] : [t.assigneeId];

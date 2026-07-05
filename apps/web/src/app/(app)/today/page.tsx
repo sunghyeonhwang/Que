@@ -16,6 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { buttonVariants } from "@/components/ui/button";
 import { getCommentViewsByTask } from "@/lib/comments";
+import { getClientFilter } from "@/lib/client-filter";
 import { getCurrentUser } from "@/lib/current-user";
 import { getTodayData, type TodayTimelineItem } from "@/lib/today-data";
 import { filterMyTasks, getMyTaskList, type MyTaskTab } from "@/lib/my-tasks-data";
@@ -37,11 +38,12 @@ export default async function TodayPage({
   const tab = parseTab(tabParam);
   const panel = parseTodayPanel(panelParam);
   const user = await getCurrentUser();
+  const clientId = await getClientFilter();
   const now = new Date();
 
   const [taskList, data, commentsByTask] = await Promise.all([
-    getMyTaskList(user, now),
-    getTodayData(user, now),
+    getMyTaskList(user, now, clientId),
+    getTodayData(user, now, clientId),
     getCommentViewsByTask(),
   ]);
 

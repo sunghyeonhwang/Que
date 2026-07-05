@@ -4,7 +4,9 @@ import { auth } from "@/auth";
 import { getCurrentUser } from "@/lib/current-user";
 import { getNoteSummary } from "@/lib/notes-summary";
 import { getAlerts } from "@/lib/alerts-data";
+import { getClientFilter, getClientOptions } from "@/lib/client-filter";
 import { Brand } from "@/components/app/brand";
+import { ClientSwitcher } from "@/components/app/client-switcher";
 import { SidebarNav } from "@/components/app/sidebar-nav";
 import { UserSwitcher } from "@/components/app/user-switcher";
 import { MobileNav } from "@/components/app/mobile-nav";
@@ -55,6 +57,8 @@ export default async function AppLayout({
           <div className="lg:hidden">
             <Brand compact />
           </div>
+
+          <ClientSwitcher clients={await getClientOptions()} current={await getClientFilter()} />
 
           <div className="hidden w-full max-w-[440px] flex-1 sm:block">
             <GlobalSearch />

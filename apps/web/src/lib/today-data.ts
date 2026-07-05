@@ -60,8 +60,15 @@ export interface TodayData {
 
 const ACTIVE_STATUSES = new Set(["scheduled", "in_progress", "needs_reschedule", "on_hold", "issue"]);
 
-export async function getTodayData(user: User, now: Date = new Date()): Promise<TodayData> {
+export async function getTodayData(
+  user: User,
+  now: Date = new Date(),
+  clientId?: string,
+): Promise<TodayData> {
   const db = await getDb();
+  // 화면에 나열/집계되는 작업 소스만 클라이언트 필터를 건다. ID→작업 조회 맵(taskById)은
+  // 숨은 작업의 제목까지 참조하므로 전체(db.tasks) 유지한다.
+  const clientTasks = db.tasksForClient(clientId);
   const dayStart = new Date(now);
   dayStart.setHours(0, 0, 0, 0);
   const dayEnd = new Date(now);
@@ -74,7 +81,7 @@ export async function getTodayData(user: User, now: Date = new Date()): Promise<
     return start <= dayEnd && end >= dayStart;
   };
 
-  const myTasks = db.tasks
+  const myTasks = clientTasks
     .filter((t) => t.assigneeId === user.id && overlapsToday(t.startAt, t.endAt))
     .sort(byStart);
 
@@ -108,6 +115,7 @@ export async function getTodayData(user: User, now: Date = new Date()): Promise<
     })),
   ].sort((a, b) => (a.startAt ?? "").localeCompare(b.startAt ?? ""));
 
+  // 조회 맵은 전체 유지: pendingCheckIn·helpRequests가 필터로 숨은 작업의 제목도 찾아야 한다.
   const taskById = new Map(db.tasks.map((t) => [t.id, t]));
   const pendingCheckIns: PendingCheckIn[] = db.checkIns
     .filter(
@@ -123,7 +131,7 @@ export async function getTodayData(user: User, now: Date = new Date()): Promise<
     });
 
   const soonLimit = new Date(now.getTime() + 24 * 60 * 60 * 1000);
-  const dueSoon = db.tasks
+  const dueSoon = clientTasks
     .filter(
       (t) =>
         t.assigneeId === user.id &&
@@ -135,7 +143,7 @@ export async function getTodayData(user: User, now: Date = new Date()): Promise<
     .sort(byStart);
 
   const userById = new Map(db.users.map((u) => [u.id, u]));
-  const attention: AttentionTask[] = db.tasks
+  const attention: AttentionTask[] = clientTasks
     .filter((t) => t.status === "issue" || t.status === "on_hold")
     .flatMap((task) => {
       const latestLog = latestStatusLog(db.statusLogs, task.id, task.status);

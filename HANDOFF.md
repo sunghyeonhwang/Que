@@ -492,6 +492,14 @@ data/
     - 검증: typecheck·lint·build(`/clients` 생성)·core **98/98**. **브라우저 확장 미연결로 라이브 검증 못 함**(코드+빌드+프로덕션 DDL 실측).
     - **후속**: 프로덕션에 실 클라이언트/프로젝트 입력(관리 화면), PM mock(`/projects`) DB화 시 PmProject→core Project 흡수, MCP/CLI에 client 필터 도구.
 
+57. **전환형 클라이언트 필터(상단 스위처) (2026-07-05)** — 56번 직후 사용자 "스위처가 없어?"→클라이언트 전환 필터 요구. dev-lead 설계 → 방침 4건 채택 → 기반(직접)+5개 에이전트 병렬.
+    - **기반**: core `mock-db.tasksForClient(clientId?)`(미지정=전체, 특정=소속 프로젝트 작업만·무소속 제외. SupabaseQueDb 상속 공유). `apps/web/src/lib/client-filter.ts`(getClientFilter/getClientOptions/getClientFilterName, cache(), 쿠키 검증). **`client-filter-cookie.ts`(쿠키 이름 상수만, next/headers 무의존)** — 아래 빌드버그 수정으로 분리.
+    - **스위처**: `components/app/client-switcher.tsx`(클라 컴포넌트, DropdownMenu, Building2+선택명, "전체 클라이언트"+active 목록, document.cookie `que_client_filter` set/삭제 + router.refresh, 필터활성 brand-subtle 강조, <sm 아이콘+점 축약, clients 빈 배열이면 null). layout header GlobalSearch 왼쪽 삽입(전 해상도 노출). **전원 사용**(조회 필터). UserSwitcher와 구분.
+    - **필터 방침(채택)**: 무소속 작업=특정 클라 선택 시 숨김(내부업무는 그리프). 회사 공통일정(calendar_events)=항상 표시(충돌 컨텍스트). 회의록/Action/결제·알림뱃지·검색=필터 제외. **체크인**: `/today` 개인 응답 프롬프트는 제외(응답 누락 방지, today-data L120 무필터), **팀현황 집계·Attention의 응답대기는 클라 스코프 필터**(team-data L91-93 — 보드 행과 정합). 성과·홈 집계까지 한 배포(숫자 정합).
+    - **5개 화면 필터**(쿠키→getClientFilter→data 함수 clientId 파라미터): 작업목록(today/now/my-tasks), 일정(calendar-data — 작업+마일스톤 필터, 회사일정 유지), 팀현황(team/report-data — board/standup/report, statusLog inClient까지 정합), 성과+홈(heatmap/performance/home — KPI·완료율·기한초과·진행률·부하·추이 전부 clientTasks/inClientScope). **핵심 규율(dev-lead 경고)**: "행/집계 소스만 필터, ID→작업 조회 맵(taskById 등)은 전체 유지"(숨은 작업 참조 깨짐 방지) — 각 에이전트가 db.tasks 사용처를 하나씩 판단·보고. 성과·홈에 "○○ 기준" 배지(ClientFilterBadge, brand-subtle).
+    - **⚠️ 빌드버그 수정**: client-switcher(클라 컴포넌트)가 `client-filter.ts`(next/headers=서버전용)에서 쿠키 상수 import → 서버 모듈이 클라 번들로 끌려와 **turbopack build 실패**(lint/typecheck는 못 잡음). 쿠키 상수를 `client-filter-cookie.ts`로 분리해 양쪽이 거기서 import. **교훈: 클라 컴포넌트와 서버 모듈이 상수를 공유하면 상수를 무의존 파일로 뺄 것.**
+    - 검증: typecheck·lint·build(2차 통과)·core **98→101**(tasksForClient 회귀 3). **브라우저 확장 미연결로 라이브 검증 못 함** — 특히 필터 on 상태 화면 간 숫자 정합은 코드 대조로만 확인(배포 후 실사용 검증 권장).
+
 ## 남은 작업 / 오픈 질문
 
 - ~~알림 채널 결정~~ → **Slack 확정** (2026-07-02): 1단계 Incoming Webhook+딥링크, 2단계 Bot 인터랙티브 버튼으로 Slack 안에서 체크인 응답(`answerCheckIn` 경유, via 기록). 기획서 "알림 정책 > 알림 채널"과 MCP/CLI 계획 Phase E에 반영됨.

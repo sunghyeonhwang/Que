@@ -16,6 +16,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { buttonVariants } from "@/components/ui/button";
+import { getClientFilter } from "@/lib/client-filter";
 import { getCurrentUser } from "@/lib/current-user";
 import { getNowData, type NowFilter } from "@/lib/now-data";
 import { cn } from "@/lib/utils";
@@ -40,8 +41,9 @@ export default async function NowPage({
   const params = await searchParams;
   const filter = parseFilter(params.filter);
   const user = await getCurrentUser();
+  const clientId = await getClientFilter();
   const now = new Date();
-  const data = await getNowData(user, filter, now);
+  const data = await getNowData(user, filter, now, clientId);
 
   const metrics = [
     { value: data.summary.calendarCount, label: "오늘 캘린더 항목" },

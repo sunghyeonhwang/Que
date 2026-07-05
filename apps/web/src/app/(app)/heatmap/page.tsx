@@ -7,7 +7,9 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { getCurrentUser } from "@/lib/current-user";
+import { getClientFilter, getClientFilterName } from "@/lib/client-filter";
 import { getPerformanceData, type PerfKpi } from "@/lib/performance-data";
+import { ClientFilterBadge } from "@/components/app/client-filter-badge";
 import { CompletionBarChart } from "@/components/performance/completion-bar-chart";
 import { OverdueAreaChart } from "@/components/performance/overdue-area-chart";
 import { PerformanceLineChart } from "@/components/performance/performance-line-chart";
@@ -61,15 +63,23 @@ export default async function PerformancePage({
   const otRaw = Number(Array.isArray(sp.ot) ? sp.ot[0] : sp.ot);
   const ot = OT_ALLOWED.has(otRaw) ? otRaw : 8;
 
-  const data = await getPerformanceData(now, { hm, cm, ot, lm });
+  const [clientId, clientName] = await Promise.all([
+    getClientFilter(),
+    getClientFilterName(),
+  ]);
+
+  const data = await getPerformanceData(now, { hm, cm, ot, lm, clientId });
 
   return (
     <div className="flex flex-col gap-4">
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight text-[var(--que-text)]">성과</h1>
-        <p className="mt-1 text-sm text-[var(--que-text-secondary)]">
-          팀 작업 진척·병목·부하 분포를 한눈에. 개인 평가가 아니라 업무 배분과 병목 조정용입니다.
-        </p>
+      <header className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight text-[var(--que-text)]">성과</h1>
+          <p className="mt-1 text-sm text-[var(--que-text-secondary)]">
+            팀 작업 진척·병목·부하 분포를 한눈에. 개인 평가가 아니라 업무 배분과 병목 조정용입니다.
+          </p>
+        </div>
+        <ClientFilterBadge clientName={clientName} />
       </header>
 
       {/* KPI 4 */}

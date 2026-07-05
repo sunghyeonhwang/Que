@@ -93,6 +93,8 @@ export interface PerformanceOptions {
   ot?: number;
   /** 저성과표 산정 월(1-12). 기본=현재월. */
   lm?: number;
+  /** 클라이언트 필터. 지정 시 그 클라이언트 소속 프로젝트 작업만 집계(무소속 제외). */
+  clientId?: string;
 }
 
 export async function getPerformanceData(
@@ -102,6 +104,17 @@ export async function getPerformanceData(
   const db = await getDb();
   const nowMs = now.getTime();
   const clientById = new Map(db.clients.map((c) => [c.id, c]));
+
+  // ── 클라이언트 필터 스코프 ──
+  // clientTasks: 모든 작업 집계 소스(무소속 제외, 미지정 시 전체).
+  // clientTaskIds: status_logs 기반 집계(완료/진행 전이)를 같은 스코프로 좁히기 위한 소속 판별 집합.
+  // 미지정이면 undefined → status_logs 필터를 통과시켜 전체를 센다.
+  const clientTasks = db.tasksForClient(opts.clientId);
+  const clientTaskIds = opts.clientId
+    ? new Set(clientTasks.map((t) => t.id))
+    : undefined;
+  const inClientScope = (taskId: string): boolean =>
+    clientTaskIds === undefined || clientTaskIds.has(taskId);
 
   // 화이트리스트 검증은 호출부(페이지)에서 하고, 여기선 숫자/enum을 그대로 신뢰한다.
   const hm = opts.hm ?? now.getMonth() + 1;
@@ -136,33 +149,33 @@ export async function getPerformanceData(
   const inCur = (ms: number | undefined) => ms !== undefined && ms > curStart && ms <= nowMs;
   const inPrev = (ms: number | undefined) => ms !== undefined && ms > prevStart && ms <= curStart;
 
-  const liveTasks = db.tasks.filter((t) => t.status !== "cancelled" && t.status !== "merged");
+  const liveTasks = clientTasks.filter((t) => t.status !== "cancelled" && t.status !== "merged");
   const totalValue = liveTasks.length;
   const newCur = liveTasks.filter((t) => inCur(creationMs(t.id))).length;
   const newPrev = liveTasks.filter((t) => inPrev(creationMs(t.id))).length;
 
-  const inProgressValue = db.tasks.filter((t) => t.status === "in_progress").length;
+  const inProgressValue = clientTasks.filter((t) => t.status === "in_progress").length;
   const ipLogCur = db.statusLogs.filter(
-    (l) => l.toStatus === "in_progress" && inCur(new Date(l.createdAt).getTime()),
+    (l) => l.toStatus === "in_progress" && inClientScope(l.taskId) && inCur(new Date(l.createdAt).getTime()),
   ).length;
   const ipLogPrev = db.statusLogs.filter(
-    (l) => l.toStatus === "in_progress" && inPrev(new Date(l.createdAt).getTime()),
+    (l) => l.toStatus === "in_progress" && inClientScope(l.taskId) && inPrev(new Date(l.createdAt).getTime()),
   ).length;
 
-  const completedValue = db.tasks.filter((t) => t.status === "done").length;
+  const completedValue = clientTasks.filter((t) => t.status === "done").length;
   const doneCur = db.statusLogs.filter(
-    (l) => l.toStatus === "done" && inCur(new Date(l.createdAt).getTime()),
+    (l) => l.toStatus === "done" && inClientScope(l.taskId) && inCur(new Date(l.createdAt).getTime()),
   ).length;
   const donePrev = db.statusLogs.filter(
-    (l) => l.toStatus === "done" && inPrev(new Date(l.createdAt).getTime()),
+    (l) => l.toStatus === "done" && inClientScope(l.taskId) && inPrev(new Date(l.createdAt).getTime()),
   ).length;
 
-  const overdueValue = db.tasks.filter((t) => isOverdue(t.endAt, t.status)).length;
+  const overdueValue = clientTasks.filter((t) => isOverdue(t.endAt, t.status)).length;
   // 기한 초과 증감 근사: 마감이 각 기간에 걸리고 아직 열려 있는(초과) 작업 수 비교
-  const overdueEndCur = db.tasks.filter(
+  const overdueEndCur = clientTasks.filter(
     (t) => t.endAt && inCur(new Date(t.endAt).getTime()) && OPEN.has(t.status),
   ).length;
-  const overdueEndPrev = db.tasks.filter(
+  const overdueEndPrev = clientTasks.filter(
     (t) => t.endAt && inPrev(new Date(t.endAt).getTime()) && OPEN.has(t.status),
   ).length;
 
@@ -218,7 +231,7 @@ export async function getPerformanceData(
     const s = start.getTime();
     const e = end.getTime();
     const completed = db.statusLogs.filter((l) => {
-      if (l.toStatus !== "done") return false;
+      if (l.toStatus !== "done" || !inClientScope(l.taskId)) return false;
       const t = new Date(l.createdAt).getTime();
       return t >= s && t < e;
     }).length;
@@ -239,7 +252,7 @@ export async function getPerformanceData(
   // ── 기한 초과 추이(영역): 최근 otWeeks주 ──
   const overdueTrend: OverduePoint[] = buildWeeks(otWeeks).map(({ start, end, label }) => {
     // 그 주에 마감이 걸렸고 아직 완료되지 못한(초과) 작업 수
-    const overdue = db.tasks.filter((t) => {
+    const overdue = clientTasks.filter((t) => {
       if (!t.endAt) return false;
       const e = new Date(t.endAt).getTime();
       return e >= start && e < end && OPEN.has(t.status);
@@ -250,13 +263,13 @@ export async function getPerformanceData(
   // ── 작업 성과(3계열 라인): 8주 고정 ──
   const performanceTrend: PerformancePoint[] = buildWeeks(8).map(({ start, end, label }) => {
     const completed = db.statusLogs.filter(
-      (l) => l.toStatus === "done" && new Date(l.createdAt).getTime() >= start && new Date(l.createdAt).getTime() < end,
+      (l) => l.toStatus === "done" && inClientScope(l.taskId) && new Date(l.createdAt).getTime() >= start && new Date(l.createdAt).getTime() < end,
     ).length;
     const created = liveTasks.filter((t) => {
       const c = creationMs(t.id);
       return c !== undefined && c >= start && c < end;
     }).length;
-    const overdue = db.tasks.filter((t) => {
+    const overdue = clientTasks.filter((t) => {
       if (!t.endAt) return false;
       const e = new Date(t.endAt).getTime();
       return e >= start && e < end && OPEN.has(t.status);
@@ -267,6 +280,7 @@ export async function getPerformanceData(
   // ── 히트맵 재사용 (멤버×일 초록 강도): hm월 그리드 ──
   const heatmap = await getHeatmapData(now, {
     monthAnchor: new Date(anchorYear(hm), hm - 1, 1),
+    clientId: opts.clientId,
   });
 
   // ── 저성과 팀 표: lm월 내 활동 기준 (초과 많고 완료 적은 순) ──
@@ -274,17 +288,18 @@ export async function getPerformanceData(
   const lmStart = new Date(anchorYear(lm), lm - 1, 1).getTime();
   const lmEnd = new Date(anchorYear(lm), lm, 1).getTime();
   const inLm = (ms: number): boolean => ms >= lmStart && ms < lmEnd;
+  // taskAssignee는 ID→담당자 조회 맵이라 전체 유지(집계 스코프는 아래 inClientScope로 좁힌다).
   const taskAssignee = new Map(db.tasks.map((t) => [t.id, t.assigneeId]));
   const doneInLmByUser = new Map<string, number>();
   for (const l of db.statusLogs) {
-    if (l.toStatus !== "done") continue;
+    if (l.toStatus !== "done" || !inClientScope(l.taskId)) continue;
     if (!inLm(new Date(l.createdAt).getTime())) continue;
     const assignee = taskAssignee.get(l.taskId);
     if (assignee) doneInLmByUser.set(assignee, (doneInLmByUser.get(assignee) ?? 0) + 1);
   }
   const lowPerformers: LowPerformerRow[] = db.users
     .map((u) => {
-      const mine = db.tasks.filter((t) => t.assigneeId === u.id);
+      const mine = clientTasks.filter((t) => t.assigneeId === u.id);
       return {
         userId: u.id,
         name: u.name,
@@ -299,10 +314,12 @@ export async function getPerformanceData(
     .sort((a, b) => b.overdue - a.overdue || a.completed - b.completed);
 
   // ── 프로젝트 진행률: project별 완료/전체 ──
+  // 클라이언트 필터 시 그 클라이언트 소속 프로젝트만 나열(무소속·타 클라이언트 프로젝트는 0/0로
+  // 남기지 않고 제외). 작업 집계도 clientTasks라 자연히 정합.
   const projectRows: ProjectProgressRow[] = db.projects
-    .filter((p) => p.status === "active")
+    .filter((p) => p.status === "active" && (!opts.clientId || p.clientId === opts.clientId))
     .map((p) => {
-      const tasks = db.tasks.filter((t) => t.projectId === p.id && t.status !== "merged" && t.status !== "cancelled");
+      const tasks = clientTasks.filter((t) => t.projectId === p.id && t.status !== "merged" && t.status !== "cancelled");
       const total = tasks.length;
       const done = tasks.filter((t) => DONE.has(t.status)).length;
       const progress = total === 0 ? 0 : Math.round((done / total) * 100);

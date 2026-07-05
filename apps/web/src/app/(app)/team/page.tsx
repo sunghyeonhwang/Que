@@ -9,6 +9,7 @@ import { AdminReport } from "@/components/team/admin-report";
 import { StandupGrid } from "@/components/team/standup-grid";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { getClientFilter } from "@/lib/client-filter";
 import { getCurrentUser } from "@/lib/current-user";
 import { getCommentViewsByTask } from "@/lib/comments";
 import { getRecentChangeLogs } from "@/lib/calendar-data";
@@ -26,6 +27,7 @@ export default async function TeamPage({
 }) {
   const params = await searchParams;
   const user = await getCurrentUser();
+  const clientId = await getClientFilter();
   const now = new Date();
 
   // 리포트 뷰는 관리자 전용 — 비관리자가 URL로 접근하면 운영 보드로 되돌린다.
@@ -40,12 +42,12 @@ export default async function TeamPage({
 
   const reportPeriod: ReportPeriod = params.period === "month" ? "month" : "week";
   const reportData =
-    view === "report" ? await getAdminReportData(user, reportPeriod, now) : null;
+    view === "report" ? await getAdminReportData(user, reportPeriod, now, clientId) : null;
 
-  const data = await getTeamData(user, now);
+  const data = await getTeamData(user, now, clientId);
   const logs = await getRecentChangeLogs(6);
   const commentsByTask = await getCommentViewsByTask();
-  const standupRows = view === "standup" ? await getStandupData(now) : [];
+  const standupRows = view === "standup" ? await getStandupData(now, clientId) : [];
 
   const metrics = [
     { value: data.summary.inProgress, label: "진행중" },

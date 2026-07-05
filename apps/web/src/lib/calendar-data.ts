@@ -34,9 +34,11 @@ export async function getCalendarData(
   viewer: User,
   rangeStart: Date,
   rangeEnd: Date,
+  clientId?: string,
 ): Promise<CalendarData> {
   const db = await getDb();
   const userById = new Map(db.users.map((u) => [u.id, u]));
+  // projectById는 ID→프로젝트명/제목 조회용 맵이다. 클라이언트 필터를 적용하지 않는다(전체 유지).
   const projectById = new Map(db.projects.map((p) => [p.id, p]));
   // "수정됨" 배지는 일정 시간(24h) 동안만 표시한다
   const changedSince = Date.now() - 24 * 60 * 60 * 1000;
@@ -50,7 +52,10 @@ export async function getCalendarData(
     return start <= rangeEnd && end >= rangeStart;
   };
 
-  const taskItems: CalendarViewItem[] = db.tasks
+  // 캘린더에 그려지는 작업 소스만 클라이언트로 필터한다(무소속 작업 제외).
+  // clientId 미지정이면 tasksForClient가 전체 작업을 돌려준다.
+  const taskItems: CalendarViewItem[] = db
+    .tasksForClient(clientId)
     .filter((t) => t.startAt && overlaps(t.startAt, t.endAt) && t.status !== "cancelled" && t.status !== "merged")
     .map((task) => {
       const owner = userById.get(task.assigneeId);
@@ -91,8 +96,11 @@ export async function getCalendarData(
       };
     });
 
+  // 마일스톤도 클라이언트 소속(milestone→projectId→project.clientId). 작업과 일관되게,
+  // 필터 활성 시 그 클라이언트 프로젝트의 마일스톤만 표시한다(무소속/타 클라이언트 제외).
   const milestones = db.milestones
     .filter((m) => overlaps(m.dueAt, m.dueAt))
+    .filter((m) => !clientId || projectById.get(m.projectId)?.clientId === clientId)
     .map((m) => ({
       ...m,
       projectName: projectById.get(m.projectId)?.name ?? m.projectId,

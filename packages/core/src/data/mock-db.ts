@@ -130,6 +130,20 @@ export class MockQueDb implements QueDb {
     return this.clientById(project?.clientId);
   }
 
+  /**
+   * 클라이언트 필터용 조회 헬퍼. clientId 미지정이면 전체 작업을 그대로 돌려준다.
+   * 특정 클라이언트를 주면 그 클라이언트 소속 프로젝트의 작업만 — 무소속 작업(projectId 없음
+   * 또는 project.clientId 없음)은 제외한다. (표시/집계 소스 필터용. ID→작업 조회 맵에는 쓰지 말 것.)
+   * MCP/CLI의 `--client` 필터가 재사용할 수 있게 core 계층에 둔다.
+   */
+  tasksForClient(clientId: string | undefined): Task[] {
+    if (!clientId) return this.tasks;
+    const projectIds = new Set(
+      this.projects.filter((p) => p.clientId === clientId).map((p) => p.id),
+    );
+    return this.tasks.filter((t) => t.projectId !== undefined && projectIds.has(t.projectId));
+  }
+
   // ---------- 변경 ----------
 
   /** 작업 상태 변경. 문제발생/홀드는 사유 필수, 병합(merged)은 대상 작업 필수.

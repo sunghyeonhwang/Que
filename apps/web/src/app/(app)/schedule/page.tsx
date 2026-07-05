@@ -4,6 +4,7 @@ import { ko } from "date-fns/locale";
 import { MonthView } from "@/components/schedule/month-view";
 import { ScheduleHeader, type ScheduleRange } from "@/components/schedule/schedule-header";
 import { WeekCalendar } from "@/components/schedule/week-calendar";
+import { getClientFilter } from "@/lib/client-filter";
 import { getCurrentUser } from "@/lib/current-user";
 import { getCalendarData } from "@/lib/calendar-data";
 
@@ -57,7 +58,9 @@ export default async function SchedulePage({
 
   const rangeEndOfDay = new Date(rangeEnd);
   rangeEndOfDay.setHours(23, 59, 59, 999);
-  const data = await getCalendarData(user, rangeStart, rangeEndOfDay);
+  // 상단 클라이언트 스위처 필터(쿠키). 회사 공통/개인 일정은 필터하지 않는다(calendar-data 참고).
+  const clientId = await getClientFilter();
+  const data = await getCalendarData(user, rangeStart, rangeEndOfDay, clientId);
 
   // 부제 지표: anchor 날짜의 마감 작업 수 / 미팅(이벤트) 수를 데이터로 계산.
   const dueTasks = data.items.filter(
