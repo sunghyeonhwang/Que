@@ -508,6 +508,16 @@ data/
     - 조회 전용(mutation 없음), 전부 withApi(PAT). core tasksForClient 공유(웹과 동일 로직). SupabaseQueDb가 상속으로 양 모드 동작.
     - 검증: typecheck·lint·build(`/api/clients`) exit 0. **MCP 라이브 스모크(도구 20·list_clients·client 필터)는 게이트에서 dev 서버로 확인.**
 
+59. **클라이언트 UI 마감 + 작업목록 개편 + 로고/도움말/기획서 (2026-07-05)** — 56~58 후속 사용자 검수 피드백 다수를 연속 처리.
+    - **클라이언트 스위처 버그 3건**: (a) "추가해도 스위처 안 나옴" — 코드/로드 정상(backend-dev·qa 프로덕션 실측), 원인은 관리화면 mutation이 `revalidatePath("/clients")`만 해서 **layout(스위처)이 soft-navigation 간 stale** → `revalidatePath("/","layout")` 추가로 해소. (b) 프로젝트 폼 Select가 선택 후 raw 값(id·`__none__`) 노출 → **base-ui Select는 `items`(value→label 맵) prop 필수** — create-project-form·client-groups 5개 Select에 items 추가. (c) 스위처 위치를 상단바→**데스크톱 사이드바 상단(가운데)·모바일 상단바**로.
+    - **⚠️ 스위처 드롭다운 크래시 — 중요 교훈**: `client-switcher.tsx`의 `DropdownMenuLabel`이 `DropdownMenuRadioGroup` **밖**에 있어 base-ui `Menu.GroupLabel`이 `MenuGroupContext` 부재로 throw(드롭다운 여는 순간). **digest 없는 client 에러**(서버 아님)라 typecheck·lint·build·Glados로 못 잡고 프로덕션 clients 0개일 땐 잠복하다 거래처 생성 후 표면화. **Playwright 헤드리스로만 재현/수정검증**. → 드롭다운·드래그·클릭 등 **브라우저 인터랙션은 Playwright 검증 필수**(코드 리뷰만으론 놓침). 수정: 라벨·구분선을 RadioGroup 안으로.
+    - **클라이언트 순서 드래그**: `Client.sortOrder` 추가(**프로덕션 DDL `add_client_sort_order` 적용됨** — sort_order 컬럼+기존 4개 순번), `reorderClients` mutation(관리자·ChangeLog), 관리화면 HTML5 드래그+위/아래 버튼, getClientOptions/스위처/목록 sortOrder 정렬. core 101→105.
+    - **작업목록(/today) 개편**: 현황 KPI 1줄 상단 + `collapsible-details`(타임라인·체크인·하루마감·주의필요 접기), 목록 풀폭 확대(행 크게), 우측 **원형 완료 버튼**(`task-done-circle`, hover green fill 프리뷰, 클릭 완료 시 **canvas-confetti 폭죽**·reduced-motion 생략, 재클릭 복귀). qa Playwright 6항목·4해상도 PASS.
+    - **로고**: files.griff.co.kr(`logo-full`=로고+워드마크, `logo-mark`=아이콘, **단색이라 dark:invert**). 사이드바 상단 가운데(justify-center), 로그인 화면 `logo-mark`. (사용자가 auth/logo.svg↔files 왕복 후 **files 확정**.) 아바타 테두리 제거(`avatar.tsx` after:border + `MemberAvatars` ring-2).
+    - **도움말 전면 개편**: 8→11섹션 — 구 s5(회의록+결제)를 **회의록·결제요청 독립 섹션**으로 분리, **반복·마일스톤·클라이언트 신규 섹션**, 최신 기능(작업목록·스위처·폰트·단축키·회의 일시) 반영. **말투 '쉬운 해요체'→매뉴얼 톤(합니다/하세요체)** 전면 통일 — **CLAUDE.md 도움말 톤 원칙도 갱신**(다음 세션 회귀 방지).
+    - **기획서 정합**: `que-product-plan.md`에 클라이언트 2단·스위처(최대 신규)·반복마일스톤·작업목록 개편·키보드 단축키·모양/폰트 설정·계정보안·PAT·KST를 각 섹션에 편입(구현·도움말이 앞서 있던 것 역방향 문서화). 정보구조 메뉴를 현행 IA로 교체.
+    - 각 배포: typecheck·lint·build·core 105 통과. 커밋 다수(3490c32~3238029).
+
 ## 남은 작업 / 오픈 질문
 
 - ~~알림 채널 결정~~ → **Slack 확정** (2026-07-02): 1단계 Incoming Webhook+딥링크, 2단계 Bot 인터랙티브 버튼으로 Slack 안에서 체크인 응답(`answerCheckIn` 경유, via 기록). 기획서 "알림 정책 > 알림 채널"과 MCP/CLI 계획 Phase E에 반영됨.
