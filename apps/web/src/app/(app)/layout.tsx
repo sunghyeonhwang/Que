@@ -45,7 +45,7 @@ export default async function AppLayout({
       <CommandPalette />
       <KeyboardShortcuts />
       <aside className="hidden w-[236px] shrink-0 flex-col border-r border-[var(--que-border)] bg-[var(--que-bg)] lg:flex">
-        <div className="flex h-[72px] shrink-0 items-center border-b border-[var(--que-border)] px-5">
+        <div className="flex h-[72px] shrink-0 items-center justify-center border-b border-[var(--que-border)] px-5">
           <Brand />
         </div>
         <ScrollArea className="min-h-0 flex-1 px-4 py-4">
