@@ -1,6 +1,12 @@
 import type { Metadata } from "next";
-import { format, startOfWeek } from "date-fns";
-import { getViewBoard, getViewWeek, type ViewBoard, type ViewWeek } from "@/lib/view-data";
+import { format } from "date-fns";
+import {
+  getViewBoard,
+  getViewSchedule,
+  type ViewBoard,
+  type ViewScheduleRange,
+  type ViewWeek,
+} from "@/lib/view-data";
 import { ViewHeader } from "@/components/view/view-header";
 import { ViewAutoRefresh } from "@/components/view/view-auto-refresh";
 import { BoardGrid } from "@/components/view/board-grid";
@@ -9,7 +15,12 @@ import { ViewFab } from "@/components/view/view-fab";
 
 // 공개 읽기전용 현황판 페이지(서버 컴포넌트).
 // proxy가 view 호스트의 모든 경로를 여기로 rewrite한다. 인증 없음(조회 전용).
-// searchParams: view=board|week(기본 board) · date=yyyy-MM-dd(board 기준일) · week=yyyy-MM-dd(주 시작) · hc=1(완료 숨김).
+// searchParams 계약:
+// - view=board|week (기본 board)
+// - date=yyyy-MM-dd — board 모드=기준일, week 모드=스케줄 앵커일 (기본 오늘). 두 모드 공용.
+// - range=week|3day — week 모드에서만 유효. 기본 week(월~금 5칸). 3day=앵커일 포함 연속 3칸.
+//   prev/next 이동 폭: week=7일, 3day=3일 (frontend가 URL로 계산).
+// - hc=1 — 완료 숨김(board 모드).
 // 외부 fetch는 open-meteo 기온 하나뿐(공개·무인증). 데이터는 view-data(loadReadOnlyDb)에서만 온다.
 
 export const dynamic = "force-dynamic";
@@ -47,10 +58,11 @@ async function getTemperature(): Promise<number | undefined> {
 export default async function ViewPage({
   searchParams,
 }: {
-  searchParams: Promise<{ view?: string; date?: string; week?: string; hc?: string }>;
+  searchParams: Promise<{ view?: string; date?: string; range?: string; hc?: string }>;
 }) {
   const params = await searchParams;
   const mode: Mode = params.view === "week" ? "week" : "board";
+  const scheduleRange: ViewScheduleRange = params.range === "3day" ? "3day" : "week";
   const hideCompleted = params.hc === "1";
   const now = new Date();
   const todayISO = format(now, "yyyy-MM-dd");
@@ -62,18 +74,20 @@ export default async function ViewPage({
   let boardDate = now;
 
   if (mode === "week") {
-    week = await getViewWeek(parseDate(params.week, now));
+    // date=앵커일(기본 오늘). getViewSchedule이 week면 월요일 정규화, 3day면 앵커부터.
+    week = await getViewSchedule(parseDate(params.date, now), scheduleRange);
   } else {
     boardDate = parseDate(params.date, now);
     board = await getViewBoard(boardDate);
   }
 
   // FAB 전환 링크(현재 컨텍스트 보존). 상대 쿼리로 뷰 호스트 pathname 유지.
+  // board→week: 보고 있던 날짜를 앵커로 넘긴다(range는 기본 week).
   const fab =
     mode === "board"
       ? {
           to: "week" as const,
-          href: `?view=week&week=${format(startOfWeek(boardDate, { weekStartsOn: 1 }), "yyyy-MM-dd")}`,
+          href: `?view=week&date=${format(boardDate, "yyyy-MM-dd")}`,
         }
       : {
           to: "board" as const,
@@ -90,6 +104,8 @@ export default async function ViewPage({
         boardDate={mode === "board" ? boardDate : undefined}
         todayISO={todayISO}
         hideCompleted={hideCompleted}
+        weekAnchorISO={mode === "week" && week ? week.weekStartISO : undefined}
+        weekRange={mode === "week" && week ? week.range : undefined}
       />
 
       {mode === "board" && board ? (

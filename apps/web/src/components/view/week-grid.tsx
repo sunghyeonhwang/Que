@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { addWeeks, format, parseISO } from "date-fns";
+import { addDays, format, parseISO } from "date-fns";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import type {
+  ViewScheduleRange,
   ViewWeek,
   ViewWeekDay,
   ViewWeekItem,
@@ -13,24 +14,28 @@ import {
   minutesOfDayKST,
   withAlpha,
 } from "./view-format";
+import { NowLine } from "./now-line";
 
-// 주간 스케줄. 상단 멤버 완료 요약행 + 월~금 5열 캘린더(시간 그리드) + 하단 주 이동.
+// 주간 스케줄. 상단 멤버 완료 요약행 + 월~금(또는 3day) 캘린더(시간 그리드) + 하단 범위 이동.
 // 조회 전용. 이벤트 카드는 시작~종료 시각으로 배치되며 클릭 불가.
 
 const GRID_START_MIN = 10 * 60; // 10:00
-const GRID_END_MIN = 18 * 60; // 18:00
+const GRID_END_MIN = 19 * 60; // 19:00
 const GRID_SPAN = GRID_END_MIN - GRID_START_MIN;
 const AXIS_HOURS = [10, 12, 14, 16, 18] as const;
 
 export function WeekGrid({ week }: { week: ViewWeek }) {
-  const prevWeek = format(addWeeks(parseISO(week.weekStartISO), -1), "yyyy-MM-dd");
-  const nextWeek = format(addWeeks(parseISO(week.weekStartISO), 1), "yyyy-MM-dd");
+  // prev/next 이동 폭: week=7일, 3day=3일. 기준 앵커는 week.weekStartISO.
+  const step = week.range === "3day" ? 3 : 7;
+  const anchor = parseISO(week.weekStartISO);
+  const prevDate = format(addDays(anchor, -step), "yyyy-MM-dd");
+  const nextDate = format(addDays(anchor, step), "yyyy-MM-dd");
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <MemberSummaryRow members={week.memberSummary} />
       <WeekCalendar days={week.days} />
-      <WeekNav prevWeek={prevWeek} nextWeek={nextWeek} />
+      <WeekNav prevDate={prevDate} nextDate={nextDate} range={week.range} />
     </div>
   );
 }
@@ -99,13 +104,14 @@ function WeekCalendar({ days }: { days: ViewWeekDay[] }) {
 
       {/* 시간 그리드 본문 */}
       <div
-        className="grid min-h-0 flex-1 gap-3 overflow-auto pb-4 pt-2"
+        className="relative grid min-h-0 flex-1 gap-3 overflow-auto pb-4 pt-2"
         style={{ gridTemplateColumns: template }}
       >
         <TimeAxis />
         {days.map((day) => (
           <DayColumn key={day.dateISO} day={day} />
         ))}
+        <NowLine startMin={GRID_START_MIN} endMin={GRID_END_MIN} />
       </div>
     </div>
   );
@@ -116,7 +122,8 @@ function TimeAxis() {
     <div className="relative min-h-[420px]">
       {AXIS_HOURS.map((h) => {
         const topPct = ((h * 60 - GRID_START_MIN) / GRID_SPAN) * 100;
-        const label = h < 12 ? `${h} AM` : `${h} PM`;
+        const hour12 = h % 12 === 0 ? 12 : h % 12;
+        const label = h < 12 ? `${hour12} AM` : `${hour12} PM`;
         return (
           <span
             key={h}
@@ -190,22 +197,31 @@ function EventCard({ item }: { item: ViewWeekItem }) {
   );
 }
 
-// ---------- 주 이동 ----------
+// ---------- 범위 이동 ----------
 
-function WeekNav({ prevWeek, nextWeek }: { prevWeek: string; nextWeek: string }) {
+function WeekNav({
+  prevDate,
+  nextDate,
+  range,
+}: {
+  prevDate: string;
+  nextDate: string;
+  range: ViewScheduleRange;
+}) {
+  const label = range === "3day" ? "3일" : "주";
   return (
     <>
       <div className="flex shrink-0 items-center justify-center gap-3 py-3">
         <Link
-          href={`?view=week&week=${prevWeek}`}
-          aria-label="이전 주"
+          href={`?view=week&range=${range}&date=${prevDate}`}
+          aria-label={`이전 ${label}`}
           className="flex size-11 items-center justify-center rounded-full bg-neutral-900 text-white hover:bg-neutral-700"
         >
           <ChevronLeft className="size-5" />
         </Link>
         <Link
-          href={`?view=week&week=${nextWeek}`}
-          aria-label="다음 주"
+          href={`?view=week&range=${range}&date=${nextDate}`}
+          aria-label={`다음 ${label}`}
           className="flex size-11 items-center justify-center rounded-full bg-neutral-900 text-white hover:bg-neutral-700"
         >
           <ChevronRight className="size-5" />

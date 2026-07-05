@@ -60,8 +60,16 @@ export interface ViewWeekMemberSummary {
   totalCount: number;
 }
 
+export type ViewScheduleRange = "week" | "3day";
+
 export interface ViewWeek {
+  /** 표시 범위의 시작일(week=해당 주 월요일, 3day=앵커일) ISO(yyyy-MM-dd). */
   weekStartISO: string;
+  /** 표시 범위 종류. frontend가 이동 폭(week=7일 / 3day=3일)과 칸수 렌더에 사용. */
+  range: ViewScheduleRange;
+  /** days 칸수(week=5, 3day=3). days.length와 동일하되 렌더 편의용으로 명시. */
+  dayCount: number;
+  /** memberSummary는 항상 "표시 범위" 기준으로 done/total 집계. */
   memberSummary: ViewWeekMemberSummary[];
   days: ViewWeekDay[];
 }
@@ -136,20 +144,32 @@ export async function getViewBoard(date: Date): Promise<ViewBoard> {
   return { dateISO: localDateISO(date), columns };
 }
 
-/** 주간(week) 현황: calendar-data 준거 — 주 겹침, private 작업 제외, private 이벤트는 "자리비움". 월~금 5칸. */
-export async function getViewWeek(weekStart: Date): Promise<ViewWeek> {
+/**
+ * 스케줄(week/3day) 현황: calendar-data 준거 — 범위 겹침, private 작업 제외, private 이벤트는 "자리비움".
+ * - range="week": 앵커일이 속한 주의 월~금 5칸(앵커 요일 무관, 월요일로 정규화).
+ * - range="3day": 앵커일 포함 연속 3칸(anchor, anchor+1, anchor+2). 정규화 없음.
+ * 시간 필터(10~19시 클리핑)는 하지 않는다 — 모든 이벤트를 반환하고 frontend가 클리핑한다.
+ */
+export async function getViewSchedule(
+  anchor: Date,
+  range: ViewScheduleRange,
+): Promise<ViewWeek> {
   const db = await loadReadOnlyDb();
 
-  // weekStart를 월요일 자정으로 정규화한 뒤 월~금 5일을 만든다.
-  const monday = new Date(weekStart);
-  monday.setHours(0, 0, 0, 0);
-  const dow = monday.getDay(); // 0=일
-  const diffToMonday = dow === 0 ? -6 : 1 - dow;
-  monday.setDate(monday.getDate() + diffToMonday);
+  // 표시할 날짜(자정 기준)들을 만든다. week는 월요일로 정규화, 3day는 앵커일부터.
+  const rangeStart = new Date(anchor);
+  rangeStart.setHours(0, 0, 0, 0);
+  if (range === "week") {
+    const dow = rangeStart.getDay(); // 0=일
+    const diffToMonday = dow === 0 ? -6 : 1 - dow;
+    rangeStart.setDate(rangeStart.getDate() + diffToMonday);
+  }
 
-  const friday = new Date(monday);
-  friday.setDate(friday.getDate() + 4);
-  friday.setHours(23, 59, 59, 999);
+  const dayCount = range === "week" ? 5 : 3;
+
+  const rangeEnd = new Date(rangeStart);
+  rangeEnd.setDate(rangeEnd.getDate() + (dayCount - 1));
+  rangeEnd.setHours(23, 59, 59, 999);
 
   const userById = new Map(db.users.map((u) => [u.id, u]));
   const projectById = new Map(db.projects.map((p) => [p.id, p]));
@@ -161,10 +181,10 @@ export async function getViewWeek(weekStart: Date): Promise<ViewWeek> {
     if (!startAt) return false;
     const start = new Date(startAt);
     const end = endAt ? new Date(endAt) : start;
-    return start <= (to ?? friday) && end >= (from ?? monday);
+    return start <= (to ?? rangeEnd) && end >= (from ?? rangeStart);
   };
 
-  // 주 전체(월~금)에 걸치는 작업/이벤트 뷰아이템을 만든 뒤 날짜별로 배분한다.
+  // 범위 전체에 걸치는 작업/이벤트 뷰아이템을 만든 뒤 날짜별로 배분한다.
   const weekTaskItems: ViewWeekItem[] = db.tasks
     .filter(
       (t) =>
@@ -208,9 +228,9 @@ export async function getViewWeek(weekStart: Date): Promise<ViewWeek> {
   const allItems = [...weekTaskItems, ...weekEventItems];
 
   const days: ViewWeekDay[] = [];
-  for (let i = 0; i < 5; i += 1) {
-    const dayDate = new Date(monday);
-    dayDate.setDate(monday.getDate() + i);
+  for (let i = 0; i < dayCount; i += 1) {
+    const dayDate = new Date(rangeStart);
+    dayDate.setDate(rangeStart.getDate() + i);
     const ds = new Date(dayDate);
     ds.setHours(0, 0, 0, 0);
     const de = new Date(dayDate);
@@ -237,7 +257,7 @@ export async function getViewWeek(weekStart: Date): Promise<ViewWeek> {
     });
   }
 
-  // 멤버별 주간 완료/총 작업 수(전원). private 제외·cancelled/merged 제외한 주 겹침 작업 기준.
+  // 멤버별 표시범위 완료/총 작업 수(전원). private 제외·cancelled/merged 제외한 범위 겹침 작업 기준.
   const memberSummary: ViewWeekMemberSummary[] = db.users.map((user) => {
     const mine = db.tasks.filter(
       (t) =>
@@ -254,5 +274,11 @@ export async function getViewWeek(weekStart: Date): Promise<ViewWeek> {
     };
   });
 
-  return { weekStartISO: localDateISO(monday), memberSummary, days };
+  return {
+    weekStartISO: localDateISO(rangeStart),
+    range,
+    dayCount,
+    memberSummary,
+    days,
+  };
 }

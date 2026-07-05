@@ -547,7 +547,16 @@ data/
     - **UI**: components/view/*(board-grid·week-grid·view-header·view-clock(1s)·view-auto-refresh(600s)·hide-completed-toggle·view-fab·view-format). 담당자색 틴트 카드, green=완료. 앱 셸 없는 독립 (view) 레이아웃. 기온 open-meteo(무키, 서울 좌표, revalidate 600, 실패 시 숨김 — 유일 외부 fetch).
     - **검증**: web typecheck·lint·**build(/view 생성)** 통과. qa Playwright 1920/1366 PASS(보드·주간·라이브시계·조회전용 클릭무반응·hide-completed·FAB전환·proxy host rewrite+noindex·기존 /today 로그인게이트 무영향, console/pageerror 0). glados **[PASS]**(익명쓰기차단·화이트리스트·private마스킹·proxy범위·noindex 런타임 재확인).
     - **⚠️ 서브도메인 연결 — (1) 완료, (2) 사용자 대기**: (1) **Vercel 프로젝트 que에 view.griff.co.kr 도메인 추가 완료**(`vercel domains add view.griff.co.kr`, 2026-07-05). (2) **Cloudflare DNS 미완(사용자만 가능)**: 현재 `*.griff.co.kr` 와일드카드 프록시가 view를 잡아 **Cloudflare가 406 반환(Vercel 미도달, `server:cloudflare`·`x-vercel-id` 없음)** — 임의 서브도메인도 동일 406으로 와일드카드 확인. → Cloudflare griff.co.kr DNS에 **명시적 `view` 레코드**를 기존 `que` 레코드와 동일하게(프록시 CNAME→cname.vercel-dns.com, 동일 SSL/Full) 추가하면 와일드카드보다 우선해 Vercel로 라우팅되고 proxy.ts가 /view로 rewrite. 그 전엔 **que.griff.co.kr/view**로 접근 가능(동일 공개 화면, 지금 라이브·200).
-    - **후속(비차단)**: (1) 메인 host의 /view도 공개 접근됨(같은 화이트리스트라 무위험, 원하면 proxy에서 view host 전용 제한). (2) 8명 초과·동시간 이벤트 다수 시 페이지네이션/겹침분할(v1 생략). (3) 주간 뷰 하단 검은 장식 띠(Figma 원본 요소, 무정보 — 정리 여부 검토). (4) 구글 캘린더 연동 시 이벤트가 que 일정→view 자동 반영.
+    - **후속(비차단)**: (1) 메인 host의 /view도 공개 접근됨(같은 화이트리스트라 무위험, 원하면 proxy에서 view host 전용 제한). (2) 8명 초과·동시간 이벤트 다수 시 페이지네이션/겹침분할(v1 생략 → 63번서 페이지네이션 반영). (3) 주간 뷰 하단 검은 장식 띠(Figma 원본 요소, 무정보 — 정리 여부 검토). (4) 구글 캘린더 연동 시 이벤트가 que 일정→view 자동 반영.
+
+63. **view 현황판 개선 4건 (2026-07-05)** — view.griff.co.kr 라이브 후 사용자 검수. Figma 14-2643(페이지버튼)·22-8857(now라인) 참고. backend(3day 범위)+frontend(UI)+qa(4해상도).
+    - **서브도메인 라이브**: Cloudflare `view` CNAME→cname.vercel-dns.com 설정 완료 → **view.griff.co.kr 200**(x-vercel-id·x-robots-tag noindex 확인). `*.griff.co.kr` 와일드카드보다 명시적 `view` 레코드가 우선해 Vercel 라우팅.
+    - (1) **보드 페이지네이션 2명/페이지**(8명 한화면 가독성 문제) — board-grid client 전환, `PAGE x/N` 다크 pill+원형 화살표, **15초 자동순환**(마지막→처음 루프)+수동 클릭(타이머 리셋), 페이지 인덱스 client state(10분 router.refresh에도 유지), 카드/폰트 확대. Hide-completed는 페이지 내 유지.
+    - (2) **스케줄 Week/3day 토글 + Today** — view-header 세그먼트+Today 버튼. backend `getViewWeek`→`getViewSchedule(anchor, range)`(week=월~금 5칸, 3day=앵커+2일 3칸, ViewWeek에 range/dayCount 필드). URL `?view=week&range=week|3day&date=yyyy-MM-dd`(구 `?week=` 폐기·`?date`로 통일). WeekNav prev/next range별 이동(week ±7 / 3day ±3).
+    - (3) **시간축 10~19시** — GRID_START_MIN=600·GRID_END_MIN=1140, AXIS_HOURS [10,12,14,16,18](2h 간격). **qa가 12시간제 라벨 버그(14 PM/16 PM) 잡음→즉시 수정**(`h%12` 변환, 2 PM/4 PM/6 PM).
+    - (4) **현재시각 라인**(`now-line.tsx` client) — 그리드 가로지르는 라인 + 좌측 파란 pill(현재시각 "2:30 PM"), 30초 갱신, **10~19시 밖이면 숨김**, 스케줄 뷰에만(board 無). KST(minutesOfDayKST/formatClockTime 재사용), hydration 안전.
+    - **검증**: typecheck·lint·build 통과. qa Playwright 1920/1366 PASS(페이지네이션·**자동순환 clock으로 실측**·Hide완료 회귀·3day 3칸·Today·prev·next 이동폭·**now라인 위치/범위밖 숨김/board無**·FAB·시계·proxy host rewrite·기존 /today 게이트, console/pageerror 0). 시간축 라벨 버그만 FAIL→수정 후 재빌드. **보안/데이터 계층 무변경(batch 62 glados 통과분)이라 이 UI 수정은 build+qa 게이트로 갈음**(glados 생략).
+    - 후속(비차단): 768×1024 태블릿 세로 week 5칸 텍스트 말줄임(디스플레이 타깃 1920라 무영향).
 
 ## 남은 작업 / 오픈 질문
 
