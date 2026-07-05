@@ -3,10 +3,10 @@
 -- 적용: Supabase Dashboard > SQL Editor 또는 `supabase db push`
 -- 참고: 서버(Next.js API)가 service_role 키로만 접근하는 전제라 RLS는 사용하지 않는다.
 --       클라이언트 직접 접근을 열게 되면 그때 RLS를 설계한다 (docs/deploy-vercel-supabase.md).
--- 주의: projects.name / milestones.title / calendar_events.title / tasks.description 의
+-- 주의: milestones.title / calendar_events.title / tasks.description 의
 --       길이 check는 현재 core에 대응하는 생성 mutation이 없어 코드 검증이 없다 —
 --       해당 mutation을 추가할 때 core 상한(절단 또는 거부)을 함께 구현할 것.
---       (action_items.title / tasks.title 은 core에서 200자 절단으로 보장됨)
+--       (action_items.title / tasks.title / projects.name / clients.name 은 core에서 검증/절단으로 보장됨)
 
 create table if not exists users (
   id          text primary key,
@@ -24,11 +24,21 @@ create table if not exists users (
 -- 이메일 유니크(대소문자 무시). email이 NULL인 계정도 허용.
 create unique index if not exists users_email_key on users (lower(email)) where email is not null;
 
+-- 2단 분류의 상위 = 클라이언트(거래처). 최소 필드(id/name/status)만 둔다.
+create table if not exists clients (
+  id         text primary key,
+  name       text not null check (char_length(name) <= 200),
+  status     text not null check (status in ('active', 'archived')),
+  created_at timestamptz not null default now()
+);
+
 create table if not exists projects (
   id         text primary key,
   name       text not null check (char_length(name) <= 200),
   owner_id   text not null references users(id),
   status     text not null check (status in ('active', 'archived')),
+  -- 상위 클라이언트. nullable — 클라이언트 없는 내부 잡무 허용. Task는 project를 통해 간접 참조.
+  client_id  text references clients(id),
   created_at timestamptz not null default now()
 );
 
@@ -144,7 +154,7 @@ create table if not exists status_logs (
 create table if not exists change_logs (
   id           text primary key,
   entity_type  text not null check (entity_type in
-    ('task','calendar_event','milestone','action_item','payment_request','meeting_note','recurring_template')),
+    ('task','calendar_event','milestone','action_item','payment_request','meeting_note','recurring_template','project','client')),
   entity_id    text not null,
   actor_id     text not null references users(id),
   change_type  text not null check (change_type in ('create','update','move','status_change','delete')),

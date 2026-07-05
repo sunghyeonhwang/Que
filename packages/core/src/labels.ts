@@ -1,7 +1,9 @@
 import type {
   ActionItemStatus,
   CheckInResponse,
+  Client,
   PaymentStatus,
+  Project,
   RecurrenceFrequency,
   TaskStatus,
 } from "./domain";
@@ -51,3 +53,14 @@ export const RECURRENCE_FREQUENCY_LABELS: Record<RecurrenceFrequency, string> = 
 
 /** 0=일 ~ 6=토 (JS Date.getDay() 순서) */
 export const WEEKDAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"] as const;
+
+/**
+ * "클라이언트 · 프로젝트" 2단 표시 라벨. 클라이언트가 없으면(내부 잡무) 프로젝트명만 보인다.
+ * (웹 배선은 다음 단계 — core에 정의만 둔다.)
+ */
+export function formatProjectLabel(
+  project: Pick<Project, "name">,
+  client?: Pick<Client, "name">,
+): string {
+  return client ? `${client.name} · ${project.name}` : project.name;
+}

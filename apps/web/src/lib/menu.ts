@@ -11,6 +11,7 @@ import {
   Terminal,
   CircleHelp,
   Milestone,
+  Building2,
   type LucideIcon,
 } from "lucide-react";
 
@@ -22,6 +23,8 @@ export interface MenuItem {
   match?: string[];
   /** 사이드바 우측 뱃지 정적 폴백. 실데이터는 레이아웃이 SidebarNav의 badges prop으로 href별 주입. */
   badge?: number;
+  /** 관리자에게만 노출하는 메뉴(예: 클라이언트 관리). 페이지·서버 액션에서도 별도로 강제한다(UI만 믿지 않음). */
+  adminOnly?: boolean;
 }
 
 export interface MenuSection {
@@ -63,6 +66,9 @@ export const MENU_SECTIONS: MenuSection[] = [
   {
     label: "기타",
     items: [
+      // 클라이언트(거래처)·프로젝트 관리 — 관리자 전용. adminOnly로 사이드바 노출을 막고,
+      // 페이지(서버)와 서버 액션(core mutation)이 다시 강제한다(3중 게이트).
+      { href: "/clients", label: "클라이언트", icon: Building2, adminOnly: true },
       { href: "/payments", label: "결제요청", icon: Receipt },
       { href: "/tools", label: "MCP · CLI", icon: Terminal },
       { href: "/help", label: "도움말", icon: CircleHelp },

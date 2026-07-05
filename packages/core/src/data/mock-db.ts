@@ -5,6 +5,7 @@ import type {
   ChangeVia,
   CheckIn,
   CheckInResponse,
+  Client,
   MeetingNote,
   Milestone,
   PaymentRequest,
@@ -19,7 +20,7 @@ import type {
   TaskStatus,
   User,
 } from "../domain";
-import { milestoneSchema } from "../domain";
+import { clientSchema, milestoneSchema, projectSchema } from "../domain";
 import { USERS } from "../mock/users";
 import {
   QueRuleError,
@@ -29,6 +30,8 @@ import {
   assertCanMoveCalendarEvent,
   assertCanResolveActionItem,
   assertStatusDetail,
+  canManageClient,
+  canManageProject,
   canViewMeetingNote,
   parseScheduleRange,
 } from "../rules";
@@ -41,6 +44,7 @@ import { createSeed } from "./seed";
 
 export interface QueDb {
   users: User[];
+  clients: Client[];
   projects: Project[];
   milestones: Milestone[];
   tasks: Task[];
@@ -62,6 +66,7 @@ interface ActorContext {
 
 export class MockQueDb implements QueDb {
   users: User[];
+  clients: Client[];
   projects: Project[];
   milestones: Milestone[];
   tasks: Task[];
@@ -82,6 +87,7 @@ export class MockQueDb implements QueDb {
     this.clock = clock ?? (() => new Date());
     const seed = createSeed(now);
     this.users = [...USERS];
+    this.clients = seed.clients;
     this.projects = seed.projects;
     this.milestones = seed.milestones;
     this.tasks = seed.tasks;
@@ -112,6 +118,16 @@ export class MockQueDb implements QueDb {
 
   projectOf(task: Task): Project | undefined {
     return this.projects.find((p) => p.id === task.projectId);
+  }
+
+  clientById(id: string | undefined): Client | undefined {
+    if (!id) return undefined;
+    return this.clients.find((c) => c.id === id);
+  }
+
+  /** 프로젝트의 상위 클라이언트(거래처). clientId가 없으면(내부 잡무) undefined. */
+  clientOf(project: Project | undefined): Client | undefined {
+    return this.clientById(project?.clientId);
   }
 
   // ---------- 변경 ----------
@@ -717,6 +733,175 @@ export class MockQueDb implements QueDb {
       afterValue: milestone.title,
     });
     return milestone;
+  }
+
+  /** 클라이언트(거래처) 생성 — 관리자만. 이름은 200자 이내로 검증한다. */
+  createClient(
+    ctx: ActorContext,
+    input: { name: string; status?: Client["status"] },
+  ): Client {
+    const actor = this.requireUser(ctx.actorId);
+    if (!canManageClient(actor)) {
+      throw new QueRuleError("NOT_AUTHORIZED", "클라이언트는 관리자만 만들 수 있다");
+    }
+    // 신뢰 못 할 클라이언트 인자 — 이름/상태를 런타임 검증한다(밀리스톤 mutation 선례).
+    const parsed = clientSchema
+      .pick({ name: true, status: true })
+      .safeParse({ name: input.name, status: input.status ?? "active" });
+    if (!parsed.success) {
+      throw new QueRuleError(
+        "INVALID_INPUT",
+        `클라이언트 입력이 유효하지 않다: ${parsed.error.issues.map((i) => i.message).join(", ")}`,
+      );
+    }
+
+    const client: Client = {
+      id: this.nextId("client"),
+      name: parsed.data.name,
+      status: parsed.data.status,
+    };
+    this.clients.push(client);
+    this.logChange(ctx, {
+      entityType: "client",
+      entityId: client.id,
+      changeType: "create",
+      afterValue: client.name,
+    });
+    return client;
+  }
+
+  /** 클라이언트 수정(이름·상태) — 관리자만. */
+  updateClient(
+    ctx: ActorContext,
+    input: { clientId: string; name?: string; status?: Client["status"] },
+  ): Client {
+    const actor = this.requireUser(ctx.actorId);
+    if (!canManageClient(actor)) {
+      throw new QueRuleError("NOT_AUTHORIZED", "클라이언트는 관리자만 수정할 수 있다");
+    }
+    const client = this.clients.find((c) => c.id === input.clientId);
+    if (!client) throw new QueRuleError("NOT_FOUND", `클라이언트 없음: ${input.clientId}`);
+
+    if (input.name !== undefined) {
+      const parsed = clientSchema.shape.name.safeParse(input.name);
+      if (!parsed.success) {
+        throw new QueRuleError("INVALID_INPUT", "이름은 1~200자여야 한다");
+      }
+      client.name = parsed.data;
+    }
+    if (input.status !== undefined) {
+      if (!clientSchema.shape.status.safeParse(input.status).success) {
+        throw new QueRuleError("INVALID_INPUT", "잘못된 클라이언트 상태다");
+      }
+      client.status = input.status;
+    }
+    this.logChange(ctx, {
+      entityType: "client",
+      entityId: client.id,
+      changeType: "update",
+      afterValue: client.name,
+    });
+    return client;
+  }
+
+  /** 프로젝트 생성 — 관리자만. clientId(상위 거래처)는 선택이며, 지정 시 존재를 검증한다. */
+  createProject(
+    ctx: ActorContext,
+    input: {
+      name: string;
+      ownerId?: string;
+      clientId?: string;
+      status?: Project["status"];
+    },
+  ): Project {
+    const actor = this.requireUser(ctx.actorId);
+    // 생성은 관리자만 (project 미지정 canManageProject 경로).
+    if (!canManageProject(actor)) {
+      throw new QueRuleError("NOT_AUTHORIZED", "프로젝트는 관리자만 만들 수 있다");
+    }
+    const name = input.name.trim();
+    if (!name) throw new QueRuleError("INVALID_INPUT", "프로젝트명은 필수다");
+    if (name.length > 200) throw new QueRuleError("INVALID_INPUT", "프로젝트명은 200자 이내다");
+    const owner = input.ownerId ? this.requireUser(input.ownerId) : actor;
+    if (input.clientId && !this.clients.some((c) => c.id === input.clientId)) {
+      throw new QueRuleError("NOT_FOUND", `클라이언트 없음: ${input.clientId}`);
+    }
+    const status = input.status ?? "active";
+    if (!projectSchema.shape.status.safeParse(status).success) {
+      throw new QueRuleError("INVALID_INPUT", "잘못된 프로젝트 상태다");
+    }
+
+    const project: Project = {
+      id: this.nextId("prj"),
+      name,
+      ownerId: owner.id,
+      status,
+      clientId: input.clientId,
+      milestoneIds: [],
+    };
+    this.projects.push(project);
+    this.logChange(ctx, {
+      entityType: "project",
+      entityId: project.id,
+      changeType: "create",
+      afterValue: project.name,
+    });
+    return project;
+  }
+
+  /** 프로젝트 수정(이름·상태·상위 클라이언트·담당자) — 관리자 또는 프로젝트 담당자만.
+   *  clientId에 null을 주면 클라이언트 연결을 해제한다(내부 잡무로 전환). */
+  updateProject(
+    ctx: ActorContext,
+    input: {
+      projectId: string;
+      name?: string;
+      status?: Project["status"];
+      clientId?: string | null;
+      ownerId?: string;
+    },
+  ): Project {
+    const actor = this.requireUser(ctx.actorId);
+    const project = this.projects.find((p) => p.id === input.projectId);
+    if (!project) throw new QueRuleError("NOT_FOUND", `프로젝트 없음: ${input.projectId}`);
+    if (!canManageProject(actor, project)) {
+      throw new QueRuleError(
+        "NOT_AUTHORIZED",
+        "프로젝트는 관리자 또는 프로젝트 담당자만 수정할 수 있다",
+      );
+    }
+    if (input.name !== undefined) {
+      const name = input.name.trim();
+      if (!name) throw new QueRuleError("INVALID_INPUT", "프로젝트명은 필수다");
+      if (name.length > 200) throw new QueRuleError("INVALID_INPUT", "프로젝트명은 200자 이내다");
+      project.name = name;
+    }
+    if (input.status !== undefined) {
+      if (!projectSchema.shape.status.safeParse(input.status).success) {
+        throw new QueRuleError("INVALID_INPUT", "잘못된 프로젝트 상태다");
+      }
+      project.status = input.status;
+    }
+    if (input.clientId !== undefined) {
+      if (input.clientId === null) {
+        project.clientId = undefined; // 연결 해제
+      } else {
+        if (!this.clients.some((c) => c.id === input.clientId)) {
+          throw new QueRuleError("NOT_FOUND", `클라이언트 없음: ${input.clientId}`);
+        }
+        project.clientId = input.clientId;
+      }
+    }
+    if (input.ownerId !== undefined) {
+      project.ownerId = this.requireUser(input.ownerId).id;
+    }
+    this.logChange(ctx, {
+      entityType: "project",
+      entityId: project.id,
+      changeType: "update",
+      afterValue: project.name,
+    });
+    return project;
   }
 
   /** 체크인 스케줄러 — 시작 시간이 지난 "예정" 작업에 체크인을 생성한다 (멱등).

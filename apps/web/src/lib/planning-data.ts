@@ -2,6 +2,7 @@ import {
   canManageMilestone,
   canManageRecurringTemplate,
   findUser,
+  formatProjectLabel,
   type Milestone,
   type User,
 } from "@que/core";
@@ -33,6 +34,12 @@ export interface PlanningData {
 export async function getPlanningData(user: User): Promise<PlanningData> {
   const db = await getDb();
   const projectById = new Map(db.projects.map((p) => [p.id, p]));
+  const clientById = new Map(db.clients.map((c) => [c.id, c]));
+  const labelForProject = (projectId: string): string => {
+    const project = projectById.get(projectId);
+    if (!project) return projectId;
+    return formatProjectLabel(project, project.clientId ? clientById.get(project.clientId) : undefined);
+  };
 
   const templates: TemplateListItem[] = [...db.recurringTemplates]
     .sort((a, b) => a.title.localeCompare(b.title, "ko"))
@@ -40,7 +47,7 @@ export async function getPlanningData(user: User): Promise<PlanningData> {
       id: t.id,
       title: t.title,
       assigneeName: findUser(t.assigneeId)?.name ?? t.assigneeId,
-      projectName: t.projectId ? projectById.get(t.projectId)?.name : undefined,
+      projectName: t.projectId ? labelForProject(t.projectId) : undefined,
       frequency: t.frequency,
       dayOfWeek: t.dayOfWeek,
       dayOfMonth: t.dayOfMonth,
@@ -56,7 +63,7 @@ export async function getPlanningData(user: User): Promise<PlanningData> {
       return {
         id: m.id,
         projectId: m.projectId,
-        projectName: project?.name ?? m.projectId,
+        projectName: labelForProject(m.projectId),
         title: m.title,
         dueAt: m.dueAt,
         riskStatus: m.riskStatus,
@@ -64,10 +71,10 @@ export async function getPlanningData(user: User): Promise<PlanningData> {
       };
     });
 
-  const projects = db.projects.map((p) => ({ id: p.id, name: p.name }));
+  const projects = db.projects.map((p) => ({ id: p.id, name: labelForProject(p.id) }));
   const manageableProjects = db.projects
     .filter((p) => user.role === "admin" || p.ownerId === user.id)
-    .map((p) => ({ id: p.id, name: p.name }));
+    .map((p) => ({ id: p.id, name: labelForProject(p.id) }));
 
   return { templates, milestones, projects, manageableProjects };
 }

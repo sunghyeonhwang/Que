@@ -1,4 +1,4 @@
-import type { User } from "@que/core";
+import { formatProjectLabel, type User } from "@que/core";
 import { getDb } from "./db";
 
 // 관리자 리포트 (기획서 "관리자 리포트", 2026-07-03 확정, 대표/관리자 전용).
@@ -86,6 +86,13 @@ export async function getAdminReportData(
   const db = await getDb();
   const userById = new Map(db.users.map((u) => [u.id, u]));
   const projectById = new Map(db.projects.map((p) => [p.id, p]));
+  const clientById = new Map(db.clients.map((c) => [c.id, c]));
+  const projectLabel = (projectId?: string): string | undefined => {
+    if (!projectId) return undefined;
+    const project = projectById.get(projectId);
+    if (!project) return undefined;
+    return formatProjectLabel(project, project.clientId ? clientById.get(project.clientId) : undefined);
+  };
   const taskById = new Map(db.tasks.map((t) => [t.id, t]));
 
   // 월간은 정확히 4주(28일)로 잡아 헤드라인 완료 수 == 주별 추세 합이 되게 한다 (수치 정합).
@@ -110,7 +117,7 @@ export async function getAdminReportData(
   const byProjectCount = new Map<string, number>();
   for (const log of doneLogs) {
     const task = taskById.get(log.taskId);
-    const name = task?.projectId ? (projectById.get(task.projectId)?.name ?? "기타") : "프로젝트 미지정";
+    const name = task?.projectId ? (projectLabel(task.projectId) ?? "기타") : "프로젝트 미지정";
     byProjectCount.set(name, (byProjectCount.get(name) ?? 0) + 1);
   }
   const completedByProject = [...byProjectCount.entries()]
@@ -140,7 +147,7 @@ export async function getAdminReportData(
         taskId: t.id,
         taskTitle: t.title,
         assigneeName: userById.get(t.assigneeId)?.name ?? t.assigneeId,
-        projectName: t.projectId ? projectById.get(t.projectId)?.name : undefined,
+        projectName: projectLabel(t.projectId),
         status: t.status as "issue" | "on_hold",
         reason: lastLog?.reason,
         sinceLabel: days === 0 ? "오늘" : `${days}일째`,

@@ -480,6 +480,18 @@ data/
     - 검증: typecheck·lint·build exit 0, core **83/83**. **브라우저 확장 미연결로 라이브 시각 검증 못 함**(코드+빌드).
     - **2차 예정(크레덴셜 불필요지만 스키마/도메인 변경이라 신중)**: 담당자 변경(core reassign+ChangeLog), 작업 삭제(개인 계층 deleteTask, 기획105), 체크인 '나중에' 스누즈(CheckIn snoozeUntil 스키마).
 
+56. **클라이언트(거래처) → 프로젝트 2단 분류 도입 (2026-07-05)** — 사용자 피드백("워크스페이스/프로젝트가 겹쳐 혼란. 멘딕스/에픽게임즈/그리프로 분류해 작업에 표시"). dev-lead 설계 → 사용자 결정 3건 → 4개 에이전트 병렬(core/스위처/표시/관리UI).
+    - **혼란의 정체(중요)**: "프로젝트"가 두 시스템에 중복 — ① core Project(실운영·영속, task.projectId) ② PM mock(`pm-data.ts`, `/projects` 화면·비영속·메뉴제외)의 Workspace→PmProject 4단. 상단 WorkspaceSwitcher가 ②의 mock을 보여줘 "죽은 장식". → **①에 상위 '클라이언트'를 정식 도입**하고 ②는 현상 유지(별도 트랙).
+    - **결정(사용자)**: 용어 **"클라이언트"**(코드 `Client`, 자사 그리프도 클라이언트 행), 관리 화면 **신규 메뉴**(관리자 전용), 프로젝트 생성 **관리자만**(편집 담당자+관리자).
+    - **설계(dev-lead)**: `Client{id,name,status}` 최소 필드. **Task엔 clientId 안 넣음**(간접: task→project→client, clientById Map 0비용). `Project.clientId?` optional(nullable, 무파괴). ChangeLog entityType에 project·client 추가.
+    - **core**: `domain.ts` clientSchema·projectSchema.clientId·changeLog enum. mutation 4종 create/update Client·Project(권한+zod검증+ChangeLog via). `rules.ts` canManageClient(admin)·canManageProject(admin∨owner). seed 멘딕스/에픽게임즈/그리프 + prj 배정. 배선 3곳(supabase-rows TABLE_INSERT_ORDER=clients 앞·SEED_KEY_TO_TABLE, supabase-db TABLE_TO_FIELD). `labels.ts` formatProjectLabel. 회귀 15건(**core 83→98**).
+    - **⚠️ 프로덕션 DDL 적용 완료**: Supabase MCP `apply_migration`(add_clients_two_tier) — clients 테이블 + projects.client_id(nullable FK) + change_logs entity_type check 재생성. **무파괴**(적용 전 projects 0행·tasks 1·users 7 확인, 적용 후 재검증 OK). `db/supabase/add-clients.sql` 파일도 동봉. **DDL이 코드 배포보다 먼저 적용됨**(dev-lead 순서 제약 준수 — 신 코드 load가 clients 테이블 요구). **프로덕션 clients는 비어 있음 → 배포 후 관리 화면에서 실제 클라이언트 생성 필요.**
+    - **표시**: formatProjectLabel로 8곳 전환. 폭 넓은 곳(홈·planning·리포트·성과·action·회의록 리스트·업로드 셀렉트)=풀표기 "클라이언트 · 프로젝트", 좁은 곳(캘린더 칩/월 셀/타임라인)=프로젝트명만(넘침 방지). team-data L118은 권한조회라 표시 아님(스킵).
+    - **관리 UI**: `/clients` 신규(app 라우트+actions+폼3+client-groups). menu.ts `adminOnly` 플래그 신설 + sidebar/mobile-nav `isAdmin` 필터 + layout isAdmin 주입. **3중 게이트**(메뉴 노출·페이지 redirect·core mutation). planning 서버액션 패턴(toResult, getCurrentUser try 밖) 답습. CLAUDE.md 메뉴 절 동기화.
+    - **스위처 제거**: layout에서 getPrimaryWorkspace/WorkspaceSwitcher 제거(사이드바는 기존 Brand로 충분), mobile-nav Brand 대체, workspace-switcher.tsx 삭제. pm-data·/projects·searchWorkspace는 유지.
+    - 검증: typecheck·lint·build(`/clients` 생성)·core **98/98**. **브라우저 확장 미연결로 라이브 검증 못 함**(코드+빌드+프로덕션 DDL 실측).
+    - **후속**: 프로덕션에 실 클라이언트/프로젝트 입력(관리 화면), PM mock(`/projects`) DB화 시 PmProject→core Project 흡수, MCP/CLI에 client 필터 도구.
+
 ## 남은 작업 / 오픈 질문
 
 - ~~알림 채널 결정~~ → **Slack 확정** (2026-07-02): 1단계 Incoming Webhook+딥링크, 2단계 Bot 인터랙티브 버튼으로 Slack 안에서 체크인 응답(`answerCheckIn` 경유, via 기록). 기획서 "알림 정책 > 알림 채널"과 MCP/CLI 계획 Phase E에 반영됨.

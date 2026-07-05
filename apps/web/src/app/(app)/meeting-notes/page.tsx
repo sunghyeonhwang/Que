@@ -1,4 +1,4 @@
-import { canViewMeetingNote } from "@que/core";
+import { canViewMeetingNote, formatProjectLabel } from "@que/core";
 import { PageHeader } from "@/components/app/page-header";
 import { NoteTabs } from "@/components/app/note-tabs";
 import { NoteList, type NoteListItem } from "@/components/notes/note-list";
@@ -16,6 +16,18 @@ export default async function MeetingNotesPage() {
   const summary = await getNoteSummary(user);
   const userById = new Map(db.users.map((u) => [u.id, u]));
   const projectById = new Map(db.projects.map((p) => [p.id, p]));
+  const clientById = new Map(db.clients.map((c) => [c.id, c]));
+  const projectLabel = (projectId?: string): string | undefined => {
+    if (!projectId) return undefined;
+    const project = projectById.get(projectId);
+    if (!project) return undefined;
+    return formatProjectLabel(project, project.clientId ? clientById.get(project.clientId) : undefined);
+  };
+  // 업로드 폼 프로젝트 선택 — 옵션 라벨에 "클라이언트 · 프로젝트"를 병기해 어느 거래처 건인지 명확히.
+  const projectOptions = db.projects.map((p) => ({
+    id: p.id,
+    name: formatProjectLabel(p, p.clientId ? clientById.get(p.clientId) : undefined),
+  }));
 
   const notes: NoteListItem[] = [...db.meetingNotes]
     // 공개 범위: admin 전용/지정 인원 전용 회의록은 관리자·업로더(+지정 인원)만
@@ -25,7 +37,7 @@ export default async function MeetingNotesPage() {
       id: note.id,
       title: note.title,
       fileName: note.fileName,
-      projectName: note.projectId ? projectById.get(note.projectId)?.name : undefined,
+      projectName: projectLabel(note.projectId),
       meetingAt: note.meetingAt,
       uploaderName: userById.get(note.uploaderId)?.name ?? note.uploaderId,
       extractionStatus: note.extractionStatus,
@@ -47,7 +59,7 @@ export default async function MeetingNotesPage() {
       <NoteTabs active="notes" />
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,26rem)_minmax(0,1fr)]">
-        <UploadNoteForm projects={db.projects} />
+        <UploadNoteForm projects={projectOptions} />
         <div className="min-w-0">
           <div className="mb-2 flex items-baseline gap-2">
             <h2 className="text-base font-semibold text-[var(--que-text)]">업로드된 회의록</h2>

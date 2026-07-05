@@ -54,6 +54,7 @@ export function rowForTable(table: string, obj: Record<string, unknown>): Record
 /** FK 안전 삽입/삭제 순서. 삽입은 이 순서, 삭제는 역순. (users가 가장 먼저, 로그류가 마지막) */
 export const TABLE_INSERT_ORDER = [
   "users",
+  "clients",
   "projects",
   "milestones",
   "tasks",
@@ -70,6 +71,7 @@ export const TABLE_INSERT_ORDER = [
 
 /** QueSeed의 필드명 → DB 테이블명. users는 USERS 상수에서 별도로 넣는다. */
 export const SEED_KEY_TO_TABLE: Record<string, string> = {
+  clients: "clients",
   projects: "projects",
   milestones: "milestones",
   tasks: "tasks",

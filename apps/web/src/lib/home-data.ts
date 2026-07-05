@@ -2,6 +2,7 @@ import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 import {
   canViewPrivateEventDetail,
+  formatProjectLabel,
   TASK_STATUS_LABELS,
   type TaskStatus,
   type User,
@@ -96,6 +97,13 @@ export async function getHomeData(
   const db = await getDb();
   const userById = new Map(db.users.map((u) => [u.id, u]));
   const projectById = new Map(db.projects.map((p) => [p.id, p]));
+  const clientById = new Map(db.clients.map((c) => [c.id, c]));
+  const projectLabel = (projectId?: string): string | null => {
+    if (!projectId) return null;
+    const project = projectById.get(projectId);
+    if (!project) return null;
+    return formatProjectLabel(project, project.clientId ? clientById.get(project.clientId) : undefined);
+  };
 
   const toMember = (id: string): ListViewMember | null => {
     const u = userById.get(id);
@@ -133,7 +141,7 @@ export async function getHomeData(
         title: t.title,
         status: t.status,
         statusLabel: TASK_STATUS_LABELS[t.status] ?? t.status,
-        category: t.projectId ? (projectById.get(t.projectId)?.name ?? null) : null,
+        category: projectLabel(t.projectId),
         dueLabel: t.endAt
           ? format(new Date(t.endAt), "M월 d일 EEEE", { locale: ko })
           : null,

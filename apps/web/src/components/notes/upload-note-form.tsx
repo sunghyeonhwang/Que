@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { USERS, type Project } from "@que/core";
+import { USERS } from "@que/core";
 import { uploadMeetingNoteAction } from "@/app/(app)/meeting-notes/actions";
 import { useSafeAction } from "@/components/app/use-safe-action";
 import { Button } from "@/components/ui/button";
@@ -16,8 +16,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
+/** 프로젝트 선택 옵션 — name은 "클라이언트 · 프로젝트" 병기 라벨(조립은 서버에서). */
+export interface UploadNoteProjectOption {
+  id: string;
+  name: string;
+}
+
 /** Plaud Note MD 업로드 폼. 파일 내용은 클라이언트에서 읽어 서버 액션으로 넘긴다. */
-export function UploadNoteForm({ projects }: { projects: Project[] }) {
+export function UploadNoteForm({ projects }: { projects: UploadNoteProjectOption[] }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const { run, pending } = useSafeAction();
   const [title, setTitle] = useState("");

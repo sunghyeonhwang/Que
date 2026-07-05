@@ -3,6 +3,7 @@ import type {
   CalendarEvent,
   ChangeLog,
   CheckIn,
+  Client,
   MeetingNote,
   Milestone,
   PaymentRequest,
@@ -18,6 +19,7 @@ import { USERS } from "../mock/users";
 // 언제 실행해도 "오늘" 화면에 데이터가 보이게 한다.
 
 export interface QueSeed {
+  clients: Client[];
   projects: Project[];
   milestones: Milestone[];
   tasks: Task[];
@@ -42,12 +44,20 @@ export function createSeed(now: Date): QueSeed {
 
   const [hwang, oh, sungjin, park, song, yejin, riwon] = USERS;
 
+  // 상위 분류 = 클라이언트(거래처). 자사 그리프도 클라이언트 한 행으로 동일 취급한다.
+  const clients: Client[] = [
+    { id: "client-mendix", name: "멘딕스", status: "active" },
+    { id: "client-epic", name: "에픽게임즈", status: "active" },
+    { id: "client-griff", name: "그리프", status: "active" },
+  ];
+
   const projects: Project[] = [
     {
       id: "prj-summer",
       name: "여름 프로모션",
       ownerId: hwang.id,
       status: "active",
+      clientId: "client-mendix",
       milestoneIds: ["ms-summer-open", "ms-summer-report"],
     },
     {
@@ -55,6 +65,7 @@ export function createSeed(now: Date): QueSeed {
       name: "결제 개선",
       ownerId: oh.id,
       status: "active",
+      clientId: "client-epic",
       milestoneIds: ["ms-payment-qa"],
     },
     {
@@ -62,6 +73,7 @@ export function createSeed(now: Date): QueSeed {
       name: "CS 운영",
       ownerId: yejin.id,
       status: "active",
+      clientId: "client-griff", // 자사(그리프) 내부 운영도 클라이언트 행으로 취급
       milestoneIds: ["ms-cs-faq"],
     },
   ];
@@ -681,6 +693,7 @@ export function createSeed(now: Date): QueSeed {
   }
 
   return {
+    clients,
     projects,
     milestones,
     tasks,

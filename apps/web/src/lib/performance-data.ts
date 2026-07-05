@@ -1,5 +1,5 @@
 import { format, startOfMonth, startOfWeek, subMonths, subWeeks } from "date-fns";
-import { departmentForUser } from "@que/core";
+import { departmentForUser, formatProjectLabel } from "@que/core";
 import { getDb } from "./db";
 import { getHeatmapData, type HeatmapData } from "./heatmap-data";
 
@@ -101,6 +101,7 @@ export async function getPerformanceData(
 ): Promise<PerformanceData> {
   const db = await getDb();
   const nowMs = now.getTime();
+  const clientById = new Map(db.clients.map((c) => [c.id, c]));
 
   // 화이트리스트 검증은 호출부(페이지)에서 하고, 여기선 숫자/enum을 그대로 신뢰한다.
   const hm = opts.hm ?? now.getMonth() + 1;
@@ -318,7 +319,8 @@ export async function getPerformanceData(
         status = "waiting";
         statusLabel = "대기 중";
       }
-      return { id: p.id, name: p.name, progress, done, total, status, statusLabel };
+      const name = formatProjectLabel(p, p.clientId ? clientById.get(p.clientId) : undefined);
+      return { id: p.id, name, progress, done, total, status, statusLabel };
     })
     .sort((a, b) => b.progress - a.progress);
 

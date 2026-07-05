@@ -161,6 +161,19 @@ export function canManageMilestone(actor: User, project: Project | undefined): b
   return actor.role === "admin" || project?.ownerId === actor.id;
 }
 
+/** 클라이언트(거래처) 생성·수정은 관리자만 할 수 있다 (8인 MVP 운영 정책). */
+export function canManageClient(actor: User): boolean {
+  return actor.role === "admin";
+}
+
+/**
+ * 프로젝트 생성·수정 권한. 생성은 관리자만(project 미지정으로 호출),
+ * 수정은 관리자 또는 프로젝트 담당자(owner)다 (canManageMilestone과 같은 패턴).
+ */
+export function canManageProject(actor: User, project?: Project): boolean {
+  return actor.role === "admin" || project?.ownerId === actor.id;
+}
+
 /** Action 후보의 처리(보류/무시)는 담당자, 회의록 업로더, 관리자만 할 수 있다. */
 export function canResolveActionItem(
   actor: User,

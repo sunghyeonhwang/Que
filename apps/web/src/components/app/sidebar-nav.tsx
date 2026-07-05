@@ -11,21 +11,27 @@ export function SidebarNav({
   onNavigate,
   className,
   badges,
+  isAdmin = false,
 }: {
   onNavigate?: () => void;
   className?: string;
   badges?: Record<string, number>;
+  /** 관리자 전용(adminOnly) 메뉴 노출 여부. 레이아웃에서 user.role로 계산해 주입. */
+  isAdmin?: boolean;
 }) {
   const pathname = usePathname();
 
   return (
     <nav aria-label="주 메뉴" className={cn("flex flex-col gap-4", className)}>
-      {MENU_SECTIONS.map((section) => (
+      {MENU_SECTIONS.map((section) => {
+        const items = section.items.filter((item) => !item.adminOnly || isAdmin);
+        if (items.length === 0) return null;
+        return (
         <div key={section.label} className="flex flex-col gap-1">
           <p className="px-3 pb-1 text-xs font-medium text-[var(--que-text-tertiary)]">
             {section.label}
           </p>
-          {section.items.map((item) => {
+          {items.map((item) => {
             const matchPaths = item.match ?? [item.href];
             const active = matchPaths.some((path) => pathname.startsWith(path));
             const Icon = item.icon;
@@ -58,7 +64,8 @@ export function SidebarNav({
             );
           })}
         </div>
-      ))}
+        );
+      })}
     </nav>
   );
 }

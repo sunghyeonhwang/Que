@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { format } from "date-fns";
-import { canViewMeetingNote } from "@que/core";
+import { canViewMeetingNote, formatProjectLabel } from "@que/core";
 import { ActionRow, type ActionRowData } from "@/components/action/action-row";
 import { PageHeader } from "@/components/app/page-header";
 import { NoteTabs } from "@/components/app/note-tabs";
@@ -26,6 +26,13 @@ export default async function ActionPage({
   const visibleNotes = db.meetingNotes.filter((n) => canViewMeetingNote(user, n));
   const noteById = new Map(visibleNotes.map((n) => [n.id, n]));
   const projectById = new Map(db.projects.map((p) => [p.id, p]));
+  const clientById = new Map(db.clients.map((c) => [c.id, c]));
+  const projectLabel = (projectId?: string): string | undefined => {
+    if (!projectId) return undefined;
+    const project = projectById.get(projectId);
+    if (!project) return undefined;
+    return formatProjectLabel(project, project.clientId ? clientById.get(project.clientId) : undefined);
+  };
   const userById = new Map(db.users.map((u) => [u.id, u]));
 
   const noteFilter = params.note && noteById.has(params.note) ? params.note : undefined;
@@ -47,7 +54,7 @@ export default async function ActionPage({
       status: item.status,
       assigneeId: item.assigneeId,
       dueDate: item.dueAt ? format(new Date(item.dueAt), "yyyy-MM-dd") : undefined,
-      projectName: item.projectId ? projectById.get(item.projectId)?.name : undefined,
+      projectName: projectLabel(item.projectId),
     }));
 
   const needsReview = rows.filter((r) => r.status === "needs_review").length;

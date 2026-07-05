@@ -15,6 +15,7 @@ import {
 // DB 테이블명 → MockQueDb의 public 배열 필드명 (snake ↔ camel)
 const TABLE_TO_FIELD = {
   users: "users",
+  clients: "clients",
   projects: "projects",
   milestones: "milestones",
   tasks: "tasks",
