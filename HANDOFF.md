@@ -565,6 +565,12 @@ data/
     - **더미 데이터(프로덕션, 삭제가능)**: `db/supabase/dummy-data-view-test.sql` — 프로젝트 2(`dummy-prj-unrealfest`=에픽게임즈, `dummy-prj-mendix-webinar`=멘딕스) + 태스크 58(`dummy-uf-*`/`dummy-mw-*`, Google Sheet 언리얼페스트·멘딕스웨비나 탭 제목, 8명 라운드로빈 담당, 2026-06-29~07-17 평일+오늘/내일 분산, 10~18시, done/in_progress/scheduled 혼합). **프로덕션 적용됨**(2 proj + 58 task). 삭제: `db/supabase/remove-dummy-data-view-test.sql`(`delete from tasks where id like 'dummy-%'; delete from projects where id like 'dummy-prj-%';`).
     - **검증**: core 129, typecheck·lint·build, 해상도 CSS 클래스 실재 확인, getViewDay 화이트리스트/private 준수. qa Playwright 1920/2420/2994/3540(+1024/768) — 상단 날짜이동·전체8명 토글·1Day 8열·now라인·조회전용·proxy PASS, 해상도 스케일 FAIL→수정. **glados 생략**(보안/read-only 계층 batch 62 통과분 무변경, getViewDay 동일 규칙 확인). 768세로 헤더 잘림은 flex-wrap graceful 처리(가로 디스플레이 전용이라 비차단).
 
+65. **view 마감 반복 — 제목 축소·더미 재분배·슬라이드쇼 (2026-07-05)** — 사용자 검수 연속.
+    - **보드 제목 축소**: board-grid 카드 제목/부제 ~절반 축소 + **truncate(줄바꿈 방지)** + 세로 패딩 축소(태스크 多 대비). compact(전체8명)·paged(2명) 양 모드. 사용 토큰은 기존 세이프리스트에 이미 포함.
+    - **더미 담당자 재분배(버그)**: 날짜 풀(16)이 담당자 수(8)의 배수라 `index%16`(날짜)·`index%8`(담당자)가 정렬→**하루 = 한 명 몰림**. 담당자를 날짜 독립 배정(`(dateIdx+k*5)%8`, 5는 8과 서로소)→**각 날짜 3~4명**. 프로덕션 재적용(58태스크, 삭제 후 재삽입). `dummy-data-view-test.sql` 갱신.
+    - **슬라이드쇼(재생) 모드**: `components/view/slideshow-controller.tsx`(client, (view) 레이아웃 상주) — **URL 상태머신 `?play=1`**(전체 리로드/10분 refresh/키오스크 재시작에도 URL만 보고 재개, 현재 URL로 다음 스텝 무상태 재-arm). ▶ 재생 클릭 → 보드 2명뷰 `bp=1..N`(각 25초, N=`ceil(팀원수/2)`=4) → 스케줄 week(120초) → 루프. ⏸ 정지=`play`/`bp` 제거. 좌하단 플로팅 버튼(우하단 FAB와 비겹침, 재생중 green). board-grid에 `bp`/`play` 주도 페이징(자체 15초 순환 off, 비상호작용 PAGE 인디케이터). 상수 `SLIDE_BOARD_MS=25s`·`SLIDE_SCHEDULE_MS=120s`. `boardPages`는 layout이 `loadReadOnlyDb` 유저수로 계산 주입(Suspense).
+    - **검증**: typecheck·lint·build, qa Playwright **35 assertion PASS**(bp 순회 25초·스케줄 120초·루프·정지·URL 직접접근 재개·조회전용·FAB 수동이탈·제목 truncate·해상도 버튼 비겹침, console/pageerror 0). glados 생략(read-only/보안 계층 batch 62 통과분 무변경).
+
 ## 남은 작업 / 오픈 질문
 
 - ~~알림 채널 결정~~ → **Slack 확정** (2026-07-02): 1단계 Incoming Webhook+딥링크, 2단계 Bot 인터랙티브 버튼으로 Slack 안에서 체크인 응답(`answerCheckIn` 경유, via 기록). 기획서 "알림 정책 > 알림 채널"과 MCP/CLI 계획 Phase E에 반영됨.

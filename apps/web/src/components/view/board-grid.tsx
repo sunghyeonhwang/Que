@@ -21,11 +21,28 @@ export function BoardGrid({
   board,
   hideCompleted = false,
   mode = "all",
+  play = false,
+  bp,
 }: {
   board: ViewBoard;
   hideCompleted?: boolean;
   mode?: "all" | "paged";
+  // 슬라이드쇼 연동: play=1 또는 bp 지정 시 그 페이지를 고정 표시하고 자체 15초 순환을 끈다.
+  play?: boolean;
+  bp?: number;
 }) {
+  // 슬라이드쇼가 페이징을 주도하면 mode(all)와 무관하게 2명/페이지로 렌더한다.
+  const driven = play || bp != null;
+  if (driven) {
+    return (
+      <BoardPaged
+        board={board}
+        hideCompleted={hideCompleted}
+        driven
+        drivenPage={bp ?? 1}
+      />
+    );
+  }
   if (mode === "paged") {
     return <BoardPaged board={board} hideCompleted={hideCompleted} />;
   }
@@ -72,9 +89,15 @@ function BoardAll({
 function BoardPaged({
   board,
   hideCompleted,
+  driven = false,
+  drivenPage = 1,
 }: {
   board: ViewBoard;
   hideCompleted: boolean;
+  // driven: 슬라이드쇼가 페이지를 URL(bp)로 주도. 자체 15초 순환·수동 화살표를 끈다.
+  driven?: boolean;
+  // drivenPage: 1-based(범위 clamp). driven일 때만 사용.
+  drivenPage?: number;
 }) {
   const columns = board.columns;
   const pageCount = Math.max(1, Math.ceil(columns.length / PAGE_SIZE));
@@ -83,17 +106,21 @@ function BoardPaged({
   // pauseKey를 바꾸면 자동순환 타이머가 재시작된다(수동 이동 시 리셋용).
   const [pauseKey, setPauseKey] = useState(0);
 
-  // 열 수가 줄어 page가 범위를 벗어나도 렌더에서 안전하게 보정(effect setState 회피).
-  const safePage = page < pageCount ? page : 0;
+  // driven이면 URL의 bp(1-based)를 clamp해 사용, 아니면 로컬 상태(범위 보정).
+  const safePage = driven
+    ? Math.min(Math.max(drivenPage - 1, 0), pageCount - 1)
+    : page < pageCount
+      ? page
+      : 0;
 
-  // 자동 순환. pageCount가 1이면 돌지 않는다.
+  // 자동 순환. driven(슬라이드쇼 주도)이거나 pageCount가 1이면 돌지 않는다.
   useEffect(() => {
-    if (pageCount <= 1) return;
+    if (driven || pageCount <= 1) return;
     const id = setInterval(() => {
       setPage((p) => (p + 1) % pageCount);
     }, AUTO_ADVANCE_MS);
     return () => clearInterval(id);
-  }, [pageCount, pauseKey]);
+  }, [driven, pageCount, pauseKey]);
 
   const go = (delta: number) => {
     setPage((p) => ((p < pageCount ? p : 0) + delta + pageCount) % pageCount);
@@ -129,12 +156,17 @@ function BoardPaged({
       </div>
 
       {pageCount > 1 ? (
-        <PageControl
-          page={safePage}
-          pageCount={pageCount}
-          onPrev={() => go(-1)}
-          onNext={() => go(1)}
-        />
+        driven ? (
+          // 슬라이드쇼 주도 중엔 수동 화살표 대신 현재 위치만 표시(정지는 좌하단 재생/정지 버튼).
+          <PageIndicator page={safePage} pageCount={pageCount} />
+        ) : (
+          <PageControl
+            page={safePage}
+            pageCount={pageCount}
+            onPrev={() => go(-1)}
+            onNext={() => go(1)}
+          />
+        )
       ) : null}
     </div>
   );
@@ -175,6 +207,20 @@ function PageControl({
         >
           <ChevronRight className="size-5" />
         </button>
+      </div>
+    </div>
+  );
+}
+
+// ---------- 페이지 표시(슬라이드쇼 주도 시, 비상호작용) ----------
+
+function PageIndicator({ page, pageCount }: { page: number; pageCount: number }) {
+  return (
+    <div className="flex shrink-0 justify-center py-5">
+      <div className="flex items-center gap-2 rounded-full bg-neutral-900 px-5 py-2.5 text-white">
+        <span className="text-base font-semibold tabular-nums tracking-wide">
+          PAGE {page + 1}/{pageCount}
+        </span>
       </div>
     </div>
   );

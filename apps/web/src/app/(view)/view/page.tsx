@@ -69,6 +69,9 @@ export default async function ViewPage({
     range?: string;
     hc?: string;
     bmode?: string;
+    // 슬라이드쇼(자동 순회) 상태. SlideshowController가 주도. bp=1-based 페이지.
+    play?: string;
+    bp?: string;
   }>;
 }) {
   const params = await searchParams;
@@ -80,6 +83,11 @@ export default async function ViewPage({
   const hideCompleted = params.hc === "1";
   // board 모드: 전체(8명 한 화면)/2명 페이지. 기본 all(한눈에 8명 우선).
   const boardMode: "all" | "paged" = params.bmode === "paged" ? "paged" : "all";
+  // 슬라이드쇼 주도 페이징: play=1 또는 bp 지정 시 board가 해당 페이지를 고정 표시하고 자체 15초 순환을 끈다.
+  const isPlaying = params.play === "1";
+  const bpParsed = Number(params.bp);
+  const boardPage =
+    Number.isFinite(bpParsed) && bpParsed >= 1 ? Math.floor(bpParsed) : undefined;
   const now = new Date();
   const todayISO = format(now, "yyyy-MM-dd");
 
@@ -139,7 +147,13 @@ export default async function ViewPage({
       />
 
       {mode === "board" && board ? (
-        <BoardGrid board={board} hideCompleted={hideCompleted} mode={boardMode} />
+        <BoardGrid
+          board={board}
+          hideCompleted={hideCompleted}
+          mode={boardMode}
+          play={isPlaying}
+          bp={boardPage}
+        />
       ) : null}
       {mode === "week" && week ? <WeekGrid week={week} /> : null}
       {mode === "week" && day ? <DayGrid day={day} /> : null}
