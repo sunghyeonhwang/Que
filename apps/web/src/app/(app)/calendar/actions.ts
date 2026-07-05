@@ -16,6 +16,7 @@ async function toResult(fn: (db: Db) => Promise<unknown> | unknown): Promise<Act
     await fn(db);
     await db.persist();
     revalidatePath("/calendar");
+    revalidatePath("/schedule");
     revalidatePath("/today");
     return { ok: true };
   } catch (error) {

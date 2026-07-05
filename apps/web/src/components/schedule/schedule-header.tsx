@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { addDays, addMonths, addWeeks, format } from "date-fns";
-import { ChevronDown, ChevronLeft, ChevronRight, Plus, SlidersHorizontal } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -12,7 +12,12 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { ScheduleFilter } from "./schedule-filter";
+import {
+  CreateScheduleDialog,
+  type ScheduleMember,
+  type ScheduleProject,
+} from "./create-schedule-dialog";
 
 export type ScheduleRange = "day" | "3day" | "week" | "month";
 
@@ -40,10 +45,16 @@ function isTypingTarget(el: EventTarget | null): boolean {
 export function ScheduleHeader({
   range,
   anchorIso,
+  members,
+  projects,
 }: {
   range: ScheduleRange;
   /** 현재 기준 날짜 YYYY-MM-DD */
   anchorIso: string;
+  /** "새로 추가" 작업 담당자 Select 옵션. */
+  members: ScheduleMember[];
+  /** "새로 추가" 작업 프로젝트 Select 옵션. */
+  projects: ScheduleProject[];
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -197,38 +208,9 @@ export function ScheduleHeader({
         </DropdownMenuContent>
       </DropdownMenu>
 
-      {/* 필터·새로 추가는 아직 미구현 — 무반응 버튼 대신 '준비 중' 비활성으로 명시(출시 기준). */}
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <Button
-              variant="outline"
-              aria-label="필터 (준비 중)"
-              aria-disabled
-              className="size-10 rounded-lg border-[var(--que-border)] p-0 opacity-60"
-            />
-          }
-        >
-          <SlidersHorizontal className="size-4" aria-hidden />
-        </TooltipTrigger>
-        <TooltipContent>준비 중</TooltipContent>
-      </Tooltip>
+      <ScheduleFilter />
 
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <Button
-              aria-label="새로 추가 (준비 중)"
-              aria-disabled
-              className="h-10 gap-1.5 rounded-lg bg-[var(--que-brand)] px-3.5 font-medium text-[var(--que-on-brand)] opacity-60"
-            />
-          }
-        >
-          <Plus className="size-4" aria-hidden />
-          새로 추가
-        </TooltipTrigger>
-        <TooltipContent>준비 중</TooltipContent>
-      </Tooltip>
+      <CreateScheduleDialog members={members} projects={projects} defaultDate={anchorIso} />
     </div>
   );
 }

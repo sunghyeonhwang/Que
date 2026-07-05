@@ -6,6 +6,7 @@ import { Lock } from "lucide-react";
 import type { CalendarViewItem } from "@/lib/calendar-data";
 import { cn } from "@/lib/utils";
 import { eventSwatch } from "./event-color";
+import { EventDetailPopover } from "./event-detail-popover";
 import {
   GRID_HEIGHT,
   HOURS,
@@ -183,6 +184,7 @@ function EventBlock({ pos }: { pos: PositionedItem }) {
   const compact = pos.height < 64;
 
   return (
+    <EventDetailPopover item={item}>
     <div
       role="button"
       tabIndex={0}
@@ -228,5 +230,6 @@ function EventBlock({ pos }: { pos: PositionedItem }) {
         </div>
       )}
     </div>
+    </EventDetailPopover>
   );
 }

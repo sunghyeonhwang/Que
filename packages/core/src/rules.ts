@@ -1,6 +1,7 @@
 import {
   scheduleRangeSchema,
   statusDetailSchema,
+  visibilitySchema,
   type ActionItem,
   type CalendarEvent,
   type MeetingNote,
@@ -12,6 +13,7 @@ import {
   type Task,
   type TaskStatus,
   type User,
+  type Visibility,
 } from "./domain";
 
 // 도메인 규칙 (CLAUDE.md "도메인 규칙"). UI가 아니라 이 계층에서 강제한다.
@@ -218,6 +220,20 @@ export function latestStatusLog(
     if (!latest || log.createdAt.localeCompare(latest.createdAt) > 0) latest = log;
   }
   return latest;
+}
+
+/**
+ * Que 캘린더 일정 생성 시 공개 범위 검증. 기본은 team, private 허용, 그 외는 거부한다.
+ * source(회사/que)와 ownerId는 생성 입력에 아예 받지 않고 서버가 고정하므로(외부 회사 일정·타인
+ * 소유 위조를 타입 차원에서 차단), 이 계층에서 별도 검증할 표면은 공개 범위뿐이다.
+ * 시각(startAt≤endAt)은 parseScheduleRange가, 참석자 실재는 데이터 계층이 강제한다.
+ */
+export function parseEventVisibility(input: unknown): Visibility {
+  const parsed = visibilitySchema.safeParse(input ?? "team");
+  if (!parsed.success) {
+    throw new QueRuleError("INVALID_INPUT", "공개 범위는 team 또는 private 이어야 한다");
+  }
+  return parsed.data;
 }
 
 /** 일정 이동 입력 검증. 외부 입력(MCP/CLI)을 신뢰하지 않는다. */

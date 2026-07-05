@@ -582,6 +582,14 @@ data/
     - **18 버그(Action→Task 캘린더 미표시)**: `confirmActionItem`이 Task를 `startAt: undefined`로 생성 → `calendar-data.ts:59` `t.startAt && overlaps` 필터에서 제외(담당·관리자 무관, 데이터 누락이 원인). 수정: 마감(dueAt) 기준 **1시간 블록**(dueAt-1h~dueAt) 부여(assertCanConfirmActionItem이 dueAt 보장, seed 동작·시간그리드 모델과 일관). core **130**(회귀+1). qa e2e PASS(확정 후 관리자·담당자 주간/월간에 표시).
     - **검증**: typecheck·lint·build·core 130, qa Playwright PASS(월간높이 4해상도·마크다운 평문·보드색 명도·버그18 e2e; 17 재수정 후 40px 통일). glados 생략(소규모·qa 갈음).
 
+68. **앱 검수 배치2 — 일정 페이지 9·10·11 (2026-07-06)** — dev-lead 설계 → backend(core+데이터+액션) → frontend(팝오버·필터·모달) → qa → glados PASS.
+    - **11 새로 추가(하이브리드)**: core **`createCalendarEvent`**(source="que"·ownerId=actor **서버 고정** → 외부캘린더 위조 불가, attendee 유효성, startAt≤endAt, visibility team/private, ChangeLog create). `createScheduleTaskAction`(createTask 재사용)·`createCalendarEventAction`. **DDL 0**(calendar_events 테이블·컬럼 완비). 헤더 하이브리드 Dialog([작업]/[일정 미팅] 토글, 참여자 다중 칩, 날짜 기본값=현재 앵커 date). 카테고리 제외(스키마+색상 재설계 회피).
+    - **9 이벤트 상세**: 경량 Popover(task=우선순위/마감/프로젝트/담당자/설명 + "상태 변경" CTA→TaskStatusSheet 재사용, event=주최자/참여자). 월간 칩 클라이언트화(`MonthChip`). 트리거 **`nativeButton={false}`**(base-ui div-button 콘솔에러 + Enter/Space a11y 수정).
+    - **10 필터**: URL `?priority=&q=` 서버 필터(`filterScheduleItems`), 날짜 From/To 없음(뷰가 이미 날짜 창). "우선순위 없는 미팅 제외" 힌트. **마스킹 후 필터**(키워드가 "자리비움" 기준, 실제 제목 역추적 불가). range/date 보존.
+    - calendar-data `CalendarViewItem` += `priority?`/`description?`/`attendees?`/`canEdit?`(비공개 마스킹 시 비어 안전). `calendar/actions.ts` /schedule revalidate 누락 수정.
+    - **검증**: core **135**, typecheck·lint·build, qa PASS(팝오버 task/event·필터·작업/일정 생성 캘린더 반영·**마스킹 3계정 교차 미유출**·종료≤시작 검증·4해상도). **glados [PASS] 적대적 침투 6/6 방어**(source/owner 주입·visibility 위조·유령 actor·외부/비공개 일정 이동 전부 거부).
+    - 후속(비차단): schema.sql 헤더 주석 낡음(calendar_events title 코드검증 이제 있음), event `canEdit`이 `canMoveCalendarEvent` 인라인 복제(드리프트 위험), core에 visibility 위조·200자초과 회귀 테스트 추가 권장, 1024×768 월간 마지막 요일 스크롤 전 잘림(내부 스크롤로 처리됨·타깃 아님).
+
 ## 남은 작업 / 오픈 질문
 
 - ~~알림 채널 결정~~ → **Slack 확정** (2026-07-02): 1단계 Incoming Webhook+딥링크, 2단계 Bot 인터랙티브 버튼으로 Slack 안에서 체크인 응답(`answerCheckIn` 경유, via 기록). 기획서 "알림 정책 > 알림 채널"과 MCP/CLI 계획 Phase E에 반영됨.

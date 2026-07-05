@@ -61,6 +61,7 @@ export const taskSourceSchema = z.enum([
   "recurring_template",
 ]);
 export const visibilitySchema = z.enum(["team", "private"]);
+export type Visibility = z.infer<typeof visibilitySchema>;
 
 export const taskSchema = z.object({
   id: z.string().min(1),

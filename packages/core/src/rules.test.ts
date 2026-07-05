@@ -8,7 +8,12 @@ import {
   latestStatusLog,
 } from "./rules";
 import { USERS } from "./mock/users";
-import { MockGoogleCalendarProvider, type ExternalCalendarEvent, type StatusLog } from "./index";
+import {
+  MockGoogleCalendarProvider,
+  calendarEventSchema,
+  type ExternalCalendarEvent,
+  type StatusLog,
+} from "./index";
 
 // 도메인 규칙이 core 계층에서 실제로 강제되는지 검증한다.
 // 이 규칙들은 CLAUDE.md "도메인 규칙"과 기획서의 운영 규칙에서 온다.
@@ -144,6 +149,75 @@ describe("캘린더 일정 이동", () => {
     );
     expect(moved.startAt).toBe("2026-07-05T05:00:00.000Z");
     expect(d.changeLogs.at(-1)!.via).toBe("cli");
+  });
+});
+
+describe("Que 캘린더 일정 생성 (createCalendarEvent)", () => {
+  const START = "2026-07-10T01:00:00.000Z";
+  const END = "2026-07-10T02:00:00.000Z";
+
+  it("source는 que, ownerId는 actor로 서버가 고정한다 (외부/타인 위조 차단)", () => {
+    const d = db();
+    const event = d.createCalendarEvent(
+      { actorId: "lee-yejin", via: "web" },
+      { title: "주간 회의", startAt: START, endAt: END },
+    );
+    expect(event.source).toBe("que");
+    expect(event.ownerId).toBe("lee-yejin");
+    expect(event.visibility).toBe("team"); // 기본
+    expect(d.calendarEvents.some((e) => e.id === event.id)).toBe(true);
+  });
+
+  it("시작이 종료보다 늦으면 거부한다", () => {
+    const d = db();
+    expect(() =>
+      d.createCalendarEvent(
+        { actorId: "lee-yejin", via: "web" },
+        { title: "역전 일정", startAt: END, endAt: START },
+      ),
+    ).toThrowError(QueRuleError);
+  });
+
+  it("유령 참석자는 통째로 거부한다", () => {
+    const d = db();
+    expect(() =>
+      d.createCalendarEvent(
+        { actorId: "lee-yejin", via: "web" },
+        { title: "회의", startAt: START, endAt: END, attendeeIds: ["lee-yejin", "ghost-user"] },
+      ),
+    ).toThrowError(/사용자 없음/);
+    // 부분 반영 없음
+    expect(d.calendarEvents.some((e) => e.title === "회의")).toBe(false);
+  });
+
+  it("비공개(private) 일정을 만들 수 있고 ChangeLog가 via와 함께 남는다", () => {
+    const d = db();
+    const event = d.createCalendarEvent(
+      { actorId: "park-seunghwan", via: "cli" },
+      { title: "개인 자리비움", startAt: START, endAt: END, visibility: "private" },
+    );
+    expect(event.visibility).toBe("private");
+    const clog = d.changeLogs.at(-1)!;
+    expect(clog.entityType).toBe("calendar_event");
+    expect(clog.changeType).toBe("create");
+    expect(clog.via).toBe("cli");
+    expect(clog.entityId).toBe(event.id);
+  });
+
+  it("생성된 일정은 calendarEventSchema를 만족한다 (참석자 중복 제거 포함)", () => {
+    const d = db();
+    const event = d.createCalendarEvent(
+      { actorId: "hwang-sunghyeon", via: "web" },
+      {
+        title: "  전사 미팅  ",
+        startAt: START,
+        endAt: END,
+        attendeeIds: ["lee-yejin", "lee-yejin", "kim-riwon"],
+      },
+    );
+    expect(event.title).toBe("전사 미팅"); // trim
+    expect(event.attendeeIds).toEqual(["lee-yejin", "kim-riwon"]); // 중복 제거
+    expect(() => calendarEventSchema.parse(event)).not.toThrow();
   });
 });
 

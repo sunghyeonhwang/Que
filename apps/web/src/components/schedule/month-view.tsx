@@ -1,7 +1,7 @@
 import { format, isSameDay, isSameMonth, isToday } from "date-fns";
 import type { CalendarViewItem } from "@/lib/calendar-data";
 import { cn } from "@/lib/utils";
-import { eventSwatch } from "./event-color";
+import { MonthChip } from "./month-chip";
 
 const WEEKDAYS = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
 
@@ -56,26 +56,9 @@ export function MonthView({
                     {format(day, "d")}
                   </div>
                   <div className="flex flex-col gap-1">
-                    {dayItems.slice(0, 3).map((it) => {
-                      const swatch = eventSwatch(it);
-                      return (
-                        <div
-                          key={`${it.kind}-${it.id}`}
-                          aria-label={`${it.title}, ${format(new Date(it.startAt), "h:mm a")}`}
-                          className="flex items-center gap-1 truncate rounded border px-1.5 py-0.5 text-[11px] font-medium"
-                          style={{
-                            backgroundColor: swatch.bg,
-                            borderColor: swatch.border,
-                            color: swatch.text,
-                          }}
-                        >
-                          <span className="tabular-nums" style={{ color: swatch.accent }}>
-                            {format(new Date(it.startAt), "H:mm")}
-                          </span>
-                          <span className="truncate">{it.title}</span>
-                        </div>
-                      );
-                    })}
+                    {dayItems.slice(0, 3).map((it) => (
+                      <MonthChip key={`${it.kind}-${it.id}`} item={it} />
+                    ))}
                     {dayItems.length > 3 && (
                       <span className="px-1 text-[10px] text-[var(--que-text-tertiary)]">
                         +{dayItems.length - 3}개 더

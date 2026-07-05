@@ -34,6 +34,7 @@ import {
   canManageProject,
   canViewMeetingNote,
   latestStatusLog,
+  parseEventVisibility,
   parseScheduleRange,
 } from "../rules";
 import type { CalendarProvider } from "../calendar-provider";
@@ -328,6 +329,64 @@ export class MockQueDb implements QueDb {
       changeType: "move",
       beforeValue: before,
       afterValue: input.startAt,
+    });
+    return event;
+  }
+
+  /**
+   * Que 캘린더 일정(회의 등) 생성. 일정 화면 "새로 추가"의 미팅 경로가 쓴다.
+   *
+   * 불변식 보호: source는 항상 "que", ownerId는 항상 actor로 서버가 고정한다 —
+   * 입력에 source/ownerId를 아예 받지 않아 외부 회사 일정(source:"company")이나 타인 소유
+   * 일정으로 위조하는 것을 타입 차원에서 차단한다(외부 일정은 syncExternalCalendar 전용).
+   * 참석자는 실재 사용자만 허용(유령 id는 통째로 거부), 공개 범위는 team(기본)/private,
+   * 시각은 startAt≤endAt(parseScheduleRange), 제목은 200자 이내(DB check와 동일 상한).
+   * ChangeLog(create, entityType:"calendar_event")를 via와 함께 남긴다.
+   */
+  createCalendarEvent(
+    ctx: ActorContext,
+    input: {
+      title: string;
+      startAt: string;
+      endAt: string;
+      attendeeIds?: string[];
+      visibility?: CalendarEvent["visibility"];
+    },
+  ): CalendarEvent {
+    const actor = this.requireUser(ctx.actorId);
+    const title = input.title.trim();
+    if (!title) throw new QueRuleError("INVALID_INPUT", "일정 제목은 필수다");
+    if (title.length > 200) throw new QueRuleError("INVALID_INPUT", "일정 제목은 200자 이내다");
+    const range = parseScheduleRange({ startAt: input.startAt, endAt: input.endAt });
+    // 공개 범위는 클라이언트 직렬화값 — enum을 런타임 검증한다(다른 mutation 선례).
+    const visibility = parseEventVisibility(input.visibility);
+    // 참석자는 실재 사용자만. 유령 id가 하나라도 있으면 통째로 거부(부분 반영 없음).
+    const attendeeInput = input.attendeeIds ?? [];
+    if (!Array.isArray(attendeeInput)) {
+      throw new QueRuleError("INVALID_INPUT", "참석자 목록이 올바르지 않다");
+    }
+    for (const id of attendeeInput) this.requireUser(id); // 없으면 NOT_FOUND
+    const attendeeIds = [...new Set(attendeeInput)]; // 중복 제거
+
+    const nowIso = this.now();
+    const event: CalendarEvent = {
+      id: this.nextId("evt"),
+      source: "que", // 서버 고정 — 외부 회사 일정 위조 차단
+      title,
+      ownerId: actor.id, // 서버 고정 — 타인 소유 위조 차단
+      startAt: range.startAt,
+      endAt: range.endAt,
+      attendeeIds,
+      visibility,
+      lastChangedBy: actor.id,
+      lastChangedAt: nowIso,
+    };
+    this.calendarEvents.push(event);
+    this.logChange(ctx, {
+      entityType: "calendar_event",
+      entityId: event.id,
+      changeType: "create",
+      afterValue: event.title,
     });
     return event;
   }

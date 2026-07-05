@@ -6,13 +6,19 @@ import { ScheduleHeader, type ScheduleRange } from "@/components/schedule/schedu
 import { WeekCalendar } from "@/components/schedule/week-calendar";
 import { getClientFilter } from "@/lib/client-filter";
 import { getCurrentUser } from "@/lib/current-user";
-import { getCalendarData } from "@/lib/calendar-data";
+import { filterScheduleItems, getCalendarData, type ScheduleFilters } from "@/lib/calendar-data";
+import type { Task } from "@que/core";
 
 export const dynamic = "force-dynamic";
 
 /** range 파라미터 화이트리스트 — 쓰레기 입력은 주간으로 폴백. */
 function parseRange(value: string | undefined): ScheduleRange {
   return value === "day" || value === "3day" || value === "month" ? value : "week";
+}
+
+/** priority 파라미터 화이트리스트 — 유효 우선순위만 필터로 인정, 그 외는 무시. */
+function parsePriority(value: string | undefined): Task["priority"] | undefined {
+  return value === "low" || value === "normal" || value === "high" ? value : undefined;
 }
 
 /** date 파라미터 화이트리스트 — YYYY-MM-DD 아니면 오늘로 폴백. */
@@ -27,7 +33,7 @@ function parseDateParam(value: string | undefined): Date {
 export default async function SchedulePage({
   searchParams,
 }: {
-  searchParams: Promise<{ range?: string; date?: string }>;
+  searchParams: Promise<{ range?: string; date?: string; priority?: string; q?: string }>;
 }) {
   const params = await searchParams;
   // 마지막 뷰 기억(기획 428): range 파라미터가 없으면 쿠키에 저장된 마지막 뷰로 연다.
@@ -62,13 +68,17 @@ export default async function SchedulePage({
   const clientId = await getClientFilter();
   const data = await getCalendarData(user, rangeStart, rangeEndOfDay, clientId);
 
-  // 부제 지표: anchor 날짜의 마감 작업 수 / 미팅(이벤트) 수를 데이터로 계산.
+  // 부제 지표: anchor 날짜의 마감 작업 수 / 미팅(이벤트) 수 — 필터 전 전체 items 기준으로 센다.
   const dueTasks = data.items.filter(
     (it) => it.kind === "task" && isSameDay(new Date(it.endAt), anchor),
   ).length;
   const meetings = data.items.filter(
     (it) => it.kind === "event" && isSameDay(new Date(it.startAt), anchor),
   ).length;
+
+  // 우선순위·키워드 서버 필터(URL 파라미터). 마스킹 이후 items에 적용한다(비공개 우회 방지).
+  const filters: ScheduleFilters = { priority: parsePriority(params.priority), keyword: params.q };
+  const items = filterScheduleItems(data.items, filters);
 
   return (
     <div>
@@ -81,17 +91,26 @@ export default async function SchedulePage({
             집중하세요! 마감 작업 {dueTasks}개와 미팅 {meetings}개가 남아 있습니다.
           </p>
         </div>
-        <ScheduleHeader range={range} anchorIso={format(anchor, "yyyy-MM-dd")} />
+        <ScheduleHeader
+          range={range}
+          anchorIso={format(anchor, "yyyy-MM-dd")}
+          members={data.users.map((u) => ({
+            id: u.id,
+            name: u.name,
+            avatarColor: u.avatarColor,
+          }))}
+          projects={data.projects.map((p) => ({ id: p.id, name: p.name }))}
+        />
       </header>
 
       {range === "month" ? (
-        <MonthView weeks={monthWeeks} anchor={anchor} items={data.items} />
+        <MonthView weeks={monthWeeks} anchor={anchor} items={items} />
       ) : range === "day" ? (
-        <WeekCalendar days={[anchor]} items={data.items} />
+        <WeekCalendar days={[anchor]} items={items} />
       ) : range === "3day" ? (
-        <WeekCalendar days={threeDays} items={data.items} />
+        <WeekCalendar days={threeDays} items={items} />
       ) : (
-        <WeekCalendar days={weekDays} items={data.items} />
+        <WeekCalendar days={weekDays} items={items} />
       )}
     </div>
   );
