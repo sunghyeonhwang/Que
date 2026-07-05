@@ -258,20 +258,22 @@ function BoardCard({
   return (
     <div
       className={cn(
+        // 제목이 작아진 만큼 세로 패딩 축소 → 한 열에 더 많은 태스크가 보인다.
         "flex shrink-0 items-center gap-3 rounded-2xl",
         compact
-          ? scale("px-4 py-3", "px-5 py-4", "px-6 py-5", "px-8 py-6")
-          : scale("px-5 py-4", "px-6 py-5", "px-8 py-6", "px-10 py-8"),
+          ? scale("px-3.5 py-2", "px-4 py-2.5", "px-5 py-3", "px-7 py-4")
+          : scale("px-4 py-2.5", "px-5 py-3", "px-6 py-4", "px-8 py-5"),
       )}
       style={{ backgroundColor: withAlpha(color, "14") }}
     >
       <div className="min-w-0 flex-1">
+        {/* 제목: 약 절반 크기 축소 + truncate(줄바꿈 금지, 길면 말줄임). 일이 많아져도 한 줄 유지. */}
         <p
           className={cn(
             "truncate font-bold text-neutral-900",
             compact
-              ? scale("text-lg", "text-2xl", "text-3xl", "text-4xl")
-              : scale("text-2xl", "text-3xl", "text-4xl", "text-5xl"),
+              ? scale("text-xs", "text-base", "text-lg", "text-xl")
+              : scale("text-base", "text-lg", "text-xl", "text-2xl"),
           )}
         >
           {card.title}
@@ -281,8 +283,8 @@ function BoardCard({
             className={cn(
               "truncate text-neutral-500",
               compact
-                ? scale("text-sm", "text-base", "text-xl", "text-2xl")
-                : scale("text-lg", "text-xl", "text-2xl", "text-3xl"),
+                ? scale("text-[10px]", "text-xs", "text-sm", "text-base")
+                : scale("text-xs", "text-sm", "text-base", "text-lg"),
             )}
           >
             {card.clientLabel}
