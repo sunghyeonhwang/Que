@@ -26,11 +26,25 @@ function check(name: string, condition: boolean, detail?: string) {
 
 // 1) 도구 목록
 const { tools } = await client.listTools();
-check("도구 개수 19", tools.length === 19, `실제 ${tools.length}`);
+check("도구 개수 20", tools.length === 20, `실제 ${tools.length}`);
 check(
   "조회 도구 readOnlyHint",
-  tools.filter((t) => t.annotations?.readOnlyHint).length === 9,
+  tools.filter((t) => t.annotations?.readOnlyHint).length === 10,
 );
+check(
+  "list_clients 조회 도구 등록",
+  tools.some((t) => t.name === "list_clients" && t.annotations?.readOnlyHint === true),
+);
+
+// 1-1) 거래처 목록 조회 + 거래처별 작업 필터
+const clients = await client.callTool({ name: "list_clients", arguments: {} });
+const clientsText = (clients.content as { text: string }[])[0]?.text ?? "";
+check("list_clients 응답", !clients.isError && clientsText.includes("client-"), clientsText.slice(0, 80));
+const clientTasks = await client.callTool({
+  name: "list_tasks",
+  arguments: { client: "client-mendix" },
+});
+check("list_tasks client 필터 (거래처명 병기)", !clientTasks.isError);
 
 // 댓글: 타인 작업에도 가능 + 도움 요청
 const commented = await client.callTool({

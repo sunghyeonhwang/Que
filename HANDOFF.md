@@ -500,6 +500,14 @@ data/
     - **⚠️ 빌드버그 수정**: client-switcher(클라 컴포넌트)가 `client-filter.ts`(next/headers=서버전용)에서 쿠키 상수 import → 서버 모듈이 클라 번들로 끌려와 **turbopack build 실패**(lint/typecheck는 못 잡음). 쿠키 상수를 `client-filter-cookie.ts`로 분리해 양쪽이 거기서 import. **교훈: 클라 컴포넌트와 서버 모듈이 상수를 공유하면 상수를 무의존 파일로 뺄 것.**
     - 검증: typecheck·lint·build(2차 통과)·core **98→101**(tasksForClient 회귀 3). **브라우저 확장 미연결로 라이브 검증 못 함** — 특히 필터 on 상태 화면 간 숫자 정합은 코드 대조로만 확인(배포 후 실사용 검증 권장).
 
+58. **MCP·CLI 클라이언트 조회·필터 (2026-07-05)** — 사용자 "MCP/CLI에 클라이언트 설정 있는지 확인" → 없음 확인(도구의 client는 HTTP 래퍼) → 사용자 결정 **조회·필터만**(생성/수정은 웹 관리자). API→MCP→CLI→문서. backend-dev.
+    - **API**: 신규 `api/clients/route.ts`(withApi GET, active 거래처 `{id,name}`만·status 비노출). `api/tasks/route.ts`에 `client` 파라미터(`source = client ? db.tasksForClient(client) : db.tasks` 후 assignee/status/project AND). **응답에 파생 라벨** `projectLabel`(formatProjectLabel="거래처 · 프로젝트")·`clientId`·`clientName` 곁들임(Task 원본 스키마 불변, /api/tasks 소비자는 MCP·CLI뿐이라 안전).
+    - **MCP**: 신규 `list_clients`(readOnlyHint), `list_tasks`에 client 파라미터. **도구 19→20**(readOnly 9→10). smoke.mts 개수·list_clients 스모크 3건 갱신.
+    - **CLI**: 신규 `que clients`, `que tasks --client <id>`(출력에 거래처·프로젝트명 병기).
+    - **문서** que-tools-guide.md: MCP 표 19→20, CLI 예시, §7 AI 명령어 186→189(조회 25→28).
+    - 조회 전용(mutation 없음), 전부 withApi(PAT). core tasksForClient 공유(웹과 동일 로직). SupabaseQueDb가 상속으로 양 모드 동작.
+    - 검증: typecheck·lint·build(`/api/clients`) exit 0. **MCP 라이브 스모크(도구 20·list_clients·client 필터)는 게이트에서 dev 서버로 확인.**
+
 ## 남은 작업 / 오픈 질문
 
 - ~~알림 채널 결정~~ → **Slack 확정** (2026-07-02): 1단계 Incoming Webhook+딥링크, 2단계 Bot 인터랙티브 버튼으로 Slack 안에서 체크인 응답(`answerCheckIn` 경유, via 기록). 기획서 "알림 정책 > 알림 채널"과 MCP/CLI 계획 Phase E에 반영됨.

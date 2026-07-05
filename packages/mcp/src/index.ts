@@ -86,21 +86,34 @@ server.registerTool(
 );
 
 server.registerTool(
+  "list_clients",
+  {
+    description:
+      "거래처(클라이언트) 목록 조회. 반환된 id를 list_tasks의 client 인자로 넘겨 거래처별 작업을 필터할 수 있다.",
+    annotations: { readOnlyHint: true },
+  },
+  () => run(() => api.get("/api/clients")),
+);
+
+server.registerTool(
   "list_tasks",
   {
-    description: "작업 목록 조회. 담당자/프로젝트/상태로 필터할 수 있다.",
+    description:
+      "작업 목록 조회. 담당자/프로젝트/상태/거래처로 필터할 수 있다. 각 작업에 거래처·프로젝트명(projectLabel)이 함께 온다.",
     inputSchema: {
       assignee: z.string().optional().describe("담당자 userId"),
       project: z.string().optional().describe("프로젝트 id"),
+      client: z.string().optional().describe("클라이언트(거래처) id — list_clients로 조회"),
       status: taskStatusSchema.optional(),
     },
     annotations: { readOnlyHint: true },
   },
-  ({ assignee, project, status }) =>
+  ({ assignee, project, client, status }) =>
     run(() => {
       const params = new URLSearchParams();
       if (assignee) params.set("assignee", assignee);
       if (project) params.set("project", project);
+      if (client) params.set("client", client);
       if (status) params.set("status", status);
       const query = params.toString();
       return api.get(`/api/tasks${query ? `?${query}` : ""}`);

@@ -95,31 +95,53 @@ program
   });
 
 program
-  .command("tasks")
-  .description("작업 목록")
-  .option("--status <status>", `상태 필터 (${Object.keys(TASK_STATUS_LABELS).join("|")})`)
-  .option("--assignee <userId>", "담당자 필터")
-  .option("--project <projectId>", "프로젝트 필터")
-  .action(async (opts: { status?: string; assignee?: string; project?: string }) => {
+  .command("clients")
+  .description("거래처(클라이언트) 목록 — --client 필터에 쓸 id 확인용")
+  .action(async () => {
     try {
-      const params = new URLSearchParams();
-      if (opts.status) params.set("status", opts.status);
-      if (opts.assignee) params.set("assignee", opts.assignee);
-      if (opts.project) params.set("project", opts.project);
-      const query = params.toString();
-      const { tasks } = (await client().get(`/api/tasks${query ? `?${query}` : ""}`)) as {
-        tasks: Task[];
+      const { clients } = (await client().get("/api/clients")) as {
+        clients: { id: string; name: string }[];
       };
-      if (tasks.length === 0) console.log("(작업 없음)");
-      for (const task of tasks) {
-        console.log(
-          `${task.id}  ${time(task.startAt)}  [${TASK_STATUS_LABELS[task.status]}] ${task.title} (담당 ${task.assigneeId})`,
-        );
+      if (clients.length === 0) console.log("(거래처 없음)");
+      for (const c of clients) {
+        console.log(`${c.id}  ${c.name}`);
       }
     } catch (error) {
       fail(error);
     }
   });
+
+program
+  .command("tasks")
+  .description("작업 목록")
+  .option("--status <status>", `상태 필터 (${Object.keys(TASK_STATUS_LABELS).join("|")})`)
+  .option("--assignee <userId>", "담당자 필터")
+  .option("--project <projectId>", "프로젝트 필터")
+  .option("--client <clientId>", "거래처 필터 (que clients 로 id 확인)")
+  .action(
+    async (opts: { status?: string; assignee?: string; project?: string; client?: string }) => {
+      try {
+        const params = new URLSearchParams();
+        if (opts.status) params.set("status", opts.status);
+        if (opts.assignee) params.set("assignee", opts.assignee);
+        if (opts.project) params.set("project", opts.project);
+        if (opts.client) params.set("client", opts.client);
+        const query = params.toString();
+        const { tasks } = (await client().get(`/api/tasks${query ? `?${query}` : ""}`)) as {
+          tasks: (Task & { projectLabel?: string; clientName?: string })[];
+        };
+        if (tasks.length === 0) console.log("(작업 없음)");
+        for (const task of tasks) {
+          const where = task.projectLabel ? ` · ${task.projectLabel}` : "";
+          console.log(
+            `${task.id}  ${time(task.startAt)}  [${TASK_STATUS_LABELS[task.status]}] ${task.title} (담당 ${task.assigneeId})${where}`,
+          );
+        }
+      } catch (error) {
+        fail(error);
+      }
+    },
+  );
 
 program
   .command("task-status")

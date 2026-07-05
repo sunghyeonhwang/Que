@@ -86,8 +86,10 @@ node packages/cli/bin/que.mjs me
 ```bash
 que me                       # 현재 토큰의 사용자 확인
 que today                    # 오늘: 내 타임라인 + 응답대기 체크인 + 주의 필요
-que tasks                    # 작업 목록
+que tasks                    # 작업 목록 (거래처·프로젝트명 병기)
 que tasks --status 진행중 --assignee kim-riwon --project proj-xxx
+que tasks --client client-mendix        # 거래처(멘딕스) 작업만
+que clients                  # 거래처 목록 — --client 필터에 쓸 id 확인
 ```
 
 **작업 조작**
@@ -140,7 +142,7 @@ MCP 서버(`@que/mcp`)를 내 AI 클라이언트에 등록하면, **말로** Que
 - **필요 env**: `QUE_TOKEN`(내 PAT, 필수), `QUE_API_URL`(프로덕션 주소)
 - 단독 점검: `QUE_TOKEN=... QUE_API_URL=... pnpm --filter @que/mcp test` (스모크)
 
-### 3-2. 도구 전체 (19종)
+### 3-2. 도구 전체 (20종)
 
 **조회 (readOnly)**
 | 도구 | 설명 |
@@ -149,7 +151,8 @@ MCP 서버(`@que/mcp`)를 내 AI 클라이언트에 등록하면, **말로** Que
 | `get_my_day` | 오늘 요약(내 타임라인·응답대기 체크인·마감임박·내 관련 문제/홀드) |
 | `get_now_board` | Now 운영표(캘린더+Action). `filter: all\|mine\|issue` |
 | `get_team_status` | 팀 현황(진행중/문제/홀드/마감임박/응답대기·시간표·충돌) |
-| `list_tasks` | 작업 목록(assignee/project/status 필터) |
+| `list_clients` | 거래처(클라이언트) 목록 — 반환 id를 `list_tasks`의 `client` 인자로 사용 |
+| `list_tasks` | 작업 목록(assignee/project/status/**client** 필터, 거래처·프로젝트명 병기) |
 | `list_action_candidates` | 회의록 Action 후보(확인 필요 포함) |
 | `list_payment_requests` | 결제 요청(권한별 마스킹) |
 | `list_task_comments` | 작업 댓글/도움요청 |
@@ -272,10 +275,10 @@ Gemini CLI 재시작 → `/mcp` 로 `que` 연결/도구 목록 확인 → 자연
 
 ---
 
-## 7. AI 명령어 세트 (자연어 프롬프트 186개)
+## 7. AI 명령어 세트 (자연어 프롬프트 189개)
 
 MCP를 연결한 AI에게 아래처럼 말하면 된다. 표현은 예시일 뿐 — 뜻만 통하면 AI가 알아서 도구를 고른다.
-카테고리: 조회25 · 작업생성25 · 상태변경27 · 체크인20 · 회의록26 · 결제22 · 댓글18 · 복합24.
+카테고리: 조회28 · 작업생성25 · 상태변경27 · 체크인20 · 회의록26 · 결제22 · 댓글18 · 복합24.
 안전 규칙은 서버가 강제한다: 본인 작업만 수정 · 문제/홀드는 사유 필수 · 자연어 등록은 확인 후 실행 · 담당·마감 없는 Action은 확정 불가.
 
 ### 7-1. 조회 · 오늘 · 팀 현황
@@ -297,6 +300,9 @@ MCP를 연결한 AI에게 아래처럼 말하면 된다. 표현은 예시일 뿐
 | "지금 팀에서 막혀 있는 사람 있어? 이슈 난 거 위주로." | `get_now_board` (issue) |
 | "이예진 이번에 완료 처리한 작업들 목록 보여줘." | `list_tasks` (done) |
 | "que 프로젝트에 걸린 작업 전부 리스트로 뽑아줘." | `list_tasks` (project) |
+| "우리 거래처 목록 좀 보여줘." | `list_clients` |
+| "멘딕스 쪽 일 지금 어디까지 됐어?" | `list_clients` → `list_tasks` (client) |
+| "에픽게임즈 관련 작업 중에 막힌 거 있어?" | `list_tasks` (client+on_hold/issue) |
 | "일정 충돌 있는지 팀 현황 한번 봐줘." | `get_team_status` |
 | "황성진 작업 중에 다시 잡아야 하는 거(리스케줄) 있어?" | `list_tasks` (needs_reschedule) |
 | "스탠드업 돌리게 팀원별로 지금 뭐 하는지 정리해줘." | `get_team_status` |
