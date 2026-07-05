@@ -62,6 +62,8 @@ export function MyTaskTable({
             timeText: dueLabel(item),
             metaText: item.description,
             startAt: item.startAt,
+            assigneeId: item.assignees[0]?.id,
+            assigneeName: item.assignees[0]?.name,
             comments: commentsByTask.get(item.id) ?? [],
           };
           const isDone = item.status === "done";

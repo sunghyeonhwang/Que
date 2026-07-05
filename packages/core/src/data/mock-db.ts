@@ -33,6 +33,7 @@ import {
   canManageClient,
   canManageProject,
   canViewMeetingNote,
+  latestStatusLog,
   parseScheduleRange,
 } from "../rules";
 import type { CalendarProvider } from "../calendar-provider";
@@ -200,6 +201,79 @@ export class MockQueDb implements QueDb {
       reason: input.detail?.reason,
     });
     return task;
+  }
+
+  /** 작업 담당자 변경. 기존 편집 권한(본인·소유자·프로젝트 담당·관리자)을 재사용한다.
+   *  미응답 체크인은 새 담당자로 이관하고(응답 완료 체크인은 이력이라 건드리지 않는다),
+   *  ChangeLog에 담당 이전을 via와 함께 남긴다. */
+  reassignTask(ctx: ActorContext, input: { taskId: string; assigneeId: string }): Task {
+    const actor = this.requireUser(ctx.actorId);
+    const task = this.requireTask(input.taskId);
+    assertCanEditTask(actor, task, this.projectOf(task));
+    const newAssignee = this.requireUser(input.assigneeId); // 실 사용자 검증(없으면 NOT_FOUND)
+    if (task.assigneeId === newAssignee.id) {
+      throw new QueRuleError("INVALID_INPUT", "이미 이 담당자에게 배정된 작업이다");
+    }
+    const prevAssignee = this.users.find((u) => u.id === task.assigneeId);
+    const nowIso = this.now();
+    task.assigneeId = newAssignee.id;
+    task.lastChangedBy = actor.id;
+    task.lastChangedAt = nowIso;
+
+    // 미응답(answeredAt 없음) 체크인은 새 담당자에게 넘긴다 — 안 하면 전 담당자가 남의 체크인을 받는다.
+    for (const checkIn of this.checkIns) {
+      if (checkIn.taskId === task.id && !checkIn.answeredAt) {
+        checkIn.assigneeId = newAssignee.id;
+      }
+    }
+
+    this.logChange(ctx, {
+      entityType: "task",
+      entityId: task.id,
+      changeType: "update",
+      beforeValue: `담당: ${prevAssignee?.name ?? task.assigneeId}`,
+      afterValue: `담당: ${newAssignee.name}`,
+    });
+    return task;
+  }
+
+  /** 작업 삭제 = 취소(cancelled) soft 전환. hard delete가 아니라 상태만 바꿔 데이터·이력을 보존한다.
+   *  복구는 changeTaskStatus로 cancelled → 다른 상태로 되돌리면 된다(별도 제약 없음).
+   *  이전 status를 함께 돌려줘 호출부의 실행취소(undo)에 쓸 수 있게 한다.
+   *  StatusLog·ChangeLog 기록은 changeTaskStatus에 위임해 다른 상태 변경과 완전히 동일하게 남긴다. */
+  cancelTask(
+    ctx: ActorContext,
+    input: { taskId: string; reason?: string },
+  ): { task: Task; previousStatus: TaskStatus; previousStatusDetail?: StatusDetail } {
+    const actor = this.requireUser(ctx.actorId);
+    const task = this.requireTask(input.taskId);
+    assertCanEditTask(actor, task, this.projectOf(task));
+    if (task.status === "cancelled") {
+      throw new QueRuleError("INVALID_INPUT", "이미 취소된 작업이다");
+    }
+    const previousStatus = task.status;
+    // issue/on_hold는 복구 시 detail(사유 등)이 필수다. 취소 전 최신 StatusLog에서 detail을
+    // 스냅샷으로 잡아 반환한다 — 이게 없으면 실행취소가 STATUS_DETAIL_REQUIRED로 거부된다.
+    let previousStatusDetail: StatusDetail | undefined;
+    if (previousStatus === "issue" || previousStatus === "on_hold") {
+      const log = latestStatusLog(this.statusLogs, task.id, previousStatus);
+      if (log?.reason) {
+        previousStatusDetail = {
+          reason: log.reason,
+          nextAction: log.nextAction,
+          helpUserId: log.helpUserId,
+          recheckAt: log.nextCheckAt,
+        };
+      }
+    }
+    const reason = input.reason?.trim();
+    const updated = this.changeTaskStatus(ctx, {
+      taskId: task.id,
+      to: "cancelled",
+      // cancelled는 사유가 선택이다(assertStatusDetail은 issue/on_hold만 강제). 있으면 로그에 남는다.
+      detail: reason ? { reason } : undefined,
+    });
+    return { task: updated, previousStatus, previousStatusDetail };
   }
 
   /** 작업 일정 이동 (드래그 이동과 동일 규칙). 입력 날짜는 파싱을 통과해야 한다. */
@@ -1235,6 +1309,8 @@ export class MockQueDb implements QueDb {
       detail?: StatusDetail;
       /** response가 merged일 때 필수 — 병합 대상 작업 */
       mergedIntoTaskId?: string;
+      /** response가 later일 때만 유효 — 다시 물어볼 시각(미래, now+48h 이내). */
+      snoozeUntil?: string;
     },
   ): CheckIn {
     const actor = this.requireUser(ctx.actorId);
@@ -1245,6 +1321,25 @@ export class MockQueDb implements QueDb {
     }
     if (checkIn.answeredAt && checkIn.response !== "later") {
       throw new QueRuleError("ALREADY_ANSWERED", "이미 응답한 체크인이다");
+    }
+
+    // 스누즈는 '나중에' 응답에서만 의미가 있다. 다른 응답이면 조용히 무시하고(아래에서) 정리한다.
+    let snoozeUntil: string | undefined;
+    if (input.response === "later" && input.snoozeUntil !== undefined) {
+      // ISO 형식 검증은 단일 시점도 range 파서로 강제한다(다른 mutation 선례).
+      const validated = parseScheduleRange({
+        startAt: input.snoozeUntil,
+        endAt: input.snoozeUntil,
+      }).startAt;
+      const snoozeMs = Date.parse(validated);
+      const nowMs = Date.parse(this.now());
+      if (snoozeMs <= nowMs) {
+        throw new QueRuleError("INVALID_INPUT", "스누즈 시각은 미래여야 한다");
+      }
+      if (snoozeMs > nowMs + 48 * 60 * 60 * 1000) {
+        throw new QueRuleError("INVALID_INPUT", "스누즈는 지금부터 최대 48시간까지만 미룰 수 있다");
+      }
+      snoozeUntil = validated;
     }
 
     // 응답 → 작업 상태 매핑. 상태 변경은 changeTaskStatus를 거쳐 규칙/로그가 동일 적용된다.
@@ -1269,6 +1364,8 @@ export class MockQueDb implements QueDb {
     checkIn.answeredAt = this.now();
     checkIn.response = input.response;
     checkIn.followUpRequired = input.response === "later" || input.response === "issue";
+    // later면 스누즈를 반영(없으면 undefined로 즉시 재노출), 그 외 definitive 응답은 스누즈를 정리한다.
+    checkIn.snoozeUntil = input.response === "later" ? snoozeUntil : undefined;
     return checkIn;
   }
 

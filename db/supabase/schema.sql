@@ -186,6 +186,9 @@ create table if not exists check_ins (
   response           text check (response in
     ('working','done','needs_reschedule','issue','not_needed','merged','later')),
   follow_up_required boolean not null default false,
+  -- '나중에' 응답의 재확인 시각(스누즈). 이 시각까지 pending/응답대기에서 제외되고 이후 자동 재노출.
+  -- 상한 48시간은 core mutation(answerCheckIn)이 강제한다.
+  snooze_until       timestamptz,
   -- 스케줄러 중복 생성 백스톱(작업당 회차 1개). Cron 단일화로 경합은 없으나 프레시 설치도 보호.
   constraint uq_check_ins_task_scheduled unique (task_id, scheduled_at)
 );

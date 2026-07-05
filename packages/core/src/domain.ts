@@ -325,6 +325,9 @@ export const checkInSchema = z.object({
   answeredAt: isoDateTime.optional(),
   response: checkInResponseSchema.optional(),
   followUpRequired: z.boolean().default(false),
+  /** '나중에' 응답 시 다시 물어볼 시각 — 이 시각이 지날 때까지 pending/응답대기에서 제외한다.
+   *  상한 48시간(mutation에서 강제). definitive 응답 시 정리된다. */
+  snoozeUntil: isoDateTime.optional(),
 });
 export type CheckIn = z.infer<typeof checkInSchema>;
 

@@ -163,7 +163,66 @@ export async function answerCheckInAction(input: {
   checkInId: string;
   response: CheckInResponse;
   detail?: StatusDetail;
+  /** response가 later일 때만 유효 — 다시 물어볼 시각(ISO 8601, now+48h 이내). */
+  snoozeUntil?: string;
 }): Promise<ActionResult> {
   const user = await getCurrentUser();
   return toResult((db) => db.answerCheckIn({ actorId: user.id, via: "web" }, input));
+}
+
+/** 취소·재배정처럼 여러 운영 화면에 파급되는 변경 뒤에 관련 경로를 함께 무효화한다. */
+function revalidateOps(): void {
+  for (const path of ["/today", "/now", "/team", "/schedule", "/home", "/heatmap", "/members"]) {
+    revalidatePath(path);
+  }
+}
+
+/** 작업 담당자 변경 — 기존 편집 권한(본인·소유자·프로젝트 담당·관리자)을 재사용한다. */
+export async function reassignTaskAction(input: {
+  taskId: string;
+  assigneeId: string;
+}): Promise<ActionResult> {
+  const user = await getCurrentUser();
+  try {
+    const db = await getDb();
+    db.reassignTask({ actorId: user.id, via: "web" }, input);
+    await db.persist();
+    revalidateOps();
+    return { ok: true };
+  } catch (error) {
+    if (isQueRuleError(error)) return { ok: false, error: error.message };
+    throw error;
+  }
+}
+
+/** 작업 삭제 = 취소(cancelled) soft. 반환에 이전 status를 담아 프론트 실행취소(undo)에 쓴다.
+ *  복구는 changeTaskStatusAction(cancelled → previousStatus)으로 되돌리면 된다. */
+export async function cancelTaskAction(input: {
+  taskId: string;
+  reason?: string;
+}): Promise<
+  | { ok: true; previousStatus: TaskStatus; previousStatusDetail?: StatusDetail }
+  | { ok: false; error: string }
+> {
+  const user = await getCurrentUser();
+  try {
+    const db = await getDb();
+    const { previousStatus, previousStatusDetail } = db.cancelTask(
+      { actorId: user.id, via: "web" },
+      input,
+    );
+    await db.persist();
+    revalidateOps();
+    return { ok: true, previousStatus, previousStatusDetail };
+  } catch (error) {
+    if (isQueRuleError(error)) return { ok: false, error: error.message };
+    throw error;
+  }
+}
+
+/** 재배정 Select용 — 팀원 전체 {id,name}. 세션 필요, 조회 시점에 lazy 호출한다. */
+export async function getAssignableUsersAction(): Promise<{ id: string; name: string }[]> {
+  await getCurrentUser(); // 세션 강제 — 비인증 호출 차단(레포 표준)
+  const db = await getDb();
+  return db.users.map((u) => ({ id: u.id, name: u.name }));
 }

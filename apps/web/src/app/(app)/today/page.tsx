@@ -295,6 +295,7 @@ function TimelineRow({
     timeText,
     metaText: task.description,
     startAt: task.startAt,
+    assigneeId: task.assigneeId,
     comments,
   };
 

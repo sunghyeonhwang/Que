@@ -518,6 +518,15 @@ data/
     - **기획서 정합**: `que-product-plan.md`에 클라이언트 2단·스위처(최대 신규)·반복마일스톤·작업목록 개편·키보드 단축키·모양/폰트 설정·계정보안·PAT·KST를 각 섹션에 편입(구현·도움말이 앞서 있던 것 역방향 문서화). 정보구조 메뉴를 현행 IA로 교체.
     - 각 배포: typecheck·lint·build·core 105 통과. 커밋 다수(3490c32~3238029).
 
+60. **2차 배치 — 담당자 변경·작업 삭제(취소 soft)·체크인 스누즈 (2026-07-05)** — 사용자 "2차 배치 진행". dev-lead 설계 → 사용자 결정 3건 → backend-dev(core·읽기·API·MCP·액션) → frontend-dev(UI) → qa(4해상도 브라우저) → glados 게이트.
+    - **결정(사용자)**: (1) 작업 삭제 = **취소(cancelled) soft 전환**(hard delete 아님, 데이터·이력 보존, 복구 가능), (2) 스누즈 프리셋 **30분·1시간·오늘14시·내일09시**(상한 48h), (3) 노출 = 웹 UI + REST(`/api/tasks/[id]`) + MCP. 기본값: 재배정 권한=기존 `assertCanEditTask`(본인·오너·프로젝트담당·관리자), 팀현황 '응답대기'는 스누즈 중 제외.
+    - **담당자 변경**: core `reassignTask(ctx,{taskId,assigneeId})` — 편집권한 재사용, 동일담당자 no-op 거부, **미응답 체크인의 assigneeId도 새 담당자로 이관**(응답완료 체크인 이력은 불변), ChangeLog `update`("담당: 이전→새", reassign enum 신설 안 함=check제약 교체 DDL 회피). 상세시트 담당자 Select(**base-ui items prop 필수** — 목록 로딩 전엔 Select 미렌더로 raw id 노출 원천차단, `getAssignableUsersAction` lazy), 재배정 픽커 열림 시 숫자키 1~7 가드 확장. API `PATCH /api/tasks/[id]`, MCP `reassign_task`.
+    - **작업 삭제(취소 soft)**: core `cancelTask` — `changeTaskStatus(cancelled)` 위임(StatusLog·ChangeLog status_change), **previousStatus + previousStatusDetail 반환**(실행취소용). cancelled를 능동 화면·완료율 분모·기한초과에서 제외(today `myTasks`에 cancelled/merged 숨김 추가, calendar/now/team/members/performance는 기제외). 상세시트 destructive 삭제 다이얼로그(정직 문구="'취소' 상태로 보관·이력/댓글 유지·복구 가능") + **sonner 실행취소 토스트**(previousStatus[+detail]로 복구). API `DELETE /api/tasks/[id]`(soft=cancel, hard delete 경로 없음), MCP `cancel_task`.
+    - **체크인 스누즈**: **⚠️ 프로덕션 DDL 선적용됨** — `check_ins.snooze_until timestamptz`(nullable, Supabase MCP `add_checkin_snooze`, 코드 배포 전 적용·무파괴·구 코드는 여분 컬럼 무시). checkInSchema += `snoozeUntil`, `answerCheckIn`에 snoozeUntil(later 전용, 미래·now+48h **서버 강제**, 클라 disabled만 믿지 않음). pending 필터(today-data `pendingCheckIns`·team-data `isAwaiting`)에 `snoozeUntil>now` 제외 → 시각 경과 시 자동 재노출(스케줄러 `syncCheckIns` 무변경). 체크인 패널 '나중에'→프리셋 4개 인라인 토글(로컬 tz 계산 후 `.toISOString()`, 과거 프리셋 disabled). `respond_checkin`·`/api/checkins/[id]/answer` += snoozeUntil. row 매핑은 제네릭 camel↔snake라 supabase-rows 무변경.
+    - **검증**: core **120**(신규 16), core/web/mcp/cli typecheck·web lint·**web build** 전부 통과. qa Playwright **4해상도(1920/1366/1024/768) 전 시나리오 PASS**(재배정 Select 한글이름 정상·숫자키가드·삭제 다이얼로그+실행취소·스누즈 프리셋+과거비활성, pageerror/console.error **0건**). glados 게이트: 코드 PASS, HANDOFF 미기록만 반려 → 이 항목으로 해소.
+    - **glados 비차단 후속(수정 완료)**: (1) 실행취소 사각지대 — 이전 상태가 issue/on_hold였던 작업을 삭제 후 undo하면 detail 없이 `changeTaskStatus` 호출돼 `STATUS_DETAIL_REQUIRED`로 거부(버튼이 거짓말) → `cancelTask`가 취소 직전 StatusLog에서 detail 스냅샷 반환, undo가 detail 실어 복구(core 테스트 추가). (2) `rules.test.ts` `iso()` 이중평가 flaky → 변수 1회 캡처.
+    - **교훈 재확인**: base-ui Select items prop 없으면 raw id 노출(59번 재발 방지 확인), 브라우저 인터랙션은 Playwright 필수. cancelled 숨김은 "행/집계 소스만 필터, ID→조회 맵은 전체 유지" 규율(57번) 준수.
+
 ## 남은 작업 / 오픈 질문
 
 - ~~알림 채널 결정~~ → **Slack 확정** (2026-07-02): 1단계 Incoming Webhook+딥링크, 2단계 Bot 인터랙티브 버튼으로 Slack 안에서 체크인 응답(`answerCheckIn` 경유, via 기록). 기획서 "알림 정책 > 알림 채널"과 MCP/CLI 계획 Phase E에 반영됨.

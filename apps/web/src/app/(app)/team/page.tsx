@@ -191,6 +191,7 @@ export default async function TeamPage({
                       timeText: `${format(new Date(item.startAt), "HH:mm")}–${format(new Date(item.endAt), "HH:mm")}`,
                       metaText: item.task.description,
                       startAt: item.task.startAt,
+                      assigneeId: item.task.assigneeId,
                       comments: commentsByTask.get(item.task.id) ?? [],
                       canEdit: item.canEdit,
                     };

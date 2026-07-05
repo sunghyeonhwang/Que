@@ -26,6 +26,7 @@ export interface QueClient {
   get(path: string): Promise<unknown>;
   post(path: string, body?: unknown): Promise<unknown>;
   patch(path: string, body: unknown): Promise<unknown>;
+  del(path: string, body?: unknown): Promise<unknown>;
 }
 
 export function createQueClient(options: QueClientOptions): QueClient {
@@ -60,5 +61,6 @@ export function createQueClient(options: QueClientOptions): QueClient {
     get: (path) => request("GET", path),
     post: (path, body) => request("POST", path, body),
     patch: (path, body) => request("PATCH", path, body),
+    del: (path, body) => request("DELETE", path, body),
   };
 }

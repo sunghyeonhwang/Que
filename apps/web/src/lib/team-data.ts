@@ -91,7 +91,7 @@ export async function getTeamData(
   // ---- 상단 요약 ----
   const activeTasks = clientTasks.filter((t) => ACTIVE.has(t.status));
   const pendingCheckIns = db.checkIns.filter(
-    (c) => isAwaiting(c, taskById) && clientTaskIds.has(c.taskId),
+    (c) => isAwaiting(c, taskById, now) && clientTaskIds.has(c.taskId),
   );
   const summary = {
     inProgress: activeTasks.filter((t) => t.status === "in_progress").length,
@@ -264,8 +264,10 @@ export async function getStandupData(
   });
 }
 
-function isAwaiting(checkIn: CheckIn, taskById: Map<string, Task>): boolean {
+function isAwaiting(checkIn: CheckIn, taskById: Map<string, Task>, now: Date): boolean {
   const task = taskById.get(checkIn.taskId);
   if (!task || !ACTIVE.has(task.status)) return false;
+  // 스누즈 중(재확인 시각이 아직 미래)이면 '응답대기'에서 제외한다.
+  if (checkIn.snoozeUntil && new Date(checkIn.snoozeUntil) > now) return false;
   return !checkIn.answeredAt || (checkIn.response === "later" && checkIn.followUpRequired);
 }

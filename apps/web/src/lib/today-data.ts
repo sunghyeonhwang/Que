@@ -82,7 +82,14 @@ export async function getTodayData(
   };
 
   const myTasks = clientTasks
-    .filter((t) => t.assigneeId === user.id && overlapsToday(t.startAt, t.endAt))
+    .filter(
+      (t) =>
+        t.assigneeId === user.id &&
+        // 취소(soft delete)·병합된 작업은 능동 화면(타임라인 포함)에서 숨긴다. 이력엔 남아 있다.
+        t.status !== "cancelled" &&
+        t.status !== "merged" &&
+        overlapsToday(t.startAt, t.endAt),
+    )
     .sort(byStart);
 
   const myEvents = db.calendarEvents
@@ -121,7 +128,9 @@ export async function getTodayData(
     .filter(
       (c) =>
         c.assigneeId === user.id &&
-        (!c.answeredAt || (c.response === "later" && c.followUpRequired)),
+        (!c.answeredAt || (c.response === "later" && c.followUpRequired)) &&
+        // 스누즈 중(재확인 시각이 아직 미래)이면 제외한다 — 시각이 지나면 자동 재노출.
+        !(c.snoozeUntil && new Date(c.snoozeUntil) > now),
     )
     .flatMap((checkIn) => {
       const task = taskById.get(checkIn.taskId);

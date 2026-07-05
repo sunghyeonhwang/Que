@@ -212,15 +212,51 @@ server.registerTool(
   "respond_checkin",
   {
     description:
-      "자동 체크인에 응답한다 (작업중/완료/시간변경/문제발생/필요없어짐/병합/나중에). issue 응답은 detail.reason 필수.",
+      "자동 체크인에 응답한다 (작업중/완료/시간변경/문제발생/필요없어짐/병합/나중에). issue 응답은 detail.reason 필수. '나중에(later)' 응답 시 snoozeUntil(ISO 8601, 지금부터 48시간 이내)을 주면 그 시각까지 응답대기에서 빠졌다가 자동 재노출된다.",
     inputSchema: {
       checkInId: z.string(),
       response: checkInResponseSchema,
       detail: statusDetailSchema.optional(),
+      snoozeUntil: z
+        .string()
+        .optional()
+        .describe("later 응답일 때만 유효 — 다시 물어볼 시각(ISO 8601, now+48h 이내)"),
     },
   },
-  ({ checkInId, response, detail }) =>
-    run(() => api.post(`/api/checkins/${checkInId}/answer`, { response, detail })),
+  ({ checkInId, response, detail, snoozeUntil }) =>
+    run(() => api.post(`/api/checkins/${checkInId}/answer`, { response, detail, snoozeUntil })),
+);
+
+server.registerTool(
+  "reassign_task",
+  {
+    description:
+      "작업 담당자를 변경한다. 본인·작업 소유자·프로젝트 담당·관리자만 가능(서버가 강제). 미응답 체크인은 새 담당자로 함께 넘어간다.",
+    inputSchema: {
+      taskId: z.string(),
+      assigneeId: z.string().describe("새 담당자 userId — list_tasks/get_team_status로 확인"),
+    },
+    annotations: { destructiveHint: true },
+  },
+  ({ taskId, assigneeId }) =>
+    run(() => api.patch(`/api/tasks/${taskId}`, { assigneeId })),
+);
+
+server.registerTool(
+  "cancel_task",
+  {
+    description:
+      "작업을 취소(cancelled) 상태로 바꾼다. hard delete가 아니라 soft — 데이터·이력은 보존되고 나중에 change_task_status로 복구할 수 있다. 응답의 previousStatus가 복구 대상 상태다. 취소 전 사용자에게 확인받아라.",
+    inputSchema: {
+      taskId: z.string(),
+      reason: z.string().optional().describe("취소 사유(선택) — ChangeLog·StatusLog에 남는다"),
+    },
+    annotations: { destructiveHint: true },
+  },
+  ({ taskId, reason }) =>
+    run(() =>
+      api.del(`/api/tasks/${taskId}`, reason !== undefined ? { reason } : undefined),
+    ),
 );
 
 server.registerTool(

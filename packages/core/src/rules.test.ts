@@ -1562,3 +1562,208 @@ describe("클라이언트 필터 조회 (tasksForClient)", () => {
     expect(d.tasksForClient(empty.id)).toHaveLength(0);
   });
 });
+
+describe("작업 담당자 변경 (reassignTask)", () => {
+  it("권한 없는 팀원은 담당자를 바꿀 수 없다", () => {
+    const d = db();
+    // task-landing-copy는 황성현 소유. 팀원 송수용이 재배정 시도.
+    expect(() =>
+      d.reassignTask({ actorId: "song-suyong", via: "web" }, {
+        taskId: "task-landing-copy",
+        assigneeId: "lee-yejin",
+      }),
+    ).toThrowError(/수정할 수 없다/);
+  });
+
+  it("현재 담당자와 동일하면 no-op으로 거부된다", () => {
+    const d = db();
+    expect(() =>
+      d.reassignTask({ actorId: "hwang-sunghyeon", via: "web" }, {
+        taskId: "task-landing-copy",
+        assigneeId: "hwang-sunghyeon",
+      }),
+    ).toThrowError(/이미 이 담당자/);
+  });
+
+  it("존재하지 않는 사용자로는 재배정할 수 없다", () => {
+    const d = db();
+    expect(() =>
+      d.reassignTask({ actorId: "hwang-sunghyeon", via: "web" }, {
+        taskId: "task-landing-copy",
+        assigneeId: "ghost",
+      }),
+    ).toThrowError(QueRuleError);
+  });
+
+  it("담당자를 바꾸면 미응답 체크인이 새 담당자로 이관되고 ChangeLog가 남는다", () => {
+    const d = db();
+    // task-detail-qa: 담당 황성현, 미응답 체크인 chk-detail-qa(담당 황성현)
+    const task = d.reassignTask({ actorId: "hwang-sunghyeon", via: "mcp" }, {
+      taskId: "task-detail-qa",
+      assigneeId: "song-suyong",
+    });
+    expect(task.assigneeId).toBe("song-suyong");
+    // 미응답 체크인이 새 담당자로 이관된다
+    const chk = d.checkIns.find((c) => c.id === "chk-detail-qa")!;
+    expect(chk.assigneeId).toBe("song-suyong");
+    // ChangeLog: 담당 이전이 via와 함께 기록된다
+    const clog = d.changeLogs.at(-1)!;
+    expect(clog.entityType).toBe("task");
+    expect(clog.changeType).toBe("update");
+    expect(clog.via).toBe("mcp");
+    expect(clog.beforeValue).toContain("담당");
+    expect(clog.afterValue).toContain("송수용");
+  });
+
+  it("응답 완료된 체크인은 이관하지 않는다 (이력 보존)", () => {
+    const d = db();
+    // chk-stock-check는 이미 응답됨(담당 송수용). task-stock-check를 관리자가 재배정.
+    d.reassignTask({ actorId: "hwang-sunghyeon", via: "web" }, {
+      taskId: "task-stock-check",
+      assigneeId: "lee-yejin",
+    });
+    const chk = d.checkIns.find((c) => c.id === "chk-stock-check")!;
+    expect(chk.assigneeId).toBe("song-suyong"); // 그대로
+  });
+});
+
+describe("작업 취소 soft delete (cancelTask)", () => {
+  it("권한 없는 팀원은 취소할 수 없다", () => {
+    const d = db();
+    expect(() =>
+      d.cancelTask({ actorId: "song-suyong", via: "web" }, { taskId: "task-landing-copy" }),
+    ).toThrowError(/수정할 수 없다/);
+  });
+
+  it("이미 취소된 작업은 no-op으로 거부된다", () => {
+    const d = db();
+    // task-old-copy는 시드에서 이미 cancelled.
+    expect(() =>
+      d.cancelTask({ actorId: "hwang-sunghyeon", via: "web" }, { taskId: "task-old-copy" }),
+    ).toThrowError(/이미 취소/);
+  });
+
+  it("취소하면 status=cancelled, 이전 status 반환, StatusLog·ChangeLog 기록", () => {
+    const d = db();
+    const before = d.tasks.find((t) => t.id === "task-landing-copy")!.status; // in_progress
+    const { task, previousStatus } = d.cancelTask(
+      { actorId: "hwang-sunghyeon", via: "cli" },
+      { taskId: "task-landing-copy", reason: "요구사항 철회" },
+    );
+    expect(task.status).toBe("cancelled");
+    expect(previousStatus).toBe(before);
+    // StatusLog(다른 상태 변경과 동일)
+    const slog = d.statusLogs.filter((l) => l.taskId === "task-landing-copy").at(-1)!;
+    expect(slog.toStatus).toBe("cancelled");
+    expect(slog.reason).toBe("요구사항 철회");
+    // ChangeLog via 기록
+    const clog = d.changeLogs.at(-1)!;
+    expect(clog.changeType).toBe("status_change");
+    expect(clog.afterValue).toBe("cancelled");
+    expect(clog.via).toBe("cli");
+  });
+
+  it("취소는 되돌릴 수 있다 (cancelled → 다른 상태 복구)", () => {
+    const d = db();
+    const { previousStatus } = d.cancelTask(
+      { actorId: "hwang-sunghyeon", via: "web" },
+      { taskId: "task-landing-copy" },
+    );
+    const restored = d.changeTaskStatus(
+      { actorId: "hwang-sunghyeon", via: "web" },
+      { taskId: "task-landing-copy", to: previousStatus },
+    );
+    expect(restored.status).toBe(previousStatus);
+  });
+
+  it("issue 작업을 취소하면 detail을 반환하고, 그 detail로 issue 복구가 성공한다", () => {
+    const d = db();
+    // 먼저 task-detail-qa를 issue로 만들며 detail을 남긴다.
+    d.changeTaskStatus(
+      { actorId: "hwang-sunghyeon", via: "web" },
+      {
+        taskId: "task-detail-qa",
+        to: "issue",
+        detail: { reason: "디자인 확정 지연", nextAction: "PM 확인 요청" },
+      },
+    );
+    // 취소하면 취소 직전 issue detail이 스냅샷으로 반환된다.
+    const { previousStatus, previousStatusDetail } = d.cancelTask(
+      { actorId: "hwang-sunghyeon", via: "web" },
+      { taskId: "task-detail-qa" },
+    );
+    expect(previousStatus).toBe("issue");
+    expect(previousStatusDetail?.reason).toBe("디자인 확정 지연");
+    expect(previousStatusDetail?.nextAction).toBe("PM 확인 요청");
+    // 그 detail을 실어 issue로 복구하면 STATUS_DETAIL_REQUIRED로 거부되지 않는다.
+    const restored = d.changeTaskStatus(
+      { actorId: "hwang-sunghyeon", via: "web" },
+      { taskId: "task-detail-qa", to: previousStatus, detail: previousStatusDetail },
+    );
+    expect(restored.status).toBe("issue");
+  });
+});
+
+describe("체크인 스누즈 (answerCheckIn snoozeUntil)", () => {
+  // answerCheckIn의 now 소스는 실제 시계(this.clock 기본값)라 실 현재 시각 기준으로 만든다.
+  const iso = (msFromNow: number) => new Date(Date.now() + msFromNow).toISOString();
+
+  it("나중에 + 미래 스누즈는 저장되고 followUp이 남는다", () => {
+    const d = db();
+    const snoozeUntil = iso(60 * 60 * 1000); // +1h — Date.now()를 한 번만 평가해 밀리초 경계 flaky 제거
+    const chk = d.answerCheckIn({ actorId: "hwang-sunghyeon", via: "web" }, {
+      checkInId: "chk-detail-qa",
+      response: "later",
+      snoozeUntil,
+    });
+    expect(chk.response).toBe("later");
+    expect(chk.followUpRequired).toBe(true);
+    expect(chk.snoozeUntil).toBe(snoozeUntil);
+  });
+
+  it("과거 스누즈는 거부된다", () => {
+    const d = db();
+    expect(() =>
+      d.answerCheckIn({ actorId: "hwang-sunghyeon", via: "web" }, {
+        checkInId: "chk-detail-qa",
+        response: "later",
+        snoozeUntil: iso(-60 * 60 * 1000), // -1h
+      }),
+    ).toThrowError(/미래/);
+  });
+
+  it("48시간을 넘는 스누즈는 거부된다", () => {
+    const d = db();
+    expect(() =>
+      d.answerCheckIn({ actorId: "hwang-sunghyeon", via: "web" }, {
+        checkInId: "chk-detail-qa",
+        response: "later",
+        snoozeUntil: iso(49 * 60 * 60 * 1000), // +49h
+      }),
+    ).toThrowError(/48시간/);
+  });
+
+  it("나중에가 아닌 응답의 snoozeUntil은 무시된다", () => {
+    const d = db();
+    const chk = d.answerCheckIn({ actorId: "hwang-sunghyeon", via: "web" }, {
+      checkInId: "chk-detail-qa",
+      response: "working",
+      snoozeUntil: iso(60 * 60 * 1000),
+    });
+    expect(chk.snoozeUntil).toBeUndefined();
+  });
+
+  it("definitive 응답으로 재응답하면 스누즈가 정리된다", () => {
+    const d = db();
+    d.answerCheckIn({ actorId: "hwang-sunghyeon", via: "web" }, {
+      checkInId: "chk-detail-qa",
+      response: "later",
+      snoozeUntil: iso(60 * 60 * 1000),
+    });
+    const chk = d.answerCheckIn({ actorId: "hwang-sunghyeon", via: "web" }, {
+      checkInId: "chk-detail-qa",
+      response: "done",
+    });
+    expect(chk.snoozeUntil).toBeUndefined();
+  });
+});
