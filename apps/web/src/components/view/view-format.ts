@@ -29,6 +29,29 @@ export function formatKoreanWeekday(d: Date): string {
   return `${WEEKDAY_FULL_KR[d.getDay()]}요일`;
 }
 
+/** "월"·"화" 등 짧은 요일 한 글자. */
+export function shortWeekdayKR(d: Date): string {
+  return WEEKDAY_FULL_KR[d.getDay()];
+}
+
+/**
+ * 대형 디스플레이 비례 스케일 헬퍼.
+ * 벽/대형 태블릿(2420·2994·3540px 가로)에서 타이포·간격·카드가 비례해 커지도록
+ * base + min-[...] 임의 브레이크포인트를 한 문자열로 묶는다. 각 호출은 "한 속성"만
+ * 담당(예: text 크기 하나)해서 tailwind-merge 충돌을 피한다.
+ */
+export function scale(base: string, s2420: string, s2994: string, s3540: string): string {
+  // 각 인자는 여러 클래스를 가질 수 있으므로 클래스마다 브레이크포인트 접두사를 붙인다
+  // (전체 문자열에 한 번만 붙이면 첫 클래스만 프리픽스되고 나머지는 base로 새는 버그).
+  const pre = (bp: number, cls: string): string =>
+    cls
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((c) => `min-[${bp}px]:${c}`)
+      .join(" ");
+  return `${base} ${pre(2420, s2420)} ${pre(2994, s2994)} ${pre(3540, s3540)}`;
+}
+
 const timeFmt = new Intl.DateTimeFormat("en-US", {
   timeZone: "Asia/Seoul",
   hour: "numeric",

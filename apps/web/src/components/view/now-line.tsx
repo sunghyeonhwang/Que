@@ -37,7 +37,7 @@ export function NowLine({
     <div className="pointer-events-none absolute inset-0 pb-4 pt-2" aria-hidden>
       <div className="relative h-full">
         <div className="absolute inset-x-0" style={{ top: `${topPct}%` }}>
-          <div className="absolute inset-x-0 left-16 h-0.5 -translate-y-1/2 bg-blue-500" />
+          <div className="absolute inset-x-0 left-[var(--axis-w,64px)] h-0.5 -translate-y-1/2 bg-blue-500 min-[2994px]:h-1" />
           <span className="absolute left-0 -translate-y-1/2 rounded-full bg-blue-600 px-2.5 py-1 text-xs font-semibold tabular-nums text-white shadow">
             {formatClockTime(iso)}
           </span>

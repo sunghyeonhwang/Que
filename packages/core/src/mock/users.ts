@@ -9,6 +9,7 @@ export const USERS: User[] = [
   { id: "song-suyong", name: "송수용", role: "member", avatarColor: "#7c3aed" },
   { id: "lee-yejin", name: "이예진", role: "member", avatarColor: "#0891b2" },
   { id: "kim-riwon", name: "김리원", role: "member", avatarColor: "#db2777" },
+  { id: "lee-hyejin", name: "이혜진", role: "member", avatarColor: "#0d9488" },
 ];
 
 export const DEFAULT_USER_ID = USERS[0].id;
@@ -29,6 +30,7 @@ const USER_EMAILS: Record<string, string> = {
   "lee-yejin": "yejin.lee@griff.co.kr",
   "park-seunghwan": "seunghwan.park@griff.co.kr",
   "kim-riwon": "riwon.kim@griff.co.kr",
+  "lee-hyejin": "hyejin.lee@griff.co.kr",
 };
 
 export function emailForUser(id: string): string {
@@ -48,6 +50,7 @@ const USER_RANK: Record<string, string> = {
   "song-suyong": "사원",
   "lee-yejin": "사원",
   "kim-riwon": "사원",
+  "lee-hyejin": "사원",
 };
 
 export function rankForUser(id: string): string {
@@ -64,6 +67,7 @@ const USER_DEPARTMENT: Record<string, string> = {
   "song-suyong": "디자인",
   "lee-yejin": "디자인",
   "kim-riwon": "기획",
+  "lee-hyejin": "디자인",
 };
 
 export function departmentForUser(id: string): string {

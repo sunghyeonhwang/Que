@@ -2,15 +2,17 @@
 
 import { useEffect, useState } from "react";
 import { Check, ChevronLeft, ChevronRight } from "lucide-react";
+import { cn } from "@/lib/utils";
 import type { ViewBoard, ViewBoardColumn, ViewCard } from "@/lib/view-data";
-import { avatarInitials, withAlpha } from "./view-format";
+import { avatarInitials, scale, withAlpha } from "./view-format";
 
 // 할일 보드(하루). 담당자별 세로 열 + 완료 요약 pill + 읽기전용 카드 스택.
 // - 조회 전용: 완료 원형은 상태 표시일 뿐 토글 불가(onClick 없음).
-// - hideCompleted=true면 done 카드를 숨긴다(요약 pill의 done/total 수치는 유지).
-// - 벽 디스플레이 가독성: 한 화면 2명(PAGE_SIZE)씩 페이지네이션. 카드/글자를 크게.
-//   페이지 인덱스는 client 상태라 10분 router.refresh(RSC 갱신)에도 유지된다.
-//   AUTO_ADVANCE_MS마다 자동 순환(마지막→처음 루프), 수동 클릭 시 타이머 리셋.
+// - hideCompleted=true면 done 카드를 숨긴다(요약 pill의 done/total 수치는 유지). 두 모드 공통.
+// - mode(item 2, URL ?bmode):
+//   · "all"(기본): 8명을 한 화면에(2행×4열). 카드/폰트 컴팩트, 열 내부 카드 많으면 열별 스크롤.
+//   · "paged": 2명/페이지. PAGE x/N·15초 자동순환·수동 화살표(벽 순환용).
+// - 토글은 상단 헤더(URL ?bmode)에서 하므로 여기선 mode를 받아 렌더만 분기한다.
 
 const PAGE_SIZE = 2;
 const AUTO_ADVANCE_MS = 15_000;
@@ -18,9 +20,61 @@ const AUTO_ADVANCE_MS = 15_000;
 export function BoardGrid({
   board,
   hideCompleted = false,
+  mode = "all",
 }: {
   board: ViewBoard;
   hideCompleted?: boolean;
+  mode?: "all" | "paged";
+}) {
+  if (mode === "paged") {
+    return <BoardPaged board={board} hideCompleted={hideCompleted} />;
+  }
+  return <BoardAll board={board} hideCompleted={hideCompleted} />;
+}
+
+// ---------- 전체(8명) 한 화면: 2행 × 4열 ----------
+
+function BoardAll({
+  board,
+  hideCompleted,
+}: {
+  board: ViewBoard;
+  hideCompleted: boolean;
+}) {
+  return (
+    <div
+      className={cn(
+        "min-h-0 flex-1 overflow-hidden",
+        scale("px-6 py-5", "px-10 py-7", "px-16 py-10", "px-24 py-14"),
+      )}
+    >
+      <div
+        className={cn(
+          "grid h-full grid-cols-4 grid-rows-2",
+          scale("gap-5", "gap-7", "gap-10", "gap-14"),
+        )}
+      >
+        {board.columns.map((column) => (
+          <BoardColumn
+            key={column.user.id}
+            column={column}
+            hideCompleted={hideCompleted}
+            compact
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ---------- 2명/페이지: 자동순환 + 수동 화살표 ----------
+
+function BoardPaged({
+  board,
+  hideCompleted,
+}: {
+  board: ViewBoard;
+  hideCompleted: boolean;
 }) {
   const columns = board.columns;
   const pageCount = Math.max(1, Math.ceil(columns.length / PAGE_SIZE));
@@ -51,9 +105,17 @@ export function BoardGrid({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="min-h-0 flex-1 overflow-auto px-8 py-6">
+      <div
+        className={cn(
+          "min-h-0 flex-1 overflow-hidden",
+          scale("px-8 py-6", "px-12 py-8", "px-16 py-12", "px-24 py-16"),
+        )}
+      >
         <div
-          className="grid h-full items-start gap-8"
+          className={cn(
+            "grid h-full items-start",
+            scale("gap-8", "gap-12", "gap-16", "gap-24"),
+          )}
           style={{ gridTemplateColumns: `repeat(${PAGE_SIZE}, minmax(0, 1fr))` }}
         >
           {visible.map((column) => (
@@ -123,9 +185,11 @@ function PageControl({
 function BoardColumn({
   column,
   hideCompleted,
+  compact = false,
 }: {
   column: ViewBoardColumn;
   hideCompleted: boolean;
+  compact?: boolean;
 }) {
   const { user } = column;
   const cards = hideCompleted
@@ -133,19 +197,36 @@ function BoardColumn({
     : column.cards;
 
   return (
-    <div className="flex min-w-0 flex-col gap-4">
-      <div className="flex items-center gap-3">
+    <div className="flex min-h-0 min-w-0 flex-col gap-3">
+      <div className="flex shrink-0 items-center gap-3">
         <span
-          className="flex size-12 shrink-0 items-center justify-center rounded-full text-base font-semibold text-white"
+          className={cn(
+            "flex shrink-0 items-center justify-center rounded-full font-semibold text-white",
+            compact
+              ? scale("size-9 text-sm", "size-11 text-base", "size-14 text-xl", "size-16 text-2xl")
+              : scale("size-12 text-base", "size-14 text-lg", "size-16 text-2xl", "size-20 text-3xl"),
+          )}
           style={{ backgroundColor: user.avatarColor }}
         >
           {avatarInitials(user.name)}
         </span>
-        <span className="min-w-0 flex-1 truncate text-2xl font-bold text-neutral-900">
+        <span
+          className={cn(
+            "min-w-0 flex-1 truncate font-bold text-neutral-900",
+            compact
+              ? scale("text-lg", "text-2xl", "text-3xl", "text-4xl")
+              : scale("text-2xl", "text-3xl", "text-4xl", "text-5xl"),
+          )}
+        >
           {user.name}
         </span>
         <span
-          className="shrink-0 rounded-full px-3.5 py-1 text-lg font-semibold tabular-nums"
+          className={cn(
+            "shrink-0 rounded-full font-semibold tabular-nums",
+            compact
+              ? scale("px-2.5 py-0.5 text-sm", "px-3 py-1 text-base", "px-4 py-1.5 text-xl", "px-5 py-2 text-2xl")
+              : scale("px-3.5 py-1 text-lg", "px-4 py-1.5 text-xl", "px-5 py-2 text-2xl", "px-6 py-2.5 text-3xl"),
+          )}
           style={{
             backgroundColor: withAlpha(user.avatarColor, "1f"),
             color: user.avatarColor,
@@ -155,39 +236,80 @@ function BoardColumn({
         </span>
       </div>
 
-      <div className="flex flex-col gap-4">
+      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto">
         {cards.map((card) => (
-          <BoardCard key={card.id} card={card} color={user.avatarColor} />
+          <BoardCard key={card.id} card={card} color={user.avatarColor} compact={compact} />
         ))}
       </div>
     </div>
   );
 }
 
-function BoardCard({ card, color }: { card: ViewCard; color: string }) {
+function BoardCard({
+  card,
+  color,
+  compact,
+}: {
+  card: ViewCard;
+  color: string;
+  compact: boolean;
+}) {
   const done = card.status === "done";
   return (
     <div
-      className="flex items-center gap-4 rounded-2xl px-5 py-4"
+      className={cn(
+        "flex shrink-0 items-center gap-3 rounded-2xl",
+        compact
+          ? scale("px-4 py-3", "px-5 py-4", "px-6 py-5", "px-8 py-6")
+          : scale("px-5 py-4", "px-6 py-5", "px-8 py-6", "px-10 py-8"),
+      )}
       style={{ backgroundColor: withAlpha(color, "14") }}
     >
       <div className="min-w-0 flex-1">
-        <p className="truncate text-2xl font-bold text-neutral-900">{card.title}</p>
+        <p
+          className={cn(
+            "truncate font-bold text-neutral-900",
+            compact
+              ? scale("text-lg", "text-2xl", "text-3xl", "text-4xl")
+              : scale("text-2xl", "text-3xl", "text-4xl", "text-5xl"),
+          )}
+        >
+          {card.title}
+        </p>
         {card.clientLabel ? (
-          <p className="truncate text-lg text-neutral-500">{card.clientLabel}</p>
+          <p
+            className={cn(
+              "truncate text-neutral-500",
+              compact
+                ? scale("text-sm", "text-base", "text-xl", "text-2xl")
+                : scale("text-lg", "text-xl", "text-2xl", "text-3xl"),
+            )}
+          >
+            {card.clientLabel}
+          </p>
         ) : null}
       </div>
       {done ? (
         <span
           aria-label="완료"
-          className="flex size-9 shrink-0 items-center justify-center rounded-full bg-green-600"
+          className={cn(
+            "flex shrink-0 items-center justify-center rounded-full bg-green-600",
+            compact
+              ? scale("size-7", "size-9", "size-11", "size-13")
+              : scale("size-9", "size-11", "size-13", "size-15"),
+          )}
         >
           <Check className="size-5 text-white" strokeWidth={3} />
         </span>
       ) : (
         <span
           aria-label="미완료"
-          className="size-9 shrink-0 rounded-full border-2 border-neutral-300"
+          className={cn(
+            "shrink-0 rounded-full border-2 border-neutral-300",
+            compact
+              ? scale("size-7", "size-9", "size-11", "size-13")
+              : scale("size-9", "size-11", "size-13", "size-15"),
+          )}
         />
       )}
     </div>

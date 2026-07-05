@@ -2,6 +2,14 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
+/* 현황판(view) 대형 디스플레이 비례 스케일 세이프리스트.
+   components/view의 scale() 헬퍼가 `min-[2420px]:<util>` 클래스명을 "런타임 결합"하므로
+   Tailwind v4 정적 스캐너가 이 클래스를 못 만든다(소스에 완성형 리터럴이 없음).
+   → scale()이 쓰는 모든 유틸을 3개 브레이크포인트로 강제 생성한다.
+   토큰 목록은 scale() 인자 전수 grep(82개)에서 수집. 새 유틸을 scale()에 추가하면 여기도 넣을 것.
+   base(무접두) 버전은 scale() 인자에 리터럴로 존재해 자동 생성되므로 접두 버전만 세이프리스트한다. */
+@source inline("{min-[2420px]:,min-[2994px]:,min-[3540px]:}{gap-3,gap-4,gap-5,gap-6,gap-7,gap-8,gap-10,gap-12,gap-14,gap-16,gap-24,min-h-10,min-h-12,min-h-14,min-h-16,p-2,p-2.5,p-3.5,p-5,pb-4,pb-5,pb-7,pb-10,pt-5,pt-6,pt-8,pt-10,px-2,px-2.5,px-3,px-3.5,px-4,px-5,px-6,px-7,px-8,px-10,px-12,px-16,px-24,py-0.5,py-1,py-1.5,py-2,py-2.5,py-3,py-3.5,py-4,py-5,py-6,py-7,py-8,py-10,py-12,py-14,py-16,size-2.5,size-3,size-4,size-5,size-6,size-7,size-8,size-9,size-10,size-11,size-12,size-13,size-14,size-15,size-16,size-20,text-xs,text-sm,text-base,text-lg,text-xl,text-2xl,text-3xl,text-4xl,text-5xl,text-[10px]}");
+
 /* 폰트 키트 — Paperlogy(페이퍼로지)·Freesentation(프리젠테이션). projectnoonnu CDN woff2, font-display:swap.
    설정 > 폰트에서 data-ko/data-latin="paperlogy|freesentation" 선택 시 활성화(미선택이면 로드 안 됨).
    font-family 이름은 제공 원본 그대로('Paperozi'/'Presentation') — 스위처 규칙·미리보기와 일치시킨다. */

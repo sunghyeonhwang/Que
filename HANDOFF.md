@@ -558,6 +558,13 @@ data/
     - **검증**: typecheck·lint·build 통과. qa Playwright 1920/1366 PASS(페이지네이션·**자동순환 clock으로 실측**·Hide완료 회귀·3day 3칸·Today·prev·next 이동폭·**now라인 위치/범위밖 숨김/board無**·FAB·시계·proxy host rewrite·기존 /today 게이트, console/pageerror 0). 시간축 라벨 버그만 FAIL→수정 후 재빌드. **보안/데이터 계층 무변경(batch 62 glados 통과분)이라 이 UI 수정은 build+qa 게이트로 갈음**(glados 생략).
     - 후속(비차단): 768×1024 태블릿 세로 week 5칸 텍스트 말줄임(디스플레이 타깃 1920라 무영향).
 
+64. **view 대개편 + 이혜진(8번째) + 더미 데이터 (2026-07-05)** — 사용자 검수 다건. backend(mock/1Day/더미SQL)×2 + frontend(UI) + qa(4해상도) 병렬.
+    - **이혜진 8번째 멤버**: `packages/core/src/mock/users.ts`(lee-hyejin, 이혜진, member, teal `#0d9488`, hyejin.lee@griff.co.kr, 사원/디자인) + **프로덕션 users 테이블 직접 삽입**(role member, avatar #0d9488, password=팀 공용 good121930 bcrypt 해시, must_change_password=false — 해시는 커밋 안 함). view는 users 읽어 8열 자동. core 129 회귀 없음.
+    - **view UI 대개편**: (a) **날짜이동 상단 통일** — board·스케줄 모두 헤더에 ‹이전·Today·다음›+보고있는 날짜 라벨, 하단 WeekNav/DayNav 제거. board "이동 안 됨" 원인=보고있는 날짜 라벨 부재로 변화 감지 불가(링크는 정상)→라벨 추가로 해소. 이동폭 board±1/week±7/3day±3/1day±1. (b) **보드 전체8명↔2명 토글**(`?bmode=all|paged`, **기본 all** 4×2 한화면, paged=2명/페이지 15초 자동순환). (c) **스케줄 1Day 뷰**(하루를 **8명 열**로, 각자 타임라인) — backend `getViewDay(date):ViewDay{dateISO,columns:ViewDayColumn[]}`, `range=1day`, prev/next±1. Week/3day/1Day 토글. private 제외/"자리비움"/화이트리스트 동일.
+    - **해상도 포인트**(1920 + 2420×1668·2994×1840·3540×2190 가로 태블릿/아이패드, 모바일 제외): `view-format.ts scale(base,s2420,s2994,s3540)` 헬퍼로 타이포·간격·카드 비례 확대. **⚠️ 교훈**: scale()이 `min-[${bp}px]:${cls}` 런타임 결합 → **Tailwind v4 정적 스캐너가 동적 클래스 미컴파일**(빌드 CSS 0건, 대형 해상도 확대 전무 — qa가 잡음). 수정: `globals.css`에 `@source inline(...)` 세이프리스트로 82개 유틸×3브레이크포인트 강제 생성(빌드 CSS 85/88/85건 확인). **scale()에 새 유틸 추가 시 세이프리스트도 갱신 필수**(주석 명시).
+    - **더미 데이터(프로덕션, 삭제가능)**: `db/supabase/dummy-data-view-test.sql` — 프로젝트 2(`dummy-prj-unrealfest`=에픽게임즈, `dummy-prj-mendix-webinar`=멘딕스) + 태스크 58(`dummy-uf-*`/`dummy-mw-*`, Google Sheet 언리얼페스트·멘딕스웨비나 탭 제목, 8명 라운드로빈 담당, 2026-06-29~07-17 평일+오늘/내일 분산, 10~18시, done/in_progress/scheduled 혼합). **프로덕션 적용됨**(2 proj + 58 task). 삭제: `db/supabase/remove-dummy-data-view-test.sql`(`delete from tasks where id like 'dummy-%'; delete from projects where id like 'dummy-prj-%';`).
+    - **검증**: core 129, typecheck·lint·build, 해상도 CSS 클래스 실재 확인, getViewDay 화이트리스트/private 준수. qa Playwright 1920/2420/2994/3540(+1024/768) — 상단 날짜이동·전체8명 토글·1Day 8열·now라인·조회전용·proxy PASS, 해상도 스케일 FAIL→수정. **glados 생략**(보안/read-only 계층 batch 62 통과분 무변경, getViewDay 동일 규칙 확인). 768세로 헤더 잘림은 flex-wrap graceful 처리(가로 디스플레이 전용이라 비차단).
+
 ## 남은 작업 / 오픈 질문
 
 - ~~알림 채널 결정~~ → **Slack 확정** (2026-07-02): 1단계 Incoming Webhook+딥링크, 2단계 Bot 인터랙티브 버튼으로 Slack 안에서 체크인 응답(`answerCheckIn` 경유, via 기록). 기획서 "알림 정책 > 알림 채널"과 MCP/CLI 계획 Phase E에 반영됨.

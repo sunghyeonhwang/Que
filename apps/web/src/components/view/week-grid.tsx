@@ -1,8 +1,5 @@
-import Link from "next/link";
-import { addDays, format, parseISO } from "date-fns";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { cn } from "@/lib/utils";
 import type {
-  ViewScheduleRange,
   ViewWeek,
   ViewWeekDay,
   ViewWeekItem,
@@ -12,12 +9,14 @@ import {
   avatarInitials,
   formatTimeRange,
   minutesOfDayKST,
+  scale,
   withAlpha,
 } from "./view-format";
 import { NowLine } from "./now-line";
 
-// 주간 스케줄. 상단 멤버 완료 요약행 + 월~금(또는 3day) 캘린더(시간 그리드) + 하단 범위 이동.
+// 주간 스케줄. 상단 멤버 완료 요약행 + 월~금(또는 3day) 캘린더(시간 그리드).
 // 조회 전용. 이벤트 카드는 시작~종료 시각으로 배치되며 클릭 불가.
+// 범위 이동(±7/±3)·Today·범위 토글은 상단 헤더(ViewHeader)로 통일 — 하단 WeekNav 제거.
 
 const GRID_START_MIN = 10 * 60; // 10:00
 const GRID_END_MIN = 19 * 60; // 19:00
@@ -25,17 +24,10 @@ const GRID_SPAN = GRID_END_MIN - GRID_START_MIN;
 const AXIS_HOURS = [10, 12, 14, 16, 18] as const;
 
 export function WeekGrid({ week }: { week: ViewWeek }) {
-  // prev/next 이동 폭: week=7일, 3day=3일. 기준 앵커는 week.weekStartISO.
-  const step = week.range === "3day" ? 3 : 7;
-  const anchor = parseISO(week.weekStartISO);
-  const prevDate = format(addDays(anchor, -step), "yyyy-MM-dd");
-  const nextDate = format(addDays(anchor, step), "yyyy-MM-dd");
-
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <MemberSummaryRow members={week.memberSummary} />
       <WeekCalendar days={week.days} />
-      <WeekNav prevDate={prevDate} nextDate={nextDate} range={week.range} />
     </div>
   );
 }
@@ -45,7 +37,10 @@ export function WeekGrid({ week }: { week: ViewWeek }) {
 function MemberSummaryRow({ members }: { members: ViewWeekMemberSummary[] }) {
   return (
     <div
-      className="grid shrink-0 gap-3 px-8 pb-4 pt-5"
+      className={cn(
+        "grid shrink-0",
+        scale("gap-3 px-8 pb-4 pt-5", "gap-4 px-12 pb-5 pt-6", "gap-5 px-16 pb-7 pt-8", "gap-7 px-24 pb-10 pt-10"),
+      )}
       style={{ gridTemplateColumns: `repeat(${members.length}, minmax(0, 1fr))` }}
     >
       {members.map((m) => {
@@ -53,21 +48,37 @@ function MemberSummaryRow({ members }: { members: ViewWeekMemberSummary[] }) {
         return (
           <div
             key={m.user.id}
-            className="rounded-xl border border-neutral-200 px-3.5 py-3"
+            className={cn(
+              "rounded-xl border border-neutral-200",
+              scale("px-3.5 py-3", "px-4 py-3.5", "px-5 py-4", "px-7 py-6"),
+            )}
           >
             <div className="flex items-center justify-between gap-2">
-              <span className="min-w-0 truncate text-base font-bold text-neutral-900">
+              <span
+                className={cn(
+                  "min-w-0 truncate font-bold text-neutral-900",
+                  scale("text-base", "text-lg", "text-2xl", "text-3xl"),
+                )}
+              >
                 {m.user.name}
               </span>
               <span
-                className="size-2.5 shrink-0 rounded-full"
+                className={cn(
+                  "shrink-0 rounded-full",
+                  scale("size-2.5", "size-3", "size-4", "size-5"),
+                )}
                 style={{ backgroundColor: m.user.avatarColor }}
               />
             </div>
-            <p className="mt-1 text-sm text-neutral-500 tabular-nums">
+            <p
+              className={cn(
+                "mt-1 text-neutral-500 tabular-nums",
+                scale("text-sm", "text-base", "text-lg", "text-xl"),
+              )}
+            >
               {m.doneCount}/{m.totalCount} Completed
             </p>
-            <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-neutral-200">
+            <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-neutral-200 min-[2994px]:h-2.5">
               <div
                 className="h-full rounded-full"
                 style={{ width: `${pct}%`, backgroundColor: m.user.avatarColor }}
@@ -83,20 +94,39 @@ function MemberSummaryRow({ members }: { members: ViewWeekMemberSummary[] }) {
 // ---------- 주간 캘린더 ----------
 
 function WeekCalendar({ days }: { days: ViewWeekDay[] }) {
-  const template = `64px repeat(${days.length}, minmax(0, 1fr))`;
+  const template = `var(--axis-w) repeat(${days.length}, minmax(0, 1fr))`;
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col px-8">
+    <div
+      className={cn(
+        "flex min-h-0 flex-1 flex-col",
+        "[--axis-w:64px] min-[2420px]:[--axis-w:88px] min-[2994px]:[--axis-w:112px] min-[3540px]:[--axis-w:140px]",
+        scale("px-8", "px-12", "px-16", "px-24"),
+      )}
+    >
       {/* 요일 헤더 + 클라이언트 라벨 바 */}
-      <div className="grid shrink-0 gap-3" style={{ gridTemplateColumns: template }}>
+      <div
+        className={cn("grid shrink-0", scale("gap-3", "gap-4", "gap-5", "gap-6"))}
+        style={{ gridTemplateColumns: template }}
+      >
         <div />
         {days.map((day) => (
           <div key={day.dateISO} className="min-w-0">
-            <p className="text-center text-lg font-bold text-neutral-900">
+            <p
+              className={cn(
+                "text-center font-bold text-neutral-900",
+                scale("text-lg", "text-xl", "text-3xl", "text-4xl"),
+              )}
+            >
               {day.weekdayLabel}요일 {day.dayNum}
             </p>
-            <div className="mt-1.5 truncate rounded-md bg-green-50 px-2 py-1 text-center text-xs font-medium text-green-700">
-              {day.clientLabels.length > 0 ? day.clientLabels.join(" · ") : " "}
+            <div
+              className={cn(
+                "mt-1.5 truncate rounded-md bg-green-50 text-center font-medium text-green-700",
+                scale("px-2 py-1 text-xs", "px-2.5 py-1 text-sm", "px-3 py-1.5 text-lg", "px-4 py-2 text-xl"),
+              )}
+            >
+              {day.clientLabels.length > 0 ? day.clientLabels.join(" · ") : " "}
             </div>
           </div>
         ))}
@@ -104,7 +134,10 @@ function WeekCalendar({ days }: { days: ViewWeekDay[] }) {
 
       {/* 시간 그리드 본문 */}
       <div
-        className="relative grid min-h-0 flex-1 gap-3 overflow-auto pb-4 pt-2"
+        className={cn(
+          "relative grid min-h-0 flex-1 overflow-auto pb-4 pt-2",
+          scale("gap-3", "gap-4", "gap-5", "gap-6"),
+        )}
         style={{ gridTemplateColumns: template }}
       >
         <TimeAxis />
@@ -127,7 +160,10 @@ function TimeAxis() {
         return (
           <span
             key={h}
-            className="absolute right-2 text-xs text-neutral-400"
+            className={cn(
+              "absolute right-2 text-neutral-400",
+              scale("text-xs", "text-sm", "text-lg", "text-xl"),
+            )}
             style={{ top: `${topPct}%`, transform: "translateY(-50%)" }}
           >
             {label}
@@ -169,7 +205,10 @@ function EventCard({ item }: { item: ViewWeekItem }) {
 
   return (
     <div
-      className="absolute inset-x-1.5 flex flex-col overflow-hidden rounded-lg p-2"
+      className={cn(
+        "absolute inset-x-1.5 flex flex-col overflow-hidden rounded-lg",
+        scale("p-2", "p-2.5", "p-3.5", "p-5"),
+      )}
       style={{
         top: `${topPct}%`,
         height: `${heightPct}%`,
@@ -178,57 +217,30 @@ function EventCard({ item }: { item: ViewWeekItem }) {
       }}
     >
       <p
-        className="truncate text-sm font-bold"
+        className={cn("truncate font-bold", scale("text-sm", "text-base", "text-xl", "text-2xl"))}
         style={{ color: item.ownerColor }}
       >
         {item.title}
       </p>
-      <p className="truncate text-xs text-neutral-500">
+      <p
+        className={cn(
+          "truncate text-neutral-500",
+          scale("text-xs", "text-sm", "text-lg", "text-xl"),
+        )}
+      >
         {formatTimeRange(item.startAt, item.endAt)}
       </p>
       <span
-        className="absolute bottom-1.5 right-1.5 flex size-6 items-center justify-center rounded-full text-[10px] font-semibold text-white"
+        className={cn(
+          "absolute bottom-1.5 right-1.5 flex items-center justify-center rounded-full font-semibold text-white",
+          scale("size-6 text-[10px]", "size-8 text-xs", "size-10 text-sm", "size-12 text-base"),
+        )}
         style={{ backgroundColor: item.ownerColor }}
         title={item.ownerName}
       >
         {avatarInitials(item.ownerName)}
       </span>
     </div>
-  );
-}
-
-// ---------- 범위 이동 ----------
-
-function WeekNav({
-  prevDate,
-  nextDate,
-  range,
-}: {
-  prevDate: string;
-  nextDate: string;
-  range: ViewScheduleRange;
-}) {
-  const label = range === "3day" ? "3일" : "주";
-  return (
-    <>
-      <div className="flex shrink-0 items-center justify-center gap-3 py-3">
-        <Link
-          href={`?view=week&range=${range}&date=${prevDate}`}
-          aria-label={`이전 ${label}`}
-          className="flex size-11 items-center justify-center rounded-full bg-neutral-900 text-white hover:bg-neutral-700"
-        >
-          <ChevronLeft className="size-5" />
-        </Link>
-        <Link
-          href={`?view=week&range=${range}&date=${nextDate}`}
-          aria-label={`다음 ${label}`}
-          className="flex size-11 items-center justify-center rounded-full bg-neutral-900 text-white hover:bg-neutral-700"
-        >
-          <ChevronRight className="size-5" />
-        </Link>
-      </div>
-      <div className="h-10 shrink-0 bg-neutral-900" />
-    </>
   );
 }
 

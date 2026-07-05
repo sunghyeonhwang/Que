@@ -74,6 +74,21 @@ export interface ViewWeek {
   days: ViewWeekDay[];
 }
 
+// ---------- Day (하루·사람 열) ----------
+
+export interface ViewDayColumn {
+  user: { id: string; name: string; avatarColor: string };
+  /** 이 사람의 그날 timed items(task+event). startAt 오름차순. ViewWeekItem 재사용. */
+  items: ViewWeekItem[];
+}
+
+export interface ViewDay {
+  /** 표시 날짜 ISO(yyyy-MM-dd). */
+  dateISO: string;
+  /** 열 = 사람. db.users 순서(=로스터 순서) 전원. */
+  columns: ViewDayColumn[];
+}
+
 const WEEKDAY_KR = ["일", "월", "화", "수", "목", "금", "토"] as const;
 
 function timeLabel(startAt?: string, endAt?: string): string | undefined {
@@ -138,6 +153,86 @@ export async function getViewBoard(date: Date): Promise<ViewBoard> {
       doneCount: dayTasks.filter((t) => t.status === "done").length,
       totalCount: dayTasks.length,
       cards,
+    };
+  });
+
+  return { dateISO: localDateISO(date), columns };
+}
+
+/**
+ * 1Day 현황: 하루를 팀원(전원)을 열로 놓고 각 사람의 그날 timed items(task+event)를 반환한다.
+ * - getViewSchedule/getViewBoard와 동일 규칙: cancelled/merged 제외, private 작업 제외,
+ *   private 이벤트는 "자리비움"으로만 노출, 화이트리스트 필드만.
+ * - 그날 겹침 판정은 getViewSchedule의 날짜별 배분 로직과 동일(startAt<=de && endAt>=ds).
+ * - task는 assigneeId, event는 ownerId로 사람 열에 배정한다.
+ * - 시간 필터(10~19시 클리핑)는 하지 않는다 — frontend가 클리핑한다.
+ */
+export async function getViewDay(date: Date): Promise<ViewDay> {
+  const db = await loadReadOnlyDb();
+
+  const dayStart = new Date(date);
+  dayStart.setHours(0, 0, 0, 0);
+  const dayEnd = new Date(date);
+  dayEnd.setHours(23, 59, 59, 999);
+
+  const projectById = new Map(db.projects.map((p) => [p.id, p]));
+  const clientLabelOf = (project?: Project): string | undefined =>
+    project ? formatProjectLabel(project, db.clientOf(project)) : undefined;
+
+  const overlapsDay = (startAt?: string, endAt?: string): boolean => {
+    if (!startAt) return false;
+    const start = new Date(startAt);
+    const end = endAt ? new Date(endAt) : start;
+    return start <= dayEnd && end >= dayStart;
+  };
+
+  const columns: ViewDayColumn[] = db.users.map((user) => {
+    const taskItems: ViewWeekItem[] = db.tasks
+      .filter(
+        (t) =>
+          t.assigneeId === user.id &&
+          t.visibility !== "private" && // private 작업 제외
+          !HIDDEN_TASK_STATUSES.has(t.status) &&
+          t.startAt &&
+          overlapsDay(t.startAt, t.endAt),
+      )
+      .map((t) => {
+        const project = t.projectId ? projectById.get(t.projectId) : undefined;
+        return {
+          id: t.id,
+          kind: "task" as const,
+          title: t.title,
+          startAt: t.startAt!,
+          endAt: t.endAt ?? t.startAt!,
+          ownerColor: user.avatarColor,
+          ownerName: user.name,
+          clientLabel: clientLabelOf(project),
+        };
+      });
+
+    const eventItems: ViewWeekItem[] = db.calendarEvents
+      .filter((e) => e.ownerId === user.id && overlapsDay(e.startAt, e.endAt))
+      .map((e) => {
+        // 익명 뷰어 — private 이벤트는 항상 "자리비움"으로만 노출.
+        const isPrivate = e.visibility === "private";
+        return {
+          id: e.id,
+          kind: "event" as const,
+          title: isPrivate ? "자리비움" : e.title,
+          startAt: e.startAt,
+          endAt: e.endAt,
+          ownerColor: user.avatarColor,
+          ownerName: user.name,
+        };
+      });
+
+    const items = [...taskItems, ...eventItems].sort((a, b) =>
+      a.startAt.localeCompare(b.startAt),
+    );
+
+    return {
+      user: { id: user.id, name: user.name, avatarColor: user.avatarColor },
+      items,
     };
   });
 

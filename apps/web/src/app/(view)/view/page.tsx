@@ -2,8 +2,10 @@ import type { Metadata } from "next";
 import { format } from "date-fns";
 import {
   getViewBoard,
+  getViewDay,
   getViewSchedule,
   type ViewBoard,
+  type ViewDay,
   type ViewScheduleRange,
   type ViewWeek,
 } from "@/lib/view-data";
@@ -11,6 +13,7 @@ import { ViewHeader } from "@/components/view/view-header";
 import { ViewAutoRefresh } from "@/components/view/view-auto-refresh";
 import { BoardGrid } from "@/components/view/board-grid";
 import { WeekGrid } from "@/components/view/week-grid";
+import { DayGrid } from "@/components/view/day-grid";
 import { ViewFab } from "@/components/view/view-fab";
 
 // 공개 읽기전용 현황판 페이지(서버 컴포넌트).
@@ -18,9 +21,11 @@ import { ViewFab } from "@/components/view/view-fab";
 // searchParams 계약:
 // - view=board|week (기본 board)
 // - date=yyyy-MM-dd — board 모드=기준일, week 모드=스케줄 앵커일 (기본 오늘). 두 모드 공용.
-// - range=week|3day — week 모드에서만 유효. 기본 week(월~금 5칸). 3day=앵커일 포함 연속 3칸.
-//   prev/next 이동 폭: week=7일, 3day=3일 (frontend가 URL로 계산).
+// - range=week|3day|1day — week 모드에서만 유효. 기본 week(월~금 5칸). 3day=앵커일 포함 연속 3칸.
+//   1day=앵커일 하루를 "팀원(전원)을 열"로 보여준다(날짜 열이 아니라 사람 열).
+//   prev/next 이동 폭: week=7일, 3day=3일, 1day=1일 (frontend가 URL로 계산).
 // - hc=1 — 완료 숨김(board 모드).
+// - bmode=all|paged — board 모드 레이아웃. all=8명 한 화면(기본), paged=2명/페이지(자동순환).
 // 외부 fetch는 open-meteo 기온 하나뿐(공개·무인증). 데이터는 view-data(loadReadOnlyDb)에서만 온다.
 
 export const dynamic = "force-dynamic";
@@ -58,12 +63,23 @@ async function getTemperature(): Promise<number | undefined> {
 export default async function ViewPage({
   searchParams,
 }: {
-  searchParams: Promise<{ view?: string; date?: string; range?: string; hc?: string }>;
+  searchParams: Promise<{
+    view?: string;
+    date?: string;
+    range?: string;
+    hc?: string;
+    bmode?: string;
+  }>;
 }) {
   const params = await searchParams;
   const mode: Mode = params.view === "week" ? "week" : "board";
-  const scheduleRange: ViewScheduleRange = params.range === "3day" ? "3day" : "week";
+  // week 모드의 서브 range. 1day는 사람 열(ViewDay), week/3day는 날짜 열(ViewWeek).
+  const rangeParam: "week" | "3day" | "1day" =
+    params.range === "3day" ? "3day" : params.range === "1day" ? "1day" : "week";
+  const scheduleRange: ViewScheduleRange = rangeParam === "3day" ? "3day" : "week";
   const hideCompleted = params.hc === "1";
+  // board 모드: 전체(8명 한 화면)/2명 페이지. 기본 all(한눈에 8명 우선).
+  const boardMode: "all" | "paged" = params.bmode === "paged" ? "paged" : "all";
   const now = new Date();
   const todayISO = format(now, "yyyy-MM-dd");
 
@@ -71,11 +87,17 @@ export default async function ViewPage({
 
   let board: ViewBoard | undefined;
   let week: ViewWeek | undefined;
+  let day: ViewDay | undefined;
   let boardDate = now;
 
   if (mode === "week") {
-    // date=앵커일(기본 오늘). getViewSchedule이 week면 월요일 정규화, 3day면 앵커부터.
-    week = await getViewSchedule(parseDate(params.date, now), scheduleRange);
+    if (rangeParam === "1day") {
+      // 1day=사람 열. date=앵커일(기본 오늘). prev/next는 ±1일(frontend가 URL 계산).
+      day = await getViewDay(parseDate(params.date, now));
+    } else {
+      // date=앵커일(기본 오늘). getViewSchedule이 week면 월요일 정규화, 3day면 앵커부터.
+      week = await getViewSchedule(parseDate(params.date, now), scheduleRange);
+    }
   } else {
     boardDate = parseDate(params.date, now);
     board = await getViewBoard(boardDate);
@@ -102,16 +124,25 @@ export default async function ViewPage({
         now={now}
         temperature={temperature}
         boardDate={mode === "board" ? boardDate : undefined}
+        boardMode={boardMode}
         todayISO={todayISO}
         hideCompleted={hideCompleted}
-        weekAnchorISO={mode === "week" && week ? week.weekStartISO : undefined}
-        weekRange={mode === "week" && week ? week.range : undefined}
+        weekRange={mode === "week" ? rangeParam : undefined}
+        weekAnchorISO={
+          mode === "week"
+            ? // 이동/라벨 기준 앵커. 1day=사람 열(day.dateISO), week/3day=날짜 열(week.weekStartISO).
+              rangeParam === "1day"
+              ? day?.dateISO
+              : week?.weekStartISO
+            : undefined
+        }
       />
 
       {mode === "board" && board ? (
-        <BoardGrid board={board} hideCompleted={hideCompleted} />
+        <BoardGrid board={board} hideCompleted={hideCompleted} mode={boardMode} />
       ) : null}
       {mode === "week" && week ? <WeekGrid week={week} /> : null}
+      {mode === "week" && day ? <DayGrid day={day} /> : null}
 
       <ViewFab to={fab.to} href={fab.href} />
     </div>
