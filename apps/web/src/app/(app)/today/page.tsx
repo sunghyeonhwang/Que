@@ -11,6 +11,7 @@ import { DayWrap } from "@/components/app/day-wrap";
 import { QuickAdd } from "@/components/app/quick-add";
 import { StatusBadge } from "@/components/app/status-badge";
 import { CheckInPanel } from "@/components/app/checkin-panel";
+import { CollapsibleDetails } from "@/components/app/collapsible-details";
 import { TaskStatusSheet, type TaskRowData } from "@/components/app/task-status-sheet";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -113,19 +114,13 @@ export default async function TodayPage({
           />
         </section>
       ) : (
-        /* 현황 탭: 작업 리스트(좌) + 현황 레일(우) 2단 */
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
-          <TaskListSection
-            tab={tab}
-            panel={panel}
-            counts={taskList.counts}
-            items={visibleTasks}
-            commentsByTask={commentsByTask}
-          />
-
-          {/* 리치 레일: 기존 오늘 화면의 현황 기능을 모두 유지 */}
-          <aside aria-label="오늘 현황" className="flex flex-col gap-4">
-          <section aria-label="오늘 요약" className="grid grid-cols-2 gap-2">
+        /* 현황 탭: KPI 요약(상단 1줄) + 접이식 현황 상세 + 풀폭 작업 리스트(목록 중심) */
+        <div className="flex flex-col gap-4">
+          {/* 현황 KPI 5개 — 상단 가로 1줄. 좁은 화면은 가로 스크롤, md+는 5등분 그리드. */}
+          <section
+            aria-label="오늘 요약"
+            className="grid auto-cols-[minmax(140px,1fr)] grid-flow-col gap-2 overflow-x-auto pb-1 md:auto-cols-fr md:overflow-visible"
+          >
             {metrics.map((metric) => (
               <Card key={metric.label} className="py-3">
                 <CardContent className="px-4">
@@ -136,96 +131,111 @@ export default async function TodayPage({
             ))}
           </section>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">내 타임라인</CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-2">
-              {data.timeline.length === 0 && (
-                <p className="py-4 text-center text-sm text-muted-foreground">
-                  오늘 일정과 작업이 없습니다.
-                </p>
-              )}
-              {data.timeline.map((item) => (
-                <TimelineRow
-                  key={`${item.kind}-${item.id}`}
-                  item={item}
-                  comments={item.kind === "task" ? (commentsByTask.get(item.id) ?? []) : []}
-                />
-              ))}
-            </CardContent>
-          </Card>
+          {/* 보조 현황 — 한 번에 접고 펼치는 상세. 기본 펼침(권장), 목록 공간이 필요하면 접는다. */}
+          <CollapsibleDetails
+            title="현황 상세"
+            summary="타임라인 · 체크인 · 하루 마감 · 주의 필요"
+            defaultOpen
+          >
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">내 타임라인</CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-2">
+                {data.timeline.length === 0 && (
+                  <p className="py-4 text-center text-sm text-muted-foreground">
+                    오늘 일정과 작업이 없습니다.
+                  </p>
+                )}
+                {data.timeline.map((item) => (
+                  <TimelineRow
+                    key={`${item.kind}-${item.id}`}
+                    item={item}
+                    comments={item.kind === "task" ? (commentsByTask.get(item.id) ?? []) : []}
+                  />
+                ))}
+              </CardContent>
+            </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">자동 체크인</CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-4">
-              {data.pendingCheckIns.length === 0 && (
-                <p className="text-sm text-muted-foreground">응답할 체크인이 없습니다.</p>
-              )}
-              {data.pendingCheckIns.map(({ checkIn, task }) => (
-                <CheckInPanel
-                  key={checkIn.id}
-                  checkInId={checkIn.id}
-                  question={`${user.name}님, ${format(new Date(checkIn.scheduledAt), "HH:mm")} 예정된 "${task.title}" 상태를 알려주세요.`}
-                />
-              ))}
-            </CardContent>
-          </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">자동 체크인</CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-4">
+                {data.pendingCheckIns.length === 0 && (
+                  <p className="text-sm text-muted-foreground">응답할 체크인이 없습니다.</p>
+                )}
+                {data.pendingCheckIns.map(({ checkIn, task }) => (
+                  <CheckInPanel
+                    key={checkIn.id}
+                    checkInId={checkIn.id}
+                    question={`${user.name}님, ${format(new Date(checkIn.scheduledAt), "HH:mm")} 예정된 "${task.title}" 상태를 알려주세요.`}
+                  />
+                ))}
+              </CardContent>
+            </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">하루 마감</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <DayWrap doneToday={data.wrapUp.doneToday} unfinished={data.wrapUp.unfinished} />
-            </CardContent>
-          </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">하루 마감</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <DayWrap doneToday={data.wrapUp.doneToday} unfinished={data.wrapUp.unfinished} />
+              </CardContent>
+            </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">주의 필요</CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-3">
-              {data.attention.length === 0 && data.helpRequests.length === 0 && (
-                <p className="text-sm text-muted-foreground">
-                  내가 관련된 문제/홀드가 없습니다.
-                </p>
-              )}
-              {data.helpRequests.map((request) => (
-                <div key={request.id} className="rounded-md border p-3">
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline">도움 요청</Badge>
-                    <p className="min-w-0 flex-1 truncate text-sm font-medium">
-                      {request.taskTitle}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">주의 필요</CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-3">
+                {data.attention.length === 0 && data.helpRequests.length === 0 && (
+                  <p className="text-sm text-muted-foreground">
+                    내가 관련된 문제/홀드가 없습니다.
+                  </p>
+                )}
+                {data.helpRequests.map((request) => (
+                  <div key={request.id} className="rounded-md border p-3">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline">도움 요청</Badge>
+                      <p className="min-w-0 flex-1 truncate text-sm font-medium">
+                        {request.taskTitle}
+                      </p>
+                    </div>
+                    <p className="mt-1 text-sm text-muted-foreground">“{request.body}”</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {request.authorName} · {format(new Date(request.createdAt), "M/d HH:mm")}
                     </p>
                   </div>
-                  <p className="mt-1 text-sm text-muted-foreground">“{request.body}”</p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {request.authorName} · {format(new Date(request.createdAt), "M/d HH:mm")}
-                  </p>
-                </div>
-              ))}
-              {data.attention.map(({ task, reason, helpUserName, nextCheckAt }) => (
-                <div key={task.id} className="rounded-md border p-3">
-                  <div className="flex items-center gap-2">
-                    <StatusBadge status={task.status} />
-                    <p className="min-w-0 flex-1 truncate text-sm font-medium">{task.title}</p>
+                ))}
+                {data.attention.map(({ task, reason, helpUserName, nextCheckAt }) => (
+                  <div key={task.id} className="rounded-md border p-3">
+                    <div className="flex items-center gap-2">
+                      <StatusBadge status={task.status} />
+                      <p className="min-w-0 flex-1 truncate text-sm font-medium">{task.title}</p>
+                    </div>
+                    {reason && <p className="mt-1 text-sm text-muted-foreground">{reason}</p>}
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {helpUserName ? `도움 필요: ${helpUserName}` : null}
+                      {helpUserName && nextCheckAt ? " · " : null}
+                      {nextCheckAt
+                        ? `다음 확인 ${format(new Date(nextCheckAt), "HH:mm")}`
+                        : null}
+                    </p>
                   </div>
-                  {reason && <p className="mt-1 text-sm text-muted-foreground">{reason}</p>}
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {helpUserName ? `도움 필요: ${helpUserName}` : null}
-                    {helpUserName && nextCheckAt ? " · " : null}
-                    {nextCheckAt
-                      ? `다음 확인 ${format(new Date(nextCheckAt), "HH:mm")}`
-                      : null}
-                  </p>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-          </aside>
+                ))}
+              </CardContent>
+            </Card>
+          </CollapsibleDetails>
+
+          {/* 풀폭 작업 리스트(메인) */}
+          <TaskListSection
+            tab={tab}
+            panel={panel}
+            counts={taskList.counts}
+            items={visibleTasks}
+            commentsByTask={commentsByTask}
+          />
         </div>
       )}
     </div>

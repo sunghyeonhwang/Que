@@ -17,7 +17,7 @@ export function LoginForm({ notice }: { notice?: string }) {
       {/* 로고 + 헤드라인 */}
       <div className="flex flex-col items-center gap-4">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/auth/logo.svg" alt="Que" className="size-[70px]" />
+        <img src="/logo-mark.svg" alt="Que" className="h-[64px] w-auto dark:invert" />
         <div className="flex flex-col items-center gap-0.5 text-center">
           <h1 className="text-2xl font-medium text-[var(--que-text)]">다시 오셨군요!</h1>
           <p className="text-sm text-[var(--que-text-secondary)]">여기서 프로젝트와 작업을 관리하세요.</p>

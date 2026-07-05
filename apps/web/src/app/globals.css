@@ -134,6 +134,7 @@
   --que-bg-muted: #f2f2f4;
   --que-success: #167c46;
   --que-success-bg: #eaf6ee;
+  --que-success-fg: #ffffff; /* green 위 체크마크(완료 원형 버튼) */
   --que-warning: #8a5a12;
   --que-warning-bg: #f6efe2;
   --que-error: #cf4045;
@@ -219,6 +220,7 @@
   --que-on-brand: #10121a; /* 밝은 인디고 배경 위 텍스트는 어둡게(흰 텍스트 3.25:1 미달 해소) */
   --que-success: #57caa0;
   --que-success-bg: #132a20;
+  --que-success-fg: #0a1f17; /* 밝은 green 위 체크마크는 어둡게(대비 확보) */
   --que-warning: #d6a45c;
   --que-warning-bg: #2a2216;
   --que-error: #e97078;
@@ -309,3 +311,48 @@
 .help-prose th { background: var(--que-bg-muted); color: var(--que-text-tertiary); font-weight: 600; font-size: 12px; }
 .help-prose tr:last-child td { border-bottom: none; }
 .help-prose td { color: var(--que-text-secondary); }
+
+/* 작업 목록 원형 완료 버튼 — 빈 원 → green 채움 + 체크마크 그리기.
+   상태(status) prop이 done으로 바뀌며 data-done이 켜지면 CSS 전환이 재생된다.
+   reduced-motion에서는 전환을 끄고 즉시 상태만 반영한다. */
+.que-done-circle-ring {
+  border: 2px solid var(--que-border-strong);
+  background: transparent;
+  transition:
+    background-color 0.24s ease,
+    border-color 0.24s ease,
+    transform 0.2s ease;
+}
+.que-done-circle:hover .que-done-circle-ring {
+  border-color: var(--que-success);
+}
+.que-done-circle:active .que-done-circle-ring {
+  transform: scale(0.9);
+}
+.que-done-circle[data-done] .que-done-circle-ring {
+  background: var(--que-success);
+  border-color: var(--que-success);
+}
+.que-done-circle-mark {
+  fill: none;
+  stroke: var(--que-success-fg);
+  stroke-width: 2.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 24;
+  stroke-dashoffset: 24;
+  opacity: 0;
+  transition:
+    stroke-dashoffset 0.3s ease 0.08s,
+    opacity 0.12s ease 0.08s;
+}
+.que-done-circle[data-done] .que-done-circle-mark {
+  stroke-dashoffset: 0;
+  opacity: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .que-done-circle-ring,
+  .que-done-circle-mark {
+    transition: none;
+  }
+}
