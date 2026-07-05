@@ -4,28 +4,29 @@ import { useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   CalendarDays,
-  Clock,
+  Circle,
   Flag,
-  FolderOpen,
-  Layers,
   MoreHorizontal,
-  Paperclip,
-  Plus,
   Trash2,
-  Users,
+  User,
   X,
-  FileText,
-  FileImage,
-  File as FileIcon,
 } from "lucide-react";
-import type {
-  AttachmentKind,
-  PmAttachment,
-  PmPriority,
-  ProjectMeta,
-  TaskDetailView,
-} from "@/lib/pm-data";
-import { deleteTaskAction, updateTaskAction } from "@/app/(app)/projects/pm-actions";
+import type { StatusDetail } from "@que/core";
+import type { ProjectMeta, TaskDetail, TaskPriority, BoardColumnKey } from "@/lib/projects-data";
+import {
+  COLUMN_LABEL,
+  COLUMN_ORDER,
+  SIMPLE_COLUMN_STATUS,
+  TONE_STYLE,
+  COLUMN_TONE,
+  dueDateToIso,
+} from "@/lib/pm-columns";
+import {
+  deleteTaskAction,
+  moveTaskAction,
+  reassignTaskAction,
+  updateTaskDetailsAction,
+} from "@/app/(app)/projects/pm-actions";
 import { useSafeAction } from "@/components/app/use-safe-action";
 import { Sheet, SheetClose, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
@@ -38,8 +39,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -55,46 +54,35 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { MemberAvatars } from "./member-avatars";
+import { BlockedStatusDialog, type BlockedStatus } from "./blocked-status-dialog";
 import { cn } from "@/lib/utils";
 
-const PRIORITY_ITEMS: Record<PmPriority, string> = {
+const PRIORITY_ITEMS: Record<TaskPriority, string> = {
   high: "높음",
   normal: "보통",
   low: "낮음",
 };
 
-/** 담당자 id 집합이 순서 무관하게 같은지. */
-function sameIds(a: string[], b: string[]): boolean {
-  if (a.length !== b.length) return false;
-  const set = new Set(b);
-  return a.every((id) => set.has(id));
-}
-
 /**
  * 태스크 상세/편집 드로어 — 열림 상태는 URL(`?task=<id>`)로 관리한다.
  * `detail`이 있으면 열리고, 닫으면 현재 URL에서 `task` 파라미터만 제거한다(view/month 보존).
- * 편집은 로컬 상태로 모아 '저장' 시 updateTaskAction으로 커밋한다(mock in-place).
+ * 제목·설명·우선순위·마감은 로컬 편집 후 '저장'(updateTaskDetailsAction)으로 커밋한다.
+ * 담당자 변경은 reassignTaskAction, 상태(열) 이동은 moveTaskAction, 삭제는 deleteTaskAction.
  */
 export function TaskDetailDrawer({
   detail,
   meta,
 }: {
-  detail: TaskDetailView | null;
-  /** 편집 피커용 프로젝트 메타(담당자·그룹). */
+  detail: TaskDetail | null;
   meta: ProjectMeta;
 }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  // 열림 상태는 URL(detail 유무)에서 파생한다. 닫힘 애니메이션 동안 마지막 내용을
-  // 유지하려고 최근 detail을 상태로 보관한다. detail은 서버 재렌더마다 새 객체이므로
-  // 참조가 바뀔 때(저장→revalidate로 내용이 갱신될 때 포함) 동기화한다 — 저장 후
-  // 편집 baseline이 최신화돼 dirty가 해제된다. null(닫힘)일 땐 마지막 내용을 유지.
   const open = Boolean(detail);
-  const [shown, setShown] = useState<TaskDetailView | null>(detail);
+  const [shown, setShown] = useState<TaskDetail | null>(detail);
   if (detail && detail !== shown) {
     setShown(detail);
   }
@@ -120,7 +108,7 @@ export function TaskDetailDrawer({
         <SheetTitle className="sr-only">작업 세부 정보</SheetTitle>
         {shown ? (
           // key로 태스크 전환 시 편집 폼 상태를 초기화한다.
-          <DrawerBody key={shown.id} detail={shown} meta={meta} onClose={close} />
+          <DrawerBody key={shown.taskId} detail={shown} meta={meta} onClose={close} />
         ) : null}
       </SheetContent>
     </Sheet>
@@ -132,44 +120,68 @@ function DrawerBody({
   meta,
   onClose,
 }: {
-  detail: TaskDetailView;
+  detail: TaskDetail;
   meta: ProjectMeta;
   onClose: () => void;
 }) {
   const { run, pending } = useSafeAction();
 
-  const [name, setName] = useState(detail.name);
-  const [description, setDescription] = useState(detail.description);
-  const [priority, setPriority] = useState<PmPriority>(detail.priority);
-  const [dueAt, setDueAt] = useState(detail.dueAt ?? "");
-  const [groupId, setGroupId] = useState(detail.groupId);
-  const [assigneeIds, setAssigneeIds] = useState<string[]>(detail.assigneeIds);
+  const [title, setTitle] = useState(detail.title);
+  const [description, setDescription] = useState(detail.description ?? "");
+  const [priority, setPriority] = useState<TaskPriority>(detail.priority);
+  const [dueDate, setDueDate] = useState(detail.dueDate ?? "");
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [blockedOpen, setBlockedOpen] = useState(false);
 
-  const nameEmpty = name.trim().length === 0;
-  const normDue = dueAt === "" ? null : dueAt;
+  const { canEdit } = detail;
+  const titleEmpty = title.trim().length === 0;
 
-  // 바뀐 필드만 추려 patch를 만든다(name은 trim해 비교/전송).
-  const patch: Parameters<typeof updateTaskAction>[1] = {};
-  if (name.trim() !== detail.name) patch.name = name.trim();
-  if (description !== detail.description) patch.description = description;
+  const normDesc = description.trim() === "" ? null : description.trim();
+  const normDue = dueDate === "" ? null : dueDate;
+
+  // 바뀐 필드만 추려 patch를 만든다.
+  const patch: Parameters<typeof updateTaskDetailsAction>[0] = { taskId: detail.taskId };
+  if (title.trim() !== detail.title) patch.title = title.trim();
+  if (normDesc !== detail.description) patch.description = normDesc;
   if (priority !== detail.priority) patch.priority = priority;
-  if (normDue !== detail.dueAt) patch.dueAt = normDue;
-  if (groupId !== detail.groupId) patch.groupId = groupId;
-  if (!sameIds(assigneeIds, detail.assigneeIds)) patch.assigneeIds = assigneeIds;
-  const dirty = Object.keys(patch).length > 0;
+  if (normDue !== detail.dueDate) patch.endAt = normDue ? dueDateToIso(normDue) : null;
+  const dirty = Object.keys(patch).length > 1; // taskId 외에 하나라도 있으면 dirty
 
-  const groupItems = Object.fromEntries(meta.groups.map((g) => [g.id, g.name]));
-  const currentGroup = meta.groups.find((g) => g.id === groupId);
-  const selectedMembers = meta.members.filter((m) => assigneeIds.includes(m.id));
+  const assigneeItems = Object.fromEntries(meta.members.map((m) => [m.id, m.name]));
 
   function save() {
-    if (nameEmpty || !dirty) return;
-    run(() => updateTaskAction(detail.id, patch), { success: "작업을 저장했습니다" });
+    if (titleEmpty || !dirty) return;
+    run(() => updateTaskDetailsAction(patch), { success: "작업을 저장했습니다" });
+  }
+
+  function moveToColumn(key: BoardColumnKey) {
+    if (key === detail.columnKey) return;
+    if (key === "blocked") {
+      setBlockedOpen(true);
+      return;
+    }
+    run(() => moveTaskAction({ taskId: detail.taskId, to: SIMPLE_COLUMN_STATUS[key] }), {
+      success: `"${detail.title}" → ${COLUMN_LABEL[key]}`,
+    });
+  }
+
+  function confirmBlocked(to: BlockedStatus, statusDetail: StatusDetail) {
+    run(() => moveTaskAction({ taskId: detail.taskId, to, detail: statusDetail }), {
+      success: `"${detail.title}" 상태를 변경했습니다`,
+      onSuccess: () => setBlockedOpen(false),
+    });
+  }
+
+  function reassign(assigneeId: string) {
+    if (!assigneeId || assigneeId === detail.assignee?.id) return;
+    const name = meta.members.find((m) => m.id === assigneeId)?.name ?? "담당자";
+    run(() => reassignTaskAction({ taskId: detail.taskId, assigneeId }), {
+      success: `담당자를 ${name}(으)로 변경했습니다`,
+    });
   }
 
   function remove() {
-    run(() => deleteTaskAction(detail.id), {
+    run(() => deleteTaskAction({ taskId: detail.taskId }), {
       success: "작업을 삭제했습니다",
       onSuccess: () => {
         setConfirmOpen(false);
@@ -184,29 +196,31 @@ function DrawerBody({
       <header className="flex h-14 shrink-0 items-center justify-between border-b border-[var(--que-border)] px-4">
         <span className="text-sm font-medium text-[var(--que-text-secondary)]">작업 세부 정보</span>
         <div className="flex items-center gap-0.5">
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              render={
-                <Button
-                  variant="ghost"
-                  aria-label="더보기"
-                  className="size-10 rounded-lg text-[var(--que-text-secondary)]"
-                />
-              }
-            >
-              <MoreHorizontal className="size-4" aria-hidden />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-40">
-              <DropdownMenuItem
-                variant="destructive"
-                className="h-10 gap-2"
-                onClick={() => setConfirmOpen(true)}
+          {canEdit && (
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={
+                  <Button
+                    variant="ghost"
+                    aria-label="더보기"
+                    className="size-10 rounded-lg text-[var(--que-text-secondary)]"
+                  />
+                }
               >
-                <Trash2 className="size-4" aria-hidden />
-                삭제
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+                <MoreHorizontal className="size-4" aria-hidden />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-40">
+                <DropdownMenuItem
+                  variant="destructive"
+                  className="h-10 gap-2"
+                  onClick={() => setConfirmOpen(true)}
+                >
+                  <Trash2 className="size-4" aria-hidden />
+                  삭제
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
           <SheetClose
             render={
               <Button
@@ -223,154 +237,146 @@ function DrawerBody({
 
       {/* 본문(스크롤) */}
       <div className="min-h-0 flex-1 overflow-y-auto px-5 pt-5 pb-4">
-        {/* 제목(인라인 편집) */}
+        {/* 제목 */}
         <div>
-          <label htmlFor="task-name" className="sr-only">
+          <label htmlFor="task-title" className="sr-only">
             작업 이름
           </label>
-          <Input
-            id="task-name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            aria-invalid={nameEmpty}
-            placeholder="작업 이름"
-            className="h-auto rounded-md border-transparent bg-transparent px-2 py-1.5 text-xl leading-snug font-semibold text-[var(--que-text)] hover:border-[var(--que-border)] md:text-xl"
-          />
-          {nameEmpty ? (
-            <p className="mt-1 px-2 text-xs text-[var(--que-error)]">작업 이름을 입력하세요.</p>
+          {canEdit ? (
+            <>
+              <Input
+                id="task-title"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                aria-invalid={titleEmpty}
+                placeholder="작업 이름"
+                className="h-auto rounded-md border-transparent bg-transparent px-2 py-1.5 text-xl leading-snug font-semibold text-[var(--que-text)] hover:border-[var(--que-border)] md:text-xl"
+              />
+              {titleEmpty ? (
+                <p className="mt-1 px-2 text-xs text-[var(--que-error)]">작업 이름을 입력하세요.</p>
+              ) : null}
+            </>
+          ) : (
+            <h2 className="px-2 py-1.5 text-xl leading-snug font-semibold text-[var(--que-text)]">
+              {detail.title}
+            </h2>
+          )}
+        </div>
+
+        {/* 상태(열 이동) */}
+        <div className="mt-5">
+          <p className="mb-2 flex items-center gap-2 px-0.5 text-sm text-[var(--que-text-secondary)]">
+            <Circle className="size-4 text-[var(--que-text-tertiary)]" aria-hidden />
+            상태
+            <span className="ml-1 text-xs font-medium text-[var(--que-text)]">
+              {detail.statusLabel}
+            </span>
+          </p>
+          {canEdit ? (
+            <div className="grid grid-cols-2 gap-2" role="group" aria-label="상태 변경">
+              {COLUMN_ORDER.map((key) => {
+                const active = key === detail.columnKey;
+                const tone = TONE_STYLE[COLUMN_TONE[key]];
+                return (
+                  <Button
+                    key={key}
+                    variant="outline"
+                    disabled={active || pending}
+                    onClick={() => moveToColumn(key)}
+                    className={cn(
+                      "h-10 justify-start gap-2 border-[var(--que-border)]",
+                      active && "border-[var(--que-brand)] bg-[var(--que-brand-subtle)]",
+                    )}
+                  >
+                    <span
+                      className="size-2.5 shrink-0 rounded-full"
+                      style={{ backgroundColor: tone.dot }}
+                      aria-hidden
+                    />
+                    {COLUMN_LABEL[key]}
+                  </Button>
+                );
+              })}
+            </div>
           ) : null}
         </div>
 
         {/* 필드 */}
         <dl className="mt-5 space-y-1">
-          {detail.category ? (
-            <FieldRow icon={<FolderOpen className="size-4" aria-hidden />} label="카테고리">
-              <span className="text-sm text-[var(--que-text)]">{detail.category}</span>
-            </FieldRow>
-          ) : null}
-
-          <FieldRow icon={<Layers className="size-4" aria-hidden />} label="상태 그룹">
-            <Select
-              items={groupItems}
-              value={groupId}
-              onValueChange={(v) => v && setGroupId(v)}
-            >
-              <SelectTrigger
-                aria-label="상태 그룹 선택"
-                className="h-10 min-h-10 w-full gap-2 border-[var(--que-border)]"
-              >
-                <span
-                  className="size-2 shrink-0 rounded-full"
-                  style={{ backgroundColor: currentGroup?.color ?? "var(--que-text-tertiary)" }}
-                  aria-hidden
-                />
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {meta.groups.map((g) => (
-                  <SelectItem key={g.id} value={g.id}>
-                    <span className="flex items-center gap-2">
-                      <span
-                        className="size-2 rounded-full"
-                        style={{ backgroundColor: g.color }}
-                        aria-hidden
-                      />
-                      {g.name}
-                    </span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </FieldRow>
-
           <FieldRow icon={<Flag className="size-4" aria-hidden />} label="우선순위">
-            <Select
-              items={PRIORITY_ITEMS}
-              value={priority}
-              onValueChange={(v) => v && setPriority(v as PmPriority)}
-            >
-              <SelectTrigger
-                aria-label="우선순위 선택"
-                className="h-10 min-h-10 w-full border-[var(--que-border)]"
+            {canEdit ? (
+              <Select
+                items={PRIORITY_ITEMS}
+                value={priority}
+                onValueChange={(v) => v && setPriority(v as TaskPriority)}
               >
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {(Object.keys(PRIORITY_ITEMS) as PmPriority[]).map((p) => (
-                  <SelectItem key={p} value={p}>
-                    {PRIORITY_ITEMS[p]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+                <SelectTrigger
+                  aria-label="우선순위 선택"
+                  className="h-10 min-h-10 w-full border-[var(--que-border)]"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {(Object.keys(PRIORITY_ITEMS) as TaskPriority[]).map((p) => (
+                    <SelectItem key={p} value={p}>
+                      {PRIORITY_ITEMS[p]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <span className="text-sm text-[var(--que-text)]">{PRIORITY_ITEMS[detail.priority]}</span>
+            )}
           </FieldRow>
 
           <FieldRow icon={<CalendarDays className="size-4" aria-hidden />} label="마감일">
-            <Input
-              type="date"
-              value={dueAt}
-              onChange={(e) => setDueAt(e.target.value)}
-              aria-label="마감일"
-              className="h-10 min-h-10 border-[var(--que-border)]"
-            />
+            {canEdit ? (
+              <Input
+                type="date"
+                value={dueDate}
+                onChange={(e) => setDueDate(e.target.value)}
+                aria-label="마감일"
+                className="h-10 min-h-10 border-[var(--que-border)]"
+              />
+            ) : (
+              <span className="text-sm text-[var(--que-text)]">{detail.dueLabel ?? "미정"}</span>
+            )}
           </FieldRow>
 
-          {detail.timeRange ? (
-            <FieldRow icon={<Clock className="size-4" aria-hidden />} label="시간">
-              <span className="text-sm text-[var(--que-text)]">{detail.timeRange}</span>
-            </FieldRow>
-          ) : null}
-
-          <FieldRow icon={<Users className="size-4" aria-hidden />} label="담당자">
-            <Popover>
-              <PopoverTrigger
-                render={
-                  <Button
-                    variant="outline"
-                    aria-label="담당자 선택"
-                    className="h-auto min-h-10 w-full justify-start gap-2 border-[var(--que-border)] px-2.5 py-1.5 font-normal"
-                  />
-                }
+          <FieldRow icon={<User className="size-4" aria-hidden />} label="담당자">
+            {canEdit ? (
+              <Select
+                items={assigneeItems}
+                value={detail.assignee?.id ?? ""}
+                onValueChange={(v) => v && reassign(v)}
               >
-                {selectedMembers.length > 0 ? (
-                  <span className="flex min-w-0 items-center gap-2">
-                    <MemberAvatars members={selectedMembers} size={24} />
-                    <span className="truncate text-sm text-[var(--que-text)]">
-                      {selectedMembers.map((m) => m.name).join(", ")}
-                    </span>
-                  </span>
+                <SelectTrigger
+                  aria-label="담당자 변경"
+                  className="h-10 min-h-10 w-full gap-2 border-[var(--que-border)]"
+                >
+                  <SelectValue placeholder="담당자 선택" />
+                </SelectTrigger>
+                <SelectContent>
+                  {meta.members.map((m) => (
+                    <SelectItem key={m.id} value={m.id}>
+                      <MemberAvatars members={[m]} size={22} />
+                      {m.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <span className="flex items-center gap-2 text-sm text-[var(--que-text)]">
+                {detail.assignee ? (
+                  <>
+                    <MemberAvatars members={[detail.assignee]} size={22} />
+                    {detail.assignee.name}
+                  </>
                 ) : (
-                  <span className="text-sm text-[var(--que-text-tertiary)]">담당자 없음</span>
+                  "미배정"
                 )}
-              </PopoverTrigger>
-              <PopoverContent align="start" className="w-64 gap-1 p-1.5">
-                <p className="px-1.5 pt-1 pb-1 text-xs font-medium text-[var(--que-text-secondary)]">
-                  담당자
-                </p>
-                <ul>
-                  {meta.members.map((m) => {
-                    const checked = assigneeIds.includes(m.id);
-                    return (
-                      <li key={m.id}>
-                        <label className="flex min-h-10 cursor-pointer items-center gap-2.5 rounded-md px-1.5 hover:bg-[var(--que-bg-muted)]">
-                          <Checkbox
-                            checked={checked}
-                            onCheckedChange={(next) =>
-                              setAssigneeIds((prev) =>
-                                next ? [...prev, m.id] : prev.filter((id) => id !== m.id),
-                              )
-                            }
-                            aria-label={`${m.name} 담당 지정`}
-                          />
-                          <MemberAvatars members={[m]} size={24} />
-                          <span className="truncate text-sm text-[var(--que-text)]">{m.name}</span>
-                        </label>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </PopoverContent>
-            </Popover>
+              </span>
+            )}
           </FieldRow>
         </dl>
 
@@ -382,61 +388,45 @@ function DrawerBody({
           >
             설명
           </label>
-          <Textarea
-            id="task-description"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder="설명을 입력하세요."
-            className="mt-2 min-h-24 border-[var(--que-border)] text-sm leading-relaxed"
-          />
+          {canEdit ? (
+            <Textarea
+              id="task-description"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="설명을 입력하세요."
+              className="mt-2 min-h-24 border-[var(--que-border)] text-sm leading-relaxed"
+            />
+          ) : (
+            <p className="mt-2 text-sm leading-relaxed whitespace-pre-wrap text-[var(--que-text)]">
+              {detail.description ?? "설명 없음"}
+            </p>
+          )}
         </div>
 
-        {/* 첨부 */}
-        {detail.attachments.length > 0 ? (
-          <div className="mt-5 border-t border-[var(--que-border)] pt-5">
-            <div className="flex items-center justify-between">
-              <span className="flex items-center gap-1.5 text-sm font-medium text-[var(--que-text-secondary)]">
-                <Paperclip className="size-4" aria-hidden />
-                첨부 파일
-              </span>
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    <Button
-                      variant="ghost"
-                      aria-disabled
-                      title="준비 중"
-                      className="h-8 gap-1 rounded-md px-2 text-xs font-medium text-[var(--que-brand)]"
-                    />
-                  }
-                >
-                  <Plus className="size-3.5" aria-hidden />
-                  파일 추가
-                </TooltipTrigger>
-                <TooltipContent>준비 중</TooltipContent>
-              </Tooltip>
-            </div>
-            <ul className="mt-2 flex flex-wrap gap-2">
-              {detail.attachments.map((att) => (
-                <li key={att.id} className="min-w-0 flex-1 basis-[calc(50%-0.25rem)]">
-                  <AttachmentCard attachment={att} />
-                </li>
-              ))}
-            </ul>
-          </div>
+        {!canEdit ? (
+          <p className="mt-5 rounded-lg border border-dashed border-[var(--que-border)] p-3 text-sm text-[var(--que-text-secondary)]">
+            이 작업은 본인, 프로젝트 담당자, 관리자만 수정할 수 있습니다.
+          </p>
         ) : null}
       </div>
 
       {/* 저장 바 */}
-      <footer className="flex shrink-0 items-center justify-end gap-2 border-t border-[var(--que-border)] px-5 py-3">
-        <Button
-          onClick={save}
-          disabled={!dirty || nameEmpty || pending}
-          className="h-10 px-5"
-        >
-          저장
-        </Button>
-      </footer>
+      {canEdit ? (
+        <footer className="flex shrink-0 items-center justify-end gap-2 border-t border-[var(--que-border)] px-5 py-3">
+          <Button onClick={save} disabled={!dirty || titleEmpty || pending} className="h-10 px-5">
+            저장
+          </Button>
+        </footer>
+      ) : null}
+
+      {/* 홀드·문제 이동 사유 */}
+      <BlockedStatusDialog
+        open={blockedOpen}
+        onOpenChange={setBlockedOpen}
+        taskTitle={detail.title}
+        pending={pending}
+        onConfirm={confirmBlocked}
+      />
 
       {/* 삭제 확인 */}
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
@@ -444,7 +434,7 @@ function DrawerBody({
           <DialogHeader>
             <DialogTitle>작업 삭제</DialogTitle>
             <DialogDescription>
-              &quot;{detail.name}&quot; 작업을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.
+              &quot;{detail.title}&quot; 작업을 삭제하면 목록에서 사라지고 취소 상태로 보관됩니다.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -475,64 +465,6 @@ function FieldRow({
         {label}
       </dt>
       <dd className="min-w-0 flex-1">{children}</dd>
-    </div>
-  );
-}
-
-const KIND_STYLE: Record<AttachmentKind, { className: string; icon: React.ReactNode }> = {
-  pdf: {
-    className: "bg-[var(--que-error-bg)] text-[var(--que-error)]",
-    icon: <FileText className="size-4" aria-hidden />,
-  },
-  doc: {
-    className: "bg-[var(--que-brand-subtle)] text-[var(--que-brand)]",
-    icon: <FileText className="size-4" aria-hidden />,
-  },
-  img: {
-    className: "bg-[var(--que-success-bg)] text-[var(--que-success)]",
-    icon: <FileImage className="size-4" aria-hidden />,
-  },
-  file: {
-    className: "bg-[var(--que-bg-muted)] text-[var(--que-text-secondary)]",
-    icon: <FileIcon className="size-4" aria-hidden />,
-  },
-};
-
-function AttachmentCard({ attachment }: { attachment: PmAttachment }) {
-  const style = KIND_STYLE[attachment.kind];
-  return (
-    <div className="flex items-center gap-2.5 rounded-lg border border-[var(--que-border)] p-2.5">
-      <span
-        className={cn(
-          "flex size-9 shrink-0 items-center justify-center rounded-md",
-          style.className,
-        )}
-        aria-hidden
-      >
-        {style.icon}
-      </span>
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium text-[var(--que-text)]">{attachment.name}</p>
-        <p className="mt-0.5 flex items-center gap-1.5 text-xs text-[var(--que-text-tertiary)]">
-          <span>{attachment.sizeLabel}</span>
-          <span aria-hidden>·</span>
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <button
-                  type="button"
-                  aria-disabled
-                  title="준비 중"
-                  className="font-medium text-[var(--que-brand)]"
-                />
-              }
-            >
-              미리보기
-            </TooltipTrigger>
-            <TooltipContent>준비 중</TooltipContent>
-          </Tooltip>
-        </p>
-      </div>
     </div>
   );
 }

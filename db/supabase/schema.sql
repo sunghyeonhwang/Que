@@ -41,6 +41,8 @@ create table if not exists projects (
   status     text not null check (status in ('active', 'archived')),
   -- 상위 클라이언트. nullable — 클라이언트 없는 내부 잡무 허용. Task는 project를 통해 간접 참조.
   client_id  text references clients(id),
+  -- PM 도구(/projects) 프로젝트 설명. core에서 2000자 상한 검증. (add-project-description.sql)
+  description text check (char_length(description) <= 2000),
   created_at timestamptz not null default now()
 );
 

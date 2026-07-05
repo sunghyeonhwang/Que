@@ -2,42 +2,37 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ChevronDown, Plus, MoreHorizontal } from "lucide-react";
-import type { ListViewGroup } from "@/lib/pm-data";
+import { ChevronDown, Plus, Lock } from "lucide-react";
+import type { BoardColumn } from "@/lib/projects-data";
+import { TONE_STYLE, COLUMN_TONE } from "@/lib/pm-columns";
 import { IconButton } from "@/components/app/icon-button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { PriorityBadge } from "./priority-badge";
 import { MemberAvatars } from "./member-avatars";
 import { TaskDoneToggle } from "./task-done-toggle";
-import { TaskCardMenu, type GroupOption } from "./task-card-menu";
+import { TaskCardMenu } from "./task-card-menu";
 import { AddTaskInline } from "./add-task-inline";
 import { cn } from "@/lib/utils";
 
-// 이름 | 설명 | 마감일 | 우선순위 | 사람들 | ⋮.
-// 좁은 폭(태블릿 세로): 설명·마감일을 숨겨 가로 스크롤 없이 유지.
+// 이름 | 마감일 | 우선순위 | 담당자 | ⋮.
+// 좁은 폭(태블릿 세로): 마감일을 숨겨 가로 스크롤 없이 유지.
 const GRID =
-  "grid grid-cols-[minmax(0,1fr)_84px_40px] items-center gap-3 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1.7fr)_170px_92px_84px_40px]";
+  "grid grid-cols-[minmax(0,1fr)_92px_84px_40px] items-center gap-3 md:grid-cols-[minmax(0,1.6fr)_170px_92px_84px_40px]";
 
 export function TaskGroupSection({
-  group,
+  column,
+  projectId,
   taskHref,
-  allGroups,
+  onBlocked,
 }: {
-  group: ListViewGroup;
+  column: BoardColumn;
+  projectId: string;
   taskHref: (taskId: string) => string;
-  /** 카드 ⋮ '이동' 대상 목록. project-view가 meta.groups(=data.groups)를 흘려준다. */
-  allGroups?: GroupOption[];
+  onBlocked: (card: { taskId: string; taskTitle: string }) => void;
 }) {
   const [open, setOpen] = useState(true);
   const [adding, setAdding] = useState(false);
-
-  const moveTargets: GroupOption[] =
-    allGroups ?? [{ id: group.id, name: group.name, color: group.color }];
+  const tone = TONE_STYLE[COLUMN_TONE[column.key]];
+  const showAdd = column.key === "scheduled";
 
   const startAdding = () => {
     setOpen(true);
@@ -51,7 +46,7 @@ export function TaskGroupSection({
           type="button"
           onClick={() => setOpen((v) => !v)}
           aria-expanded={open}
-          aria-label={`${group.name} 접기/펼치기`}
+          aria-label={`${column.label} 접기/펼치기`}
           className="flex size-8 items-center justify-center rounded-md text-[var(--que-text-secondary)] hover:bg-[var(--que-bg-muted)] focus-visible:outline-2 focus-visible:outline-[var(--que-brand)]"
         >
           <ChevronDown
@@ -59,36 +54,20 @@ export function TaskGroupSection({
             aria-hidden
           />
         </button>
-        <span
-          className="size-2.5 shrink-0 rounded-full"
-          style={{ backgroundColor: group.color }}
-          aria-hidden
-        />
-        <span className="text-sm font-semibold text-[var(--que-text)]">{group.name}</span>
-        <span className="text-sm text-[var(--que-text-tertiary)]">{group.count}</span>
-        <div className="ml-auto flex items-center">
-          <IconButton
-            label="태스크 추가"
-            onClick={startAdding}
-            className="size-10 text-[var(--que-text-secondary)]"
-          >
-            <Plus className="size-4" aria-hidden />
-          </IconButton>
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              aria-label={`${group.name} 메뉴`}
-              className="inline-flex size-10 items-center justify-center rounded-lg text-[var(--que-text-secondary)] transition-colors hover:bg-[var(--que-bg-muted)] focus-visible:outline-2 focus-visible:outline-[var(--que-brand)] data-[popup-open]:bg-[var(--que-bg-muted)]"
+        <span className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: tone.dot }} aria-hidden />
+        <span className="text-sm font-semibold text-[var(--que-text)]">{column.label}</span>
+        <span className="text-sm text-[var(--que-text-tertiary)]">{column.count}</span>
+        {showAdd && (
+          <div className="ml-auto flex items-center">
+            <IconButton
+              label="예정 열에 태스크 추가"
+              onClick={startAdding}
+              className="size-10 text-[var(--que-text-secondary)]"
             >
-              <MoreHorizontal className="size-4" aria-hidden />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-44">
-              <DropdownMenuItem onClick={startAdding}>
-                <Plus className="size-4" aria-hidden />
-                태스크 추가
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+              <Plus className="size-4" aria-hidden />
+            </IconButton>
+          </div>
+        )}
       </div>
 
       {open && (
@@ -100,66 +79,86 @@ export function TaskGroupSection({
             )}
           >
             <span>이름</span>
-            <span className="hidden md:block">설명</span>
             <span className="hidden md:block">마감일</span>
             <span>우선순위</span>
-            <span className="text-right">사람들</span>
+            <span className="text-right">담당자</span>
             <span className="sr-only">메뉴</span>
           </div>
 
-          {group.tasks.map((task) => (
-            <div
-              key={task.id}
-              className={cn(
-                GRID,
-                "relative min-h-[52px] border-b border-[var(--que-border)] px-3 py-2.5 transition-colors hover:bg-[var(--que-bg-muted)]",
-              )}
-            >
-              {/* 행 전체 클릭 → 상세 드로어(URL ?task). 체크박스·메뉴는 위로 올려 겹치지 않게. */}
-              <Link
-                href={taskHref(task.id)}
-                scroll={false}
-                aria-label={`${task.name} 상세 열기`}
-                className="absolute inset-0 z-10 rounded-md focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--que-brand)]"
-              />
-              <div className="flex min-w-0 items-center gap-2.5">
-                <TaskDoneToggle taskId={task.id} taskName={task.name} done={task.done} />
-                <span
-                  className={cn(
-                    "min-w-0 truncate text-sm font-medium",
-                    task.done
-                      ? "text-[var(--que-text-tertiary)] line-through"
-                      : "text-[var(--que-text)]",
-                  )}
-                >
-                  {task.name}
-                </span>
-              </div>
-              <p className="hidden min-w-0 text-sm text-[var(--que-text-secondary)] md:line-clamp-2">
-                {task.description}
-              </p>
-              <span className="hidden text-sm text-[var(--que-text-secondary)] md:block">
-                {task.dueLabel ?? "-"}
-              </span>
-              <span>
-                <PriorityBadge priority={task.priority} />
-              </span>
-              <div className="flex justify-end">
-                <MemberAvatars members={task.assignees} />
-              </div>
-              <div className="flex justify-end">
-                <TaskCardMenu
-                  taskId={task.id}
-                  taskName={task.name}
-                  currentGroupId={group.id}
-                  groups={moveTargets}
+          {column.cards.map((card) => {
+            const done = card.status === "done";
+            return (
+              <div
+                key={card.taskId}
+                className={cn(
+                  GRID,
+                  "relative min-h-[52px] border-b border-[var(--que-border)] px-3 py-2.5 transition-colors hover:bg-[var(--que-bg-muted)]",
+                )}
+              >
+                {/* 행 전체 클릭 → 상세 드로어(URL ?task). 체크박스·메뉴는 위로 올려 겹치지 않게. */}
+                <Link
+                  href={taskHref(card.taskId)}
+                  scroll={false}
+                  aria-label={`${card.title} 상세 열기`}
+                  className="absolute inset-0 z-10 rounded-md focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--que-brand)]"
                 />
+                <div className="flex min-w-0 items-center gap-2.5">
+                  <TaskDoneToggle
+                    taskId={card.taskId}
+                    taskTitle={card.title}
+                    done={done}
+                    disabled={!card.canEdit}
+                  />
+                  <span
+                    className={cn(
+                      "min-w-0 truncate text-sm font-medium",
+                      done
+                        ? "text-[var(--que-text-tertiary)] line-through"
+                        : "text-[var(--que-text)]",
+                    )}
+                  >
+                    {card.title}
+                  </span>
+                </div>
+                <span className="hidden text-sm text-[var(--que-text-secondary)] md:block">
+                  {card.dueLabel ?? "-"}
+                </span>
+                <span>
+                  <PriorityBadge priority={card.priority} />
+                </span>
+                <div className="flex justify-end">
+                  <MemberAvatars members={card.assignee ? [card.assignee] : []} />
+                </div>
+                <div className="flex justify-end">
+                  {card.canEdit ? (
+                    <TaskCardMenu
+                      taskId={card.taskId}
+                      taskTitle={card.title}
+                      currentColumn={card.columnKey}
+                      onBlocked={() => onBlocked({ taskId: card.taskId, taskTitle: card.title })}
+                    />
+                  ) : (
+                    <span
+                      className="relative z-20 flex size-10 items-center justify-center text-[var(--que-text-tertiary)]"
+                      title="읽기 전용"
+                      aria-label="읽기 전용"
+                    >
+                      <Lock className="size-3.5" aria-hidden />
+                    </span>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
 
-          {adding && (
-            <AddTaskInline groupId={group.id} onClose={() => setAdding(false)} />
+          {column.cards.length === 0 && !adding && (
+            <p className="px-3 py-6 text-center text-xs text-[var(--que-text-tertiary)]">
+              태스크 없음
+            </p>
+          )}
+
+          {adding && showAdd && (
+            <AddTaskInline projectId={projectId} onClose={() => setAdding(false)} />
           )}
         </div>
       )}

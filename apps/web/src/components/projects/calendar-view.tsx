@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname, useSearchParams } from "next/navigation";
 import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
-import type { CalendarViewDay, CalendarViewTask, ProjectCalendarView } from "@/lib/pm-data";
+import type { CalendarCard, CalendarDay, ProjectCalendar } from "@/lib/projects-data";
+import { STATUS_TONE, TONE_STYLE } from "@/lib/pm-columns";
 import { buttonVariants } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
@@ -10,12 +12,7 @@ import { cn } from "@/lib/utils";
 const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
 const MAX_PILLS = 3;
 
-/** 뒤 2자리 알파를 붙여 옅은 틴트로. hex(#rrggbb)에 8자리 hex. */
-function tint(hex: string, alpha: string): string {
-  return `${hex}${alpha}`;
-}
-
-/** icon-only 링크 — aria-label + Tooltip. 터치 40px. IconButton은 button 전용이라 링크용으로 별도. */
+/** icon-only 링크 — aria-label + Tooltip. 터치 40px. */
 function NavIconLink({
   href,
   label,
@@ -47,26 +44,39 @@ function NavIconLink({
   );
 }
 
-/** 프로젝트 캘린더(월 그리드) 뷰 — 마감 태스크를 날짜 셀에 표시. pill 클릭 → 상세 드로어(P4). */
+/** 프로젝트 캘린더(월 그리드) 뷰 — 마감(endAt) 태스크를 날짜 셀에 표시. pill 클릭 → 상세 드로어. */
 export function ProjectCalendarView({
   data,
   taskHref,
 }: {
-  data: ProjectCalendarView;
+  data: ProjectCalendar;
   taskHref: (taskId: string) => string;
 }) {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  // 현재 파라미터(project 등)를 보존하며 month만 바꾼 링크.
+  const monthHref = (month: string | null) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("view", "calendar");
+    if (month) params.set("month", month);
+    else params.delete("month");
+    params.delete("task");
+    return `${pathname}?${params.toString()}`;
+  };
+
   return (
     <div className="-mx-4 flex min-h-0 flex-1 flex-col px-4 pt-3 md:-mx-5 md:px-5 xl:-mx-6 xl:px-6">
       <header className="flex shrink-0 items-center justify-between gap-2 pb-3">
         <h2 className="text-lg font-semibold text-[var(--que-text)]">{data.monthLabel}</h2>
         <div className="flex items-center gap-1">
-          <NavIconLink href="?view=calendar" label="기본 달로">
+          <NavIconLink href={monthHref(null)} label="기본 달로">
             <CalendarDays className="size-4" aria-hidden />
           </NavIconLink>
-          <NavIconLink href={`?view=calendar&month=${data.prevMonth}`} label="이전 달">
+          <NavIconLink href={monthHref(data.prevMonth)} label="이전 달">
             <ChevronLeft className="size-4" aria-hidden />
           </NavIconLink>
-          <NavIconLink href={`?view=calendar&month=${data.nextMonth}`} label="다음 달">
+          <NavIconLink href={monthHref(data.nextMonth)} label="다음 달">
             <ChevronRight className="size-4" aria-hidden />
           </NavIconLink>
         </div>
@@ -100,10 +110,10 @@ function DayCell({
   day,
   taskHref,
 }: {
-  day: CalendarViewDay;
+  day: CalendarDay;
   taskHref: (taskId: string) => string;
 }) {
-  const hidden = day.tasks.length - MAX_PILLS;
+  const hidden = day.cards.length - MAX_PILLS;
   return (
     <div
       role="gridcell"
@@ -131,8 +141,8 @@ function DayCell({
       </div>
 
       <div className="flex flex-col gap-1">
-        {day.tasks.slice(0, MAX_PILLS).map((task) => (
-          <TaskPill key={task.id} task={task} href={taskHref(task.id)} />
+        {day.cards.slice(0, MAX_PILLS).map((card) => (
+          <TaskPill key={card.taskId} card={card} href={taskHref(card.taskId)} />
         ))}
         {hidden > 0 && (
           <span className="px-1 text-xs font-medium text-[var(--que-brand)]">+{hidden}개 작업</span>
@@ -142,22 +152,19 @@ function DayCell({
   );
 }
 
-function TaskPill({ task, href }: { task: CalendarViewTask; href: string }) {
+function TaskPill({ card, href }: { card: CalendarCard; href: string }) {
+  const tone = TONE_STYLE[STATUS_TONE[card.status]];
   return (
     <Link
       href={href}
       scroll={false}
-      aria-label={`${task.name} 상세 열기`}
+      aria-label={`${card.title} 상세 열기`}
       className="flex items-center gap-1.5 rounded-md px-1.5 py-1 text-xs text-[var(--que-text)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--que-brand)]"
-      style={{ backgroundColor: tint(task.color, "1f") }}
-      title={task.name}
+      style={{ backgroundColor: tone.tint }}
+      title={card.title}
     >
-      <span
-        className="size-1.5 shrink-0 rounded-full"
-        style={{ backgroundColor: task.color }}
-        aria-hidden
-      />
-      <span className="truncate">{task.name}</span>
+      <span className="size-1.5 shrink-0 rounded-full" style={{ backgroundColor: tone.dot }} aria-hidden />
+      <span className="truncate">{card.title}</span>
     </Link>
   );
 }

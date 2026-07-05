@@ -1,6 +1,8 @@
 "use client";
 
 import { MoreHorizontal, ArrowRightLeft } from "lucide-react";
+import type { BoardColumnKey } from "@/lib/projects-data";
+import { COLUMN_LABEL, COLUMN_ORDER, SIMPLE_COLUMN_STATUS, TONE_STYLE, COLUMN_TONE } from "@/lib/pm-columns";
 import { moveTaskAction } from "@/app/(app)/projects/pm-actions";
 import { useSafeAction } from "@/components/app/use-safe-action";
 import {
@@ -15,29 +17,33 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
-export type GroupOption = { id: string; name: string; color: string };
-
-/** 태스크 카드/행 공용 ⋮ 메뉴 — 현재 그룹을 제외한 다른 그룹으로 이동.
+/** 태스크 카드/행 공용 ⋮ 메뉴 — 현재 열을 제외한 다른 열로 이동.
+ *  예정/진행중/완료는 즉시 이동, 홀드·문제는 사유 입력이 필요해 onBlocked로 위임한다.
  *  트리거는 상세 열기 Link 위(z-20)에 두고 pointer 이벤트를 막아 링크와 충돌하지 않게 한다. */
 export function TaskCardMenu({
   taskId,
-  taskName,
-  currentGroupId,
-  groups,
+  taskTitle,
+  currentColumn,
+  onBlocked,
   className,
 }: {
   taskId: string;
-  taskName: string;
-  currentGroupId: string;
-  groups: GroupOption[];
+  taskTitle: string;
+  currentColumn: BoardColumnKey;
+  /** 홀드·문제 열로 이동 요청 — 부모가 사유 Dialog를 연다. */
+  onBlocked: () => void;
   className?: string;
 }) {
   const { run, pending } = useSafeAction();
-  const targets = groups.filter((g) => g.id !== currentGroupId);
+  const targets = COLUMN_ORDER.filter((key) => key !== currentColumn);
 
-  const move = (target: GroupOption) => {
-    run(() => moveTaskAction(taskId, target.id), {
-      success: `"${taskName}" → ${target.name}`,
+  const moveTo = (key: BoardColumnKey) => {
+    if (key === "blocked") {
+      onBlocked();
+      return;
+    }
+    run(() => moveTaskAction({ taskId, to: SIMPLE_COLUMN_STATUS[key] }), {
+      success: `"${taskTitle}" → ${COLUMN_LABEL[key]}`,
     });
   };
 
@@ -51,7 +57,7 @@ export function TaskCardMenu({
           render={
             <DropdownMenuTrigger
               disabled={pending}
-              aria-label={`${taskName} 메뉴`}
+              aria-label={`${taskTitle} 메뉴`}
               onPointerDown={stop}
               onClick={stop}
               className={cn(
@@ -67,25 +73,21 @@ export function TaskCardMenu({
       </Tooltip>
       <DropdownMenuContent align="end" className="w-44" onClick={stop}>
         <DropdownMenuSub>
-          <DropdownMenuSubTrigger disabled={targets.length === 0}>
+          <DropdownMenuSubTrigger>
             <ArrowRightLeft className="size-4" aria-hidden />
             이동
           </DropdownMenuSubTrigger>
           <DropdownMenuSubContent className="min-w-40">
-            {targets.length === 0 ? (
-              <DropdownMenuItem disabled>다른 그룹 없음</DropdownMenuItem>
-            ) : (
-              targets.map((target) => (
-                <DropdownMenuItem key={target.id} onClick={() => move(target)}>
-                  <span
-                    className="size-2.5 shrink-0 rounded-full"
-                    style={{ backgroundColor: target.color }}
-                    aria-hidden
-                  />
-                  {target.name}
-                </DropdownMenuItem>
-              ))
-            )}
+            {targets.map((key) => (
+              <DropdownMenuItem key={key} onClick={() => moveTo(key)}>
+                <span
+                  className="size-2.5 shrink-0 rounded-full"
+                  style={{ backgroundColor: TONE_STYLE[COLUMN_TONE[key]].dot }}
+                  aria-hidden
+                />
+                {COLUMN_LABEL[key]}
+              </DropdownMenuItem>
+            ))}
           </DropdownMenuSubContent>
         </DropdownMenuSub>
       </DropdownMenuContent>

@@ -1,6 +1,6 @@
 import { type TaskStatus, type User } from "@que/core";
 import { getDb } from "./db";
-import type { ListViewMember } from "./pm-data";
+import type { ListViewMember } from "./pm-types";
 
 // "내 작업" 플랫 목록 데이터. 신규 PM 모델이 아니라 **기존 Task 모델**(내게 배정된 작업)을 쓴다.
 // 디자인의 태스크 표(이름·설명·마감일·배정·우선순위·진행률)에 맞춰 조합한다.

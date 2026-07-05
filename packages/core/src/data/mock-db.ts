@@ -20,7 +20,7 @@ import type {
   TaskStatus,
   User,
 } from "../domain";
-import { clientSchema, milestoneSchema, projectSchema } from "../domain";
+import { clientSchema, milestoneSchema, projectSchema, taskSchema } from "../domain";
 import { USERS } from "../mock/users";
 import {
   QueRuleError,
@@ -438,6 +438,7 @@ export class MockQueDb implements QueDb {
       endAt?: string;
       description?: string;
       estimatedHours?: number;
+      priority?: Task["priority"];
       source: Task["source"];
     },
   ): Task {
@@ -462,6 +463,11 @@ export class MockQueDb implements QueDb {
     if (input.estimatedHours !== undefined && !(input.estimatedHours > 0)) {
       throw new QueRuleError("INVALID_INPUT", "예상 소요 시간은 0보다 커야 한다");
     }
+    // priority는 클라이언트 직렬화값 — enum을 런타임 검증한다(마일스톤/클라이언트 선례).
+    const priority = input.priority ?? "normal";
+    if (!taskSchema.shape.priority.safeParse(priority).success) {
+      throw new QueRuleError("INVALID_INPUT", "잘못된 우선순위다");
+    }
 
     const nowIso = this.now();
     const task: Task = {
@@ -473,7 +479,7 @@ export class MockQueDb implements QueDb {
       startAt: range?.startAt,
       endAt: range?.endAt,
       status: "scheduled",
-      priority: "normal",
+      priority,
       description: input.description?.trim() || undefined,
       estimatedHours: input.estimatedHours,
       source: input.source,
@@ -487,6 +493,95 @@ export class MockQueDb implements QueDb {
       entityId: task.id,
       changeType: "create",
       afterValue: `${task.title} (담당 ${assignee.name})`,
+    });
+    return task;
+  }
+
+  /** 작업 상세 편집(제목·설명·우선순위·마감일) — PM 도구(/projects) 카드 드로어용.
+   *  본인 작업만 수정 가능(assertCanEditTask). 전달된 필드만 부분 업데이트하고,
+   *  실제로 바뀐 항목만 골라 before/after를 ChangeLog(update)에 남긴다.
+   *  상태 변경은 여기서 다루지 않는다 — changeTaskStatus(사유 규칙)를 거친다.
+   *  일정 이동(startAt/endAt 범위)은 moveTask를, 담당자 변경은 reassignTask를 쓴다.
+   *  단, endAt(마감일)만 단독으로 바꾸는 건 카드 편집의 흔한 케이스라 여기서 허용한다. */
+  updateTaskDetails(
+    ctx: ActorContext,
+    input: {
+      taskId: string;
+      title?: string;
+      description?: string | null;
+      priority?: Task["priority"];
+      /** 마감(종료) 시각 ISO. null이면 마감 해제. startAt은 유지한다. */
+      endAt?: string | null;
+    },
+  ): Task {
+    const actor = this.requireUser(ctx.actorId);
+    const task = this.requireTask(input.taskId);
+    assertCanEditTask(actor, task, this.projectOf(task));
+
+    const changes: string[] = [];
+    const before: string[] = [];
+
+    if (input.title !== undefined) {
+      const title = input.title.trim();
+      if (!title) throw new QueRuleError("INVALID_INPUT", "작업명은 필수다");
+      if (title.length > 200) throw new QueRuleError("INVALID_INPUT", "작업명은 200자 이내다");
+      if (title !== task.title) {
+        before.push(`제목: ${task.title}`);
+        changes.push(`제목: ${title}`);
+        task.title = title;
+      }
+    }
+    if (input.description !== undefined) {
+      const description = input.description?.trim() || undefined;
+      if ((description?.length ?? 0) > 2000) {
+        throw new QueRuleError("INVALID_INPUT", "설명은 2000자 이내다");
+      }
+      if (description !== task.description) {
+        before.push(`설명: ${task.description ?? "(없음)"}`);
+        changes.push(`설명: ${description ?? "(없음)"}`);
+        task.description = description;
+      }
+    }
+    if (input.priority !== undefined) {
+      if (!taskSchema.shape.priority.safeParse(input.priority).success) {
+        throw new QueRuleError("INVALID_INPUT", "잘못된 우선순위다");
+      }
+      if (input.priority !== task.priority) {
+        before.push(`우선순위: ${task.priority}`);
+        changes.push(`우선순위: ${input.priority}`);
+        task.priority = input.priority;
+      }
+    }
+    if (input.endAt !== undefined) {
+      let endAt: string | undefined;
+      if (input.endAt === null) {
+        endAt = undefined;
+      } else {
+        // ISO 형식 강제(단일 시점도 range 파서로 검증하는 다른 mutation 선례).
+        endAt = parseScheduleRange({ startAt: input.endAt, endAt: input.endAt }).startAt;
+        // startAt이 있으면 endAt이 그보다 빠를 수 없다.
+        if (task.startAt && Date.parse(endAt) < Date.parse(task.startAt)) {
+          throw new QueRuleError("INVALID_SCHEDULE", "마감 시각은 시작 시각보다 빠를 수 없다");
+        }
+      }
+      if (endAt !== task.endAt) {
+        before.push(`마감: ${task.endAt ?? "(없음)"}`);
+        changes.push(`마감: ${endAt ?? "(없음)"}`);
+        task.endAt = endAt;
+      }
+    }
+
+    // 바뀐 게 없으면 아무것도 기록하지 않고 그대로 돌려준다(no-op ChangeLog 방지).
+    if (changes.length === 0) return task;
+
+    task.lastChangedBy = actor.id;
+    task.lastChangedAt = this.now();
+    this.logChange(ctx, {
+      entityType: "task",
+      entityId: task.id,
+      changeType: "update",
+      beforeValue: before.join(" · "),
+      afterValue: changes.join(" · "),
     });
     return task;
   }
@@ -938,6 +1033,7 @@ export class MockQueDb implements QueDb {
       ownerId?: string;
       clientId?: string;
       status?: Project["status"];
+      description?: string;
     },
   ): Project {
     const actor = this.requireUser(ctx.actorId);
@@ -956,6 +1052,10 @@ export class MockQueDb implements QueDb {
     if (!projectSchema.shape.status.safeParse(status).success) {
       throw new QueRuleError("INVALID_INPUT", "잘못된 프로젝트 상태다");
     }
+    const description = input.description?.trim() || undefined;
+    if ((description?.length ?? 0) > 2000) {
+      throw new QueRuleError("INVALID_INPUT", "프로젝트 설명은 2000자 이내다");
+    }
 
     const project: Project = {
       id: this.nextId("prj"),
@@ -963,6 +1063,7 @@ export class MockQueDb implements QueDb {
       ownerId: owner.id,
       status,
       clientId: input.clientId,
+      description,
       milestoneIds: [],
     };
     this.projects.push(project);
@@ -985,6 +1086,8 @@ export class MockQueDb implements QueDb {
       status?: Project["status"];
       clientId?: string | null;
       ownerId?: string;
+      /** 프로젝트 설명. null이면 설명 제거. */
+      description?: string | null;
     },
   ): Project {
     const actor = this.requireUser(ctx.actorId);
@@ -1020,6 +1123,17 @@ export class MockQueDb implements QueDb {
     }
     if (input.ownerId !== undefined) {
       project.ownerId = this.requireUser(input.ownerId).id;
+    }
+    if (input.description !== undefined) {
+      if (input.description === null) {
+        project.description = undefined; // 설명 제거
+      } else {
+        const description = input.description.trim() || undefined;
+        if ((description?.length ?? 0) > 2000) {
+          throw new QueRuleError("INVALID_INPUT", "프로젝트 설명은 2000자 이내다");
+        }
+        project.description = description;
+      }
     }
     this.logChange(ctx, {
       entityType: "project",

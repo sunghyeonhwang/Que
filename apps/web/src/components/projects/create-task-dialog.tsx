@@ -2,11 +2,11 @@
 
 import { useMemo, useState } from "react";
 import { Plus } from "lucide-react";
-import type { ProjectMeta, PmPriority } from "@/lib/pm-data";
+import type { ProjectMeta, TaskPriority } from "@/lib/projects-data";
+import { dueDateToIso } from "@/lib/pm-columns";
 import { createTaskAction } from "@/app/(app)/projects/pm-actions";
 import { useSafeAction } from "@/components/app/use-safe-action";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -27,50 +27,46 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-const PRIORITY_ITEMS: Record<PmPriority, string> = {
+const PRIORITY_ITEMS: Record<TaskPriority, string> = {
   high: "높음",
   normal: "보통",
   low: "낮음",
 };
-const PRIORITY_ORDER: PmPriority[] = ["high", "normal", "low"];
+const PRIORITY_ORDER: TaskPriority[] = ["high", "normal", "low"];
+
+const UNASSIGNED = "__unassigned__";
 
 /**
- * 태스크 생성 Dialog. 이름(필수)·설명·그룹·우선순위·마감일·담당자를 받아 createTaskAction 호출.
- * 성공 시 토스트 + 닫기 + 초기화. 그룹 목록은 meta에서 온다(하드코딩 없음).
+ * 태스크 생성 Dialog. 이름(필수)·설명·우선순위·마감일·담당자를 받아 createTaskAction 호출.
+ * 새 카드는 항상 예정(scheduled)으로 생성된다. 담당자 미지정 시 core가 본인으로 배정.
  */
-export function CreateTaskDialog({ meta }: { meta: ProjectMeta }) {
+export function CreateTaskDialog({ projectId, meta }: { projectId: string; meta: ProjectMeta }) {
   const { run, pending } = useSafeAction();
   const [open, setOpen] = useState(false);
 
-  const defaultGroupId = meta.groups[0]?.id ?? "";
-  const [name, setName] = useState("");
+  const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [groupId, setGroupId] = useState(defaultGroupId);
-  const [priority, setPriority] = useState<PmPriority>("normal");
-  const [dueAt, setDueAt] = useState("");
-  const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
+  const [priority, setPriority] = useState<TaskPriority>("normal");
+  const [dueDate, setDueDate] = useState("");
+  const [assigneeId, setAssigneeId] = useState<string>(UNASSIGNED);
 
-  const groupItems = useMemo(
-    () => Object.fromEntries(meta.groups.map((g) => [g.id, g.name])),
-    [meta.groups],
+  const assigneeItems = useMemo(
+    () => ({
+      [UNASSIGNED]: "나에게 배정",
+      ...Object.fromEntries(meta.members.map((m) => [m.id, m.name])),
+    }),
+    [meta.members],
   );
 
-  const nameError = name.length > 0 && !name.trim() ? "작업 이름을 입력하세요." : null;
-  const canSubmit = name.trim().length > 0 && groupId.length > 0 && !pending;
+  const titleError = title.length > 0 && !title.trim() ? "작업 이름을 입력하세요." : null;
+  const canSubmit = title.trim().length > 0 && !pending;
 
   const reset = () => {
-    setName("");
+    setTitle("");
     setDescription("");
-    setGroupId(defaultGroupId);
     setPriority("normal");
-    setDueAt("");
-    setAssigneeIds([]);
-  };
-
-  const toggleAssignee = (id: string) => {
-    setAssigneeIds((prev) =>
-      prev.includes(id) ? prev.filter((v) => v !== id) : [...prev, id],
-    );
+    setDueDate("");
+    setAssigneeId(UNASSIGNED);
   };
 
   const submit = () => {
@@ -78,15 +74,15 @@ export function CreateTaskDialog({ meta }: { meta: ProjectMeta }) {
     run(
       () =>
         createTaskAction({
-          groupId,
-          name: name.trim(),
+          projectId,
+          title: title.trim(),
           description: description.trim() || undefined,
-          dueAt: dueAt || null,
+          endAt: dueDateToIso(dueDate) ?? undefined,
           priority,
-          assigneeIds,
+          assigneeId: assigneeId === UNASSIGNED ? undefined : assigneeId,
         }),
       {
-        success: `"${name.trim()}" 작업을 추가했습니다.`,
+        success: `"${title.trim()}" 작업을 추가했습니다.`,
         onSuccess: () => {
           reset();
           setOpen(false);
@@ -114,25 +110,25 @@ export function CreateTaskDialog({ meta }: { meta: ProjectMeta }) {
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>새 작업</DialogTitle>
-          <DialogDescription>작업 정보를 입력해 그룹에 추가합니다.</DialogDescription>
+          <DialogDescription>작업 정보를 입력해 예정 열에 추가합니다.</DialogDescription>
         </DialogHeader>
 
         <div className="flex flex-col gap-3">
           <Field>
-            <FieldLabel htmlFor="ct-name">작업 이름</FieldLabel>
+            <FieldLabel htmlFor="ct-title">작업 이름</FieldLabel>
             <Input
-              id="ct-name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
+              id="ct-title"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Enter") submit();
               }}
               placeholder="예: 상세페이지 QA"
               className="h-10"
-              aria-invalid={nameError ? true : undefined}
+              aria-invalid={titleError ? true : undefined}
               autoFocus
             />
-            {nameError && <p className="text-sm text-destructive">{nameError}</p>}
+            {titleError && <p className="text-sm text-destructive">{titleError}</p>}
           </Field>
 
           <Field>
@@ -148,36 +144,11 @@ export function CreateTaskDialog({ meta }: { meta: ProjectMeta }) {
 
           <div className="grid grid-cols-2 gap-3">
             <Field>
-              <FieldLabel>그룹</FieldLabel>
-              <Select
-                items={groupItems}
-                value={groupId}
-                onValueChange={(v) => setGroupId((v as string) ?? defaultGroupId)}
-              >
-                <SelectTrigger aria-label="그룹 선택" className="h-10 min-h-10 w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {meta.groups.map((g) => (
-                    <SelectItem key={g.id} value={g.id}>
-                      <span
-                        className="size-2.5 rounded-full"
-                        style={{ backgroundColor: g.color }}
-                        aria-hidden
-                      />
-                      {g.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
-
-            <Field>
               <FieldLabel>우선순위</FieldLabel>
               <Select
                 items={PRIORITY_ITEMS}
                 value={priority}
-                onValueChange={(v) => setPriority(((v as PmPriority) ?? "normal"))}
+                onValueChange={(v) => setPriority((v as TaskPriority) ?? "normal")}
               >
                 <SelectTrigger aria-label="우선순위 선택" className="h-10 min-h-10 w-full">
                   <SelectValue />
@@ -191,42 +162,45 @@ export function CreateTaskDialog({ meta }: { meta: ProjectMeta }) {
                 </SelectContent>
               </Select>
             </Field>
+
+            <Field>
+              <FieldLabel htmlFor="ct-due">마감일</FieldLabel>
+              <Input
+                id="ct-due"
+                type="date"
+                value={dueDate}
+                onChange={(e) => setDueDate(e.target.value)}
+                className="h-10"
+              />
+            </Field>
           </div>
 
           <Field>
-            <FieldLabel htmlFor="ct-due">마감일</FieldLabel>
-            <Input
-              id="ct-due"
-              type="date"
-              value={dueAt}
-              onChange={(e) => setDueAt(e.target.value)}
-              className="h-10"
-            />
-          </Field>
-
-          <Field>
             <FieldLabel>담당자</FieldLabel>
-            <div className="max-h-40 overflow-y-auto rounded-lg border border-[var(--que-border)] p-1">
-              {meta.members.map((m) => (
-                <label
-                  key={m.id}
-                  className="flex min-h-10 cursor-pointer items-center gap-2.5 rounded-md px-1.5 text-sm text-[var(--que-text)] hover:bg-[var(--que-bg-muted)]"
-                >
-                  <Checkbox
-                    checked={assigneeIds.includes(m.id)}
-                    onCheckedChange={() => toggleAssignee(m.id)}
-                  />
-                  <span
-                    className="flex size-6 items-center justify-center rounded-full text-[11px] font-semibold text-white"
-                    style={{ backgroundColor: m.avatarColor }}
-                    aria-hidden
-                  >
-                    {m.name.slice(1)}
-                  </span>
-                  <span className="truncate">{m.name}</span>
-                </label>
-              ))}
-            </div>
+            <Select
+              items={assigneeItems}
+              value={assigneeId}
+              onValueChange={(v) => setAssigneeId((v as string) ?? UNASSIGNED)}
+            >
+              <SelectTrigger aria-label="담당자 선택" className="h-10 min-h-10 w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={UNASSIGNED}>나에게 배정</SelectItem>
+                {meta.members.map((m) => (
+                  <SelectItem key={m.id} value={m.id}>
+                    <span
+                      className="flex size-5 items-center justify-center rounded-full text-[10px] font-semibold text-white"
+                      style={{ backgroundColor: m.avatarColor }}
+                      aria-hidden
+                    >
+                      {m.name.slice(1)}
+                    </span>
+                    {m.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </Field>
         </div>
 

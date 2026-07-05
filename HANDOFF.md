@@ -527,6 +527,17 @@ data/
     - **glados 비차단 후속(수정 완료)**: (1) 실행취소 사각지대 — 이전 상태가 issue/on_hold였던 작업을 삭제 후 undo하면 detail 없이 `changeTaskStatus` 호출돼 `STATUS_DETAIL_REQUIRED`로 거부(버튼이 거짓말) → `cancelTask`가 취소 직전 StatusLog에서 detail 스냅샷 반환, undo가 detail 실어 복구(core 테스트 추가). (2) `rules.test.ts` `iso()` 이중평가 flaky → 변수 1회 캡처.
     - **교훈 재확인**: base-ui Select items prop 없으면 raw id 노출(59번 재발 방지 확인), 브라우저 인터랙션은 Playwright 필수. cancelled 숨김은 "행/집계 소스만 필터, ID→조회 맵은 전체 유지" 규율(57번) 준수.
 
+61. **PM 도구(/projects) DB화 + 메뉴 정식 복귀 (2026-07-05)** — 사용자 "다음 배치=PM DB화". dev-lead 설계 → 사용자 결정 3건 → backend-dev(core·데이터·액션·메뉴) → frontend-dev(컴포넌트 전환) → qa(4해상도) → glados PASS.
+    - **핵심 전환**: `/projects` PM 도구가 in-memory mock(`pm-data.ts` Workspace→PmProject→TaskGroup→PmTask, 비영속)에서 **core Task/Project 기반**으로 전면 재작성 → 영속·권한·ChangeLog 확보 후 **메뉴 정식 복귀**. 두 '프로젝트' 개념 이중화(56번 "혼란의 정체")가 해소됨 — 이제 홈·성과·planning·클라이언트·/projects가 core Project 단일 기준.
+    - **결정(사용자·A안)**: (1) 칸반 카드 = **core Task 흡수**(멀티담당→단수 assigneeId, 체크인 없는 첨부·category·시간대표시 폐기 — 첨부는 업로드 백엔드 없는 가짜였음), (2) 칸반 컬럼 = **status 고정 4열**(예정=scheduled/needs_reschedule·진행중=in_progress·홀드/문제=on_hold+issue·완료=done, cancelled/merged 제외), '그룹 추가'(자유컬럼)·position 순서 폐기, (3) /projects **전원 노출**(adminOnly 아님, 쓰기는 canEditTask가 카드 단위 제한). Workspace 폐기(Client가 상위 계층), mock 시드 미이관.
+    - **⚠️ 프로덕션 DDL 선적용**: `projects.description text check(len<=2000)`(Supabase MCP `add_project_description`, 무파괴 additive, 적용 전 projects 1행 확인). `tasks.priority`·`change_logs.entity_type(task/project)`는 기존재라 추가 DDL 불필요. `db/supabase/add-project-description.sql`+schema.sql 동봉.
+    - **core**: `updateTaskDetails(ctx,{taskId,title?,description?,priority?,endAt?})` 신설(canEditTask·부분업데이트·ChangeLog update·no-op 방지), `createTask` priority 입력, projectSchema/createProject/updateProject description. 테스트 120→**129**(+9).
+    - **데이터/액션**: `pm-data.ts` 삭제 → `projects-data.ts`(서버 뷰모델: 보드/목록/캘린더/상세, 댓글 task_comments 실집계, `?project=` 선택·클라 필터 스코프, `STATUS_TO_COLUMN`=`Record<TaskStatus,…|null>`로 전수 매핑 **컴파일 강제**, 빈 상태). `pm-types.ts`(ListViewMember 이관), **`pm-columns.ts`(클라 안전 상수 — 클라 컴포넌트는 값 import를 여기서, projects-data는 type-only만; 57번 서버/클라 번들 경계 교훈)**. pm-actions 6액션 core 전환(create/update/reassign/delete=cancelTask soft/toggleDone/move=changeTaskStatus), **QUE_PM_WRITE 게이트·미리보기 배너 삭제**.
+    - **UI**: 홀드·문제 열 이동 = **공용 `BlockedStatusDialog`**(on_hold/issue 택1 + `status-detail-form` 재사용, 사유 강제, 취소 시 카드 원위치). 드래그=열 이동만(position 제거), `canEdit===false` 카드 읽기전용(Lock·drag 불가·저장/삭제 숨김). 마감일 `<input type=date>`→`dueDateToIso`(로컬 18:00 ISO, core parseScheduleRange 요구 충족). Select 전부 items prop. `create-group-dialog`·`project-filter`(?priority/?assignee 미지원) 삭제.
+    - **메뉴/문서**: menu.ts "메뉴" 섹션에 /projects(FolderKanban, 전원 노출) + 제외 주석 삭제, CLAUDE.md 메뉴 절 동기화(menu.ts 일치 불변식 유지).
+    - **검증**: core **129**, core/web/mcp/cli typecheck, web lint, **web build(/projects 라우트 생성)** 통과. qa Playwright **4해상도 전 시나리오 PASS**(메뉴노출·보드4열·드래그이동·홀드Dialog취소원위치·드로어편집/재배정/soft삭제·태스크생성·목록/캘린더·**비관리자 읽기전용 Lock**, pageerror/console.error **0건**). glados **[PASS]**.
+    - **후속(비차단)**: (1) COLUMN_ORDER/LABEL이 projects-data·pm-columns 이중정의(주석 의존) → pm-columns 단일출처로 정리 권장. (2) 프로젝트 필터(우선순위·담당자)는 v1 제외 — 필요 시 클라이언트 전용 필터 재도입. (3) 헤더 공유/정보 Dialog는 데모 유지(초대·권한 후속). (4) 태블릿 순수 터치 드래그는 HTML5 DnD 미동작 → 카드 ⋮ 메뉴 경로 사용(코드 주석 명시). (5) 배포 직후 프로덕션서 드래그 1회·드로어 1회 눈으로 확인 권장(glados 권고).
+
 ## 남은 작업 / 오픈 질문
 
 - ~~알림 채널 결정~~ → **Slack 확정** (2026-07-02): 1단계 Incoming Webhook+딥링크, 2단계 Bot 인터랙티브 버튼으로 Slack 안에서 체크인 응답(`answerCheckIn` 경유, via 기록). 기획서 "알림 정책 > 알림 채널"과 MCP/CLI 계획 Phase E에 반영됨.

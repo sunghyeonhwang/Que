@@ -1,50 +1,56 @@
 "use client";
 
 import { useCallback } from "react";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type {
-  ProjectListView,
-  ProjectBoardView,
-  ProjectCalendarView,
+  ProjectBoard,
+  ProjectCalendar,
+  ProjectList,
+  ProjectListItem,
   ProjectMeta,
-} from "@/lib/pm-data";
+} from "@/lib/projects-data";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { ProjectHeader } from "./project-header";
-import { ProjectFilter } from "./project-filter";
 import { CreateTaskDialog } from "./create-task-dialog";
-import { CreateGroupDialog } from "./create-group-dialog";
 import { ViewTabs, type ProjectView as ProjectViewKey } from "./view-tabs";
-import { TaskGroupSection } from "./task-group-section";
+import { ListView } from "./list-view";
 import { BoardView } from "./board-view";
-import { ProjectCalendarView as CalendarView } from "./calendar-view";
+import { ProjectCalendarView } from "./calendar-view";
 
-const VIEW_KEYS: ProjectViewKey[] = ["list", "board", "calendar", "files"];
-const VIEW_LABEL: Record<ProjectViewKey, string> = {
-  list: "목록",
-  board: "보드",
-  calendar: "캘린더",
-  files: "파일",
-};
+const VIEW_KEYS: ProjectViewKey[] = ["list", "board", "calendar"];
 
-function resolveView(raw: string | null): ProjectViewKey {
-  return VIEW_KEYS.includes(raw as ProjectViewKey) ? (raw as ProjectViewKey) : "list";
+function resolveView(raw: string | undefined): ProjectViewKey {
+  return VIEW_KEYS.includes(raw as ProjectViewKey) ? (raw as ProjectViewKey) : "board";
 }
 
-/** 프로젝트 화면 클라이언트 오케스트레이터 — 헤더 + 뷰 탭 + 목록/보드(내부 스크롤). */
+/** 프로젝트 화면 클라이언트 오케스트레이터 — 프로젝트 선택 + 헤더 + 뷰 탭 + 목록/보드/캘린더. */
 export function ProjectView({
-  data,
+  projects,
+  selectedProjectId,
+  view: viewRaw,
   board,
+  list,
   calendar,
   meta,
 }: {
-  data: ProjectListView;
-  board: ProjectBoardView;
-  calendar: ProjectCalendarView;
-  /** 생성/필터 피커용 프로젝트 메타(담당자·그룹). */
+  projects: ProjectListItem[];
+  selectedProjectId: string;
+  view?: string;
+  board: ProjectBoard;
+  list: ProjectList;
+  calendar: ProjectCalendar;
   meta: ProjectMeta;
 }) {
+  const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const view = resolveView(searchParams.get("view"));
+  const view = resolveView(viewRaw);
 
   // 현재 URL(view/month 등)을 보존하며 `task=<id>`만 추가한 상세 열기 링크.
   const taskHref = useCallback(
@@ -56,48 +62,61 @@ export function ProjectView({
     [pathname, searchParams],
   );
 
+  // 프로젝트 전환 — view는 유지, 태스크/월은 초기화(프로젝트가 다르면 의미 없음).
+  const selectProject = (id: string) => {
+    if (!id || id === selectedProjectId) return;
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("project", id);
+    params.delete("task");
+    params.delete("month");
+    router.push(`${pathname}?${params.toString()}`, { scroll: false });
+  };
+
+  const projectItems = Object.fromEntries(projects.map((p) => [p.id, p.name]));
+
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="shrink-0">
-        <ProjectHeader
-          name={data.project.name}
-          description={data.project.description}
-          members={data.members}
-          memberOverflow={data.memberOverflow}
-          allMembers={meta.members}
-        />
+      <div className="shrink-0 space-y-3">
+        {projects.length > 1 && (
+          <Select
+            items={projectItems}
+            value={selectedProjectId}
+            onValueChange={(v) => v && selectProject(v)}
+          >
+            <SelectTrigger
+              aria-label="프로젝트 선택"
+              className="h-10 min-h-10 w-full max-w-xs border-[var(--que-border)]"
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {projects.map((p) => (
+                <SelectItem key={p.id} value={p.id}>
+                  <span className="truncate">{p.name}</span>
+                  <span className="ml-auto text-xs text-[var(--que-text-tertiary)]">
+                    {p.taskCount}
+                  </span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+        <ProjectHeader meta={meta} />
       </div>
 
       <div className="mt-4 flex shrink-0 flex-wrap items-end justify-between gap-2 border-b border-[var(--que-border)]">
         <ViewTabs current={view} />
         <div className="flex items-center gap-2 pb-2">
-          <ProjectFilter meta={meta} />
-          <CreateGroupDialog projectId={data.project.id} />
-          <CreateTaskDialog meta={meta} />
+          <CreateTaskDialog projectId={selectedProjectId} meta={meta} />
         </div>
       </div>
 
       {view === "board" ? (
-        <BoardView groups={board.groups} taskHref={taskHref} />
+        <BoardView columns={board.columns} projectId={selectedProjectId} taskHref={taskHref} />
       ) : view === "calendar" ? (
-        <CalendarView data={calendar} taskHref={taskHref} />
+        <ProjectCalendarView data={calendar} taskHref={taskHref} />
       ) : (
-        <div className="-mx-4 min-h-0 flex-1 overflow-y-auto px-4 pt-3 md:-mx-5 md:px-5 xl:-mx-6 xl:px-6">
-          {view === "list" ? (
-            data.groups.map((group) => (
-              <TaskGroupSection
-                key={group.id}
-                group={group}
-                taskHref={taskHref}
-                allGroups={data.groups.map((g) => ({ id: g.id, name: g.name, color: g.color }))}
-              />
-            ))
-          ) : (
-            <div className="flex min-h-[280px] items-center justify-center rounded-xl border border-dashed border-[var(--que-border)] bg-[var(--que-bg-muted)] text-sm text-[var(--que-text-tertiary)]">
-              {VIEW_LABEL[view]} 뷰는 준비 중입니다.
-            </div>
-          )}
-        </div>
+        <ListView columns={list.columns} projectId={selectedProjectId} taskHref={taskHref} />
       )}
     </div>
   );

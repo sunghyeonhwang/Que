@@ -1,32 +1,40 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname, useSearchParams } from "next/navigation";
 import { ListChecks, LayoutGrid, Calendar, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export type ProjectView = "list" | "board" | "calendar" | "files";
+export type ProjectView = "list" | "board" | "calendar";
 
-// 파일 뷰는 제외(사용자 결정) — 탭에서 뺀다. (files 타입은 하위호환으로 유지)
 const TABS: { key: ProjectView; label: string; icon: LucideIcon }[] = [
   { key: "list", label: "목록", icon: ListChecks },
   { key: "board", label: "보드", icon: LayoutGrid },
   { key: "calendar", label: "캘린더", icon: Calendar },
 ];
 
-/** 프로젝트 뷰 스위처. URL ?view= 에 반영. 목록만 기능, 나머지는 준비 중 안내로 전환. */
+/** 프로젝트 뷰 스위처. URL ?view= 에 반영(현재 project 등 다른 파라미터 보존). */
 export function ViewTabs({ current }: { current: ProjectView }) {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  const hrefFor = (view: ProjectView) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("view", view);
+    // 뷰 전환 시 캘린더 월·열린 상세는 초기화(뷰마다 의미가 다름).
+    params.delete("month");
+    params.delete("task");
+    return `${pathname}?${params.toString()}`;
+  };
+
   return (
-    <div
-      role="tablist"
-      aria-label="프로젝트 뷰"
-      className="flex items-center gap-1"
-    >
+    <div role="tablist" aria-label="프로젝트 뷰" className="flex items-center gap-1">
       {TABS.map(({ key, label, icon: Icon }) => {
         const active = key === current;
         return (
           <Link
             key={key}
-            href={`?view=${key}`}
+            href={hrefFor(key)}
             scroll={false}
             role="tab"
             aria-selected={active}

@@ -8,7 +8,7 @@ import {
   type User,
 } from "@que/core";
 import { getDb } from "./db";
-import type { ListViewMember } from "./pm-data";
+import type { ListViewMember } from "./pm-types";
 
 // 홈(개인 대시보드) 전용 조회 계층. 순수 조회 — mutation/도메인 규칙에 손대지 않는다.
 // 데이터 출처: core db(tasks/calendarEvents/users/projects). KPI·히트맵·작업성과는

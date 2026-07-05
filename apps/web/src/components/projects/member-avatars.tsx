@@ -1,4 +1,4 @@
-import type { ListViewMember } from "@/lib/pm-data";
+import type { ListViewMember } from "@/lib/pm-types";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 

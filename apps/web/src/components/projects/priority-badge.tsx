@@ -1,7 +1,7 @@
-import type { PmPriority } from "@/lib/pm-data";
+import type { TaskPriority } from "@/lib/projects-data";
 
 // 우선순위 뱃지 — 높음=red · 보통=amber · 낮음=green (redesign-plan 규칙).
-const PRIORITY: Record<PmPriority, { label: string; className: string }> = {
+const PRIORITY: Record<TaskPriority, { label: string; className: string }> = {
   high: {
     label: "높음",
     className: "bg-[var(--que-error-bg)] text-[var(--que-error)]",
@@ -16,7 +16,7 @@ const PRIORITY: Record<PmPriority, { label: string; className: string }> = {
   },
 };
 
-export function PriorityBadge({ priority }: { priority: PmPriority }) {
+export function PriorityBadge({ priority }: { priority: TaskPriority }) {
   const { label, className } = PRIORITY[priority];
   return (
     <span

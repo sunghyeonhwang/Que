@@ -124,6 +124,8 @@ export const projectSchema = z.object({
   // 상위 클라이언트(거래처). optional — 클라이언트 없는 내부 잡무를 허용하고,
   // 마이그레이션을 무파괴로 만든다. Task는 clientId를 직접 갖지 않고 project를 통해 간접 참조한다.
   clientId: z.string().optional(),
+  // PM 도구(/projects) 프로젝트 설명. DB check(char_length<=2000)와 동일 상한.
+  description: z.string().max(2000).optional(),
   milestoneIds: z.array(z.string()).default([]),
 });
 export type Project = z.infer<typeof projectSchema>;

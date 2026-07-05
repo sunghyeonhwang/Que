@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Share2, MoreHorizontal, Copy, Link2, Info } from "lucide-react";
 import { toast } from "sonner";
-import type { ListViewMember } from "@/lib/pm-data";
+import type { ListViewMember } from "@/lib/pm-types";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {

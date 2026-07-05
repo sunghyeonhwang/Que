@@ -1,130 +1,130 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { getCurrentUser } from "@/lib/current-user";
 import {
-  createGroup,
-  createTask,
-  deleteTask,
-  moveTask,
-  setTaskDone,
-  updateTask,
-  type PmPriority,
-} from "@/lib/pm-data";
+  isQueRuleError,
+  type StatusDetail,
+  type Task,
+  type TaskStatus,
+} from "@que/core";
+import { getDb } from "@/lib/db";
+import { getCurrentUser } from "@/lib/current-user";
 import type { ActionResult } from "@/app/(app)/today/actions";
 
-// /projects 편집용 서버 액션. mock in-place 변경 후 revalidatePath("/projects").
-// 인증 게이트만 두고 권한 세분화는 없다(본 화면은 팀 공용 편집 화면).
-// recurring-template 액션(projects/actions.ts)과는 별개 파일이다.
+// /projects PM 도구 서버 액션 — core mutation 경유. 카드 = core Task.
+// 권한은 core(canEditTask)가 카드 단위로 강제하고, 규칙 위반은 { ok:false, error }로 변환된다.
+// 모든 업무 영향 변경은 core가 ChangeLog(via:"web")로 기록한다.
+// 상태 detail(사유)이 필요한 홀드·문제 전환은 changeTaskStatusAction(today/actions)이 담당하고,
+// 여기 moveTask도 detail을 그대로 전달해 core assertStatusDetail이 강제하게 한다.
+// (recurring-template 액션은 projects/actions.ts — 별개 파일.)
+
+/** getDb()가 반환하는 DB 인스턴스 타입(mock 또는 supabase 어댑터). */
+type Db = Awaited<ReturnType<typeof getDb>>;
 
 /**
- * 입력 검증 거부 전용 에러. run()이 이것만 { ok:false } 로 변환하고,
- * 그 외(예: getCurrentUser의 NEXT_REDIRECT, 예상 밖 예외)는 그대로 rethrow해
- * 리다이렉트가 전파되고 use-safe-action의 reportError 경로가 살아 있게 한다.
- * (today/actions.ts의 "getCurrentUser는 try 밖 · catch는 규칙 에러만" 패턴과 동일 취지.)
+ * db 인스턴스를 한 번만 획득해 mutation과 persist를 같은 인스턴스에서 수행한다.
+ * (today/actions.ts toResult와 동일 규율 — getDb 요청 캐시 정체성에 기대면 persist가 유실된다.)
+ * QueRuleError만 { ok:false }로 변환하고, NEXT_REDIRECT(미인증) 등은 전파한다.
  */
-class PmInputError extends Error {}
-
-/** mutation 실행 → revalidate. 입력 거부만 error 문자열로 변환, 나머지는 전파. */
-async function run(fn: () => void): Promise<ActionResult> {
-  // 출시 강등(HANDOFF 51): PM 모델이 비영속 in-memory mock이라 프로덕션 쓰기를 차단한다.
-  // 저장돼도 서버 재시작/다중 인스턴스에서 소실되므로 실 데이터 입력을 막는다.
-  // dev 데모에서만 QUE_PM_WRITE=1로 실제 mutation 허용. (getCurrentUser는 각 액션에서 이미
-  // 호출돼 미인증은 이 지점 전에 /login으로 redirect된다 — 회귀 없음.)
-  if (process.env.QUE_PM_WRITE !== "1") {
-    return { ok: false, error: "미리보기 모드입니다 — 프로젝트 화면은 아직 저장되지 않습니다." };
-  }
+async function toResult(fn: (db: Db) => Promise<unknown> | unknown): Promise<ActionResult> {
   try {
-    fn();
+    const db = await getDb();
+    await fn(db);
+    await db.persist();
     revalidatePath("/projects");
     return { ok: true };
   } catch (error) {
-    if (error instanceof PmInputError) return { ok: false, error: error.message };
-    throw error; // NEXT_REDIRECT(미인증) · 예상 밖 예외는 삼키지 않는다
+    if (isQueRuleError(error)) return { ok: false, error: error.message };
+    throw error; // NEXT_REDIRECT · 예상 밖 예외는 삼키지 않는다
   }
 }
 
+/** 카드 생성 — 예정(scheduled) 상태로 생성된다. 담당자 미지정 시 core가 본인으로 배정. */
 export async function createTaskAction(input: {
-  groupId: string;
-  name: string;
-  description?: string;
-  dueAt?: string | null;
-  priority?: PmPriority;
-  assigneeIds?: string[];
-}): Promise<ActionResult> {
-  await getCurrentUser(); // 미인증이면 /login redirect (try 밖 — 전파되어야 함)
-  return run(() => {
-    const name = input.name.trim();
-    if (!name) throw new PmInputError("작업 이름을 입력하세요.");
-    if (!input.groupId) throw new PmInputError("그룹을 선택하세요.");
-    createTask({ ...input, name });
-  });
-}
-
-export async function updateTaskAction(
-  id: string,
-  patch: Partial<{
-    name: string;
-    description: string;
-    dueAt: string | null;
-    priority: PmPriority;
-    assigneeIds: string[];
-    groupId: string;
-  }>,
-): Promise<ActionResult> {
-  await getCurrentUser();
-  return run(() => {
-    if (!id) throw new PmInputError("대상 작업이 없습니다.");
-    if (patch.name !== undefined && !patch.name.trim()) {
-      throw new PmInputError("작업 이름은 비울 수 없습니다.");
-    }
-    const normalized = patch.name !== undefined ? { ...patch, name: patch.name.trim() } : patch;
-    const result = updateTask(id, normalized);
-    if (!result) throw new PmInputError("작업을 찾을 수 없습니다.");
-  });
-}
-
-export async function deleteTaskAction(id: string): Promise<ActionResult> {
-  await getCurrentUser();
-  return run(() => {
-    if (!id) throw new PmInputError("대상 작업이 없습니다.");
-    if (!deleteTask(id)) throw new PmInputError("작업을 찾을 수 없습니다.");
-  });
-}
-
-export async function toggleTaskDoneAction(id: string, done: boolean): Promise<ActionResult> {
-  await getCurrentUser();
-  return run(() => {
-    if (!id) throw new PmInputError("대상 작업이 없습니다.");
-    if (!setTaskDone(id, done)) throw new PmInputError("작업을 찾을 수 없습니다.");
-  });
-}
-
-export async function moveTaskAction(
-  id: string,
-  toGroupId: string,
-  toIndex?: number,
-): Promise<ActionResult> {
-  await getCurrentUser();
-  return run(() => {
-    if (!id) throw new PmInputError("대상 작업이 없습니다.");
-    if (!toGroupId) throw new PmInputError("이동할 그룹을 선택하세요.");
-    // 정수가 아닌 toIndex(크래프트 입력)는 '끝에 추가'로 취급
-    const index = Number.isInteger(toIndex) ? toIndex : undefined;
-    if (!moveTask(id, toGroupId, index)) throw new PmInputError("작업을 찾을 수 없습니다.");
-  });
-}
-
-export async function createGroupAction(input: {
   projectId: string;
-  name: string;
-  color?: string;
+  title: string;
+  description?: string;
+  assigneeId?: string;
+  endAt?: string;
+  priority?: Task["priority"];
 }): Promise<ActionResult> {
-  await getCurrentUser();
-  return run(() => {
-    const name = input.name.trim();
-    if (!name) throw new PmInputError("그룹 이름을 입력하세요.");
-    if (!input.projectId) throw new PmInputError("프로젝트가 없습니다.");
-    createGroup({ ...input, name });
-  });
+  const user = await getCurrentUser();
+  return toResult((db) =>
+    db.createTask(
+      { actorId: user.id, via: "web" },
+      {
+        title: input.title,
+        projectId: input.projectId,
+        assigneeId: input.assigneeId,
+        endAt: input.endAt,
+        description: input.description,
+        priority: input.priority,
+        source: "manual",
+      },
+    ),
+  );
+}
+
+/** 카드 상세 편집(제목·설명·우선순위·마감). 담당자·상태 변경은 별도 액션. */
+export async function updateTaskDetailsAction(input: {
+  taskId: string;
+  title?: string;
+  description?: string | null;
+  priority?: Task["priority"];
+  endAt?: string | null;
+}): Promise<ActionResult> {
+  const user = await getCurrentUser();
+  return toResult((db) => db.updateTaskDetails({ actorId: user.id, via: "web" }, input));
+}
+
+/** 카드 담당자 변경. */
+export async function reassignTaskAction(input: {
+  taskId: string;
+  assigneeId: string;
+}): Promise<ActionResult> {
+  const user = await getCurrentUser();
+  return toResult((db) => db.reassignTask({ actorId: user.id, via: "web" }, input));
+}
+
+/** 카드 삭제 = 취소(soft). reason은 선택. */
+export async function deleteTaskAction(input: {
+  taskId: string;
+  reason?: string;
+}): Promise<ActionResult> {
+  const user = await getCurrentUser();
+  return toResult((db) => db.cancelTask({ actorId: user.id, via: "web" }, input));
+}
+
+/** 완료 토글 — done ↔ in_progress. done 해제 시 진행중으로 되돌린다. */
+export async function toggleTaskDoneAction(input: {
+  taskId: string;
+  done: boolean;
+}): Promise<ActionResult> {
+  const user = await getCurrentUser();
+  return toResult((db) =>
+    db.changeTaskStatus(
+      { actorId: user.id, via: "web" },
+      { taskId: input.taskId, to: input.done ? "done" : "in_progress" },
+    ),
+  );
+}
+
+/**
+ * 열 이동 = 상태 변경. 대상 열의 status로 changeTaskStatus.
+ * 홀드·문제 열(on_hold/issue)로 이동하면 detail(사유)이 필수 — 없으면 core가 STATUS_DETAIL_REQUIRED로
+ * 거부하고, 프론트가 상태 사유 시트(status-detail-form)로 사유를 받아 detail과 함께 다시 호출한다.
+ * merged/cancelled로는 이 액션으로 이동하지 않는다(삭제=cancelTask, 병합은 today 흐름).
+ */
+export async function moveTaskAction(input: {
+  taskId: string;
+  to: TaskStatus;
+  detail?: StatusDetail;
+}): Promise<ActionResult> {
+  const user = await getCurrentUser();
+  return toResult((db) =>
+    db.changeTaskStatus(
+      { actorId: user.id, via: "web" },
+      { taskId: input.taskId, to: input.to, detail: input.detail },
+    ),
+  );
 }
