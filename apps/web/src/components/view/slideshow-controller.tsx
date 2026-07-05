@@ -4,6 +4,11 @@ import { useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Pause, Play } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  useViewSettings,
+  type ViewSettings,
+  type ViewSlideScheduleRange,
+} from "@/lib/view-settings";
 
 // 벽 디스플레이용 슬라이드쇼(자동 순회) 컨트롤러.
 // - (view)/layout.tsx에 배치되어 소프트 내비(router.push)·10분 auto-refresh에도 언마운트되지 않는다.
@@ -11,17 +16,21 @@ import { cn } from "@/lib/utils";
 // - "무상태 재-arm": 현재 URL(view/bp)에서 다음 스텝과 지연을 계산해 setTimeout → router.push.
 //   URL이 바뀌면 이 컴포넌트가 다시 렌더되어(useSearchParams) 이전 타이머를 clear하고 재계산·재arm한다.
 //
-// 시퀀스(전부 play=1 유지):
-//   board bp=k (k<boardPages)  --25s-->  board bp=k+1
-//   board bp=boardPages        --25s-->  week(range=week)
-//   week                       --120s--> board bp=1
+// 타이밍·뷰·순회 포함은 설정(useViewSettings, localStorage)에서 읽는다(하드코딩 상수 제거).
+// 설정 변경 시 effect deps로 재-arm되어 "다음 스텝부터" 새 설정이 반영된다.
+//
+// 시퀀스(설정에 따라 분기, 전부 play=1 유지):
+//   · 보드·스케줄 둘 다 + boardMode=paged:
+//       board bp=k(k<pages) --boardS--> bp=k+1 --...--> bp=pages --boardS--> schedule --scheduleS--> bp=1
+//   · 둘 다 + boardMode=all:
+//       board(all 단일화면) --boardS--> schedule --scheduleS--> board(all)
+//   · 보드만 + paged: 보드 페이지 무한 순회. all: 단일 화면 정적 유지(타이머 없음).
+//   · 스케줄만: 스케줄 정적 유지(타이머 없음).
+//   · 둘 다 해제: 무동작.
 // boardPages는 서버(layout)가 팀원 수로 계산해 prop으로 주입한다(ceil(count/2)).
 
-export const SLIDE_BOARD_MS = 25_000;
-export const SLIDE_SCHEDULE_MS = 120_000;
-
-/** 보드 스텝 URL 파라미터. 항상 paged·play 유지, hc는 켜져 있으면 보존. */
-function boardParams(page: number, hideCompleted: boolean): URLSearchParams {
+/** 보드(2명/페이지) 스텝 URL. bp·bmode=paged·play 유지, hc 보존. */
+function boardPagedParams(page: number, hideCompleted: boolean): URLSearchParams {
   const p = new URLSearchParams();
   p.set("view", "board");
   p.set("bmode", "paged");
@@ -31,11 +40,21 @@ function boardParams(page: number, hideCompleted: boolean): URLSearchParams {
   return p;
 }
 
-/** 스케줄 스텝 URL 파라미터(week 범위). */
-function weekParams(): URLSearchParams {
+/** 보드(전체 8명 한 화면) 스텝 URL. bp 없음, bmode=all·play 유지, hc 보존. */
+function boardAllParams(hideCompleted: boolean): URLSearchParams {
+  const p = new URLSearchParams();
+  p.set("view", "board");
+  p.set("bmode", "all");
+  p.set("play", "1");
+  if (hideCompleted) p.set("hc", "1");
+  return p;
+}
+
+/** 스케줄 스텝 URL(설정 range). 1day는 사람 열, 3day/week는 날짜 열. */
+function scheduleParams(range: ViewSlideScheduleRange): URLSearchParams {
   const p = new URLSearchParams();
   p.set("view", "week");
-  p.set("range", "week");
+  p.set("range", range);
   p.set("play", "1");
   return p;
 }
@@ -43,6 +62,7 @@ function weekParams(): URLSearchParams {
 export function SlideshowController({ boardPages }: { boardPages: number }) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const settings = useViewSettings();
 
   const pages = Math.max(1, boardPages);
   const playing = searchParams.get("play") === "1";
@@ -53,31 +73,81 @@ export function SlideshowController({ boardPages }: { boardPages: number }) {
   const bp =
     Number.isFinite(bpRaw) && bpRaw >= 1 ? Math.min(Math.floor(bpRaw), pages) : 1;
 
+  const {
+    boardSeconds,
+    scheduleSeconds,
+    scheduleRange,
+    boardMode,
+    includeBoard,
+    includeSchedule,
+  } = settings;
+
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    // 재-arm: 이전 타이머를 항상 정리하고(파라미터 변화·언마운트) 재계산한다.
+    // 재-arm: 이전 타이머를 항상 정리하고(파라미터/설정 변화·언마운트) 재계산한다.
     if (timerRef.current) {
       clearTimeout(timerRef.current);
       timerRef.current = null;
     }
     if (!playing) return;
+    if (!includeBoard && !includeSchedule) return; // 방어: 순회 대상 없음 → 무동작.
 
-    let next: URLSearchParams;
-    let delay: number;
+    const boardMs = boardSeconds * 1000;
+    const scheduleMs = scheduleSeconds * 1000;
+    // 보드 진입 스텝: 모드에 따라 전체 화면 또는 1페이지.
+    const boardEnter = () =>
+      boardMode === "all"
+        ? boardAllParams(hideCompleted)
+        : boardPagedParams(1, hideCompleted);
+
+    let next: URLSearchParams | null = null;
+    let delay = 0;
+
     if (view === "week") {
-      next = boardParams(1, hideCompleted);
-      delay = SLIDE_SCHEDULE_MS;
-    } else if (bp < pages) {
-      next = boardParams(bp + 1, hideCompleted);
-      delay = SLIDE_BOARD_MS;
+      // 현재 스케줄. 스케줄 제외 상태로 여기 있으면 보드로 복귀, 아니면 다음 스텝.
+      if (!includeSchedule) {
+        if (!includeBoard) return; // 방어(도달 불가): 둘 다 없음.
+        next = boardEnter();
+        delay = 300;
+      } else if (includeBoard) {
+        next = boardEnter();
+        delay = scheduleMs;
+      } else {
+        return; // 스케줄만: 정적 유지(타이머 없음).
+      }
     } else {
-      next = weekParams();
-      delay = SLIDE_BOARD_MS;
+      // 현재 보드.
+      if (!includeBoard) {
+        // 보드 제외인데 보드에 있음 → 스케줄로.
+        next = scheduleParams(scheduleRange);
+        delay = 300;
+      } else if (boardMode === "paged") {
+        if (bp < pages) {
+          next = boardPagedParams(bp + 1, hideCompleted);
+          delay = boardMs;
+        } else if (includeSchedule) {
+          next = scheduleParams(scheduleRange);
+          delay = boardMs;
+        } else {
+          next = boardPagedParams(1, hideCompleted); // 보드만: 페이지 순환.
+          delay = boardMs;
+        }
+      } else {
+        // boardMode=all: 단일 화면.
+        if (includeSchedule) {
+          next = scheduleParams(scheduleRange);
+          delay = boardMs;
+        } else {
+          return; // 보드만 + 전체: 정적 유지(순회할 페이지 없음).
+        }
+      }
     }
 
+    if (!next) return;
+    const target = next;
     timerRef.current = setTimeout(() => {
-      router.push(`?${next.toString()}`, { scroll: false });
+      router.push(`?${target.toString()}`, { scroll: false });
     }, delay);
 
     return () => {
@@ -86,7 +156,20 @@ export function SlideshowController({ boardPages }: { boardPages: number }) {
         timerRef.current = null;
       }
     };
-  }, [playing, view, bp, pages, hideCompleted, router]);
+  }, [
+    playing,
+    view,
+    bp,
+    pages,
+    hideCompleted,
+    boardSeconds,
+    scheduleSeconds,
+    scheduleRange,
+    boardMode,
+    includeBoard,
+    includeSchedule,
+    router,
+  ]);
 
   const toggle = () => {
     if (playing) {
@@ -95,10 +178,12 @@ export function SlideshowController({ boardPages }: { boardPages: number }) {
       params.delete("play");
       params.delete("bp");
       router.push(`?${params.toString()}`, { scroll: false });
-    } else {
-      // 재생 시작: 보드 1페이지부터.
-      router.push(`?${boardParams(1, hideCompleted).toString()}`, { scroll: false });
+      return;
     }
+    // 재생 시작: 포함된 첫 스텝으로 진입.
+    const start = startParams(settings, hideCompleted);
+    if (!start) return; // 둘 다 해제: 무동작.
+    router.push(`?${start.toString()}`, { scroll: false });
   };
 
   return (
@@ -123,4 +208,20 @@ export function SlideshowController({ boardPages }: { boardPages: number }) {
       )}
     </button>
   );
+}
+
+/** 재생 시작 스텝: 보드 포함이면 보드, 아니면 스케줄. 둘 다 없으면 null. */
+function startParams(
+  settings: ViewSettings,
+  hideCompleted: boolean,
+): URLSearchParams | null {
+  if (settings.includeBoard) {
+    return settings.boardMode === "all"
+      ? boardAllParams(hideCompleted)
+      : boardPagedParams(1, hideCompleted);
+  }
+  if (settings.includeSchedule) {
+    return scheduleParams(settings.scheduleRange);
+  }
+  return null;
 }

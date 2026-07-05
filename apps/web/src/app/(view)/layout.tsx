@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import { loadReadOnlyDb } from "@/lib/db";
 import { SlideshowController } from "@/components/view/slideshow-controller";
+import { ViewSettings } from "@/components/view/view-settings";
 
 // 공개 읽기전용 현황판 셸.
 // - (app) 밖에 두어 auth()/getCurrentUser()를 절대 호출하지 않는다 → 로그인 없이 공개.
@@ -23,12 +24,19 @@ export default async function ViewLayout({
   const boardPages = Math.max(1, Math.ceil(db.users.length / 2));
 
   return (
-    <div className="relative flex h-dvh w-full flex-col overflow-hidden bg-white text-neutral-900">
+    // 현황판 전체를 SUIT로 통일한다. 라틴/한글 혼용(--font-sans는 라틴=Inter Tight 우선)을
+    // 쓰지 않고, 앱이 루트에서 이미 로드한 --font-suit(next/font/local, preload) 변수를 그대로
+    // 재사용해 새 @font-face 없이 벽 디스플레이 타이포를 단일 폰트로 맞춘다.
+    <div
+      className="relative flex h-dvh w-full flex-col overflow-hidden bg-white text-neutral-900"
+      style={{ fontFamily: "var(--font-suit), sans-serif" }}
+    >
       {children}
       {/* useSearchParams 사용 → prerender 시 Suspense 경계 필요(빌드 안전). */}
       <Suspense fallback={null}>
         <SlideshowController boardPages={boardPages} />
       </Suspense>
+      <ViewSettings />
     </div>
   );
 }

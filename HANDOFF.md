@@ -571,6 +571,12 @@ data/
     - **슬라이드쇼(재생) 모드**: `components/view/slideshow-controller.tsx`(client, (view) 레이아웃 상주) — **URL 상태머신 `?play=1`**(전체 리로드/10분 refresh/키오스크 재시작에도 URL만 보고 재개, 현재 URL로 다음 스텝 무상태 재-arm). ▶ 재생 클릭 → 보드 2명뷰 `bp=1..N`(각 25초, N=`ceil(팀원수/2)`=4) → 스케줄 week(120초) → 루프. ⏸ 정지=`play`/`bp` 제거. 좌하단 플로팅 버튼(우하단 FAB와 비겹침, 재생중 green). board-grid에 `bp`/`play` 주도 페이징(자체 15초 순환 off, 비상호작용 PAGE 인디케이터). 상수 `SLIDE_BOARD_MS=25s`·`SLIDE_SCHEDULE_MS=120s`. `boardPages`는 layout이 `loadReadOnlyDb` 유저수로 계산 주입(Suspense).
     - **검증**: typecheck·lint·build, qa Playwright **35 assertion PASS**(bp 순회 25초·스케줄 120초·루프·정지·URL 직접접근 재개·조회전용·FAB 수동이탈·제목 truncate·해상도 버튼 비겹침, console/pageerror 0). glados 생략(read-only/보안 계층 batch 62 통과분 무변경).
 
+66. **view 설정 메뉴 + SUIT 폰트 + 더미 대폭 증량 (2026-07-05~06)** — 사용자 검수.
+    - **설정 메뉴**: `lib/view-settings.ts`(스키마·기본값·clamp/normalize·localStorage load/save·`useSyncExternalStore` 훅) + `components/view/view-settings.tsx`(기어 ⚙ 버튼=좌하단 재생버튼 위, base-ui Dialog). **localStorage `que-view-settings`**(무인증 공개 페이지라 기기별 키오스크 저장): `boardSeconds`(25)·`scheduleSeconds`(120)·`scheduleRange`(week/3day/1day)·`boardMode`(paged/all)·`includeBoard`·`includeSchedule`, 초 5~600 clamp. `slideshow-controller`가 하드코딩 상수 대신 이 설정 구동 — boardMode=all이면 보드 단일화면 boardSeconds 후 스케줄(bp 순회 없음), scheduleRange로 스케줄 스텝 range(1day면 DayGrid), 순회 포함 토글로 보드만/스케줄만/둘다.
+    - **SUIT 폰트 통일**: `(view)/layout.tsx` 루트 컨테이너에 `fontFamily: var(--font-suit), sans-serif`(앱 root `app/layout.tsx`의 next/font/local `--font-suit` 재사용, **새 @font-face 없음**). 기존 view가 상속하던 Inter Tight(라틴) 대신 view 전체(헤더·보드·주간·시계) SUIT 단일. 설정 Dialog는 body portal이라 앱 기본 폰트(의도).
+    - **더미 대폭 증량**: 58→**299개**(UF 150 + MW 149), 8명 각 37~38, **모든 날짜(2026-06-29~07-17 평일 + 오늘 07-05) 8명 전원 18~19개**(멤버당 2~3). 담당자 정렬 버그 방지(멤버 루프 내측→모든 날짜 8명). 프로덕션 재적용: **supabase-js 서비스키 스크립트**(`$JOB/tmp/apply-dummy-data.mjs`, `dummy-%` 삭제 후 삽입, apps/web 안에서 실행해 모듈 해석). `dummy-data-view-test.sql` 갱신(커밋), `remove-dummy-data-view-test.sql` 그대로 유효(`id like 'dummy-%'`).
+    - **검증**: typecheck·lint·build, qa Playwright 전부 PASS(설정 저장/영속·슬라이드쇼 설정반영[초·전체모드·1day·순회토글]·SUIT computed fontFamily·조회전용·proxy·기존 게이트, console/pageerror 0). glados 생략(read-only 계층 무변경).
+
 ## 남은 작업 / 오픈 질문
 
 - ~~알림 채널 결정~~ → **Slack 확정** (2026-07-02): 1단계 Incoming Webhook+딥링크, 2단계 Bot 인터랙티브 버튼으로 Slack 안에서 체크인 응답(`answerCheckIn` 경유, via 기록). 기획서 "알림 정책 > 알림 채널"과 MCP/CLI 계획 Phase E에 반영됨.

@@ -27,22 +27,31 @@ export function BoardGrid({
   board: ViewBoard;
   hideCompleted?: boolean;
   mode?: "all" | "paged";
-  // 슬라이드쇼 연동: play=1 또는 bp 지정 시 그 페이지를 고정 표시하고 자체 15초 순환을 끈다.
+  // 슬라이드쇼 연동:
+  //  · bp 지정: 그 페이지(2명)를 고정 표시하고 자체 15초 순환을 끈다.
+  //  · play + mode=paged(bp 없음): 방어적으로 1페이지 고정.
+  //  · play + mode=all: 전체 8명 단일 화면(슬라이드쇼 boardMode=all).
   play?: boolean;
   bp?: number;
 }) {
-  // 슬라이드쇼가 페이징을 주도하면 mode(all)와 무관하게 2명/페이지로 렌더한다.
-  const driven = play || bp != null;
-  if (driven) {
+  // 슬라이드쇼(bp 지정)가 페이지를 주도하면 2명/페이지로 고정 렌더한다.
+  if (bp != null) {
     return (
       <BoardPaged
         board={board}
         hideCompleted={hideCompleted}
         driven
-        drivenPage={bp ?? 1}
+        drivenPage={bp}
       />
     );
   }
+  // bp 없이 재생 중 + paged 모드: 슬라이드쇼가 boardMode=paged로 주도(방어적으로 1페이지 고정).
+  if (play && mode === "paged") {
+    return (
+      <BoardPaged board={board} hideCompleted={hideCompleted} driven drivenPage={1} />
+    );
+  }
+  // 재생 중 + all 모드: 전체 8명 단일 화면(슬라이드쇼 boardMode=all). 비재생 all도 동일.
   if (mode === "paged") {
     return <BoardPaged board={board} hideCompleted={hideCompleted} />;
   }
