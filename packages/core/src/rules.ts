@@ -8,6 +8,7 @@ import {
   type RecurringTemplate,
   type ScheduleRange,
   type StatusDetail,
+  type StatusLog,
   type Task,
   type TaskStatus,
   type User,
@@ -183,6 +184,27 @@ export function assertCanResolveActionItem(
       "Action 처리(확정/보류/무시)는 담당자, 회의록 업로더, 관리자만 할 수 있다",
     );
   }
+}
+
+/**
+ * 특정 작업의 특정 상태로 전환된 "가장 최근" StatusLog를 고른다.
+ *
+ * 배열 순서(push 순서)에 기대지 않고 항상 createdAt(ISO 8601 문자열) 최대값으로 판정한다.
+ * mock-db는 우연히 시간순이지만 Supabase 어댑터의 select("*")는 순서를 보장하지 않으므로
+ * 조회 지점에서 명시적으로 정렬해야 최신 로그가 뽑힌다. ISO 8601은 사전순=시간순이라
+ * localeCompare로 안전하게 비교한다.
+ */
+export function latestStatusLog(
+  logs: readonly StatusLog[],
+  taskId: string,
+  toStatus: TaskStatus,
+): StatusLog | undefined {
+  let latest: StatusLog | undefined;
+  for (const log of logs) {
+    if (log.taskId !== taskId || log.toStatus !== toStatus) continue;
+    if (!latest || log.createdAt.localeCompare(latest.createdAt) > 0) latest = log;
+  }
+  return latest;
 }
 
 /** 일정 이동 입력 검증. 외부 입력(MCP/CLI)을 신뢰하지 않는다. */

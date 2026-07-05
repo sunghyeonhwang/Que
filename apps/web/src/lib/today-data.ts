@@ -1,5 +1,6 @@
 import {
   canViewPrivateEventDetail,
+  latestStatusLog,
   type CalendarEvent,
   type CheckIn,
   type Task,
@@ -137,9 +138,7 @@ export async function getTodayData(user: User, now: Date = new Date()): Promise<
   const attention: AttentionTask[] = db.tasks
     .filter((t) => t.status === "issue" || t.status === "on_hold")
     .flatMap((task) => {
-      const latestLog = [...db.statusLogs]
-        .reverse()
-        .find((log) => log.taskId === task.id && log.toStatus === task.status);
+      const latestLog = latestStatusLog(db.statusLogs, task.id, task.status);
       // 내가 관련된 문제/홀드: 담당자, 소유자, 도움 요청 대상. 관리자는 전체를 본다.
       const involved =
         task.assigneeId === user.id ||

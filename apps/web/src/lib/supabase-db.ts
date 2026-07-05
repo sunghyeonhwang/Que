@@ -49,7 +49,13 @@ export class SupabaseQueDb extends MockQueDb {
   /** 실 DB 전체를 읽어 부모의 public 배열을 채운다. */
   async load(): Promise<void> {
     for (const [table, field] of Object.entries(TABLE_TO_FIELD) as [TableName, string][]) {
-      const { data, error } = await this.client.from(table).select("*");
+      // select("*")는 순서를 보장하지 않는다. 로그류는 createdAt 오름차순으로 로드해 두어
+      // 조회 지점(latestStatusLog)과 별개로 배열 순서 자체도 시간순이 되게 방어한다.
+      const query = this.client.from(table).select("*");
+      if (table === "status_logs" || table === "change_logs") {
+        query.order("created_at", { ascending: true });
+      }
+      const { data, error } = await query;
       if (error) throw new Error(`Supabase load ${table} 실패: ${error.message}`);
       const rows = (data ?? []).map((r) => fromRow(r as Record<string, unknown>));
       if (table === "users") {

@@ -1,8 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { createMockDb } from "./data/mock-db";
-import { QueRuleError, canMoveCalendarEvent, canViewMeetingNote, canViewPrivateEventDetail } from "./rules";
+import {
+  QueRuleError,
+  canMoveCalendarEvent,
+  canViewMeetingNote,
+  canViewPrivateEventDetail,
+  latestStatusLog,
+} from "./rules";
 import { USERS } from "./mock/users";
-import { MockGoogleCalendarProvider, type ExternalCalendarEvent } from "./index";
+import { MockGoogleCalendarProvider, type ExternalCalendarEvent, type StatusLog } from "./index";
 
 // 도메인 규칙이 core 계층에서 실제로 강제되는지 검증한다.
 // 이 규칙들은 CLAUDE.md "도메인 규칙"과 기획서의 운영 규칙에서 온다.
@@ -12,6 +18,43 @@ const NOW = new Date("2026-07-02T09:00:00+09:00");
 function db() {
   return createMockDb(NOW);
 }
+
+describe("latestStatusLog — 최신 로그는 배열 순서가 아니라 createdAt으로 판정", () => {
+  function log(id: string, createdAt: string): StatusLog {
+    return {
+      id,
+      taskId: "task-1",
+      actorId: "hwang-sunghyeon",
+      fromStatus: "in_progress",
+      toStatus: "issue",
+      reason: id,
+      createdAt,
+    };
+  }
+
+  it("배열이 뒤섞여 있어도 createdAt 최대값을 고른다", () => {
+    // Supabase의 select("*")처럼 순서가 시간순이 아닌 배열
+    const logs: StatusLog[] = [
+      log("mid", "2026-07-02T11:00:00+09:00"),
+      log("newest", "2026-07-02T13:00:00+09:00"),
+      log("oldest", "2026-07-02T09:00:00+09:00"),
+    ];
+    expect(latestStatusLog(logs, "task-1", "issue")?.id).toBe("newest");
+  });
+
+  it("taskId·toStatus가 일치하는 로그만 후보로 삼는다", () => {
+    const logs: StatusLog[] = [
+      { ...log("other-task", "2026-07-02T14:00:00+09:00"), taskId: "task-2" },
+      { ...log("other-status", "2026-07-02T15:00:00+09:00"), toStatus: "on_hold" },
+      log("match", "2026-07-02T10:00:00+09:00"),
+    ];
+    expect(latestStatusLog(logs, "task-1", "issue")?.id).toBe("match");
+  });
+
+  it("일치하는 로그가 없으면 undefined", () => {
+    expect(latestStatusLog([log("a", "2026-07-02T10:00:00+09:00")], "task-1", "on_hold")).toBeUndefined();
+  });
+});
 
 describe("작업 상태 변경", () => {
   it("문제발생 전환은 사유 없이 거부된다", () => {

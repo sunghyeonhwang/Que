@@ -121,6 +121,37 @@ export function TaskStatusSheet({
     });
   };
 
+  // 클릭·숫자키가 공유하는 상태 선택 핸들러.
+  // issue/on_hold는 사유 폼 토글, merged는 병합 픽커, 그 외는 즉시 변경.
+  const chooseStatus = (status: TaskStatus) => {
+    if (pending || status === task.status) return;
+    if (NEEDS_DETAIL.includes(status)) {
+      setDetailFor((current) => (current === status ? null : status));
+    } else if (status === "merged") {
+      openMergePicker();
+    } else {
+      change(status);
+    }
+  };
+
+  // 숫자키 1~7 = 상태 버튼(STATUS_CHOICES 순서). 시트는 Radix 포커스 트랩이라
+  // 열리면 포커스가 시트 안에 있다 — 버튼 그리드에 스코프해 여러 시트/배경 충돌을 막는다.
+  // 사유 폼 입력 중(input/textarea)·병합 Select 포커스·수정키 동반 시엔 무시한다.
+  const onGridKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    // 상세 폼이 열려 사유를 작성 중이거나 병합 픽커가 떠 있으면 숫자키를 무시한다
+    // (작성 중 사유 유실·오변경 방지 — checkin-panel의 issueOpen 가드와 같은 취지).
+    if (detailFor || mergeCandidates) return;
+    const target = e.target as HTMLElement;
+    if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable) {
+      return;
+    }
+    const idx = Number(e.key) - 1;
+    if (!Number.isInteger(idx) || idx < 0 || idx >= STATUS_CHOICES.length) return;
+    e.preventDefault();
+    chooseStatus(STATUS_CHOICES[idx]);
+  };
+
   return (
     <Sheet
       open={open}
@@ -199,25 +230,28 @@ export function TaskStatusSheet({
           </p>
         ) : (
           <>
-            <div className="grid grid-cols-3 gap-2" role="group" aria-label="상태 변경">
-              {STATUS_CHOICES.map((status) => (
+            <div
+              className="grid grid-cols-3 gap-2"
+              role="group"
+              aria-label="상태 변경 (숫자키 1–7로 빠르게 선택)"
+              onKeyDown={onGridKeyDown}
+            >
+              {STATUS_CHOICES.map((status, i) => (
                 <Button
                   key={status}
                   variant={
                     status === "issue" || status === "cancelled" ? "destructive" : "outline"
                   }
-                  className="h-10"
+                  className="h-10 justify-start gap-1.5"
                   disabled={pending || status === task.status}
-                  onClick={() => {
-                    if (NEEDS_DETAIL.includes(status)) {
-                      setDetailFor((current) => (current === status ? null : status));
-                    } else if (status === "merged") {
-                      openMergePicker();
-                    } else {
-                      change(status);
-                    }
-                  }}
+                  onClick={() => chooseStatus(status)}
                 >
+                  <span
+                    aria-hidden
+                    className="grid size-4 shrink-0 place-items-center rounded bg-black/5 text-[10px] font-semibold tabular-nums text-muted-foreground dark:bg-white/10"
+                  >
+                    {i + 1}
+                  </span>
                   {TASK_STATUS_LABELS[status]}
                 </Button>
               ))}

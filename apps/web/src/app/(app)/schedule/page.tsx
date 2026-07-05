@@ -1,3 +1,4 @@
+import { cookies } from "next/headers";
 import { addDays, format, isSameDay, startOfMonth, startOfWeek } from "date-fns";
 import { ko } from "date-fns/locale";
 import { MonthView } from "@/components/schedule/month-view";
@@ -28,7 +29,11 @@ export default async function SchedulePage({
   searchParams: Promise<{ range?: string; date?: string }>;
 }) {
   const params = await searchParams;
-  const range = parseRange(params.range);
+  // 마지막 뷰 기억(기획 428): range 파라미터가 없으면 쿠키에 저장된 마지막 뷰로 연다.
+  // date는 기억하지 않는다 — 옛 날짜로 열려 혼란스러운 것을 피하고 항상 오늘 기준.
+  const cookieStore = await cookies();
+  const savedRange = cookieStore.get("que_schedule_range")?.value;
+  const range = parseRange(params.range ?? savedRange);
   const anchor = parseDateParam(params.date);
   const user = await getCurrentUser();
 

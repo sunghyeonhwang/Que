@@ -1,4 +1,11 @@
-import { canEditTask, canViewPrivateEventDetail, type CheckIn, type Task, type User } from "@que/core";
+import {
+  canEditTask,
+  canViewPrivateEventDetail,
+  latestStatusLog,
+  type CheckIn,
+  type Task,
+  type User,
+} from "@que/core";
 import { getDb } from "./db";
 
 // 팀 현황 데이터 조합 (기획서 "팀 현황판").
@@ -156,9 +163,7 @@ export async function getTeamData(viewer: User, now: Date = new Date()): Promise
   // ---- Attention Queue ----
   const attention: AttentionEntry[] = [];
   for (const task of db.tasks.filter((t) => t.status === "issue" || t.status === "on_hold")) {
-    const latestLog = [...db.statusLogs]
-      .reverse()
-      .find((log) => log.taskId === task.id && log.toStatus === task.status);
+    const latestLog = latestStatusLog(db.statusLogs, task.id, task.status);
     attention.push({
       type: task.status === "issue" ? "issue" : "on_hold",
       taskId: task.id,

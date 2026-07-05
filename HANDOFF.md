@@ -467,9 +467,18 @@ data/
     - **타임존 버그(핵심)**: 자연어 "내일 오전 11시 …"가 프로덕션에서 **시작 20:00(오후 8시)**로 저장·표시. 원인: **Vercel 서버리스 함수가 UTC로 실행** → 서버 `date.setHours(11)`이 11:00 UTC로 저장 → 브라우저(KST)에서 +9h=20:00. 규칙 파서는 "오전 11시"를 정확히 해석했고 **LLM 문제 아님**(LLM 넣어도 서버 UTC면 동일). 영향은 parse-task뿐 아니라 `dayStart/dayEnd.setHours(0,0,0,0)`가 쓰인 today/team/home/report/now-data 전반(하루 경계가 UTC 자정=KST 09:00으로 9h 밀림) — 앱 전반의 잠재 시간 오류.
     - **재현/근거**: `TZ=UTC`로 core test → parse 시간 테스트 **2건 실패**, `TZ=Asia/Seoul` → 80/80. `TZ=UTC node`로 `setHours(11)`→`11:00Z`(버그), `TZ=Asia/Seoul`→`02:00Z`(정상) 실측.
     - **수정**: **`apps/web/src/instrumentation.ts`(신규) `register()`에서 `process.env.TZ="Asia/Seoul"`**. ⚠️ **Vercel은 `TZ`를 예약 env로 막아 프로젝트 설정으론 못 바꾼다**(vercel env add TZ → "reserved" 에러) → 런타임 코드 설정이 유일. Node는 재할당 시 이후 Date부터 반영, register는 앱 코드보다 먼저 실행(검증: TZ 재설정이 Date에 반영됨, `.next/server/instrumentation.js` 번들 확인). 보강: `apps/web/package.json` dev/build/start + `packages/core/package.json` test에 `TZ=Asia/Seoul` prefix(로컬·빌드·CI 일관, self-host 대비).
-    - **⚠️ 배포 후 필수 검증**: instrumentation의 실런타임 동작은 프로덕션(UTC)에서만 확증 가능 — 배포 후 자연어 "내일 오전 11시"가 KST 11:00(02:00Z)로 저장되는지 실측할 것. 안 되면 fallback(서버 시간 계산을 date-fns-tz로 KST 명시).
+    - **✅ 배포 후 검증 완료 (2026-07-05)**: 프로덕션(que.griff.co.kr) 실런타임에서 자연어 "내일 오전 11시"가 KST 11:00으로 정상 저장·표시됨(사용자 실측 확인). instrumentation 방식이 Vercel 서버리스에서 동작 확정. fallback(date-fns-tz) 불필요.
     - **기타 메뉴 페이지 풀폭**: planning/tools/help/settings의 `mx-auto max-w-*` → **max-w까지 제거**(53번에서 mx-auto만 뺐으나 사용자가 "아직 와이드하게 안 나온다" → 풀폭으로). 다른 콘텐츠 페이지와 폭 통일.
     - **후속(선택)**: 자연어 파싱을 LLM(Claude API)로 고도화하면 "점심 즈음"·"내일 아침 일찍" 등 유연성↑ — 단 비용·지연·비결정성. 이번 타임존 버그와 무관하므로 별도 검토(사용자 질문 답변).
+
+55. **크레덴셜 불필요 편의 개선 1차 — 7건 (2026-07-05)** — 사용자 "크레덴셜 없이 진행 가능한 것 진행". audit(7aa893c) 개선 아이디어 중 조회·UI 안전 항목. frontend/backend-dev 5개 병렬 위임.
+    - **statusLogs 최신 조회 정합화**(52·53번 이연 종결): core `rules.ts`에 `latestStatusLog(logs, taskId, toStatus)` 추가(배열 순서 대신 `createdAt` 최대). today-data/team-data/`getTaskStatusDetailAction` 3곳을 이 헬퍼로 통일(방법 A) + `supabase-db.ts` load에 status_logs/change_logs `.order("created_at")` 보강(방법 B 이중화). report-data/members-data는 이미 createdAt 정렬이라 무변. core 회귀 3건(80→83).
+    - **schedule 마지막 뷰 기억 + 키보드 내비**: 쿠키 `que_schedule_range`(range만 기억, date는 항상 오늘)를 `schedule/page.tsx`가 `cookies()`(Next 16 async)로 읽어 파라미터 없을 때 기본. `schedule-header.tsx`(클라)가 document.cookie 기록 + keydown(← 이전·→ 다음·T 오늘·D 일간·3 3일·W 주간·M 월간, input/수정키 가드). `keyboard-shortcuts.tsx` 치트시트에 3줄 추가.
+    - **히트맵 셀 드릴다운 + 부하 막대**: `performance-heatmap.tsx` 셀을 `<Link role=gridcell>`로(→`/schedule?range=day&date=YYYY-MM-DD`), 그리드 아래 멤버별 부하 막대(totalScore/maxTotal, 과부하만 amber·막힘 red — 상태색 의미 준수). heatmap-data 기존 집계 재사용(무변).
+    - **상세 시트 상태버튼 숫자키 1~7**: `task-status-sheet.tsx` — 클릭 로직을 `chooseStatus`로 추출해 클릭·키 공유, 버튼 그리드에 스코프된 onKeyDown(detailFor·mergeCandidates·input 포커스·수정키 가드). 번호 뱃지(checkin-panel 패턴).
+    - **Now 일정 충돌 지표**: `now-data.ts`에 팀 전체 오늘 충돌 수 계산(today/team-data와 동일 겹침 검사), `now/page.tsx` 요약 6번째 카드(→`/team`, >0이면 amber). 표 무변.
+    - 검증: typecheck·lint·build exit 0, core **83/83**. **브라우저 확장 미연결로 라이브 시각 검증 못 함**(코드+빌드).
+    - **2차 예정(크레덴셜 불필요지만 스키마/도메인 변경이라 신중)**: 담당자 변경(core reassign+ChangeLog), 작업 삭제(개인 계층 deleteTask, 기획105), 체크인 '나중에' 스누즈(CheckIn snoozeUntil 스키마).
 
 ## 남은 작업 / 오픈 질문
 

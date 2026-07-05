@@ -49,6 +49,12 @@ export default async function NowPage({
     { value: data.summary.issueHold, label: "문제/홀드" },
     { value: data.summary.dueToday, label: "오늘 마감" },
     { value: data.summary.missingAssignee, label: "담당자 확인 필요" },
+    {
+      value: data.summary.scheduleConflicts,
+      label: "일정 충돌",
+      href: "/team",
+      warning: true as const,
+    },
   ];
 
   return (
@@ -67,16 +73,51 @@ export default async function NowPage({
 
       <section
         aria-label="Now 요약"
-        className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-5"
+        className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6"
       >
-        {metrics.map((metric) => (
-          <Card key={metric.label} className="py-3">
-            <CardContent className="px-4">
-              <p className="text-2xl font-semibold tabular-nums">{metric.value}</p>
-              <p className="text-xs text-muted-foreground">{metric.label}</p>
-            </CardContent>
-          </Card>
-        ))}
+        {metrics.map((metric) => {
+          const conflictActive = metric.warning && metric.value > 0;
+          const card = (
+            <Card
+              className={cn(
+                "py-3",
+                conflictActive && "border-[var(--que-warning)] bg-[var(--que-warning-bg)]",
+              )}
+            >
+              <CardContent className="px-4">
+                <p
+                  className={cn(
+                    "text-2xl font-semibold tabular-nums",
+                    conflictActive && "text-[var(--que-warning)]",
+                  )}
+                >
+                  {metric.value}
+                </p>
+                <p
+                  className={cn(
+                    "text-xs text-muted-foreground",
+                    conflictActive && "text-[var(--que-warning)]",
+                  )}
+                >
+                  {metric.label}
+                  {metric.href && <span className="ml-1">→</span>}
+                </p>
+              </CardContent>
+            </Card>
+          );
+          return metric.href ? (
+            <Link
+              key={metric.label}
+              href={metric.href}
+              aria-label={`${metric.label} ${metric.value}건 · 팀 현황 충돌 목록 보기`}
+              className="block rounded-xl transition-colors hover:bg-[var(--que-bg-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              {card}
+            </Link>
+          ) : (
+            <div key={metric.label}>{card}</div>
+          );
+        })}
       </section>
 
       <div className="mb-3 flex gap-2" aria-label="Now 필터">

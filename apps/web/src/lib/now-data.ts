@@ -34,6 +34,8 @@ export interface NowData {
     issueHold: number;
     dueToday: number;
     missingAssignee: number;
+    /** 오늘 팀 전체 일정 충돌 쌍 수 (팀 현황 충돌 목록과 동일 기준) */
+    scheduleConflicts: number;
   };
 }
 
@@ -109,6 +111,46 @@ export async function getNowData(viewer: User, filter: NowFilter, now: Date = ne
   if (filter === "mine") rows = rows.filter((r) => r.mine);
   if (filter === "issue") rows = rows.filter((r) => r.attention);
 
+  // 오늘 팀 전체 일정 충돌 — 사람별 오늘 시간표(작업+일정)에서 겹치는 쌍을 센다.
+  // team-data.ts의 팀 충돌 감지와 동일 기준(start < other.end && other.start < end).
+  const overlapsTodayRange = (startAt?: string, endAt?: string): boolean => {
+    if (!startAt) return false;
+    const start = new Date(startAt);
+    const end = endAt ? new Date(endAt) : start;
+    return start <= dayEnd && end >= dayStart;
+  };
+  let scheduleConflicts = 0;
+  for (const member of db.users) {
+    const items: { startAt: string; endAt: string }[] = [
+      ...db.tasks
+        .filter(
+          (t) =>
+            t.assigneeId === member.id &&
+            overlapsTodayRange(t.startAt, t.endAt) &&
+            t.status !== "cancelled" &&
+            t.status !== "merged",
+        )
+        .map((t) => ({ startAt: t.startAt!, endAt: t.endAt ?? t.startAt! })),
+      ...db.calendarEvents
+        .filter(
+          (e) =>
+            (e.ownerId === member.id || e.attendeeIds.includes(member.id)) &&
+            overlapsTodayRange(e.startAt, e.endAt),
+        )
+        .map((e) => ({ startAt: e.startAt, endAt: e.endAt })),
+    ].sort((a, b) => a.startAt.localeCompare(b.startAt));
+    for (let i = 0; i < items.length; i += 1) {
+      for (let j = i + 1; j < items.length; j += 1) {
+        if (
+          new Date(items[i].startAt) < new Date(items[j].endAt) &&
+          new Date(items[j].startAt) < new Date(items[i].endAt)
+        ) {
+          scheduleConflicts += 1;
+        }
+      }
+    }
+  }
+
   const summary = {
     calendarCount: taskRows.length + eventRows.length,
     actionCount: actionRows.length,
@@ -121,6 +163,7 @@ export async function getNowData(viewer: User, filter: NowFilter, now: Date = ne
     missingAssignee: db.actionItems.filter(
       (item) => item.status === "needs_review" && !item.assigneeId,
     ).length,
+    scheduleConflicts,
   };
 
   return { rows, summary };

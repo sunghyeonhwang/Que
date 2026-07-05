@@ -1,5 +1,6 @@
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
+import Link from "next/link";
 import type { HeatmapData } from "@/lib/heatmap-data";
 import { cn } from "@/lib/utils";
 
@@ -13,18 +14,25 @@ const GREEN = [
   { bg: "bg-[var(--heat-4-bg)]", fg: "text-[var(--heat-4-fg)]", label: "높음" },
 ];
 
-/** 히트맵(멤버×일) — 초록 강도 그리드. heatmap-data 재사용. 내부 가로 스크롤. */
+/** 히트맵(멤버×일) — 초록 강도 그리드 + 멤버별 부하 막대. heatmap-data 재사용.
+ *  히트맵(어디 몰렸나) 아래에 부하 막대(누가 많나)를 붙여 한 화면에서 보완한다.
+ *  셀 클릭 시 그 날짜의 일정(일 뷰)으로 이동한다. */
 export function PerformanceHeatmap({ data }: { data: HeatmapData }) {
+  const overloaded = new Set(data.overloaded);
+  const relaxed = new Set(data.relaxed);
+
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-4">
       <div className="overflow-x-auto">
         <div
           role="grid"
           aria-label="멤버별 일자별 작업량 히트맵"
           className="grid"
           style={{
-            gridTemplateColumns: `5rem repeat(${data.days.length}, minmax(0,1fr))`,
-            minWidth: `${5 + data.days.length * 1.6}rem`,
+            // 셀이 링크(터치 대상)라 컬럼 최소폭 2.75rem(44px) 보장 — m-0.5(4px) 제외 실 터치 40px.
+            // 월 그리드(N≈31)는 좁은 태블릿에서 가로 스크롤(overflow-x-auto)로 흘린다.
+            gridTemplateColumns: `5rem repeat(${data.days.length}, minmax(2.75rem,1fr))`,
+            minWidth: `${5 + data.days.length * 2.75}rem`,
           }}
         >
           <div />
@@ -48,25 +56,31 @@ export function PerformanceHeatmap({ data }: { data: HeatmapData }) {
               </div>
               {cells.map((cell) => {
                 const level = GREEN[cell.intensity];
+                const dateLabel = format(new Date(`${cell.date}T00:00:00`), "M월 d일", {
+                  locale: ko,
+                });
                 return (
-                  <div
+                  <Link
                     key={cell.date}
+                    href={`/schedule?range=day&date=${cell.date}`}
                     role="gridcell"
-                    aria-label={`${user.name} ${cell.date} 작업 ${cell.taskCount}건 ${cell.hours}시간`}
+                    aria-label={`${user.name} ${dateLabel} 작업 ${cell.taskCount}건 ${cell.hours}시간 · 일정 보기`}
                     className={cn(
-                      "m-0.5 flex min-h-10 items-center justify-center rounded-md border border-[var(--que-border)] text-xs tabular-nums",
+                      "m-0.5 flex min-h-10 items-center justify-center rounded-md border border-[var(--que-border)] text-xs tabular-nums transition-shadow",
+                      "outline-none hover:border-[var(--que-border-strong)] hover:shadow-sm focus-visible:ring-2 focus-visible:ring-[var(--que-brand)]",
                       level.bg,
                       level.fg,
                     )}
                   >
                     {cell.hours > 0 ? cell.hours : ""}
-                  </div>
+                  </Link>
                 );
               })}
             </div>
           ))}
         </div>
       </div>
+
       <div className="flex items-center gap-2 text-xs text-[var(--que-text-tertiary)]">
         <span>적음</span>
         {GREEN.map((g, i) => (
@@ -77,7 +91,53 @@ export function PerformanceHeatmap({ data }: { data: HeatmapData }) {
           />
         ))}
         <span>많음</span>
-        <span className="ml-1">셀 숫자 = 예상 시간(h)</span>
+        <span className="ml-1">셀 = 예상 시간(h) · 클릭 시 그날 일정</span>
+      </div>
+
+      {/* 멤버별 부하 막대 — 누가 얼마나 몰렸나(정렬 아님, 배분 조정용).
+          막대 길이 = totalScore(예상 시간 + 문제/홀드/마감 임박 가중), 라벨 = 실제 예상 시간. */}
+      <div className="flex flex-col gap-2 border-t border-[var(--que-border)] pt-3">
+        <p className="text-xs text-[var(--que-text-tertiary)]">
+          멤버별 부하 — 막대 길이는 예상 시간에 문제·홀드·마감 임박 가중을 더한 값입니다. 개인 평가가
+          아니라 업무 배분 조정용입니다.
+        </p>
+        {data.rows.map(({ user, totalScore, totalHours, issueOrHold }) => {
+          const isOver = overloaded.has(user.name);
+          const isRelaxed = relaxed.has(user.name);
+          return (
+            <div key={user.id} className="flex items-center gap-2">
+              <span className="flex w-20 shrink-0 items-center gap-1.5 text-sm text-[var(--que-text)]">
+                <span
+                  className="size-2 shrink-0 rounded-full"
+                  style={{ backgroundColor: user.avatarColor }}
+                  aria-hidden
+                />
+                <span className="truncate">{user.name}</span>
+              </span>
+              <span
+                className="h-4 rounded-sm"
+                style={{
+                  width: `${(totalScore / data.maxTotal) * 100}%`,
+                  minWidth: totalScore ? "0.5rem" : "0",
+                  backgroundColor: isOver
+                    ? "var(--que-warning)"
+                    : "var(--que-text-tertiary)",
+                }}
+                aria-hidden
+              />
+              <span className="whitespace-nowrap text-xs tabular-nums text-[var(--que-text-secondary)]">
+                {totalHours}h
+                {issueOrHold > 0 && (
+                  <span className="text-[var(--que-error)]"> · 막힘 {issueOrHold}</span>
+                )}
+                {isOver && <span className="text-[var(--que-warning)]"> · 과부하</span>}
+                {isRelaxed && !isOver && (
+                  <span className="text-[var(--que-text-tertiary)]"> · 여유</span>
+                )}
+              </span>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

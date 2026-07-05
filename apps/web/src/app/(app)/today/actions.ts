@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import {
   isQueRuleError,
+  latestStatusLog,
   parseTaskInput,
   QueRuleError,
   USERS,
@@ -84,9 +85,7 @@ export async function getTaskStatusDetailAction(
   const db = await getDb();
   const task = db.tasks.find((t) => t.id === taskId);
   if (!task || (task.status !== "issue" && task.status !== "on_hold")) return null;
-  const latest = [...db.statusLogs]
-    .reverse()
-    .find((log) => log.taskId === taskId && log.toStatus === task.status);
+  const latest = latestStatusLog(db.statusLogs, taskId, task.status);
   if (!latest) return null;
   const userById = new Map(db.users.map((u) => [u.id, u]));
   return {
