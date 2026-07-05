@@ -82,9 +82,11 @@ export function ClientSwitcher({
         />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-60">
-        <DropdownMenuLabel>클라이언트 필터</DropdownMenuLabel>
-        <DropdownMenuSeparator />
+        {/* Base UI Menu.GroupLabel은 반드시 Group/RadioGroup 안에 있어야 한다(Radix→Base UI 전환 회귀).
+            라벨·구분선을 RadioGroup 밖에 두면 드롭다운 여는 순간 MenuGroupContext 부재로 throw한다. */}
         <DropdownMenuRadioGroup value={current ?? ALL} onValueChange={onSelect}>
+          <DropdownMenuLabel>클라이언트 필터</DropdownMenuLabel>
+          <DropdownMenuSeparator />
           <DropdownMenuRadioItem value={ALL} className="h-10">
             전체 클라이언트
           </DropdownMenuRadioItem>
