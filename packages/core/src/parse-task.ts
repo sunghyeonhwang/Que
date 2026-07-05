@@ -15,8 +15,12 @@ export interface TaskDraft {
   questions: string[];
 }
 
-const TRAILING_COMMANDS =
-  /(을|를|좀|하나)?\s*(넣어\s*줘|추가해\s*줘|등록해\s*줘|잡아\s*줘|만들어\s*줘|넣어|추가|등록|해줘)\s*[.!]?\s*$/;
+// 명령형 어미(…넣어줘/추가해줘/해줘)는 문장 끝에서 항상 제거한다.
+const TRAILING_COMMAND_PHRASE =
+  /\s*(을|를|좀|하나)?\s*(넣어\s*줘|추가해\s*줘|등록해\s*줘|잡아\s*줘|만들어\s*줘|해\s*줘)\s*[.!]?\s*$/;
+// 짧은 명령 동사(넣어/추가/등록)는 명사의 일부일 수 있어(예: "작업등록") 앞에 공백·조사
+// 경계가 있을 때만 제거한다 — "작업등록"의 등록은 남기고 "작업 등록"·"작업을 등록"만 제거.
+const TRAILING_COMMAND_WORD = /(\s|을|를|좀|하나)\s*(넣어|추가|등록)\s*[.!]?\s*$/;
 
 export function parseTaskInput(input: {
   text: string;
@@ -114,8 +118,13 @@ export function parseTaskInput(input: {
   }
 
   // ---- 제목: 남은 텍스트 정리 ----
-  const title = rest
-    .replace(TRAILING_COMMANDS, " ")
+  // 명령형 어미(PHRASE)가 있으면 그것만 제거하고, 없을 때만 짧은 동사(WORD)를 제거한다.
+  // 둘을 연달아 적용하면 "회원 등록 넣어줘"에서 '넣어줘'를 뗀 뒤 남은 '등록'까지 이중으로
+  // 잘려 "회원"이 된다(원문 기준 명령어는 1회만 제거).
+  const stripped = TRAILING_COMMAND_PHRASE.test(rest)
+    ? rest.replace(TRAILING_COMMAND_PHRASE, " ")
+    : rest.replace(TRAILING_COMMAND_WORD, " ");
+  const title = stripped
     .replace(/^\s*(에|에서|은|는|이|가)\s+/, " ")
     .replace(/\s+(을|를)\s*$/, " ")
     .replace(/\s{2,}/g, " ")

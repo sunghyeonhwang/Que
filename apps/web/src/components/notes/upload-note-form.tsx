@@ -22,9 +22,11 @@ export function UploadNoteForm({ projects }: { projects: Project[] }) {
   const { run, pending } = useSafeAction();
   const [title, setTitle] = useState("");
   const [projectId, setProjectId] = useState("");
-  const [meetingDate, setMeetingDate] = useState(() => {
+  const [meetingDateTime, setMeetingDateTime] = useState(() => {
     const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const p = (n: number) => String(n).padStart(2, "0");
+    // datetime-local 형식: YYYY-MM-DDTHH:mm. 기본 시각은 정시로 맞춤.
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:00`;
   });
   const [attendeeIds, setAttendeeIds] = useState<string[]>([]);
   const [fileName, setFileName] = useState("");
@@ -41,12 +43,12 @@ export function UploadNoteForm({ projects }: { projects: Project[] }) {
     if (!title) setTitle(file.name.replace(/\.md$/i, ""));
   };
 
-  const canSubmit =
-    title.trim() &&
-    fileName &&
-    markdownBody &&
-    !pending &&
-    (visibility !== "restricted" || restrictedUserIds.length > 0);
+  const missing: string[] = [];
+  if (!fileName || !markdownBody) missing.push("파일");
+  if (!title.trim()) missing.push("회의명");
+  if (visibility === "restricted" && restrictedUserIds.length === 0) missing.push("열람 인원");
+
+  const canSubmit = missing.length === 0 && !pending;
 
   const submit = () => {
     run(
@@ -54,7 +56,7 @@ export function UploadNoteForm({ projects }: { projects: Project[] }) {
         uploadMeetingNoteAction({
           title,
           projectId: projectId || undefined,
-          meetingDate,
+          meetingDateTime,
           attendeeIds,
           fileName,
           markdownBody,
@@ -83,17 +85,24 @@ export function UploadNoteForm({ projects }: { projects: Project[] }) {
       </header>
       <div className="flex flex-col gap-3 p-4">
         <Field>
-          <FieldLabel htmlFor="note-file">Markdown 파일 (Plaud Note 내보내기)</FieldLabel>
+          <FieldLabel htmlFor="note-file">
+            Markdown 파일 (Plaud Note 내보내기) <span className="text-[var(--que-error)]">*</span>
+          </FieldLabel>
           <Input
             id="note-file"
             ref={fileRef}
             type="file"
             accept=".md,.markdown,.txt"
+            className="h-11 cursor-pointer file:mr-3 file:cursor-pointer file:rounded-md file:border-0 file:bg-[var(--que-brand)] file:px-3 file:py-1.5 file:text-[var(--que-on-brand)] hover:file:bg-[var(--que-brand-hover)]"
             onChange={(e) => onFileChange(e.target.files?.[0])}
           />
-          {fileName && (
-            <p className="text-xs text-muted-foreground">
+          {fileName ? (
+            <p className="text-xs text-[var(--que-success)]">
               {fileName} · {markdownBody.length.toLocaleString()}자 읽음
+            </p>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              .md / .markdown / .txt 파일을 선택하세요. 회의명은 파일명으로 자동 채워집니다.
             </p>
           )}
         </Field>
@@ -103,12 +112,12 @@ export function UploadNoteForm({ projects }: { projects: Project[] }) {
             <Input id="note-title" value={title} onChange={(e) => setTitle(e.target.value)} />
           </Field>
           <Field>
-            <FieldLabel htmlFor="note-date">회의일</FieldLabel>
+            <FieldLabel htmlFor="note-date">회의 일시</FieldLabel>
             <Input
               id="note-date"
-              type="date"
-              value={meetingDate}
-              onChange={(e) => setMeetingDate(e.target.value)}
+              type="datetime-local"
+              value={meetingDateTime}
+              onChange={(e) => setMeetingDateTime(e.target.value)}
             />
           </Field>
         </div>
@@ -132,22 +141,52 @@ export function UploadNoteForm({ projects }: { projects: Project[] }) {
           </Select>
         </Field>
         <Field>
-          <FieldLabel>참석자</FieldLabel>
-          <div className="grid grid-cols-4 gap-2">
-            {USERS.map((user) => (
-              <label key={user.id} className="flex h-10 items-center gap-2 text-sm">
-                <Checkbox
-                  checked={attendeeIds.includes(user.id)}
-                  onCheckedChange={(checked) =>
-                    setAttendeeIds((prev) =>
-                      checked ? [...prev, user.id] : prev.filter((id) => id !== user.id),
-                    )
-                  }
-                  aria-label={`참석자 ${user.name}`}
-                />
-                {user.name}
-              </label>
-            ))}
+          <div className="flex items-center justify-between gap-2">
+            <FieldLabel>
+              참석자 (복수 선택)
+              {attendeeIds.length > 0 && (
+                <span className="ml-1 font-normal text-muted-foreground">
+                  · {attendeeIds.length}명 선택
+                </span>
+              )}
+            </FieldLabel>
+            <button
+              type="button"
+              className="inline-flex h-8 items-center rounded-md px-2 text-xs font-medium text-[var(--que-brand)] hover:bg-[var(--que-bg-muted)]"
+              onClick={() =>
+                setAttendeeIds((prev) =>
+                  prev.length === USERS.length ? [] : USERS.map((u) => u.id),
+                )
+              }
+            >
+              {attendeeIds.length === USERS.length ? "전체 해제" : "전체 선택"}
+            </button>
+          </div>
+          <div className="grid grid-cols-2 gap-1 sm:grid-cols-3">
+            {USERS.map((user) => {
+              const checked = attendeeIds.includes(user.id);
+              return (
+                <label
+                  key={user.id}
+                  className={`flex h-11 cursor-pointer items-center gap-2 rounded-md border px-3 text-sm transition-colors ${
+                    checked
+                      ? "border-[var(--que-brand)] bg-[var(--que-brand-subtle)]"
+                      : "border-[var(--que-border)] hover:bg-[var(--que-bg-muted)]"
+                  }`}
+                >
+                  <Checkbox
+                    checked={checked}
+                    onCheckedChange={(c) =>
+                      setAttendeeIds((prev) =>
+                        c ? [...prev, user.id] : prev.filter((id) => id !== user.id),
+                      )
+                    }
+                    aria-label={`참석자 ${user.name}`}
+                  />
+                  {user.name}
+                </label>
+              );
+            })}
           </div>
         </Field>
         <Field>
@@ -199,13 +238,20 @@ export function UploadNoteForm({ projects }: { projects: Project[] }) {
             )}
           </Field>
         )}
-        <Button
-          className="h-10 rounded-lg bg-[var(--que-brand)] text-[var(--que-on-brand)] hover:bg-[var(--que-brand-hover)]"
-          disabled={!canSubmit}
-          onClick={submit}
-        >
-          {pending ? "업로드 중…" : "업로드"}
-        </Button>
+        <div className="sticky bottom-0 -mx-4 -mb-4 mt-1 flex flex-col gap-2 border-t border-[var(--que-border)] bg-[var(--que-bg)] px-4 py-3">
+          <Button
+            className="h-11 w-full rounded-lg bg-[var(--que-brand)] text-[var(--que-on-brand)] hover:bg-[var(--que-brand-hover)]"
+            disabled={!canSubmit}
+            onClick={submit}
+          >
+            {pending ? "업로드 중…" : "회의록 업로드"}
+          </Button>
+          {!pending && missing.length > 0 && (
+            <p className="text-center text-xs text-muted-foreground">
+              {missing.join(" · ")}을(를) 입력하면 업로드할 수 있습니다.
+            </p>
+          )}
+        </div>
       </div>
     </section>
   );

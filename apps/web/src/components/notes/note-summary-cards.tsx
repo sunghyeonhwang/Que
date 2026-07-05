@@ -19,7 +19,7 @@ export function NoteSummaryCards({ summary }: { summary: NoteSummary }) {
   ];
 
   return (
-    <section aria-label="확인필요 요약" className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+    <section aria-label="회의록 요약" className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
       {metrics.map((metric) => (
         <div
           key={metric.label}

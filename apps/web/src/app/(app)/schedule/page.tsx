@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 
 /** range 파라미터 화이트리스트 — 쓰레기 입력은 주간으로 폴백. */
 function parseRange(value: string | undefined): ScheduleRange {
-  return value === "day" || value === "month" ? value : "week";
+  return value === "day" || value === "3day" || value === "month" ? value : "week";
 }
 
 /** date 파라미터 화이트리스트 — YYYY-MM-DD 아니면 오늘로 폴백. */
@@ -35,6 +35,7 @@ export default async function SchedulePage({
   // 뷰별 표시 기간 계산
   const weekStart = startOfWeek(anchor, { weekStartsOn: 1 });
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
+  const threeDays = Array.from({ length: 3 }, (_, i) => addDays(anchor, i));
   const monthGridStart = startOfWeek(startOfMonth(anchor), { weekStartsOn: 1 });
   const monthWeeks = Array.from({ length: 6 }, (_, w) =>
     Array.from({ length: 7 }, (_, d) => addDays(monthGridStart, w * 7 + d)),
@@ -45,7 +46,9 @@ export default async function SchedulePage({
       ? [monthWeeks[0][0], monthWeeks[5][6]]
       : range === "day"
         ? [anchor, anchor]
-        : [weekDays[0], weekDays[6]];
+        : range === "3day"
+          ? [threeDays[0], threeDays[2]]
+          : [weekDays[0], weekDays[6]];
 
   const rangeEndOfDay = new Date(rangeEnd);
   rangeEndOfDay.setHours(23, 59, 59, 999);
@@ -77,6 +80,8 @@ export default async function SchedulePage({
         <MonthView weeks={monthWeeks} anchor={anchor} items={data.items} />
       ) : range === "day" ? (
         <WeekCalendar days={[anchor]} items={data.items} />
+      ) : range === "3day" ? (
+        <WeekCalendar days={threeDays} items={data.items} />
       ) : (
         <WeekCalendar days={weekDays} items={data.items} />
       )}

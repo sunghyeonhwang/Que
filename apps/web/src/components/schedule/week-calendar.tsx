@@ -52,11 +52,14 @@ export function WeekCalendar({ days, items }: { days: Date[]; items: CalendarVie
     days.some((d) => isSameDay(d, now));
   const nowY = now ? timeToY(now) : 0;
   const colTemplate = `4rem repeat(${days.length}, minmax(0, 1fr))`;
+  // 가로 스크롤 임계폭을 컬럼 수에 비례시킨다(시간축 4rem + 컬럼당 6.2rem).
+  // 7일=약 760px로 기존 주간 레이아웃 유지, 3일/1일은 과하게 넓어지지 않음.
+  const minWidth = `calc(4rem + ${days.length} * 6.2rem)`;
 
   return (
     <div className="overflow-hidden rounded-xl border border-[var(--que-border)] bg-[var(--que-bg)]">
       <div className="max-h-[calc(100dvh-15rem)] overflow-auto">
-        <div className="min-w-[760px]">
+        <div style={{ minWidth }}>
           {/* 요일 헤더 (sticky top) */}
           <div
             className="sticky top-0 z-30 grid border-b border-[var(--que-border)] bg-[var(--que-bg)]"

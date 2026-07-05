@@ -450,6 +450,19 @@ data/
     - **글래도스 게이트 1차 반려→수정**: (1) `getTaskStatusDetailAction`+`getMergeCandidatesAction`에 `getCurrentUser()` 인증 게이트 부재(서버액션 ID는 번들에서 추출 가능→비인증 실명 노출) → 둘 다 추가. (2) HANDOFF 미기록 → 이 항목. + 비차단 실버그 2건 동반 수정: 체크인 issueOpen 가드, quick-add IME 가드. build/lint/typecheck exit 0, core 79/79. **브라우저 확장 미연결로 라이브 클릭 검증은 못 함**(코드+빌드+라우트 스모크로 대체).
     - **⚠️ 후속(비차단, 글래도스 경고)**: (1) **statusLogs "최신" 가정**: `supabase-db.ts` select에 ORDER BY 없어 프로덕션 배열 순서 미보장인데 team-data/today-data/신규액션 3곳이 `.reverse().find()`로 최신 가정 → `createdAt` 정렬로 **일괄** 교정(3곳 동시, 신규만 고치면 불일치). (2) `/` 단축키가 모달 열림 중 배경 검색 인풋 포커스 시도 가능(offsetParent로 오버레이 차폐 미감지) — Base UI 포커스 트랩이 되돌릴 것으로 예상, 관측되면 교정.
 
+53. **실사용 검수 UI 개선 배치 (2026-07-05)** — 사용자 검수 피드백 11건. 공통 5건 직접 + 독립 3영역 frontend-dev 병렬 위임. 신규 파일 `lib/today-nav.ts` 1개, 나머지 기존 파일 수정.
+    - **1 전역 스크롤바 숨김**: `globals.css` @layer base에 `* { scrollbar-width:none } *::-webkit-scrollbar { display:none }`. 스크롤 기능(휠·터치·키보드)은 유지, 시각만 제거. 사이드바는 base-ui ScrollArea 자체 렌더라 무영향. **수용: 접근성상 '스크롤 가능' 시각 단서 상실**(태블릿 우선 운영도구라 수용).
+    - **2 schedule 3일 뷰**: `schedule-header.tsx`(ScheduleRange에 `3day`·RANGE_LABELS·shift ±3일·stepLabel), `schedule/page.tsx`(parseRange 화이트리스트·threeDays·범위·렌더 분기), `week-calendar.tsx`(min-w를 `calc(4rem + N*6.2rem)` days 비례; 7일≈758px 등가·회귀 없음). WeekCalendar는 원래 days.length 유연.
+    - **3 사이드바 4메뉴 가운데정렬 해소**: 원인은 사이드바가 아니라 planning/tools/help/settings 페이지 본문 `mx-auto max-w-*`. 4개 파일에서 `mx-auto`만 제거(max-w 유지)→다른 페이지처럼 좌측 정렬.
+    - **4 자연어 파싱 실버그**: `parse-task.ts` — "작업등록"처럼 명사가 '등록'으로 끝나면 명령어 오인·'작업' 축약. TRAILING_COMMANDS를 **PHRASE(…해줘류, 항상 제거)**와 **WORD(넣어/추가/등록, 공백·조사 경계 있을 때만)**로 분리. **결정: 배타 적용**(PHRASE 매치되면 그것만, 아니면 WORD) — 연달아 적용하면 "회원 등록 넣어줘"가 '회원'으로 이중 절단(글래도스 반려 회귀). `rules.test.ts` 회귀 2케이스(작업등록 보존·회원 등록 넣어줘). core 79→80.
+    - **5 작업목록 탭 분리(IA)**: `/today`를 `?panel=status|input` 두 탭. 신규 `lib/today-nav.ts`(parseTodayPanel/buildTodayHref — panel↔tab 상호 보존, 기본값 URL 생략), `my-task-tabs.tsx` panel prop, `today/page.tsx` 서버 분기·`TaskListSection` 추출 공유. **현황 탭**=KPI·타임라인·체크인·하루마감·주의필요+리스트, **입력 탭**=QuickAdd+리스트. 기존 `?tab=` 필터와 공존.
+    - **6 일정 새로추가**: 사용자 결정 **'준비 중' 유지**(캘린더 이벤트 생성 core mutation 부재 — createCalendarEvent 없음, 신설 시 별도 배치). 손대지 않음.
+    - **7 공통 탭 스타일**: `link-tabs.tsx`(오늘/Now·회의록/Action)+`team/page.tsx` 뷰토글 2곳 세그먼트화 — 컨테이너 `bg-muted/60 p-1`, active `bg-primary shadow-sm`, inactive `text-muted-foreground hover:bg-background hover:text-foreground`. h-10 유지. 밑줄형(my-task-tabs/view-tabs)은 이미 명확해 유지.
+    - **8 확인필요→회의록 라벨**: `menu.ts`(label·icon MessageSquareText→FileText), `meeting-notes/page.tsx` 제목, `search-data.ts` subtitle, `note-summary-cards.tsx` aria. **동기화(글래도스 반려 반영)**: CLAUDE.md 메뉴 절 L20·28 + `help-content.ts`(비개발 매뉴얼) "확인필요"→"회의록" 일괄, 검색 카테고리 "회의록"·알림 개념 "확인 필요"는 무관 유지. **`/action` 화면 제목은 성격상 '확인필요' 유지**(CLAUDE.md에 명시). member-card-menu "확인필요"는 별개 기능 제외.
+    - **9·10·11 회의록 업로드**: `upload-note-form.tsx`+`meeting-notes/actions.ts` — (10) 회의 일시 `date`→`datetime-local`, actions 검증 `YYYY-MM-DDTHH:mm`+구 `YYYY-MM-DD` 방어(구 형식만 10:00 기본), 하드코딩 T10:00 제거. (11) 참석자 전체선택·인원배지·44px 카드(이미 있던 체크박스 발견성 개선). (9) 업로드 버튼 full-width 강조+disabled 부족항목 힌트(사용자가 '버튼 없음'이라 느낀 원인=파일 미선택 시 회색 버튼). core createMeetingNote 경유 유지.
+    - **글래도스 게이트 1차 반려→반영**: (1) HANDOFF 미기록→이 항목. (2) 라벨 변경 동기화 누락(CLAUDE.md L28 불변식 위반·help-content 13곳)→위 8에 반영. (3) parse 이중 제거 회귀→위 4 배타 적용. typecheck·lint·build·core 80/80. **브라우저 확장 미연결로 라이브 시각 검증 못 함**(코드+빌드로 대체).
+    - **⚠️ 후속(비차단, 글래도스 경고)**: (1) datetime 롤오버 — `2026-02-30T10:00`이 거부 안 되고 3/2로 저장(V8 레거시 파서, **구 코드도 동일=회귀 아님**, datetime-local UI로는 생성 불가·크래프트만). 후속 라운드트립 검증. (2) statusLogs ORDER BY 일괄 교정(52번에서 이연 — 다음 supabase-db 배치에서 차단 승격 예고).
+
 ## 남은 작업 / 오픈 질문
 
 - ~~알림 채널 결정~~ → **Slack 확정** (2026-07-02): 1단계 Incoming Webhook+딥링크, 2단계 Bot 인터랙티브 버튼으로 Slack 안에서 체크인 응답(`answerCheckIn` 경유, via 기록). 기획서 "알림 정책 > 알림 채널"과 MCP/CLI 계획 Phase E에 반영됨.

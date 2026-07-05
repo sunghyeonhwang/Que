@@ -13,7 +13,7 @@ export default function HelpPage() {
   const toc = sections.map(({ id, title }) => ({ id, title }));
 
   return (
-    <div className="mx-auto max-w-5xl">
+    <div className="max-w-5xl">
       <PageHeader
         title="도움말"
         subtitle="Que를 처음 쓰는 분도 바로 따라 할 수 있게 정리했어요. 궁금할 때 언제든 여기로 오세요."

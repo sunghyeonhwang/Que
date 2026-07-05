@@ -76,15 +76,20 @@ export default async function TeamPage({
         ))}
       </section>
 
-      <nav aria-label="일정 뷰 전환" className="mb-4 flex w-fit rounded-lg border p-0.5">
+      <nav
+        aria-label="일정 뷰 전환"
+        className="mb-4 inline-flex w-fit items-center gap-0.5 rounded-lg border bg-muted/60 p-1"
+      >
         {VIEWS.map((v) => (
           <Link
             key={v.key}
             href={v.key === "board" ? "/team" : `/team?view=${v.key}`}
             aria-current={view === v.key ? "page" : undefined}
             className={cn(
-              "flex h-10 items-center rounded-md px-3 text-sm font-medium transition-colors",
-              view === v.key ? "bg-primary text-primary-foreground" : "hover:bg-accent",
+              "flex h-10 items-center rounded-md px-3 text-sm font-medium transition-all",
+              view === v.key
+                ? "bg-primary text-primary-foreground shadow-sm"
+                : "text-muted-foreground hover:bg-background hover:text-foreground",
             )}
           >
             {v.label}
@@ -104,15 +109,20 @@ export default async function TeamPage({
 
       {view === "report" && reportData && (
         <>
-          <nav aria-label="리포트 기간 전환" className="mb-4 flex w-fit rounded-lg border p-0.5">
+          <nav
+            aria-label="리포트 기간 전환"
+            className="mb-4 inline-flex w-fit items-center gap-0.5 rounded-lg border bg-muted/60 p-1"
+          >
             {(["week", "month"] as const).map((p) => (
               <Link
                 key={p}
                 href={`/team?view=report&period=${p}`}
                 aria-current={reportPeriod === p ? "page" : undefined}
                 className={cn(
-                  "flex h-10 items-center rounded-md px-3 text-sm font-medium transition-colors",
-                  reportPeriod === p ? "bg-primary text-primary-foreground" : "hover:bg-accent",
+                  "flex h-10 items-center rounded-md px-3 text-sm font-medium transition-all",
+                  reportPeriod === p
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "text-muted-foreground hover:bg-background hover:text-foreground",
                 )}
               >
                 {p === "week" ? "주간" : "월간"}

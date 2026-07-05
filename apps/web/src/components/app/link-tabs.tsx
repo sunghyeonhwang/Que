@@ -19,17 +19,20 @@ export function LinkTabs({
   active: string;
 }) {
   return (
-    <nav aria-label={label} className="mb-4 flex w-fit rounded-lg border p-0.5">
+    <nav
+      aria-label={label}
+      className="mb-4 inline-flex w-fit items-center gap-0.5 rounded-lg border bg-muted/60 p-1"
+    >
       {tabs.map((tab) => (
         <Link
           key={tab.key}
           href={tab.href}
           aria-current={active === tab.key ? "page" : undefined}
           className={cn(
-            "flex h-10 items-center rounded-md px-4 text-sm font-medium transition-colors",
+            "flex h-10 items-center rounded-md px-4 text-sm font-medium transition-all",
             active === tab.key
-              ? "bg-primary text-primary-foreground"
-              : "hover:bg-accent",
+              ? "bg-primary text-primary-foreground shadow-sm"
+              : "text-muted-foreground hover:bg-background hover:text-foreground",
           )}
         >
           {tab.label}

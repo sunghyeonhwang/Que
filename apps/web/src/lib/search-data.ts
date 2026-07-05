@@ -93,7 +93,7 @@ export async function searchWorkspace(query: string, user: User): Promise<Search
         kind: "action" as const,
         id: a.id,
         title: a.title,
-        subtitle: "확인필요",
+        subtitle: "회의록",
         href: "/action",
       })),
   );

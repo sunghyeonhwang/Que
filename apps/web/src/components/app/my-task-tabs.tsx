@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { MyTaskTab } from "@/lib/my-tasks-data";
+import { buildTodayHref, type TodayPanel } from "@/lib/today-nav";
 import { cn } from "@/lib/utils";
 
 // "내 작업" 밑줄형 탭. URL ?tab=all|today|upcoming|done 로 상태를 반영한다.
@@ -13,9 +14,12 @@ const TABS: { key: MyTaskTab; label: string }[] = [
 export function MyTaskTabs({
   active,
   counts,
+  panel = "status",
 }: {
   active: MyTaskTab;
   counts: Record<MyTaskTab, number>;
+  /** 상단 패널(현황/입력)을 유지한 채 리스트 필터만 바꾸기 위해 전달. */
+  panel?: TodayPanel;
 }) {
   return (
     <nav
@@ -27,7 +31,7 @@ export function MyTaskTabs({
         return (
           <Link
             key={tab.key}
-            href={tab.key === "all" ? "/today" : `/today?tab=${tab.key}`}
+            href={buildTodayHref(tab.key, panel)}
             aria-current={isActive ? "page" : undefined}
             className={cn(
               "flex h-11 items-center gap-1.5 border-b-2 px-3 text-sm font-medium transition-colors",

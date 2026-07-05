@@ -3,6 +3,7 @@ import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 import { TASK_STATUS_LABELS } from "@que/core";
 import { PageHeader } from "@/components/app/page-header";
+import { LinkTabs } from "@/components/app/link-tabs";
 import { MyTaskTabs } from "@/components/app/my-task-tabs";
 import { MyTaskTable } from "@/components/app/my-task-table";
 import { ConflictSuggestions } from "@/components/app/conflict-suggestions";
@@ -18,6 +19,7 @@ import { getCommentViewsByTask } from "@/lib/comments";
 import { getCurrentUser } from "@/lib/current-user";
 import { getTodayData, type TodayTimelineItem } from "@/lib/today-data";
 import { filterMyTasks, getMyTaskList, type MyTaskTab } from "@/lib/my-tasks-data";
+import { buildTodayHref, parseTodayPanel, type TodayPanel } from "@/lib/today-nav";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -29,10 +31,11 @@ function parseTab(value: string | undefined): MyTaskTab {
 export default async function TodayPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string }>;
+  searchParams: Promise<{ tab?: string; panel?: string }>;
 }) {
-  const { tab: tabParam } = await searchParams;
+  const { tab: tabParam, panel: panelParam } = await searchParams;
   const tab = parseTab(tabParam);
+  const panel = parseTodayPanel(panelParam);
   const user = await getCurrentUser();
   const now = new Date();
 
@@ -77,15 +80,19 @@ export default async function TodayPage({
         }))}
       />
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
-        {/* 메인: 디자인 태스크 리스트 */}
-        <section className="flex min-w-0 flex-col gap-3">
-          <MyTaskTabs active={tab} counts={taskList.counts} />
-          <MyTaskTable items={visibleTasks} commentsByTask={commentsByTask} />
-        </section>
+      {/* 패널 스위처: 현황+리스트 / 입력+리스트 두 탭으로 분리 */}
+      <LinkTabs
+        label="작업 목록 보기 전환"
+        active={panel}
+        tabs={[
+          { key: "status", label: "현황", href: buildTodayHref(tab, "status") },
+          { key: "input", label: "입력", href: buildTodayHref(tab, "input") },
+        ]}
+      />
 
-        {/* 리치 레일: 기존 오늘 화면의 기능을 모두 유지 */}
-        <aside className="flex flex-col gap-4">
+      {panel === "input" ? (
+        /* 입력 탭: 자연어 입력 + 작업 리스트 (단순 세로 배치) */
+        <section aria-label="작업 입력" className="flex flex-col gap-4">
           <Card>
             <CardHeader>
               <CardTitle className="text-base">새 작업 등록</CardTitle>
@@ -95,6 +102,27 @@ export default async function TodayPage({
             </CardContent>
           </Card>
 
+          <TaskListSection
+            tab={tab}
+            panel={panel}
+            counts={taskList.counts}
+            items={visibleTasks}
+            commentsByTask={commentsByTask}
+          />
+        </section>
+      ) : (
+        /* 현황 탭: 작업 리스트(좌) + 현황 레일(우) 2단 */
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+          <TaskListSection
+            tab={tab}
+            panel={panel}
+            counts={taskList.counts}
+            items={visibleTasks}
+            commentsByTask={commentsByTask}
+          />
+
+          {/* 리치 레일: 기존 오늘 화면의 현황 기능을 모두 유지 */}
+          <aside aria-label="오늘 현황" className="flex flex-col gap-4">
           <section aria-label="오늘 요약" className="grid grid-cols-2 gap-2">
             {metrics.map((metric) => (
               <Card key={metric.label} className="py-3">
@@ -195,9 +223,32 @@ export default async function TodayPage({
               ))}
             </CardContent>
           </Card>
-        </aside>
-      </div>
+          </aside>
+        </div>
+      )}
     </div>
+  );
+}
+
+/** 작업 리스트(필터 탭 + 테이블). 현황/입력 두 패널에서 공유한다. */
+function TaskListSection({
+  tab,
+  panel,
+  counts,
+  items,
+  commentsByTask,
+}: {
+  tab: MyTaskTab;
+  panel: TodayPanel;
+  counts: Record<MyTaskTab, number>;
+  items: Parameters<typeof MyTaskTable>[0]["items"];
+  commentsByTask: Parameters<typeof MyTaskTable>[0]["commentsByTask"];
+}) {
+  return (
+    <section aria-label="내 작업 리스트" className="flex min-w-0 flex-col gap-3">
+      <MyTaskTabs active={tab} counts={counts} panel={panel} />
+      <MyTaskTable items={items} commentsByTask={commentsByTask} />
+    </section>
   );
 }
 

@@ -5,7 +5,7 @@ import {
   ListChecks,
   Users,
   LayoutDashboard,
-  MessageSquareText,
+  FileText,
   Receipt,
   Settings,
   Terminal,
@@ -52,8 +52,8 @@ export const MENU_SECTIONS: MenuSection[] = [
       { href: "/team", label: "팀 현황", icon: LayoutDashboard },
       {
         href: "/meeting-notes",
-        label: "확인필요",
-        icon: MessageSquareText,
+        label: "회의록",
+        icon: FileText,
         match: ["/meeting-notes", "/action"],
       },
       // 반복 업무 템플릿(Task 자동 생성) + 프로젝트 마일스톤 관리. 백엔드는 기존 완성분 재연결.

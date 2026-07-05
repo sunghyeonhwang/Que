@@ -13,10 +13,11 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
-export type ScheduleRange = "day" | "week" | "month";
+export type ScheduleRange = "day" | "3day" | "week" | "month";
 
 const RANGE_LABELS: Record<ScheduleRange, string> = {
   day: "일간",
+  "3day": "3일",
   week: "주간",
   month: "월간",
 };
@@ -48,16 +49,19 @@ export function ScheduleHeader({
     const next =
       range === "day"
         ? addDays(base, dir)
-        : range === "month"
-          ? addMonths(base, dir)
-          : addWeeks(base, dir);
+        : range === "3day"
+          ? addDays(base, 3 * dir)
+          : range === "month"
+            ? addMonths(base, dir)
+            : addWeeks(base, dir);
     pushParams((p) => p.set("date", format(next, "yyyy-MM-dd")));
   };
 
   // 오늘로: date 파라미터를 제거하면 페이지가 오늘로 폴백
   const goToday = () => pushParams((p) => p.delete("date"));
 
-  const stepLabel = range === "day" ? "일" : range === "month" ? "월" : "주";
+  const stepLabel =
+    range === "day" ? "일" : range === "3day" ? "3일" : range === "month" ? "월" : "주";
 
   return (
     <div className="flex flex-wrap items-center gap-2">

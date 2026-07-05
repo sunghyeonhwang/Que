@@ -290,6 +290,21 @@ describe("자연어 작업 해석 (parseTaskInput)", () => {
     expect(draft.questions).toHaveLength(0);
   });
 
+  it("명사 끝의 '등록'을 명령어로 오인해 자르지 않는다 ('작업등록')", async () => {
+    const { parseTaskInput } = await import("./parse-task");
+    const { USERS } = await import("./mock/users");
+    // 공백 없이 붙은 '작업등록'은 통째로 제목이어야 한다(과거엔 '작업'으로 잘림).
+    const draft = parseTaskInput({ text: "오늘 오후 1시에 작업등록", users: USERS, now: NOW });
+    expect(draft.title).toBe("작업등록");
+    expect(new Date(draft.startAt!).getHours()).toBe(13);
+    // 반면 공백/조사 경계가 있으면 명령어 '등록'으로 보고 제거한다.
+    const spaced = parseTaskInput({ text: "상세페이지 QA 등록", users: USERS, now: NOW });
+    expect(spaced.title).toBe("상세페이지 QA");
+    // 명령형 어미가 있으면 그것만 1회 제거 — '등록'이 이중으로 잘리지 않는다.
+    const phrase = parseTaskInput({ text: "회원 등록 넣어줘", users: USERS, now: NOW });
+    expect(phrase.title).toBe("회원 등록");
+  });
+
   it("날짜/담당자가 없으면 질문을 남기고 저장하지 않는다", async () => {
     const { parseTaskInput } = await import("./parse-task");
     const { USERS } = await import("./mock/users");

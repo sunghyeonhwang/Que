@@ -27,19 +27,22 @@ async function toResult(fn: (db: Db) => Promise<unknown> | unknown): Promise<Act
 export async function uploadMeetingNoteAction(input: {
   title: string;
   projectId?: string;
-  meetingDate: string; // YYYY-MM-DD
+  meetingDateTime: string; // YYYY-MM-DDTHH:mm (구 형식 YYYY-MM-DD도 방어적 허용)
   attendeeIds: string[];
   fileName: string;
   markdownBody: string;
   visibility?: MeetingNote["visibility"];
   restrictedUserIds?: string[];
 }): Promise<ActionResult> {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.meetingDate)) {
-    return { ok: false, error: "유효하지 않은 회의일이다 (YYYY-MM-DD)" };
+  // 새 입력: 날짜+시간(datetime-local). 옛 형식(날짜만)은 시간 미지정 시 10:00 기본.
+  const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(input.meetingDateTime);
+  const dateTime = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/.test(input.meetingDateTime);
+  if (!dateOnly && !dateTime) {
+    return { ok: false, error: "유효하지 않은 회의 일시다 (YYYY-MM-DD HH:mm)" };
   }
-  const meetingAt = new Date(`${input.meetingDate}T10:00:00`);
+  const meetingAt = new Date(dateOnly ? `${input.meetingDateTime}T10:00:00` : input.meetingDateTime);
   if (Number.isNaN(meetingAt.getTime())) {
-    return { ok: false, error: "유효하지 않은 회의일이다" };
+    return { ok: false, error: "유효하지 않은 회의 일시다" };
   }
 
   const user = await getCurrentUser();

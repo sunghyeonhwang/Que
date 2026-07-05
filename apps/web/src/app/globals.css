@@ -236,6 +236,15 @@
     word-break: keep-all;
     letter-spacing: -0.011em;
   }
+  /* 스크롤바 시각 숨김 — 스크롤 기능(터치·휠·트랙패드)은 그대로. 태블릿 우선 운영 도구라
+     네이티브 스크롤바 노출을 없애 화면을 깔끔하게. 사이드바 커스텀 ScrollArea는 자체 렌더. */
+  * {
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* 구 Edge/IE */
+  }
+  *::-webkit-scrollbar {
+    display: none; /* Chromium·Safari */
+  }
 }
 
 /* 도움말 본문(마크다운 렌더) — --que-* 토큰이라 라이트/다크 자동 대응. */
