@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import { FolderKanban } from "lucide-react";
 import { getCurrentUser } from "@/lib/current-user";
-import { getClientFilter } from "@/lib/client-filter";
+import { getClientFilter, getClientOptions } from "@/lib/client-filter";
 import {
   getActiveProjects,
   getProjectBoard,
@@ -12,13 +12,20 @@ import {
   resolveSelectedProjectId,
 } from "@/lib/projects-data";
 import { ProjectView } from "@/components/projects/project-view";
+import {
+  ALL_CLIENTS,
+  ProjectScopeFilters,
+} from "@/components/projects/project-scope-filters";
 import { TaskDetailDrawer } from "@/components/projects/task-detail-drawer";
 
 export const dynamic = "force-dynamic";
 
 // 프로젝트(/projects) — 보드(4열 고정)/목록/캘린더 뷰 + 태스크 상세 드로어.
-// 카드 = core Task. 좌측 프로젝트 목록은 활성 클라이언트 필터 스코프를 존중한다.
-// 선택 프로젝트는 ?project=<id>, 뷰는 ?view=, 캘린더 월은 ?month=, 드로어는 ?task=<id>.
+// 카드 = core Task. 헤더의 2단 필터(클라이언트 → 프로젝트)로 스코프를 좁힌다.
+// 클라이언트는 ?client=<id|all>, 프로젝트는 ?project=<id>, 뷰는 ?view=,
+// 캘린더 월은 ?month=, 드로어는 ?task=<id>.
+// ?client가 없으면 전역 클라이언트 스위처(쿠키)를 기본 스코프로 쓴다. ?client는 그 위에
+// 페이지 단위로 덮어쓰며(all=명시적 전체), 전역 쿠키는 바꾸지 않는다.
 export default async function ProjectsPage({
   searchParams,
 }: {
@@ -27,26 +34,53 @@ export default async function ProjectsPage({
     month?: string;
     task?: string;
     project?: string;
+    client?: string;
   }>;
 }) {
   const user = await getCurrentUser();
   const params = await searchParams;
 
-  const clientFilter = await getClientFilter();
+  const cookieClient = await getClientFilter();
+  const clientOptions = await getClientOptions();
+
+  // 유효 클라이언트 스코프 해석:
+  // - ?client=all → 명시적 전체(쿠키 무시)
+  // - ?client=<유효 clientId> → 그 클라이언트
+  // - 그 외(없음/무효) → 전역 스위처 쿠키(없으면 전체)
+  const requested = params.client;
+  const clientFilter =
+    requested === ALL_CLIENTS
+      ? undefined
+      : requested && clientOptions.some((c) => c.id === requested)
+        ? requested
+        : cookieClient;
+  const selectedClient = clientFilter ?? ALL_CLIENTS;
+
   const projects = await getActiveProjects(clientFilter);
   const selectedId = resolveSelectedProjectId(projects, params.project);
 
-  // 빈 상태: 프로젝트가 없다(신규 배포 실데이터 또는 클라 필터로 0개).
+  // 빈 상태: 이 스코프에 프로젝트가 없다(전체가 0개 또는 특정 클라 0개).
+  // 클라이언트 필터는 계속 렌더해 사용자가 스코프를 바꿔 빠져나갈 수 있게 한다.
   if (!selectedId) {
     return (
-      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-3 text-center">
-        <FolderKanban className="size-10 text-[var(--que-text-tertiary)]" aria-hidden />
-        <p className="text-base font-semibold text-[var(--que-text)]">프로젝트가 없습니다</p>
-        <p className="max-w-sm text-sm text-[var(--que-text-secondary)]">
-          {clientFilter
-            ? "선택한 클라이언트에 연결된 프로젝트가 없습니다. 상단에서 클라이언트 필터를 바꾸거나 클라이언트 화면에서 프로젝트를 추가하세요."
-            : "아직 프로젝트가 없습니다. 클라이언트 화면에서 프로젝트를 추가하세요."}
-        </p>
+      <div className="flex h-full min-h-0 flex-col">
+        <div className="shrink-0">
+          <ProjectScopeFilters
+            clients={clientOptions}
+            selectedClient={selectedClient}
+            projects={projects}
+            selectedProjectId={null}
+          />
+        </div>
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
+          <FolderKanban className="size-10 text-[var(--que-text-tertiary)]" aria-hidden />
+          <p className="text-base font-semibold text-[var(--que-text)]">프로젝트가 없습니다</p>
+          <p className="max-w-sm text-sm text-[var(--que-text-secondary)]">
+            {clientFilter
+              ? "선택한 클라이언트에 연결된 프로젝트가 없습니다. 클라이언트 필터를 바꾸거나 클라이언트 화면에서 프로젝트를 추가하세요."
+              : "아직 프로젝트가 없습니다. 클라이언트 화면에서 프로젝트를 추가하세요."}
+          </p>
+        </div>
       </div>
     );
   }
@@ -65,6 +99,8 @@ export default async function ProjectsPage({
   return (
     <Suspense>
       <ProjectView
+        clients={clientOptions}
+        selectedClient={selectedClient}
         projects={projects}
         selectedProjectId={selectedId}
         view={params.view}

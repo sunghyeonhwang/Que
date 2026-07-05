@@ -610,6 +610,8 @@ data/
     - 검증: core **157**(gradeForUser·personScope URL확대불가 테스트), typecheck·lint·build, qa PASS(3직급 홈 분기·성과 스코프 사원1/관리자7/대표8·저성과표 사원 숨김·**URL 스코프 확대 6시도 전부 차단**·클라이언트 필터·4해상도, console 0). glados 생략(qa가 스코프 보안 e2e[URL bypass 차단]+viewer 재유도 검증, core 157). 기획서(que-product-plan.md) 홈·성과 직급별 정의 반영.
     - 후속(비차단): 기존 홈 "작업 분포" 차트 3분기서 제외(계약에 없음·복원 가능), 대표 완료추이 cm 셀렉트 없이 기본월.
 
+72. **앱 검수 항목 20 — 프로젝트 전체>클라이언트>프로젝트 필터 (2026-07-06)** — `/projects` 헤더에 클라이언트+프로젝트 2단 필터(`project-scope-filters.tsx`). URL 구동 `?client=<id|all>` + 기존 `?project=`·`?view=`·`?month=`·`?task=` 공존. `getClientOptions`로 클라 목록, `getActiveProjects(clientFilter)`로 프로젝트 스코프. **전역 스위처와 관계**: ?client 없으면 전역 쿠키 기본, ?client=<id>면 페이지 덮어쓰기, ?client=all은 쿠키 무시 sentinel(전역 쿠키 미변경 → /projects self-contained·공유가능 URL). 프로젝트 1개면 프로젝트 Select 숨김, 빈 상태에 필터 유지. base-ui items prop. typecheck·lint·build 통과. (/projects는 여전히 PM mock 미리보기·비영속, 조회 필터만.)
+
 ## 남은 작업 / 오픈 질문
 
 - ~~알림 채널 결정~~ → **Slack 확정** (2026-07-02): 1단계 Incoming Webhook+딥링크, 2단계 Bot 인터랙티브 버튼으로 Slack 안에서 체크인 응답(`answerCheckIn` 경유, via 기록). 기획서 "알림 정책 > 알림 채널"과 MCP/CLI 계획 Phase E에 반영됨.
