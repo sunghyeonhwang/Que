@@ -463,6 +463,14 @@ data/
     - **글래도스 게이트 1차 반려→반영**: (1) HANDOFF 미기록→이 항목. (2) 라벨 변경 동기화 누락(CLAUDE.md L28 불변식 위반·help-content 13곳)→위 8에 반영. (3) parse 이중 제거 회귀→위 4 배타 적용. typecheck·lint·build·core 80/80. **브라우저 확장 미연결로 라이브 시각 검증 못 함**(코드+빌드로 대체).
     - **⚠️ 후속(비차단, 글래도스 경고)**: (1) datetime 롤오버 — `2026-02-30T10:00`이 거부 안 되고 3/2로 저장(V8 레거시 파서, **구 코드도 동일=회귀 아님**, datetime-local UI로는 생성 불가·크래프트만). 후속 라운드트립 검증. (2) statusLogs ORDER BY 일괄 교정(52번에서 이연 — 다음 supabase-db 배치에서 차단 승격 예고).
 
+54. **서버 타임존 KST 고정 + 기타 메뉴 페이지 풀폭 (2026-07-05)** — 사용자 검수 피드백 2건.
+    - **타임존 버그(핵심)**: 자연어 "내일 오전 11시 …"가 프로덕션에서 **시작 20:00(오후 8시)**로 저장·표시. 원인: **Vercel 서버리스 함수가 UTC로 실행** → 서버 `date.setHours(11)`이 11:00 UTC로 저장 → 브라우저(KST)에서 +9h=20:00. 규칙 파서는 "오전 11시"를 정확히 해석했고 **LLM 문제 아님**(LLM 넣어도 서버 UTC면 동일). 영향은 parse-task뿐 아니라 `dayStart/dayEnd.setHours(0,0,0,0)`가 쓰인 today/team/home/report/now-data 전반(하루 경계가 UTC 자정=KST 09:00으로 9h 밀림) — 앱 전반의 잠재 시간 오류.
+    - **재현/근거**: `TZ=UTC`로 core test → parse 시간 테스트 **2건 실패**, `TZ=Asia/Seoul` → 80/80. `TZ=UTC node`로 `setHours(11)`→`11:00Z`(버그), `TZ=Asia/Seoul`→`02:00Z`(정상) 실측.
+    - **수정**: **`apps/web/src/instrumentation.ts`(신규) `register()`에서 `process.env.TZ="Asia/Seoul"`**. ⚠️ **Vercel은 `TZ`를 예약 env로 막아 프로젝트 설정으론 못 바꾼다**(vercel env add TZ → "reserved" 에러) → 런타임 코드 설정이 유일. Node는 재할당 시 이후 Date부터 반영, register는 앱 코드보다 먼저 실행(검증: TZ 재설정이 Date에 반영됨, `.next/server/instrumentation.js` 번들 확인). 보강: `apps/web/package.json` dev/build/start + `packages/core/package.json` test에 `TZ=Asia/Seoul` prefix(로컬·빌드·CI 일관, self-host 대비).
+    - **⚠️ 배포 후 필수 검증**: instrumentation의 실런타임 동작은 프로덕션(UTC)에서만 확증 가능 — 배포 후 자연어 "내일 오전 11시"가 KST 11:00(02:00Z)로 저장되는지 실측할 것. 안 되면 fallback(서버 시간 계산을 date-fns-tz로 KST 명시).
+    - **기타 메뉴 페이지 풀폭**: planning/tools/help/settings의 `mx-auto max-w-*` → **max-w까지 제거**(53번에서 mx-auto만 뺐으나 사용자가 "아직 와이드하게 안 나온다" → 풀폭으로). 다른 콘텐츠 페이지와 폭 통일.
+    - **후속(선택)**: 자연어 파싱을 LLM(Claude API)로 고도화하면 "점심 즈음"·"내일 아침 일찍" 등 유연성↑ — 단 비용·지연·비결정성. 이번 타임존 버그와 무관하므로 별도 검토(사용자 질문 답변).
+
 ## 남은 작업 / 오픈 질문
 
 - ~~알림 채널 결정~~ → **Slack 확정** (2026-07-02): 1단계 Incoming Webhook+딥링크, 2단계 Bot 인터랙티브 버튼으로 Slack 안에서 체크인 응답(`answerCheckIn` 경유, via 기록). 기획서 "알림 정책 > 알림 채널"과 MCP/CLI 계획 Phase E에 반영됨.

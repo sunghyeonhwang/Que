@@ -19,7 +19,7 @@ export default async function SettingsPage() {
   const density = cookieStore.get("density")?.value ?? "default";
 
   return (
-    <div className="flex max-w-3xl flex-col gap-5">
+    <div className="flex flex-col gap-5">
       <PageHeader title="설정" subtitle="모양과 보안을 설정합니다." />
       <FontSettings
         initialKo={ko}

@@ -44,7 +44,7 @@ export default async function ToolsPage() {
 }`;
 
   return (
-    <div className="max-w-3xl">
+    <div>
       <PageHeader
         title="MCP · CLI"
         subtitle="웹 말고 터미널(CLI)이나 내 AI(Claude·Gemini)로도 Que를 쓸 수 있습니다."

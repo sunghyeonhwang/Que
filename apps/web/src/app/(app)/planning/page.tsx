@@ -15,7 +15,7 @@ export default async function PlanningPage() {
   const { templates, milestones, projects, manageableProjects } = await getPlanningData(user);
 
   return (
-    <div className="max-w-4xl">
+    <div>
       <PageHeader
         title="반복 · 마일스톤"
         subtitle="정기 반복 업무 템플릿과 프로젝트 마일스톤을 한곳에서 관리합니다."
