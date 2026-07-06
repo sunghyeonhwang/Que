@@ -148,6 +148,16 @@ create table if not exists payment_requests (
   created_at      timestamptz not null default now()
 );
 
+-- 결제 요청 분류(카테고리) — 관리자 관리. clients와 동일 구조. payment_requests.category(text)는
+-- FK가 아니라 이 목록에서 고른 이름 문자열(하위호환). 기존 DB엔 add-payment-categories.sql로 추가.
+create table if not exists payment_categories (
+  id         text primary key,
+  name       text not null check (char_length(name) <= 50),
+  status     text not null check (status in ('active', 'archived')),
+  sort_order integer not null default 0,
+  created_at timestamptz not null default now()
+);
+
 create table if not exists status_logs (
   id            text primary key,
   task_id       text not null references tasks(id),
@@ -165,7 +175,7 @@ create table if not exists status_logs (
 create table if not exists change_logs (
   id           text primary key,
   entity_type  text not null check (entity_type in
-    ('task','calendar_event','milestone','action_item','payment_request','meeting_note','recurring_template','project','client','user')),
+    ('task','calendar_event','milestone','action_item','payment_request','payment_category','meeting_note','recurring_template','project','client','user')),
   entity_id    text not null,
   actor_id     text not null references users(id),
   change_type  text not null check (change_type in ('create','update','move','status_change','delete')),

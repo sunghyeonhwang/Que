@@ -6,6 +6,7 @@ import type {
   Client,
   MeetingNote,
   Milestone,
+  PaymentCategory,
   PaymentRequest,
   Project,
   RecurringTemplate,
@@ -27,6 +28,7 @@ export interface QueSeed {
   calendarEvents: CalendarEvent[];
   meetingNotes: MeetingNote[];
   actionItems: ActionItem[];
+  paymentCategories: PaymentCategory[];
   paymentRequests: PaymentRequest[];
   statusLogs: StatusLog[];
   changeLogs: ChangeLog[];
@@ -444,6 +446,14 @@ export function createSeed(now: Date): QueSeed {
     },
   ];
 
+  // 결제 요청 분류(카테고리) — 관리자가 관리. 아래 결제 시드가 쓰는 이름과 정합.
+  const paymentCategories: PaymentCategory[] = [
+    { id: "paycat-subscription", name: "구독", status: "active", sortOrder: 0 },
+    { id: "paycat-logistics", name: "물류", status: "active", sortOrder: 1 },
+    { id: "paycat-license", name: "라이선스", status: "active", sortOrder: 2 },
+    { id: "paycat-outsourcing", name: "외주", status: "active", sortOrder: 3 },
+  ];
+
   const paymentRequests: PaymentRequest[] = [
     {
       id: "pay-stock-photo",
@@ -730,6 +740,7 @@ export function createSeed(now: Date): QueSeed {
     calendarEvents,
     meetingNotes,
     actionItems,
+    paymentCategories,
     paymentRequests,
     statusLogs,
     changeLogs,

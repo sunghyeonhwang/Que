@@ -328,6 +328,17 @@ export const paymentRequestSchema = z.object({
 });
 export type PaymentRequest = z.infer<typeof paymentRequestSchema>;
 
+// 결제 요청 분류(카테고리) — 관리자가 관리하는 목록. 클라이언트(거래처)와 동일 구조:
+// 최소 필드(id/name/status)에 표시 순서(sortOrder)만 둔다. 결제 폼 select가 active 목록에서 이름을 고른다.
+// payment.category는 문자열 그대로 유지(하위호환) — 이 목록은 폼의 선택지 소스일 뿐 FK가 아니다.
+export const paymentCategorySchema = z.object({
+  id: z.string().min(1),
+  name: z.string().trim().min(1, "이름은 필수다").max(50, "이름은 50자 이내"),
+  status: z.enum(["active", "archived"]),
+  sortOrder: z.number().int().default(0),
+});
+export type PaymentCategory = z.infer<typeof paymentCategorySchema>;
+
 // ---------- 댓글 ----------
 
 /** 작업 댓글 — 타인의 작업을 수정할 수 없는 팀원이 의사를 전달하는 통로.
@@ -374,6 +385,7 @@ export const changeLogSchema = z.object({
     "milestone",
     "action_item",
     "payment_request",
+    "payment_category",
     "meeting_note",
     "recurring_template",
     "project",

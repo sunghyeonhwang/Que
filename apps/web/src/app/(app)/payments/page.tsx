@@ -1,8 +1,13 @@
 import { PageHeader } from "@/components/app/page-header";
+import { PaymentCategoryManager } from "@/components/payments/payment-category-manager";
 import { PaymentForm } from "@/components/payments/payment-form";
 import { PaymentList } from "@/components/payments/payment-list";
 import { getCurrentUser } from "@/lib/current-user";
-import { getPaymentData } from "@/lib/payment-data";
+import {
+  getAllPaymentCategories,
+  getPaymentCategories,
+  getPaymentData,
+} from "@/lib/payment-data";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -17,7 +22,13 @@ const METRIC_TONE: Record<string, string> = {
 
 export default async function PaymentsPage() {
   const user = await getCurrentUser();
-  const data = await getPaymentData(user);
+  const isAdmin = user.role === "admin";
+  const [data, activeCategories, allCategories] = await Promise.all([
+    getPaymentData(user),
+    getPaymentCategories(),
+    // 관리 패널(관리자 전용) 소스만 보관 포함 전체를 불러온다.
+    isAdmin ? getAllPaymentCategories() : Promise.resolve([]),
+  ]);
 
   const metrics = [
     { value: data.summary.waiting, label: "대기", tone: "amber" },
@@ -31,6 +42,7 @@ export default async function PaymentsPage() {
       <PageHeader
         title="결제요청"
         subtitle="결제 요청을 등록하고 입금 처리 상태를 확인합니다 — 계좌번호와 금액은 관리자와 요청자에게만 표시됩니다"
+        actions={isAdmin ? <PaymentCategoryManager categories={allCategories} /> : undefined}
       />
 
       <section aria-label="결제 요약" className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -53,12 +65,10 @@ export default async function PaymentsPage() {
       </section>
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,24rem)_minmax(0,1fr)]">
-        <PaymentForm />
+        <PaymentForm categories={activeCategories.map((c) => c.name)} />
         <div className="min-w-0">
           <h2 className="mb-2 text-base font-semibold text-[var(--que-text)]">결제 요청 목록</h2>
-          <div className="max-h-[calc(100dvh-19rem)] overflow-y-auto pr-0.5">
-            <PaymentList rows={data.rows} />
-          </div>
+          <PaymentList rows={data.rows} />
         </div>
       </div>
     </div>

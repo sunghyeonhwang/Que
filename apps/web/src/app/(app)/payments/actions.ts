@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { isQueRuleError, type PaymentStatus } from "@que/core";
+import { isQueRuleError, type PaymentCategory, type PaymentStatus } from "@que/core";
 import { getDb } from "@/lib/db";
 import { getCurrentUser } from "@/lib/current-user";
 import type { ActionResult } from "@/app/(app)/today/actions";
@@ -54,4 +54,29 @@ export async function updatePaymentStatusAction(input: {
 }): Promise<ActionResult> {
   const user = await getCurrentUser();
   return toResult((db) => db.updatePaymentStatus({ actorId: user.id, via: "web" }, input));
+}
+
+// 결제 분류(카테고리) 관리 — 관리자 전용. 권한 최종 강제는 core mutation(canManagePaymentCategory).
+// getCurrentUser로 actor를 확정하고, 페이지도 비관리자를 막는다(3중 게이트).
+export async function createPaymentCategoryAction(input: {
+  name: string;
+}): Promise<ActionResult> {
+  const user = await getCurrentUser();
+  return toResult((db) => db.createPaymentCategory({ actorId: user.id, via: "web" }, input));
+}
+
+export async function updatePaymentCategoryAction(input: {
+  categoryId: string;
+  name?: string;
+  status?: PaymentCategory["status"];
+}): Promise<ActionResult> {
+  const user = await getCurrentUser();
+  return toResult((db) => db.updatePaymentCategory({ actorId: user.id, via: "web" }, input));
+}
+
+export async function reorderPaymentCategoriesAction(input: {
+  orderedIds: string[];
+}): Promise<ActionResult> {
+  const user = await getCurrentUser();
+  return toResult((db) => db.reorderPaymentCategories({ actorId: user.id, via: "web" }, input));
 }

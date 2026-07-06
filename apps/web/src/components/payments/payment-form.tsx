@@ -15,11 +15,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-const CATEGORIES = ["구독", "물류", "라이선스", "외주", "교육", "기타"];
-const CATEGORY_ITEMS = Object.fromEntries(CATEGORIES.map((c) => [c, c]));
-
-/** 결제 요청 등록 폼. */
-export function PaymentForm() {
+/**
+ * 결제 요청 등록 폼.
+ * 분류(category)는 관리자가 관리하는 활성 분류 목록(`categories`)에서 고른다.
+ * category는 문자열로 저장되므로(FK 아님) 선택된 값이 목록에 없어도 표시는 유지한다.
+ */
+export function PaymentForm({ categories }: { categories: string[] }) {
   const { run, pending } = useSafeAction();
   const [title, setTitle] = useState("");
   const [recipientName, setRecipientName] = useState("");
@@ -28,10 +29,20 @@ export function PaymentForm() {
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
   const [dueDate, setDueDate] = useState("");
-  const [category, setCategory] = useState("기타");
+  const [category, setCategory] = useState(categories[0] ?? "");
+
+  // 선택된 값이 목록에 없으면(과거 값·보관된 분류) 선택지에 유지해 값이 사라지지 않게 한다.
+  const options = category && !categories.includes(category) ? [category, ...categories] : categories;
+  const categoryItems = Object.fromEntries(options.map((c) => [c, c]));
+  const noCategories = categories.length === 0;
 
   const canSubmit =
-    title.trim() && bankName.trim() && accountNumber.trim() && Number(amount) > 0 && !pending;
+    title.trim() &&
+    bankName.trim() &&
+    accountNumber.trim() &&
+    Number(amount) > 0 &&
+    category.trim() &&
+    !pending;
 
   const submit = () => {
     run(
@@ -119,22 +130,28 @@ export function PaymentForm() {
         </div>
         <Field>
           <FieldLabel>분류</FieldLabel>
-          <Select
-            items={CATEGORY_ITEMS}
-            value={category}
-            onValueChange={(v) => setCategory(v ?? "기타")}
-          >
-            <SelectTrigger aria-label="분류 선택">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {CATEGORIES.map((c) => (
-                <SelectItem key={c} value={c}>
-                  {c}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {noCategories ? (
+            <p className="rounded-lg border border-[var(--que-border)] bg-[var(--que-bg-muted)] px-3 py-2 text-xs text-[var(--que-text-tertiary)]">
+              등록된 분류가 없습니다 — 관리자가 분류를 추가해야 합니다.
+            </p>
+          ) : (
+            <Select
+              items={categoryItems}
+              value={category}
+              onValueChange={(v) => setCategory(v ?? "")}
+            >
+              <SelectTrigger className="h-10 w-full" aria-label="분류 선택">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {options.map((c) => (
+                  <SelectItem key={c} value={c}>
+                    {c}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
         </Field>
         <Field>
           <FieldLabel htmlFor="pay-desc">내용</FieldLabel>

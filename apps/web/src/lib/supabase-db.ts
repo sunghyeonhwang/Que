@@ -22,6 +22,7 @@ const TABLE_TO_FIELD = {
   calendar_events: "calendarEvents",
   meeting_notes: "meetingNotes",
   action_items: "actionItems",
+  payment_categories: "paymentCategories",
   payment_requests: "paymentRequests",
   recurring_templates: "recurringTemplates",
   status_logs: "statusLogs",
@@ -57,8 +58,8 @@ export class SupabaseQueDb extends MockQueDb {
       if (table === "status_logs" || table === "change_logs") {
         query.order("created_at", { ascending: true });
       }
-      // 클라이언트는 관리자가 정한 표시 순서(sort_order)로 로드해 배열 순서 자체를 정렬해 둔다.
-      if (table === "clients") {
+      // 클라이언트·결제 분류는 관리자가 정한 표시 순서(sort_order)로 로드해 배열 순서 자체를 정렬해 둔다.
+      if (table === "clients" || table === "payment_categories") {
         query.order("sort_order", { ascending: true });
       }
       const { data, error } = await query;

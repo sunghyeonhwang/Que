@@ -186,6 +186,11 @@ export function canManageClient(actor: User): boolean {
   return actor.role === "admin";
 }
 
+/** 결제 요청 분류(카테고리) 생성·수정·순서변경은 관리자만 할 수 있다 (클라이언트와 동일 정책). */
+export function canManagePaymentCategory(actor: User): boolean {
+  return actor.role === "admin";
+}
+
 /** 직원 관리(추가·비활성·복구·비밀번호 재설정)는 관리자만 할 수 있다 (항목 19).
  *  가장 위험한 경로라 페이지·서버 액션·전용 mutation(lib/auth/users.ts)이 이 헬퍼로 3중 강제한다. */
 export function canManageUsers(actor: Pick<User, "role">): boolean {

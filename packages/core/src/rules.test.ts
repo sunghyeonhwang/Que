@@ -1326,6 +1326,7 @@ describe("시드 데이터 정합성", () => {
       taskSchema,
       calendarEventSchema,
       actionItemSchema,
+      paymentCategorySchema,
       paymentRequestSchema,
       meetingNoteSchema,
       milestoneSchema,
@@ -1336,6 +1337,7 @@ describe("시드 데이터 정합성", () => {
     for (const t of d.tasks) taskSchema.parse(t);
     for (const e of d.calendarEvents) calendarEventSchema.parse(e);
     for (const a of d.actionItems) actionItemSchema.parse(a);
+    for (const c of d.paymentCategories) paymentCategorySchema.parse(c);
     for (const p of d.paymentRequests) paymentRequestSchema.parse(p);
     for (const n of d.meetingNotes) meetingNoteSchema.parse(n);
     for (const m of d.milestones) milestoneSchema.parse(m);
@@ -1736,6 +1738,115 @@ describe("클라이언트 표시 순서 변경 (reorderClients)", () => {
     ).toThrowError(/중복/);
     // 두 실패 모두 원본 순서를 보존한다
     for (const b of before) expect(d.clientById(b.id)!.sortOrder).toBe(b.sortOrder);
+  });
+});
+
+describe("결제 분류(카테고리) — 관리자만 생성·수정·순서변경", () => {
+  it("비관리자는 결제 분류를 만들 수 없다(아무것도 추가되지 않음)", () => {
+    const d = db();
+    expect(() =>
+      d.createPaymentCategory({ actorId: "kim-riwon", via: "web" }, { name: "회식비" }),
+    ).toThrowError(/관리자만/);
+    expect(d.paymentCategories.some((c) => c.name === "회식비")).toBe(false);
+  });
+
+  it("관리자는 분류를 만들고 ChangeLog(entityType=payment_category, via)가 남는다", () => {
+    const d = db();
+    const cat = d.createPaymentCategory({ actorId: "hwang-sunghyeon", via: "mcp" }, { name: "회식비" });
+    expect(cat.status).toBe("active");
+    // 새 분류는 표시 순서 맨 끝(max+1)에 붙는다
+    const maxBefore = Math.max(...d.paymentCategories.filter((c) => c.id !== cat.id).map((c) => c.sortOrder));
+    expect(cat.sortOrder).toBe(maxBefore + 1);
+    const clog = d.changeLogs.at(-1)!;
+    expect(clog.entityType).toBe("payment_category");
+    expect(clog.changeType).toBe("create");
+    expect(clog.via).toBe("mcp");
+  });
+
+  it("이름이 비었거나 50자를 넘으면 거부된다", () => {
+    const d = db();
+    expect(() =>
+      d.createPaymentCategory({ actorId: "hwang-sunghyeon", via: "web" }, { name: "   " }),
+    ).toThrowError(QueRuleError);
+    expect(() =>
+      d.createPaymentCategory({ actorId: "hwang-sunghyeon", via: "web" }, { name: "가".repeat(51) }),
+    ).toThrowError(/50자/);
+  });
+
+  it("잘못된 status는 거부된다 (신뢰 못 할 인자 런타임 검증)", () => {
+    const d = db();
+    expect(() =>
+      d.createPaymentCategory(
+        { actorId: "hwang-sunghyeon", via: "web" },
+        { name: "정상", status: "garbage" as never },
+      ),
+    ).toThrowError(QueRuleError);
+  });
+
+  it("비관리자는 분류를 수정할 수 없다", () => {
+    const d = db();
+    expect(() =>
+      d.updatePaymentCategory(
+        { actorId: "kim-riwon", via: "web" },
+        { categoryId: "paycat-subscription", status: "archived" },
+      ),
+    ).toThrowError(/관리자만/);
+    expect(d.paymentCategoryById("paycat-subscription")!.status).toBe("active");
+  });
+
+  it("관리자는 분류를 보관 처리하고 이름을 바꿀 수 있다", () => {
+    const d = db();
+    const updated = d.updatePaymentCategory(
+      { actorId: "hwang-sunghyeon", via: "web" },
+      { categoryId: "paycat-subscription", name: "정기구독", status: "archived" },
+    );
+    expect(updated.name).toBe("정기구독");
+    expect(updated.status).toBe("archived");
+    expect(d.changeLogs.at(-1)!.entityType).toBe("payment_category");
+  });
+
+  it("payment.category 문자열은 분류 수정과 무관하게 유지된다(하위호환)", () => {
+    const d = db();
+    const before = d.paymentRequests.find((p) => p.category === "구독")!.category;
+    d.updatePaymentCategory(
+      { actorId: "hwang-sunghyeon", via: "web" },
+      { categoryId: "paycat-subscription", name: "정기구독" },
+    );
+    expect(d.paymentRequests.find((p) => p.id === "pay-stock-photo")!.category).toBe(before);
+  });
+
+  it("순서변경: orderedIds대로 sortOrder를 0..n-1로 재설정하고 ChangeLog(via)를 남긴다", () => {
+    const d = db();
+    const reversed = [...d.paymentCategories]
+      .sort((a, b) => a.sortOrder - b.sortOrder)
+      .map((c) => c.id)
+      .reverse();
+    const result = d.reorderPaymentCategories({ actorId: "hwang-sunghyeon", via: "cli" }, { orderedIds: reversed });
+    reversed.forEach((id, i) => {
+      expect(d.paymentCategoryById(id)!.sortOrder).toBe(i);
+      expect(result[i].id).toBe(id);
+    });
+    const clog = d.changeLogs.at(-1)!;
+    expect(clog.entityType).toBe("payment_category");
+    expect(clog.via).toBe("cli");
+  });
+
+  it("순서변경: 비관리자·미존재 id·중복은 거부하고 원본 순서를 보존한다", () => {
+    const d = db();
+    const snapshot = d.paymentCategories.map((c) => ({ id: c.id, sortOrder: c.sortOrder }));
+    expect(() =>
+      d.reorderPaymentCategories({ actorId: "kim-riwon", via: "web" }, { orderedIds: ["paycat-subscription"] }),
+    ).toThrowError(/관리자만/);
+    expect(() =>
+      d.reorderPaymentCategories({ actorId: "hwang-sunghyeon", via: "web" }, { orderedIds: ["paycat-none"] }),
+    ).toThrowError(/결제 분류 없음/);
+    expect(() =>
+      d.reorderPaymentCategories(
+        { actorId: "hwang-sunghyeon", via: "web" },
+        { orderedIds: ["paycat-subscription", "paycat-subscription"] },
+      ),
+    ).toThrowError(/중복/);
+    for (const s of snapshot) expect(d.paymentCategoryById(s.id)!.sortOrder).toBe(s.sortOrder);
   });
 });
 

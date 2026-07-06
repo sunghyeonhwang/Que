@@ -8,6 +8,7 @@ import type {
   Client,
   MeetingNote,
   Milestone,
+  PaymentCategory,
   PaymentRequest,
   PaymentStatus,
   Project,
@@ -26,6 +27,7 @@ import {
   clientSchema,
   createRevisionNoteInputSchema,
   milestoneSchema,
+  paymentCategorySchema,
   projectSchema,
   revisionNoteStatusSchema,
   taskSchema,
@@ -40,6 +42,7 @@ import {
   assertCanResolveActionItem,
   assertStatusDetail,
   canManageClient,
+  canManagePaymentCategory,
   canManageProject,
   canViewMeetingNote,
   helpUserIdsOf,
@@ -63,6 +66,7 @@ export interface QueDb {
   calendarEvents: CalendarEvent[];
   meetingNotes: MeetingNote[];
   actionItems: ActionItem[];
+  paymentCategories: PaymentCategory[];
   paymentRequests: PaymentRequest[];
   statusLogs: StatusLog[];
   changeLogs: ChangeLog[];
@@ -86,6 +90,7 @@ export class MockQueDb implements QueDb {
   calendarEvents: CalendarEvent[];
   meetingNotes: MeetingNote[];
   actionItems: ActionItem[];
+  paymentCategories: PaymentCategory[];
   paymentRequests: PaymentRequest[];
   statusLogs: StatusLog[];
   changeLogs: ChangeLog[];
@@ -108,6 +113,7 @@ export class MockQueDb implements QueDb {
     this.calendarEvents = seed.calendarEvents;
     this.meetingNotes = seed.meetingNotes;
     this.actionItems = seed.actionItems;
+    this.paymentCategories = seed.paymentCategories;
     this.paymentRequests = seed.paymentRequests;
     this.statusLogs = seed.statusLogs;
     this.changeLogs = seed.changeLogs;
@@ -1766,6 +1772,121 @@ export class MockQueDb implements QueDb {
       afterValue: input.to,
     });
     return payment;
+  }
+
+  paymentCategoryById(id: string | undefined): PaymentCategory | undefined {
+    if (!id) return undefined;
+    return this.paymentCategories.find((c) => c.id === id);
+  }
+
+  /** 결제 분류(카테고리) 생성 — 관리자만. 이름은 50자 이내로 검증한다(클라이언트 선례와 동일 구조). */
+  createPaymentCategory(
+    ctx: ActorContext,
+    input: { name: string; status?: PaymentCategory["status"] },
+  ): PaymentCategory {
+    const actor = this.requireUser(ctx.actorId);
+    if (!canManagePaymentCategory(actor)) {
+      throw new QueRuleError("NOT_AUTHORIZED", "결제 분류는 관리자만 만들 수 있다");
+    }
+    // 신뢰 못 할 클라이언트 인자 — 이름/상태를 런타임 검증한다.
+    const parsed = paymentCategorySchema
+      .pick({ name: true, status: true })
+      .safeParse({ name: input.name, status: input.status ?? "active" });
+    if (!parsed.success) {
+      throw new QueRuleError(
+        "INVALID_INPUT",
+        `결제 분류 입력이 유효하지 않다: ${parsed.error.issues.map((i) => i.message).join(", ")}`,
+      );
+    }
+
+    // 새 분류는 표시 순서 맨 끝에 붙인다(현재 max + 1). 빈 목록이면 0.
+    const maxSort = this.paymentCategories.reduce((m, c) => Math.max(m, c.sortOrder), -1);
+    const category: PaymentCategory = {
+      id: this.nextId("paycat"),
+      name: parsed.data.name,
+      status: parsed.data.status,
+      sortOrder: maxSort + 1,
+    };
+    this.paymentCategories.push(category);
+    this.logChange(ctx, {
+      entityType: "payment_category",
+      entityId: category.id,
+      changeType: "create",
+      afterValue: category.name,
+    });
+    return category;
+  }
+
+  /** 결제 분류 수정(이름·보관) — 관리자만. payment.category 문자열은 건드리지 않는다(하위호환). */
+  updatePaymentCategory(
+    ctx: ActorContext,
+    input: { categoryId: string; name?: string; status?: PaymentCategory["status"] },
+  ): PaymentCategory {
+    const actor = this.requireUser(ctx.actorId);
+    if (!canManagePaymentCategory(actor)) {
+      throw new QueRuleError("NOT_AUTHORIZED", "결제 분류는 관리자만 수정할 수 있다");
+    }
+    const category = this.paymentCategories.find((c) => c.id === input.categoryId);
+    if (!category) throw new QueRuleError("NOT_FOUND", `결제 분류 없음: ${input.categoryId}`);
+
+    if (input.name !== undefined) {
+      const parsed = paymentCategorySchema.shape.name.safeParse(input.name);
+      if (!parsed.success) {
+        throw new QueRuleError("INVALID_INPUT", "이름은 1~50자여야 한다");
+      }
+      category.name = parsed.data;
+    }
+    if (input.status !== undefined) {
+      if (!paymentCategorySchema.shape.status.safeParse(input.status).success) {
+        throw new QueRuleError("INVALID_INPUT", "잘못된 결제 분류 상태다");
+      }
+      category.status = input.status;
+    }
+    this.logChange(ctx, {
+      entityType: "payment_category",
+      entityId: category.id,
+      changeType: "update",
+      afterValue: category.name,
+    });
+    return category;
+  }
+
+  /** 결제 분류 표시 순서 변경 — 관리자만. orderedIds 순서대로 sortOrder를 0..n-1로 재설정한다.
+   *  존재하지 않는 id나 중복은 거부한다(부분 반영 없이 통째로 실패). ChangeLog(via) 1건 기록. */
+  reorderPaymentCategories(
+    ctx: ActorContext,
+    input: { orderedIds: string[] },
+  ): PaymentCategory[] {
+    const actor = this.requireUser(ctx.actorId);
+    if (!canManagePaymentCategory(actor)) {
+      throw new QueRuleError("NOT_AUTHORIZED", "결제 분류 순서는 관리자만 변경할 수 있다");
+    }
+    const ids = input.orderedIds;
+    if (!Array.isArray(ids) || ids.length === 0) {
+      throw new QueRuleError("INVALID_INPUT", "정렬할 결제 분류 목록이 비어 있다");
+    }
+    if (new Set(ids).size !== ids.length) {
+      throw new QueRuleError("INVALID_INPUT", "정렬 목록에 중복된 결제 분류가 있다");
+    }
+    // 먼저 전부 검증한 뒤에 반영한다 — 잘못된 id가 하나라도 있으면 아무것도 바꾸지 않는다.
+    const targets = ids.map((id) => {
+      const category = this.paymentCategories.find((c) => c.id === id);
+      if (!category) throw new QueRuleError("NOT_FOUND", `결제 분류 없음: ${id}`);
+      return category;
+    });
+    const before = targets.map((c) => `${c.id}:${c.sortOrder}`).join(",");
+    targets.forEach((category, index) => {
+      category.sortOrder = index;
+    });
+    this.logChange(ctx, {
+      entityType: "payment_category",
+      entityId: targets[0].id, // 대표 — before/after에 전체 순서를 담는다
+      changeType: "update",
+      beforeValue: before,
+      afterValue: ids.map((id, i) => `${id}:${i}`).join(","),
+      reason: "표시 순서 변경",
+    });
+    return targets;
   }
 
   /** 수정사항(이슈/피드백) 등록 — 팀 공용. 인증만 하면 누구나 작성한다(소유자 제한 없음).

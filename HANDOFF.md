@@ -1,6 +1,6 @@
 # Que 핸드오프 문서
 
-마지막 업데이트: 2026-07-04
+마지막 업데이트: 2026-07-06
 
 ---
 
@@ -609,6 +609,15 @@ data/
     - **직급별 홈**: `getGradeHomeData(user)` → `GradeHomeData`(staff/manager/ceo discriminant, `home-grade-data.ts`). home/page 3분기. **staff "내 하루"**(내 KPI·오늘 할 일·개인 일정·내게 온 요청·내 기여 히트맵1행·내 성과). **manager "어디가 막혔나"**(팀 요약칩·병목 attention[대표 작업 포함]·일정충돌·팀 부하[대표 제외]·확인필요·결제 + 본인 축소, 감시성 문구 금지). **ceo "전사 조망"**(전사 KPI·완료추이·프로젝트+위험 마일스톤·현재 막힘·**클라이언트별 현황**[신규 `client-overview.ts getClientOverview`: 거래처별 활성PJ·평균진행률·막힘]·전원 부하). 기존 컴포넌트 재사용 + 신규 `components/home/*`(client-overview·risk-milestones·attention-list·blocker-list·load-bars·request-inbox + staff/manager/ceo-home).
     - 검증: core **157**(gradeForUser·personScope URL확대불가 테스트), typecheck·lint·build, qa PASS(3직급 홈 분기·성과 스코프 사원1/관리자7/대표8·저성과표 사원 숨김·**URL 스코프 확대 6시도 전부 차단**·클라이언트 필터·4해상도, console 0). glados 생략(qa가 스코프 보안 e2e[URL bypass 차단]+viewer 재유도 검증, core 157). 기획서(que-product-plan.md) 홈·성과 직급별 정의 반영.
     - 후속(비차단): 기존 홈 "작업 분포" 차트 3분기서 제외(계약에 없음·복원 가능), 대표 완료추이 cm 셀렉트 없이 기본월.
+
+77. **결제요청 분류 관리 + 얇은 목록 + 완료 원형·컨페티 (2026-07-06)** — 사용자 "관리자에서 결제요청 분류 관리·목록 왼쪽 치우침 재디자인·완료 버튼을 작업 완료와 동일하게·컨페티" → 이어서 "여러 줄 말고 view.griff task처럼 얇게".
+    - **분류 모델(비-FK 하위호환)**: `payment_categories`(id·name≤50·status active/archived·sortOrder·created_at). `payment_requests.category`는 **여전히 자유 문자열(FK 아님)** — 분류 목록은 폼 select 소스일 뿐이라 이름 변경/보관이 기존 저장 category를 소급 변경하지 않는다. ⚠️ **프로덕션 DDL 적용됨**(`add-payment-categories.sql`, apply_migration): 테이블 생성 + 기존 category 문자열 시드(`paycat-`+md5) + **change_logs entity_type check 재생성**(payment_category 포함, 11값).
+    - **관리자 전용 3중 강제**: UI 숨김 + 서버 액션 getCurrentUser + core `canManagePaymentCategory(admin)`. core: `paymentCategorySchema`·`createPaymentCategory`/`updatePaymentCategory`/`reorderPaymentCategories`, ChangeLog entity_type `payment_category`(via 기록). 영속 배선(supabase-db TABLE_TO_FIELD·sort_order 정렬 로드, supabase-rows).
+    - frontend: 분류 관리 Dialog(`payment-category-manager.tsx`, PageHeader actions, 관리자만) — 추가·인라인 이름편집·활성↔보관·↑↓ 순서(드래그 미사용). 폼 category → **활성 분류 select**(`getPaymentCategories`), 보관/과거값은 선택지 유지, 활성 0개 시 안내 + 빈 제출 차단.
+    - **완료 UX 변경**: 입금 완료를 **DoneCircle 원형 버튼 + 컨페티**(작업 완료와 동일). `canComplete`(admin)만 토글, 완료로 갈 때만 컨페티, reduced-motion 존중. 공용화: `components/app/done-circle.tsx` + `confetti.ts` 추출, `task-done-circle.tsx` 위임 리팩터(동작 불변).
+    - **얇은 목록 재디자인**: `payment-list.tsx`를 view.griff `BoardCard` 스타일 얇은 단일 행 카드(약52px)로. 제목+카테고리 배지 / 부제(수신자·은행·계좌+복사·마감·요청자) / 우측(금액+복사·상태 배지·취소/되돌리기·완료 원형). 마감초과 red 틴트·취소 opacity 유지. 복사 버튼 32px(사용자 "작게" 반영, 완료 원형은 40px).
+    - 검증: core **181**, typecheck·lint·**build** 통과(build는 qa 착수 전 실행). glados **[PASS]**(권한 3중 실효·마스킹 서버단 undefined로 무유출·완료 권한 서버 차단·enum 3파일[domain·schema·DDL] 일치·영속 배선·하위호환·reorder 중복/유령 id 방어 전부 실증). qa: 배치 4항목 **전부 PASS**(얇은 행·완료 컨페티·복사값 정확·분류 관리 추가/보관/순서/이름·관리자·비관리자 마스킹/게이팅 무회귀), 해상도 3/4 PASS. **태블릿 가로(1024×768)는 FAIL이나 사전존재**(page.tsx `xl:grid-cols`=Tailwind 1280 기준이라 1024서 폼 위·목록 아래 단일 스택, git diff상 이번 배치 미도입 — action·team·revisions·meeting-notes 5개 페이지 공통 `xl:` 관례). 목록우선/lg 조정은 5개 페이지 전역 결정이라 사용자 판단 대기(비차단으로 배치 배포).
+    - 잔여(비차단): `reorderPaymentCategories` subset orderedIds 미검증(웹은 항상 전체 전송·MCP/CLI 미노출 — 향후 노출 시 `ids.length===count` 검사 권장), 중복 이름 허용(관리자만), DDL 시드 id(md5)≠core 시드 id 체계(category FK 아니라 무영향).
 
 76. **결제요청 수신자명·계좌/금액 복사 (2026-07-06)** — 사용자 "수신자명(입금받을 곳)·계좌번호·금액 복사 버튼".
     - paymentRequestSchema `recipientName`(≤100, optional) 추가. **⚠️ 프로덕션 DDL**: `payment_requests.recipient_name`(additive, `add-payment-recipient-name.sql`). createPaymentRequest·`/api/payments`·MCP·CLI 파리티. `PaymentRow` +`recipientName`/`accountNumberForCopy`/`amountForCopy`(**인가 뷰어[admin∨요청자 본인]에게만 raw 복사값**, 비인가는 마스킹 `accountDisplay`·`amountDisplay`만 유지).

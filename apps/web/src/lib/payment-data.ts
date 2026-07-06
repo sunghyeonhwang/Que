@@ -1,4 +1,4 @@
-import type { PaymentStatus, User } from "@que/core";
+import type { PaymentCategory, PaymentStatus, User } from "@que/core";
 import { getDb } from "./db";
 
 // 결제 화면 데이터. 계좌번호와 금액은 민감 정보 — 관리자와 요청자 본인에게만
@@ -33,6 +33,22 @@ export interface PaymentRow {
 export interface PaymentData {
   rows: PaymentRow[];
   summary: { waiting: number; done: number; cancelled: number; overdue: number };
+}
+
+/** 결제 폼 select용 — 활성(active) 분류만 표시 순서(sortOrder)대로. 이름 문자열을 폼이 category로 쓴다. */
+export async function getPaymentCategories(): Promise<PaymentCategory[]> {
+  const db = await getDb();
+  return [...db.paymentCategories]
+    .filter((c) => c.status === "active")
+    .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
+}
+
+/** 관리 화면용 — 보관(archived) 포함 전체를 표시 순서대로. 관리자 전용 화면에서만 쓴다. */
+export async function getAllPaymentCategories(): Promise<PaymentCategory[]> {
+  const db = await getDb();
+  return [...db.paymentCategories].sort(
+    (a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name),
+  );
 }
 
 function maskAccount(accountNumber: string): string {
