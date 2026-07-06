@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { X } from "lucide-react";
-import { USERS, type StatusDetail } from "@que/core";
+import { type StatusDetail } from "@que/core";
+import { useRoster } from "@/components/app/roster-provider";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
@@ -15,8 +16,6 @@ import {
 } from "@/components/ui/select";
 import { Field, FieldLabel } from "@/components/ui/field";
 
-const USER_BY_ID = new Map(USERS.map((u) => [u.id, u]));
-
 /** 문제발생/홀드 전환에 필요한 추가 정보 입력. 사유는 필수, 나머지는 선택. */
 export function StatusDetailForm({
   submitLabel,
@@ -27,6 +26,8 @@ export function StatusDetailForm({
   pending: boolean;
   onSubmit: (detail: StatusDetail) => void;
 }) {
+  const roster = useRoster();
+  const userById = new Map(roster.map((u) => [u.id, u]));
   const [reason, setReason] = useState("");
   const [nextAction, setNextAction] = useState("");
   // 도움 필요한 사람 — 다중(최대 10). 드롭다운에서 골라 칩으로 쌓고 X로 제거한다.
@@ -34,7 +35,7 @@ export function StatusDetailForm({
   const [recheckAt, setRecheckAt] = useState("");
 
   const canSubmit = reason.trim().length > 0 && !pending;
-  const remaining = USERS.filter((u) => !helpUserIds.includes(u.id));
+  const remaining = roster.filter((u) => !helpUserIds.includes(u.id));
 
   const handleSubmit = () => {
     const detail: StatusDetail = { reason: reason.trim() };
@@ -71,7 +72,7 @@ export function StatusDetailForm({
         {helpUserIds.length > 0 && (
           <div className="mb-1.5 flex flex-wrap gap-1.5">
             {helpUserIds.map((id) => {
-              const user = USER_BY_ID.get(id);
+              const user = userById.get(id);
               if (!user) return null;
               return (
                 <span

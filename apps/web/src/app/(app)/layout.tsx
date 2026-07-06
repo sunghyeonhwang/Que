@@ -1,7 +1,9 @@
 import { redirect } from "next/navigation";
 import { rankForUser } from "@que/core";
 import { auth } from "@/auth";
+import { getDb } from "@/lib/db";
 import { getCurrentUser } from "@/lib/current-user";
+import { RosterProvider, type RosterUser } from "@/components/app/roster-provider";
 import { getNoteSummary } from "@/lib/notes-summary";
 import { getAlerts } from "@/lib/alerts-data";
 import { getClientFilter, getClientOptions } from "@/lib/client-filter";
@@ -28,7 +30,7 @@ export default async function AppLayout({
   // 임시 비밀번호 상태면 앱을 열기 전에 비밀번호 변경을 강제한다(격리 화면).
   const session = await auth();
   if (session?.user?.mustChangePassword) redirect("/change-password");
-  const rank = rankForUser(user.id);
+  const rank = rankForUser(user);
 
   // 사이드바 뱃지 실데이터 — 확인필요 = 열람 권한 스코프의 '확인 필요' Action 수(getNoteSummary).
   const noteSummary = await getNoteSummary(user);
@@ -41,7 +43,14 @@ export default async function AppLayout({
   const clientOptions = await getClientOptions();
   const clientFilter = await getClientFilter();
 
+  // 담당자/참석자 선택 명단 — 현재 재직자(active)만. 클라이언트 폼이 useRoster()로 공유해서 쓴다.
+  const db = await getDb();
+  const roster: RosterUser[] = db.users
+    .filter((u) => u.active !== false)
+    .map((u) => ({ id: u.id, name: u.name, avatarColor: u.avatarColor, role: u.role }));
+
   return (
+    <RosterProvider roster={roster}>
     <div className="flex h-dvh w-full overflow-hidden bg-[var(--que-bg)] text-[var(--que-text)]">
       <CommandPalette />
       <KeyboardShortcuts />
@@ -88,5 +97,6 @@ export default async function AppLayout({
         </main>
       </div>
     </div>
+    </RosterProvider>
   );
 }

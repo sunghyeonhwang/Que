@@ -15,6 +15,8 @@ const STATUS_BY_CODE: Record<QueRuleCode, number> = {
   STATUS_DETAIL_REQUIRED: 422,
   INVALID_SCHEDULE: 422,
   INVALID_INPUT: 422,
+  // 비활성 사용자에게 배정 시도 — 처리 불가 입력.
+  ASSIGNEE_INACTIVE: 422,
 };
 
 export function apiError(status: number, code: string, message: string): Response {

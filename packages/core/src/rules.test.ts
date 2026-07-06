@@ -5,6 +5,7 @@ import {
   canMoveCalendarEvent,
   canViewMeetingNote,
   canViewPrivateEventDetail,
+  isQueRuleError,
   latestStatusLog,
 } from "./rules";
 import { USERS } from "./mock/users";
@@ -1846,6 +1847,45 @@ describe("클라이언트 필터 조회 (tasksForClient)", () => {
     const d = db();
     const empty = d.createClient({ actorId: "hwang-sunghyeon", via: "web" }, { name: "빈 거래처" });
     expect(d.tasksForClient(empty.id)).toHaveLength(0);
+  });
+});
+
+describe("비활성(deactivate) 사용자에게는 작업을 배정할 수 없다 — MCP/CLI/API 방어선", () => {
+  it("createTask: 비활성 사용자를 담당자로 지정하면 ASSIGNEE_INACTIVE로 거부", () => {
+    const d = db();
+    // 담당자를 비활성으로 만든다(deactivateUser의 결과를 in-memory로 재현).
+    // ⚠️ USERS 객체는 인스턴스 간 공유 참조라 직접 mutate하면 다른 테스트를 오염시킨다 → 클론으로 교체.
+    d.users = d.users.map((u) => (u.id === "lee-yejin" ? { ...u, active: false } : u));
+    try {
+      d.createTask(
+        { actorId: "hwang-sunghyeon", via: "mcp" },
+        { title: "비활성에게 배정 시도", assigneeId: "lee-yejin", source: "manual" },
+      );
+      throw new Error("거부되지 않았다");
+    } catch (error) {
+      expect(isQueRuleError(error)).toBe(true);
+      expect((error as QueRuleError).code).toBe("ASSIGNEE_INACTIVE");
+    }
+    // 작업이 실제로 생성되지 않았다.
+    expect(d.tasks.some((t) => t.title === "비활성에게 배정 시도")).toBe(false);
+  });
+
+  it("reassignTask: 비활성 사용자로 재배정하면 ASSIGNEE_INACTIVE로 거부", () => {
+    const d = db();
+    // 공유 참조 mutate 금지 — 클론으로 교체(위 참조).
+    d.users = d.users.map((u) => (u.id === "song-suyong" ? { ...u, active: false } : u));
+    try {
+      d.reassignTask(
+        { actorId: "hwang-sunghyeon", via: "cli" },
+        { taskId: "task-landing-copy", assigneeId: "song-suyong" },
+      );
+      throw new Error("거부되지 않았다");
+    } catch (error) {
+      expect(isQueRuleError(error)).toBe(true);
+      expect((error as QueRuleError).code).toBe("ASSIGNEE_INACTIVE");
+    }
+    // 담당자는 그대로다.
+    expect(d.tasks.find((t) => t.id === "task-landing-copy")!.assigneeId).toBe("hwang-sunghyeon");
   });
 });
 

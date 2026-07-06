@@ -13,6 +13,10 @@ create table if not exists users (
   name        text not null,
   role        text not null check (role in ('admin', 'member')),
   avatar_color text not null,
+  -- 직원 관리(항목 19): 비활성(deactivate)은 이 플래그로만 한다(hard delete 없음). 로그인·조회 게이트.
+  active       boolean not null default true,
+  rank         text,          -- 직급(대표/관리/사원) — grade(성과 스코프) 유도 소스. add-user-management.sql로 backfill.
+  department   text,          -- 부서(팀 표시용) — 임시 배정값, 편집 가능.
   email        text,          -- 실 로그인 식별자 (Auth.js Credentials)
   password_hash text,         -- bcrypt 해시. 서버에서만 읽고 도메인 User/세션 밖으로 내보내지 않는다.
   must_change_password boolean not null default false, -- 참이면 로그인 후 비밀번호 변경 강제(임시 비번)
@@ -160,7 +164,7 @@ create table if not exists status_logs (
 create table if not exists change_logs (
   id           text primary key,
   entity_type  text not null check (entity_type in
-    ('task','calendar_event','milestone','action_item','payment_request','meeting_note','recurring_template','project','client')),
+    ('task','calendar_event','milestone','action_item','payment_request','meeting_note','recurring_template','project','client','user')),
   entity_id    text not null,
   actor_id     text not null references users(id),
   change_type  text not null check (change_type in ('create','update','move','status_change','delete')),

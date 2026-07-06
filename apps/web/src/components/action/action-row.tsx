@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { ACTION_ITEM_STATUS_LABELS, USERS, type ActionItemStatus } from "@que/core";
+import { ACTION_ITEM_STATUS_LABELS, type ActionItemStatus } from "@que/core";
+import { useRoster } from "@/components/app/roster-provider";
 import { useSafeAction } from "@/components/app/use-safe-action";
 import {
   confirmActionItemAction,
@@ -39,9 +40,6 @@ export interface ActionRowData {
   projectName?: string;
 }
 
-/** Base UI Select가 선택값을 라벨로 표시하도록 하는 매핑 (id 노출 방지) */
-const USER_ITEMS = Object.fromEntries(USERS.map((u) => [u.id, u.name]));
-
 // 상태 색상 의미 고정: 확인 필요=violet(응답대기) · 후보=blue(정보) · 생성=green(완료) ·
 // 보류=amber(대기) · 무시=red(취소).
 const STATUS_TONE: Record<ActionItemStatus, BadgeTone> = {
@@ -60,6 +58,8 @@ export function ActionRow({
   item: ActionRowData;
   projects: ActionProjectOption[];
 }) {
+  const roster = useRoster();
+  const userItems = Object.fromEntries(roster.map((u) => [u.id, u.name]));
   const { run: runAction, pending } = useSafeAction();
   const [assigneeId, setAssigneeId] = useState(item.assigneeId ?? "");
   const [projectId, setProjectId] = useState(item.projectId ?? "");
@@ -102,7 +102,7 @@ export function ActionRow({
             <Field>
               <FieldLabel>담당자</FieldLabel>
               <Select
-                items={USER_ITEMS}
+                items={userItems}
                 value={assigneeId}
                 onValueChange={(v) => setAssigneeId(v ?? "")}
               >
@@ -113,7 +113,7 @@ export function ActionRow({
                   <SelectValue placeholder="미지정" />
                 </SelectTrigger>
                 <SelectContent>
-                  {USERS.map((user) => (
+                  {roster.map((user) => (
                     <SelectItem key={user.id} value={user.id}>
                       {user.name}
                     </SelectItem>

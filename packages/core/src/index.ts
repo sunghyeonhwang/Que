@@ -11,6 +11,7 @@ export {
   emailForUser,
   rankForUser,
   gradeForUser,
+  gradeForRank,
   personScopeForGrade,
   type UserGrade,
   departmentForUser,

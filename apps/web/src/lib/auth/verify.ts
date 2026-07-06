@@ -36,11 +36,13 @@ export async function verifyCredentials(
     });
     const { data, error } = await client
       .from("users")
-      .select("id,name,role,password_hash,must_change_password,failed_login_attempts,locked_until")
+      .select("id,name,role,active,password_hash,must_change_password,failed_login_attempts,locked_until")
       .ilike("email", e) // 와일드카드 없는 ilike = 대소문자 무시 정확 일치
       .limit(1)
       .maybeSingle();
     if (error || !data || !data.password_hash) return null;
+    // 비활성(퇴사/정지) 계정은 비밀번호가 맞아도 로그인 거부 — 잠금/실패 카운터도 건드리지 않는다.
+    if (data.active === false) return null;
 
     const now = new Date();
     // 잠금 중이면 비밀번호가 맞아도 거부(브루트포스 방어).

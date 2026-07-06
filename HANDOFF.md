@@ -610,6 +610,15 @@ data/
     - 검증: core **157**(gradeForUser·personScope URL확대불가 테스트), typecheck·lint·build, qa PASS(3직급 홈 분기·성과 스코프 사원1/관리자7/대표8·저성과표 사원 숨김·**URL 스코프 확대 6시도 전부 차단**·클라이언트 필터·4해상도, console 0). glados 생략(qa가 스코프 보안 e2e[URL bypass 차단]+viewer 재유도 검증, core 157). 기획서(que-product-plan.md) 홈·성과 직급별 정의 반영.
     - 후속(비차단): 기존 홈 "작업 분포" 차트 3분기서 제외(계약에 없음·복원 가능), 대표 완료추이 cm 셀렉트 없이 기본월.
 
+73. **앱 검수 항목 19 — 설정 직원 관리 + 명단 DB化 (2026-07-06)** — dev-lead 설계 → 사용자 결정 5건 → backend(DB화·mutation) → frontend(설정 탭·직원화면) → qa → glados(반려 1건 수정 후 PASS).
+    - **결정(승인)**: 삭제=비활성/복구만, 초기비번=자동 임시비번+강제변경, 온보딩=직원추가 안내로 흡수(별도 탭 없음), 부서=임시값 DB화(편집 가능), 비활성 시 열린 작업 재배정 전 차단.
+    - **⚠️ 명단 DB化(최고위험 인증 경로)**: 정적 USERS 하드코딩 → **db.users 기반**. userSchema +rank/department/active(email·passwordHash는 도메인 미포함 유지). gradeForUser/rankForUser/departmentForUser/personScopeForGrade → User 객체 기반(동작 동일·성과 스코프 무회귀). current-user/verify/PAT resolve → db.users + **inactive 차단**(JWT 7일 구멍 봉쇄). 담당자 선택 9곳 → useRoster(active 필터)/db.users. **프로덕션 DDL 선적용**: `users.active`(not null default true)·rank·department + 8명 backfill(황성현 대표/경영·오승훈 관리/운영·나머지 사원)·change_logs entity_type 'user'(`add-user-management.sql`). 정적 USERS는 mock/dev 시드로 강등.
+    - **유저 mutation**(`lib/auth/users.ts` server-only, QUE_DB=supabase 전용): createUser(id 슬러그·**임시비번 1회 반환**·must_change·active, email 유니크 23505)·deactivateUser(열린작업/활성템플릿 차단·**본인 금지**·hard delete 없음 active=false)·reactivateUser. canManageUsers=admin, ChangeLog user via. **users write-back 금지 유지**(persist 미기록, 이 전용 경로만 우회).
+    - **설정 재편**: /settings 서브라우트(모양/보안/토큰/직원관리[**admin 3중 게이트**: 탭숨김+페이지 redirect+canManageUsers]). 기존 컴포넌트 이동. 직원화면(목록·추가폼·비활성/복구·비번재설정·임시비번 1회 다이얼로그·온보딩 안내 흡수).
+    - **glados 반려(수정 후 PASS)**: 비활성 직원에게 **새 작업 배정이 parse/createTask/reassignTask에서 안 막힘**(주석은 막힌다고 거짓) → core **`requireActiveAssignee`**(createTask/reassignTask, MCP/CLI/API 방어)·parse 호출부 active 필터·members/search 비활성 제외·회귀 2건.
+    - 검증: core **167**, typecheck·lint·build, qa PASS(4계정 로그인 회귀 없음·담당자 8명·설정 3중 게이트 사원 redirect·본인/열린작업 비활성 차단), glados **[PASS]**(락아웃 프로덕션 실측·createUser 보안·write-back 금지·3중 게이트).
+    - **후속(비차단)**: confirmActionItem·syncRecurringTemplates도 비활성 담당자 배정 가능(requireActiveAssignee 미적용, 같은 헬퍼로 확장 가능). createUser/deactivate 등은 supabase 전용(로컬 mock NOT_SUPPORTED). **배포 후 프로덕션 8명 로그인 재확인 권장(인증 경로 변경)**.
+
 72. **앱 검수 항목 20 — 프로젝트 전체>클라이언트>프로젝트 필터 (2026-07-06)** — `/projects` 헤더에 클라이언트+프로젝트 2단 필터(`project-scope-filters.tsx`). URL 구동 `?client=<id|all>` + 기존 `?project=`·`?view=`·`?month=`·`?task=` 공존. `getClientOptions`로 클라 목록, `getActiveProjects(clientFilter)`로 프로젝트 스코프. **전역 스위처와 관계**: ?client 없으면 전역 쿠키 기본, ?client=<id>면 페이지 덮어쓰기, ?client=all은 쿠키 무시 sentinel(전역 쿠키 미변경 → /projects self-contained·공유가능 URL). 프로젝트 1개면 프로젝트 Select 숨김, 빈 상태에 필터 유지. base-ui items prop. typecheck·lint·build 통과. (/projects는 여전히 PM mock 미리보기·비영속, 조회 필터만.)
 
 ## 남은 작업 / 오픈 질문

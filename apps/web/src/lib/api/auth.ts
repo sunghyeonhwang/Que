@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
-import { resolvePat, findUser, type ChangeVia, type User } from "@que/core";
+import { resolvePat, type ChangeVia, type User } from "@que/core";
 import { isMockAuthAllowed, MOCK_AUTH_BLOCKED_MESSAGE } from "@/lib/mock-auth-guard";
 
 // API 계층 인증 — MCP 서버와 CLI가 사용하는 진입점.
@@ -49,7 +49,23 @@ async function resolveToken(token: string): Promise<User | undefined> {
       .limit(1)
       .maybeSingle();
     if (error || !data) return undefined;
-    return findUser(data.user_id as string);
+    // 정적 로스터가 아니라 DB에서 사용자를 조회한다 — 새 직원의 PAT도 인증되고, 비활성 계정은 거부된다.
+    // (email·passwordHash는 도메인 User가 아니므로 select에서 제외 → 응답으로 새지 않는다.)
+    const { data: u, error: uErr } = await client
+      .from("users")
+      .select("id,name,role,avatar_color,rank,department,active")
+      .eq("id", data.user_id as string)
+      .maybeSingle();
+    if (uErr || !u || u.active === false) return undefined;
+    return {
+      id: u.id as string,
+      name: u.name as string,
+      role: u.role as User["role"],
+      avatarColor: u.avatar_color as string,
+      rank: (u.rank as string | null) ?? undefined,
+      department: (u.department as string | null) ?? undefined,
+      active: (u.active as boolean | null) ?? true,
+    };
   }
   // 로컬 dev: 결정적 mock 토큰. 배포 환경(옵트인 없음)에서는 접근 차단.
   if (!isMockAuthAllowed()) {

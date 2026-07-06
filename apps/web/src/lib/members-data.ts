@@ -105,13 +105,16 @@ export async function getTeamOverview(now?: Date): Promise<TeamOverview> {
   const at = now ?? new Date();
   const db = await getDb();
 
+  // 활성 팀 명단만(비활성=퇴사/정지는 제외). 과거 작업의 이름 표시는 다른 경로에서 유지된다.
+  const activeUsers = db.users.filter((u) => u.active !== false);
+
   // 카드: 프로필(비-PII)만
-  const members: TeamMemberCard[] = db.users.map((user) => ({
+  const members: TeamMemberCard[] = activeUsers.map((user) => ({
     id: user.id,
     name: user.name,
     email: emailForUser(user.id),
-    department: departmentForUser(user.id),
-    rank: rankForUser(user.id),
+    department: departmentForUser(user),
+    rank: rankForUser(user),
     role: user.role,
     avatarColor: user.avatarColor,
   }));
@@ -135,10 +138,10 @@ export async function getTeamOverview(now?: Date): Promise<TeamOverview> {
     }
   }
 
-  // 부서 고유값(비어있지 않은 것)
+  // 부서 고유값(비어있지 않은 것) — 활성 명단 기준
   const departments = new Set<string>();
-  for (const user of db.users) {
-    const dept = departmentForUser(user.id);
+  for (const user of activeUsers) {
+    const dept = departmentForUser(user);
     if (dept) departments.add(dept);
   }
 
@@ -149,7 +152,7 @@ export async function getTeamOverview(now?: Date): Promise<TeamOverview> {
   ).length;
 
   const kpis: TeamKpis = {
-    totalMembers: db.users.length,
+    totalMembers: activeUsers.length,
     activeToday: activeIds.size,
     totalDepartments: departments.size,
     avgCompletedPerWeek: Math.round(doneLast6w / 6),
@@ -206,8 +209,8 @@ export async function getMemberDetail(id: string, now?: Date): Promise<MemberDet
   if (!user) return null;
 
   const email = emailForUser(user.id);
-  const department = departmentForUser(user.id);
-  const rank = rankForUser(user.id);
+  const department = departmentForUser(user);
+  const rank = rankForUser(user);
   const roleLabel = user.role === "admin" ? "관리자" : "팀원";
 
   // 정확히 4개 필드 — 부서/직급/역할/이메일. 전화·생년월일·위치 등 PII는 넣지 않는다.

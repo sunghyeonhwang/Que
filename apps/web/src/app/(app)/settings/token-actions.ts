@@ -15,7 +15,7 @@ export async function issueTokenAction(
   const label = String(formData.get("label") ?? "");
   const res = await issuePat({ userId: user.id, label });
   if (!res.ok) return { error: res.error };
-  revalidatePath("/settings"); // 목록에 새 토큰 반영
+  revalidatePath("/settings/tokens"); // 목록에 새 토큰 반영
   return { token: res.token };
 }
 
@@ -31,6 +31,6 @@ export async function revokeTokenAction(
   if (!tokenHash) return { error: "대상 토큰이 없습니다." };
   const res = await revokePat({ userId: user.id, tokenHash });
   if (!res.ok) return { error: "폐기에 실패했습니다. 잠시 후 다시 시도해주세요." };
-  revalidatePath("/settings");
+  revalidatePath("/settings/tokens");
   return {};
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { USERS } from "@que/core";
+import { useRoster } from "@/components/app/roster-provider";
 import { addTaskCommentAction } from "@/app/(app)/today/actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -14,8 +14,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useSafeAction } from "./use-safe-action";
-
-const USER_ITEMS = Object.fromEntries(USERS.map((u) => [u.id, u.name]));
 
 export interface TaskCommentView {
   id: string;
@@ -33,6 +31,8 @@ export function TaskComments({
   taskId: string;
   comments: TaskCommentView[];
 }) {
+  const roster = useRoster();
+  const userItems = Object.fromEntries(roster.map((u) => [u.id, u.name]));
   const { run, pending } = useSafeAction();
   const [body, setBody] = useState("");
   const [helpUserId, setHelpUserId] = useState("");
@@ -89,7 +89,7 @@ export function TaskComments({
         />
         <div className="flex items-center gap-2">
           <Select
-            items={USER_ITEMS}
+            items={userItems}
             value={helpUserId}
             onValueChange={(v) => setHelpUserId(v ?? "")}
           >
@@ -97,7 +97,7 @@ export function TaskComments({
               <SelectValue placeholder="도움 요청 안 함" />
             </SelectTrigger>
             <SelectContent>
-              {USERS.map((user) => (
+              {roster.map((user) => (
                 <SelectItem key={user.id} value={user.id}>
                   {user.name}
                 </SelectItem>

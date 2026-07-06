@@ -7,7 +7,6 @@ import {
   latestStatusLog,
   parseTaskInput,
   QueRuleError,
-  USERS,
   type CheckInResponse,
   type StatusDetail,
   type TaskDraft,
@@ -137,7 +136,11 @@ export async function getTaskStatusDetailAction(
 
 /** 자연어 해석 — 저장하지 않는다. 확인 카드를 거쳐 createTaskAction으로만 등록된다. */
 export async function parseTaskAction(text: string): Promise<TaskDraft> {
-  return parseTaskInput({ text: text.slice(0, 500), users: USERS });
+  // 담당자 해석 명단은 db.users(재직자만) — 새 직원은 이름으로 잡히고, 비활성은 담당자로 해석되지 않는다.
+  // (db.users는 비활성을 포함하므로 여기서 active !== false로 걸러야 한다 — parseTaskInput은 필터 안 함.)
+  const db = await getDb();
+  const activeUsers = db.users.filter((u) => u.active !== false);
+  return parseTaskInput({ text: text.slice(0, 500), users: activeUsers });
 }
 
 export async function createTaskAction(input: {

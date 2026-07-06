@@ -132,8 +132,8 @@ export async function getPerformanceData(
   //   제외/사원=본인). KPI·완료율·추이·프로젝트 진행률에는 적용하지 않는다(전원 동일).
   // kpiSelfId: 사원이면 KPI·작업 성과 라인을 본인 작업으로 좁힌다(요구). 관리/대표는 전체.
   // 스코프는 viewer.id에서 재유도하므로 호출부가 URL로 넓혀도 무의미하다(데이터 계층 재검증).
-  const viewerGrade = opts.viewer ? gradeForUser(opts.viewer.id) : undefined;
-  const personScope = opts.viewer ? personScopeForGrade(opts.viewer.id) : undefined;
+  const viewerGrade = opts.viewer ? gradeForUser(opts.viewer) : undefined;
+  const personScope = opts.viewer ? personScopeForGrade(opts.viewer, db.users) : undefined;
   const personSet = personScope ? new Set(personScope) : undefined;
   const kpiSelfId = viewerGrade === "staff" ? opts.viewer!.id : undefined;
   const kpiTasks = kpiSelfId
@@ -338,7 +338,7 @@ export async function getPerformanceData(
       return {
         userId: u.id,
         name: u.name,
-        department: departmentForUser(u.id),
+        department: departmentForUser(u),
         avatarColor: u.avatarColor,
         overdue: mine.filter(
           (t) => t.endAt && inLm(new Date(t.endAt).getTime()) && OPEN.has(t.status),

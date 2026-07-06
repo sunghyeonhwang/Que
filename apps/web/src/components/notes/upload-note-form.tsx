@@ -2,8 +2,9 @@
 
 import { useRef, useState } from "react";
 import { X } from "lucide-react";
-import { USERS, extractMeetingDateTime } from "@que/core";
+import { extractMeetingDateTime } from "@que/core";
 import { uploadMeetingNoteAction } from "@/app/(app)/meeting-notes/actions";
+import { useRoster } from "@/components/app/roster-provider";
 import { useSafeAction } from "@/components/app/use-safe-action";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -25,6 +26,7 @@ export interface UploadNoteProjectOption {
 
 /** Plaud Note MD 업로드 폼. 파일 내용은 클라이언트에서 읽어 서버 액션으로 넘긴다. */
 export function UploadNoteForm({ projects }: { projects: UploadNoteProjectOption[] }) {
+  const roster = useRoster();
   const fileRef = useRef<HTMLInputElement>(null);
   const { run, pending } = useSafeAction();
   const [title, setTitle] = useState("");
@@ -213,15 +215,15 @@ export function UploadNoteForm({ projects }: { projects: UploadNoteProjectOption
               className="inline-flex h-8 items-center rounded-md px-2 text-xs font-medium text-[var(--que-brand)] hover:bg-[var(--que-bg-muted)]"
               onClick={() =>
                 setAttendeeIds((prev) =>
-                  prev.length === USERS.length ? [] : USERS.map((u) => u.id),
+                  prev.length === roster.length ? [] : roster.map((u) => u.id),
                 )
               }
             >
-              {attendeeIds.length === USERS.length ? "전체 해제" : "전체 선택"}
+              {attendeeIds.length === roster.length ? "전체 해제" : "전체 선택"}
             </button>
           </div>
           <div className="grid grid-cols-2 gap-1 sm:grid-cols-3">
-            {USERS.map((user) => {
+            {roster.map((user) => {
               const checked = attendeeIds.includes(user.id);
               return (
                 <label
@@ -276,7 +278,7 @@ export function UploadNoteForm({ projects }: { projects: UploadNoteProjectOption
           <Field>
             <FieldLabel>열람 가능 인원 (관리자는 항상 열람 가능)</FieldLabel>
             <div className="grid grid-cols-4 gap-2">
-              {USERS.map((user) => (
+              {roster.map((user) => (
                 <label key={user.id} className="flex h-10 items-center gap-2 text-sm">
                   <Checkbox
                     checked={restrictedUserIds.includes(user.id)}

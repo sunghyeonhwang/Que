@@ -32,6 +32,8 @@ export function parseTaskInput(input: {
   const questions: string[] = [];
 
   // ---- 담당자: 이름(긴 것 우선) + 붙는 호칭/조사 제거 ----
+  // 주의: 여기서는 active(재직) 필터를 하지 않는다 — 넘어온 users 목록을 그대로 매칭한다.
+  //       비활성 사용자가 담당자로 해석되지 않게 하려면 호출부가 active !== false로 걸러서 넘겨야 한다.
   let assignee: User | undefined;
   for (const user of [...input.users].sort((a, b) => b.name.length - a.name.length)) {
     if (rest.includes(user.name)) {

@@ -17,8 +17,36 @@ export const userSchema = z.object({
   role: userRoleSchema,
   /** 캘린더/아바타에서 멤버 구분에 쓰는 색 (hex) */
   avatarColor: z.string().regex(/^#[0-9a-f]{6}$/i),
+  /** 직급(대표/관리/사원). 성과 스코프(gradeForUser)의 유도 소스. DB backfill로 항상 채워지지만
+   *  안전하게 optional로 두고 헬퍼가 "사원"으로 폴백한다. email·passwordHash 등 인증/PII 컬럼은
+   *  도메인 User에 넣지 않는다(SupabaseQueDb.load가 로드 시 제거) — 여기엔 표시용 필드만 둔다. */
+  rank: z.string().max(50).optional(),
+  /** 부서(팀 표시용, 임시 배정값). 헬퍼가 빈 문자열로 폴백한다. */
+  department: z.string().max(50).optional(),
+  /** 재직 여부. 비활성(deactivate)이면 로그인·조회에서 차단한다(hard delete 없음). */
+  active: z.boolean().default(true),
 });
 export type User = z.infer<typeof userSchema>;
+
+/**
+ * 직원 추가(createUser) 입력 검증. 관리자만 호출하지만, 값 자체(이메일·이름·직급 등)는
+ * 여기서 런타임 검증한다(웹/서버 액션이 신뢰할 수 없는 클라이언트 값을 넘길 수 있으므로).
+ * 비밀번호는 입력받지 않는다 — 자동 임시비번 1회 발급(adminReset 패턴). email·passwordHash는
+ * 도메인 User에 저장하지 않지만, 생성 입력에서는 로그인 식별자로 email을 받는다.
+ */
+export const createUserInputSchema = z.object({
+  name: z.string().trim().min(1, "이름은 필수다").max(50, "이름은 50자 이내"),
+  email: z.string().trim().toLowerCase().email("올바른 이메일이 아니다").max(200),
+  role: userRoleSchema,
+  rank: z.string().trim().min(1, "직급은 필수다").max(50),
+  department: z.string().trim().max(50).optional(),
+  /** 아바타/캘린더 구분색(hex). 미지정 시 서버가 미사용색을 제안한다. */
+  avatarColor: z
+    .string()
+    .regex(/^#[0-9a-f]{6}$/i, "색상은 #RRGGBB 형식이어야 한다")
+    .optional(),
+});
+export type CreateUserInput = z.infer<typeof createUserInputSchema>;
 
 // ---------- Task ----------
 
@@ -306,6 +334,7 @@ export const changeLogSchema = z.object({
     "recurring_template",
     "project",
     "client",
+    "user",
   ]),
   entityId: z.string().min(1),
   actorId: z.string().min(1),

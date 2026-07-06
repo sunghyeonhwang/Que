@@ -113,17 +113,17 @@ export async function searchWorkspace(query: string, user: User): Promise<Search
       })),
   );
 
-  // 팀원 (이름) → 멤버 상세
+  // 팀원 (이름) → 멤버 상세 — 활성(재직) 명단만 검색에 노출한다(비활성=퇴사/정지 제외).
   push(
     "member",
     db.users
-      .filter((u) => match(u.name, q))
+      .filter((u) => u.active !== false && match(u.name, q))
       .slice(0, PER_GROUP)
       .map((u) => ({
         kind: "member" as const,
         id: u.id,
         title: u.name,
-        subtitle: [departmentForUser(u.id), rankForUser(u.id)].filter(Boolean).join(" · "),
+        subtitle: [departmentForUser(u), rankForUser(u)].filter(Boolean).join(" · "),
         href: `/members/${u.id}`,
       })),
   );

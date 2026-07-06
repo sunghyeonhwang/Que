@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { USERS, WEEKDAY_LABELS, type RecurrenceFrequency } from "@que/core";
+import { WEEKDAY_LABELS, type RecurrenceFrequency } from "@que/core";
 import { createRecurringTemplateAction } from "@/app/(app)/projects/actions";
+import { useRoster } from "@/components/app/roster-provider";
 import { useSafeAction } from "@/components/app/use-safe-action";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,9 +25,12 @@ export function CreateTemplateForm({
 }: {
   projects: { id: string; name: string }[];
 }) {
+  const roster = useRoster();
   const { run, pending } = useSafeAction();
   const [title, setTitle] = useState("");
-  const [assigneeId, setAssigneeId] = useState(USERS[0].id);
+  // 기본 담당자 = 명단 첫 번째(재직자). 명단이 비면 빈 값(제출 시 core가 거부).
+  const [assigneeId, setAssigneeId] = useState("");
+  const effectiveAssignee = assigneeId || roster[0]?.id || "";
   const [projectId, setProjectId] = useState("");
   const [frequency, setFrequency] = useState<RecurrenceFrequency>("weekly");
   const [dayOfWeek, setDayOfWeek] = useState("1");
@@ -42,7 +46,7 @@ export function CreateTemplateForm({
       () =>
         createRecurringTemplateAction({
           title,
-          assigneeId,
+          assigneeId: effectiveAssignee,
           projectId: projectId || undefined,
           frequency,
           dayOfWeek: frequency === "weekly" ? Number(dayOfWeek) : undefined,
@@ -80,15 +84,15 @@ export function CreateTemplateForm({
           <Field>
             <FieldLabel>담당자</FieldLabel>
             <Select
-              items={Object.fromEntries(USERS.map((u) => [u.id, u.name]))}
-              value={assigneeId}
+              items={Object.fromEntries(roster.map((u) => [u.id, u.name]))}
+              value={effectiveAssignee}
               onValueChange={(v) => v && setAssigneeId(v)}
             >
               <SelectTrigger aria-label="담당자 선택">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {USERS.map((u) => (
+                {roster.map((u) => (
                   <SelectItem key={u.id} value={u.id}>
                     {u.name}
                   </SelectItem>

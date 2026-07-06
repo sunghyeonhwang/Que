@@ -1,4 +1,5 @@
-import { gradeForUser, type User } from "@que/core";
+import { gradeForRank, gradeForUser, type User } from "@que/core";
+import { getDb } from "./db";
 import type { ListViewMember } from "./pm-types";
 import {
   getHomeData,
@@ -146,7 +147,8 @@ async function getManagerHomeData(
   now: Date,
   opts: GradeHomeOptions,
 ): Promise<ManagerHomeData> {
-  const [home, team, report, noteSummary] = await Promise.all([
+  const [db, home, team, report, noteSummary] = await Promise.all([
+    getDb(),
     getHomeData(user, now, { dp: opts.dp, clientId: opts.clientId }),
     getTeamData(user, now, opts.clientId),
     getAdminReportData(user, "week", now, opts.clientId),
@@ -154,7 +156,11 @@ async function getManagerHomeData(
   ]);
 
   // 관리자 부하표는 대표(ceo) 제외 — 대표 부하는 관리자에게 노출하지 않는다(관리자끼리는 상호 노출).
-  const loadByMember = report.loadByMember.filter((row) => gradeForUser(row.userId) !== "ceo");
+  // grade는 정적 맵이 아니라 db.users의 rank에서 유도한다(신규/직급변경 반영).
+  const rankById = new Map(db.users.map((u) => [u.id, u.rank]));
+  const loadByMember = report.loadByMember.filter(
+    (row) => gradeForRank(rankById.get(row.userId)) !== "ceo",
+  );
 
   return {
     grade: "manager",
@@ -209,7 +215,7 @@ export async function getGradeHomeData(
   now: Date = new Date(),
   opts: GradeHomeOptions = {},
 ): Promise<GradeHomeData> {
-  const grade = gradeForUser(user.id);
+  const grade = gradeForUser(user);
   if (grade === "ceo") return getCeoHomeData(user, now, opts);
   if (grade === "manager") return getManagerHomeData(user, now, opts);
   return getStaffHomeData(user, now, opts);

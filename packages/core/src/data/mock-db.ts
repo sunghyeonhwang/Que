@@ -113,6 +113,20 @@ export class MockQueDb implements QueDb {
     return user;
   }
 
+  /** 담당자 지정 전용 검증 — 존재 + 재직(active) 확인. 비활성(deactivate) 사용자는 새 작업 배정 대상이
+   *  될 수 없다. UI 로스터 필터가 닿지 않는 MCP/CLI/API 경로까지 덮는 유일한 방어선이라 core에 둔다.
+   *  actor(요청자) 검증에는 쓰지 말 것 — actor는 requireUser로만 검증한다(비활성 actor는 인증에서 걸림). */
+  requireActiveAssignee(id: string): User {
+    const user = this.requireUser(id);
+    if (user.active === false) {
+      throw new QueRuleError(
+        "ASSIGNEE_INACTIVE",
+        `비활성(퇴사/정지) 사용자에게는 작업을 배정할 수 없다: ${user.name}`,
+      );
+    }
+    return user;
+  }
+
   requireTask(id: string): Task {
     const task = this.tasks.find((t) => t.id === id);
     if (!task) throw new QueRuleError("NOT_FOUND", `작업 없음: ${id}`);
@@ -217,7 +231,7 @@ export class MockQueDb implements QueDb {
     const actor = this.requireUser(ctx.actorId);
     const task = this.requireTask(input.taskId);
     assertCanEditTask(actor, task, this.projectOf(task));
-    const newAssignee = this.requireUser(input.assigneeId); // 실 사용자 검증(없으면 NOT_FOUND)
+    const newAssignee = this.requireActiveAssignee(input.assigneeId); // 실재 + 재직 검증(비활성 배정 거부)
     if (task.assigneeId === newAssignee.id) {
       throw new QueRuleError("INVALID_INPUT", "이미 이 담당자에게 배정된 작업이다");
     }
@@ -567,7 +581,8 @@ export class MockQueDb implements QueDb {
     if ((input.description?.length ?? 0) > 2000) {
       throw new QueRuleError("INVALID_INPUT", "설명은 2000자 이내다");
     }
-    const assignee = input.assigneeId ? this.requireUser(input.assigneeId) : actor;
+    // 담당자 미지정이면 본인(actor). 타인 지정 시 실재 + 재직(active) 검증 — 비활성 배정 거부.
+    const assignee = input.assigneeId ? this.requireActiveAssignee(input.assigneeId) : actor;
     if (input.projectId && !this.projects.some((p) => p.id === input.projectId)) {
       throw new QueRuleError("NOT_FOUND", `프로젝트 없음: ${input.projectId}`);
     }

@@ -28,6 +28,7 @@ export type QueRuleCode =
   | "EVENT_NOT_MOVABLE"
   | "INVALID_SCHEDULE"
   | "NOT_AUTHORIZED"
+  | "ASSIGNEE_INACTIVE"
   | "NOT_FOUND";
 
 export class QueRuleError extends Error {
@@ -182,6 +183,12 @@ export function canManageMilestone(actor: User, project: Project | undefined): b
 
 /** 클라이언트(거래처) 생성·수정은 관리자만 할 수 있다 (8인 MVP 운영 정책). */
 export function canManageClient(actor: User): boolean {
+  return actor.role === "admin";
+}
+
+/** 직원 관리(추가·비활성·복구·비밀번호 재설정)는 관리자만 할 수 있다 (항목 19).
+ *  가장 위험한 경로라 페이지·서버 액션·전용 mutation(lib/auth/users.ts)이 이 헬퍼로 3중 강제한다. */
+export function canManageUsers(actor: Pick<User, "role">): boolean {
   return actor.role === "admin";
 }
 

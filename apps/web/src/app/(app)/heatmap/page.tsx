@@ -75,7 +75,7 @@ export default async function PerformancePage({
 
   // 사원은 팀 부하표(다른 사람 나열)를 숨기고 본인 월간 요약만 본다. 관리자/대표는 데이터가
   // 이미 스코프돼 있어(대표=전원·관리=대표 제외) 표를 그대로 유지한다.
-  const isStaff = gradeForUser(user.id) === "staff";
+  const isStaff = gradeForUser(user) === "staff";
   const selfRow = data.lowPerformers[0];
 
   return (

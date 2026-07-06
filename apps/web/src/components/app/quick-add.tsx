@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
-import { USERS, type TaskDraft } from "@que/core";
+import { type TaskDraft } from "@que/core";
+import { useRoster } from "@/components/app/roster-provider";
 import { createTaskAction, parseTaskAction } from "@/app/(app)/today/actions";
 import { reportError } from "@/lib/report-error";
 import { UNEXPECTED_ERROR_MESSAGE, useSafeAction } from "./use-safe-action";
@@ -17,8 +18,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-
-const USER_ITEMS = Object.fromEntries(USERS.map((u) => [u.id, u.name]));
 
 function toLocalDate(iso?: string): string {
   if (!iso) return "";
@@ -55,6 +54,8 @@ export function QuickAddForm({
   onDone?: () => void;
   autoFocus?: boolean;
 }) {
+  const roster = useRoster();
+  const userItems = Object.fromEntries(roster.map((u) => [u.id, u.name]));
   const { run, pending, startTransition } = useSafeAction();
   const [text, setText] = useState("");
   const [draft, setDraft] = useState<TaskDraft | null>(null);
@@ -152,7 +153,7 @@ export function QuickAddForm({
               <Field>
                 <FieldLabel>담당자</FieldLabel>
                 <Select
-                  items={USER_ITEMS}
+                  items={userItems}
                   value={assigneeId}
                   onValueChange={(v) => setAssigneeId(v ?? currentUserId)}
                 >
@@ -160,7 +161,7 @@ export function QuickAddForm({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {USERS.map((user) => (
+                    {roster.map((user) => (
                       <SelectItem key={user.id} value={user.id}>
                         {user.name}
                       </SelectItem>
