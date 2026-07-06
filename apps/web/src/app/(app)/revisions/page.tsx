@@ -20,7 +20,10 @@ export default async function RevisionsPage() {
       />
       <div className="grid gap-4 xl:grid-cols-[minmax(0,24rem)_minmax(0,1fr)]">
         <RevisionForm />
-        <RevisionList rows={rows} />
+        {/* 좁은 폭(태블릿 가로 등)에서는 목록을 위로, xl 2열에서는 원래 순서(폼 좌·목록 우). */}
+        <div className="order-first min-w-0 xl:order-none">
+          <RevisionList rows={rows} />
+        </div>
       </div>
     </div>
   );

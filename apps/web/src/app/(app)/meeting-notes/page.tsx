@@ -68,7 +68,8 @@ export default async function MeetingNotesPage() {
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,26rem)_minmax(0,1fr)]">
         <UploadNoteForm projects={projectOptions} />
-        <div className="min-w-0">
+        {/* 좁은 폭(태블릿 가로 등)에서는 목록을 위로, xl 2열에서는 원래 순서(폼 좌·목록 우). */}
+        <div className="order-first min-w-0 xl:order-none">
           <div className="mb-2 flex items-baseline gap-2">
             <h2 className="text-base font-semibold text-[var(--que-text)]">업로드된 회의록</h2>
             <span className="text-xs text-[var(--que-text-tertiary)] tabular-nums">

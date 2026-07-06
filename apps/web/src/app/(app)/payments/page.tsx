@@ -66,7 +66,8 @@ export default async function PaymentsPage() {
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,24rem)_minmax(0,1fr)]">
         <PaymentForm categories={activeCategories.map((c) => c.name)} />
-        <div className="min-w-0">
+        {/* 좁은 폭(태블릿 가로 등)에서는 목록을 위로, xl 2열에서는 원래 순서(폼 좌·목록 우). */}
+        <div className="order-first min-w-0 xl:order-none">
           <h2 className="mb-2 text-base font-semibold text-[var(--que-text)]">결제 요청 목록</h2>
           <PaymentList rows={data.rows} />
         </div>
