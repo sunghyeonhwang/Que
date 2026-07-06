@@ -60,14 +60,10 @@ export interface ViewWeekMemberSummary {
   totalCount: number;
 }
 
-export type ViewScheduleRange = "week" | "3day";
-
 export interface ViewWeek {
-  /** 표시 범위의 시작일(week=해당 주 월요일, 3day=앵커일) ISO(yyyy-MM-dd). */
+  /** 표시 범위 시작일(3day=앵커일) ISO(yyyy-MM-dd). */
   weekStartISO: string;
-  /** 표시 범위 종류. frontend가 이동 폭(week=7일 / 3day=3일)과 칸수 렌더에 사용. */
-  range: ViewScheduleRange;
-  /** days 칸수(week=5, 3day=3). days.length와 동일하되 렌더 편의용으로 명시. */
+  /** days 칸수(3day=3). days.length와 동일하되 렌더 편의용으로 명시. */
   dayCount: number;
   /** memberSummary는 항상 "표시 범위" 기준으로 done/total 집계. */
   memberSummary: ViewWeekMemberSummary[];
@@ -240,27 +236,18 @@ export async function getViewDay(date: Date): Promise<ViewDay> {
 }
 
 /**
- * 스케줄(week/3day) 현황: calendar-data 준거 — 범위 겹침, private 작업 제외, private 이벤트는 "자리비움".
- * - range="week": 앵커일이 속한 주의 월~금 5칸(앵커 요일 무관, 월요일로 정규화).
- * - range="3day": 앵커일 포함 연속 3칸(anchor, anchor+1, anchor+2). 정규화 없음.
+ * 스케줄(3day) 현황: calendar-data 준거 — 범위 겹침, private 작업 제외, private 이벤트는 "자리비움".
+ * - 앵커일 포함 연속 3칸(anchor, anchor+1, anchor+2). 정규화 없음.
  * 시간 필터(10~19시 클리핑)는 하지 않는다 — 모든 이벤트를 반환하고 frontend가 클리핑한다.
  */
-export async function getViewSchedule(
-  anchor: Date,
-  range: ViewScheduleRange,
-): Promise<ViewWeek> {
+export async function getViewSchedule(anchor: Date): Promise<ViewWeek> {
   const db = await loadReadOnlyDb();
 
-  // 표시할 날짜(자정 기준)들을 만든다. week는 월요일로 정규화, 3day는 앵커일부터.
+  // 표시할 날짜(자정 기준)들을 만든다. 앵커일부터 3칸.
   const rangeStart = new Date(anchor);
   rangeStart.setHours(0, 0, 0, 0);
-  if (range === "week") {
-    const dow = rangeStart.getDay(); // 0=일
-    const diffToMonday = dow === 0 ? -6 : 1 - dow;
-    rangeStart.setDate(rangeStart.getDate() + diffToMonday);
-  }
 
-  const dayCount = range === "week" ? 5 : 3;
+  const dayCount = 3;
 
   const rangeEnd = new Date(rangeStart);
   rangeEnd.setDate(rangeEnd.getDate() + (dayCount - 1));
@@ -371,7 +358,6 @@ export async function getViewSchedule(
 
   return {
     weekStartISO: localDateISO(rangeStart),
-    range,
     dayCount,
     memberSummary,
     days,

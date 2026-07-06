@@ -50,7 +50,7 @@ function boardAllParams(hideCompleted: boolean): URLSearchParams {
   return p;
 }
 
-/** 스케줄 스텝 URL(설정 range). 1day는 사람 열, 3day/week는 날짜 열. */
+/** 스케줄 스텝 URL(설정 range). 1day는 사람 열, 3day는 날짜 열. */
 function scheduleParams(range: ViewSlideScheduleRange): URLSearchParams {
   const p = new URLSearchParams();
   p.set("view", "week");

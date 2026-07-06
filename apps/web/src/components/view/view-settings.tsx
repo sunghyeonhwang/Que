@@ -37,7 +37,6 @@ import {
 const RANGE_OPTIONS: { value: ViewSlideScheduleRange; label: string }[] = [
   { value: "1day", label: "1Day" },
   { value: "3day", label: "3day" },
-  { value: "week", label: "Week" },
 ];
 
 const BOARD_MODE_OPTIONS: { value: ViewSlideBoardMode; label: string }[] = [

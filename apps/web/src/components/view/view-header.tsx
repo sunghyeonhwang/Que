@@ -19,10 +19,10 @@ import {
 // 급소(item 1): 보고 있는 날짜 라벨을 상단에 노출한다.
 //   기존엔 좌측이 항상 '오늘'만 보여줘, board에서 이전/다음을 눌러 date 쿼리가 바뀌어도
 //   화면상 날짜 피드백이 없어 "이동이 안 된다"고 오인됐다(링크·파라미터 자체는 정상).
-//   이동 폭: board=±1일, week=±7, 3day=±3, 1day=±1. 전부 상대 쿼리 Link(proxy pathname 보존).
+//   이동 폭: board=±1일, 3day=±3, 1day=±1. 전부 상대 쿼리 Link(proxy pathname 보존).
 
-// week 모드의 서브 range(1day 포함). ViewScheduleRange(week|3day)를 넘어 1day까지 포함한다.
-type WeekRange = "week" | "3day" | "1day";
+// 스케줄(week) 모드의 서브 range. 날짜 열(3day) + 사람 열(1day).
+type WeekRange = "3day" | "1day";
 type BoardMode = "all" | "paged";
 
 interface ViewHeaderProps {
@@ -35,7 +35,7 @@ interface ViewHeaderProps {
   hideCompleted?: boolean;
   /** 보드 모드: 전체(8명)/2명 페이지 토글 상태. */
   boardMode?: BoardMode;
-  /** 주간 모드: 현재 범위(week=월~금, 3day, 1day=사람 열). */
+  /** 주간 모드: 현재 범위(3day=날짜 열, 1day=사람 열). */
   weekRange?: WeekRange;
   /** 주간 모드: prev/next/today·범위 라벨 계산의 기준 앵커일 ISO. */
   weekAnchorISO?: string;
@@ -87,7 +87,7 @@ export function ViewHeader({
             boardISO={format(boardDate, "yyyy-MM-dd")}
             hideCompleted={hideCompleted}
           />
-          <HideCompletedToggle active={hideCompleted} />
+          <HideCompletedToggle />
           <DateNav
             label={dayLabel(boardDate)}
             prevHref={boardHref(format(addDays(boardDate, -1), "yyyy-MM-dd"), boardMode, hideCompleted)}
@@ -137,7 +137,7 @@ function BoardModeToggle({
   );
 }
 
-// ---------- 주간 모드: [1Day][3day][Week] 토글 + 날짜이동 ----------
+// ---------- 주간 모드: [1Day][3day] 토글 + 날짜이동 ----------
 
 function WeekModeControls({
   range,
@@ -148,8 +148,8 @@ function WeekModeControls({
   anchorISO: string;
   todayISO: string;
 }) {
-  // 범위 전환은 앵커일을 유지한다(1day↔week 왕복 시 보던 날짜 보존).
-  const step = range === "week" ? 7 : range === "3day" ? 3 : 1;
+  // 범위 전환은 앵커일을 유지한다(1day↔3day 왕복 시 보던 날짜 보존).
+  const step = range === "3day" ? 3 : 1;
   const anchor = parseISO(anchorISO);
   const prevISO = format(addDays(anchor, -step), "yyyy-MM-dd");
   const nextISO = format(addDays(anchor, step), "yyyy-MM-dd");
@@ -162,9 +162,6 @@ function WeekModeControls({
         </SegLink>
         <SegLink href={`?view=week&range=3day&date=${anchorISO}`} active={range === "3day"}>
           3day
-        </SegLink>
-        <SegLink href={`?view=week&range=week&date=${anchorISO}`} active={range === "week"}>
-          Week
         </SegLink>
       </div>
       <DateNav
@@ -278,9 +275,9 @@ function dayLabel(d: Date): string {
   return `${md(d)} (${shortWeekdayKR(d)})`;
 }
 
-/** week=범위 "7/6 – 7/10", 3day="7/4 – 7/6", 1day="7/4 (금)". */
+/** 3day="7/4 – 7/6", 1day="7/4 (금)". */
 function rangeLabel(anchor: Date, range: WeekRange): string {
   if (range === "1day") return dayLabel(anchor);
-  const end = addDays(anchor, range === "week" ? 4 : 2);
+  const end = addDays(anchor, 2);
   return `${md(anchor)} – ${md(end)}`;
 }

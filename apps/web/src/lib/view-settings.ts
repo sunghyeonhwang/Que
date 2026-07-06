@@ -6,7 +6,7 @@ import { useSyncExternalStore } from "react";
 // - 다른 탭 반영은 window "storage" 이벤트로 커버.
 // - 모든 읽기/쓰기는 SSR 안전(typeof window 가드) + 값 방어(normalizeSettings clamp/enum 검증).
 
-export type ViewSlideScheduleRange = "1day" | "3day" | "week";
+export type ViewSlideScheduleRange = "1day" | "3day";
 export type ViewSlideBoardMode = "paged" | "all";
 
 export interface ViewSettings {
@@ -33,7 +33,7 @@ export const VIEW_SECONDS_MAX = 600;
 export const DEFAULT_VIEW_SETTINGS: ViewSettings = {
   boardSeconds: 25,
   scheduleSeconds: 120,
-  scheduleRange: "week",
+  scheduleRange: "3day",
   boardMode: "paged",
   includeBoard: true,
   includeSchedule: true,
@@ -59,7 +59,7 @@ export function normalizeSettings(raw: unknown): ViewSettings {
       DEFAULT_VIEW_SETTINGS.scheduleSeconds,
     ),
     scheduleRange:
-      range === "1day" || range === "3day" || range === "week"
+      range === "1day" || range === "3day"
         ? range
         : DEFAULT_VIEW_SETTINGS.scheduleRange,
     boardMode:

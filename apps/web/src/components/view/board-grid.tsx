@@ -5,6 +5,7 @@ import { Check, ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ViewBoard, ViewBoardColumn, ViewCard } from "@/lib/view-data";
 import { avatarInitials, scale, withAlpha } from "./view-format";
+import { useBoardView } from "./board-view-context";
 
 // 할일 보드(하루). 담당자별 세로 열 + 완료 요약 pill + 읽기전용 카드 스택.
 // - 조회 전용: 완료 원형은 상태 표시일 뿐 토글 불가(onClick 없음).
@@ -19,13 +20,11 @@ const AUTO_ADVANCE_MS = 15_000;
 
 export function BoardGrid({
   board,
-  hideCompleted = false,
   mode = "all",
   play = false,
   bp,
 }: {
   board: ViewBoard;
-  hideCompleted?: boolean;
   mode?: "all" | "paged";
   // 슬라이드쇼 연동:
   //  · bp 지정: 그 페이지(2명)를 고정 표시하고 자체 15초 순환을 끈다.
@@ -34,6 +33,8 @@ export function BoardGrid({
   play?: boolean;
   bp?: number;
 }) {
+  // hideCompleted는 BoardViewProvider 클라 상태(즉시 필터). BoardGrid는 항상 Provider 안에서 렌더된다.
+  const { hideCompleted } = useBoardView();
   // 슬라이드쇼(bp 지정)가 페이지를 주도하면 2명/페이지로 고정 렌더한다.
   if (bp != null) {
     return (

@@ -177,14 +177,31 @@ function TimeAxis() {
 // 하루치 이벤트를 좌우 레인으로 배치한다. 같은 시간대에 겹치는 이벤트가 서로 위에
 // 절대배치돼 글자가 뭉개지던 문제를 막는다(그리드는 유지, 겹침만 분할).
 // 그리디: 시작시각 순으로 이미 끝난 레인을 재사용하고, 연쇄로 겹치는 묶음(클러스터)이
-// 레인 수를 공유해 그 안의 카드는 같은 폭(1/레인수)으로 나란히 놓인다.
-interface LaidOutItem {
+// 레인 수를 공유해 그 안의 카드는 같은 폭(1/열수)으로 나란히 놓인다.
+// 벽 디스플레이 가독성을 위해 한 클러스터의 레인이 MAX_LANES를 넘으면, 마지막 열은
+// "+N" 칩으로 초과분을 합쳐 카드가 지나치게 좁아지는 것을 막는다(N=숨긴 이벤트 정확 개수).
+const MAX_LANES = 3;
+
+interface CardEntry {
+  kind: "card";
   item: ViewWeekItem;
   startMin: number;
   endMin: number;
   lane: number;
-  lanes: number;
+  columns: number;
 }
+
+interface OverflowEntry {
+  kind: "overflow";
+  key: string;
+  startMin: number;
+  endMin: number;
+  column: number;
+  columns: number;
+  count: number;
+}
+
+type LayoutEntry = CardEntry | OverflowEntry;
 
 function itemMinutes(item: ViewWeekItem): { startMin: number; endMin: number } {
   const startMin = clamp(minutesOfDayKST(item.startAt), GRID_START_MIN, GRID_END_MIN);
@@ -193,12 +210,12 @@ function itemMinutes(item: ViewWeekItem): { startMin: number; endMin: number } {
   return { startMin, endMin };
 }
 
-function layoutDayItems(items: readonly ViewWeekItem[]): LaidOutItem[] {
+function layoutDayItems(items: readonly ViewWeekItem[]): LayoutEntry[] {
   const evs = items
     .map((item) => ({ item, ...itemMinutes(item), lane: 0 }))
     .sort((a, b) => a.startMin - b.startMin || a.endMin - b.endMin);
 
-  const out: LaidOutItem[] = [];
+  const out: LayoutEntry[] = [];
   let cluster: typeof evs = [];
   let clusterEnd = -1;
 
@@ -216,9 +233,39 @@ function layoutDayItems(items: readonly ViewWeekItem[]): LaidOutItem[] {
       ev.lane = lane;
     }
     const lanes = laneEnds.length;
+    const hasOverflow = lanes > MAX_LANES;
+    // 초과 시 열 수를 MAX_LANES로 고정하고, 마지막 열([columns-1])은 "+N" 칩용으로 비운다
+    // → 카드로 보이는 레인은 [0, columns-1). 초과가 없으면 레인 수 = 열 수(모두 카드).
+    const columns = hasOverflow ? MAX_LANES : lanes;
+    const cardLaneLimit = hasOverflow ? columns - 1 : columns;
+
+    const hidden: typeof cluster = [];
     for (const ev of cluster) {
-      out.push({ item: ev.item, startMin: ev.startMin, endMin: ev.endMin, lane: ev.lane, lanes });
+      if (ev.lane < cardLaneLimit) {
+        out.push({
+          kind: "card",
+          item: ev.item,
+          startMin: ev.startMin,
+          endMin: ev.endMin,
+          lane: ev.lane,
+          columns,
+        });
+      } else {
+        hidden.push(ev);
+      }
     }
+    if (hidden.length > 0) {
+      out.push({
+        kind: "overflow",
+        key: `overflow-${hidden[0].item.id}`,
+        startMin: Math.min(...hidden.map((h) => h.startMin)),
+        endMin: Math.max(...hidden.map((h) => h.endMin)),
+        column: columns - 1,
+        columns,
+        count: hidden.length,
+      });
+    }
+
     cluster = [];
     clusterEnd = -1;
   };
@@ -233,7 +280,7 @@ function layoutDayItems(items: readonly ViewWeekItem[]): LaidOutItem[] {
 }
 
 function DayColumn({ day }: { day: ViewWeekDay }) {
-  const laid = layoutDayItems(day.items);
+  const entries = layoutDayItems(day.items);
   return (
     <div className="relative min-h-[420px] min-w-0 rounded-xl border border-neutral-200 bg-neutral-50/60">
       {/* 시간 구분선 */}
@@ -247,20 +294,24 @@ function DayColumn({ day }: { day: ViewWeekDay }) {
           />
         );
       })}
-      {laid.map((pos) => (
-        <EventCard key={pos.item.id} pos={pos} />
-      ))}
+      {entries.map((entry) =>
+        entry.kind === "card" ? (
+          <EventCard key={entry.item.id} entry={entry} />
+        ) : (
+          <OverflowChip key={entry.key} entry={entry} />
+        ),
+      )}
     </div>
   );
 }
 
-function EventCard({ pos }: { pos: LaidOutItem }) {
-  const { item, startMin, endMin, lane, lanes } = pos;
+function EventCard({ entry }: { entry: CardEntry }) {
+  const { item, startMin, endMin, lane, columns } = entry;
 
   const topPct = ((startMin - GRID_START_MIN) / GRID_SPAN) * 100;
   const heightPct = ((endMin - startMin) / GRID_SPAN) * 100;
-  // 좌우 레인 분할: 클러스터 레인 수로 폭을 나누고 3px씩 간격을 준다(단일 레인이면 전폭).
-  const widthPct = 100 / lanes;
+  // 좌우 레인 분할: 표시 열 수로 폭을 나누고 3px씩 간격을 준다(단일 열이면 전폭).
+  const widthPct = 100 / columns;
   const leftPct = lane * widthPct;
 
   return (
@@ -302,6 +353,37 @@ function EventCard({ pos }: { pos: LaidOutItem }) {
       >
         {avatarInitials(item.ownerName)}
       </span>
+    </div>
+  );
+}
+
+// 초과 이벤트 합침 칩. 한 시간대에 MAX_LANES를 넘는 겹침이 있으면 마지막 열에 놓여
+// 숨긴 이벤트 개수를 "+N"으로 알린다(조회 전용이라 개수 표시로 충분). 숨긴 이벤트들의
+// 세로 범위(min 시작 ~ max 종료)를 덮는다.
+function OverflowChip({ entry }: { entry: OverflowEntry }) {
+  const { startMin, endMin, column, columns, count } = entry;
+
+  const topPct = ((startMin - GRID_START_MIN) / GRID_SPAN) * 100;
+  const heightPct = ((endMin - startMin) / GRID_SPAN) * 100;
+  const widthPct = 100 / columns;
+  const leftPct = column * widthPct;
+
+  return (
+    <div
+      className={cn(
+        "absolute flex items-center justify-center rounded-lg border border-dashed border-neutral-300 bg-neutral-100/70 font-semibold text-neutral-500",
+        scale("text-sm", "text-base", "text-xl", "text-2xl"),
+      )}
+      style={{
+        top: `${topPct}%`,
+        height: `${heightPct}%`,
+        left: `calc(${leftPct}% + 3px)`,
+        width: `calc(${widthPct}% - 6px)`,
+        minHeight: 52,
+      }}
+      title={`이 시간대에 ${count}건 더 있음`}
+    >
+      +{count}
     </div>
   );
 }

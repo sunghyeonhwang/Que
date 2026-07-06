@@ -29,7 +29,13 @@ mock 인증: 쿠키 `que-user=<id>` / PAT `que_pat_<id>` (예: `hwang-sunghyeon`
 
 ### 다음 할 일
 
-**▶ ~~팀원·권한 관리 확장~~ → 완료 (2026-07-06, 커밋 대기).** `/revisions` 팀 요청 #1·#2·#4 구현(#3은 승격으로 해소). 아래 "[✅ 완료 — 팀원·권한 관리 확장](#-완료--팀원권한-관리-확장--revisions-팀-요청-2026-07-06)" 절 참고. **요청 #5(view.griff 주간뷰 정리)도 완료 (2026-07-06)** — 주간뷰 시간그리드 겹침 뭉개짐을 좌우 레인 분할로 해소(`components/view/week-grid.tsx`, "그리드 유지+겹침만 분할" 사용자 확정). **다음 세션 착수 대상은 env 트랙(Slack·Sentry·cron 활성화)**. 배포 후 대표(황성현)가 `/settings/staff`에서 송수용·황성진을 UI로 관리자 승격(프로덕션 DB는 미변경 — 설계대로).
+**▶ 이번 세션(2026-07-06) 요약 — 커밋 2건 + 미커밋 view 배치 1건.**
+
+- ✅ **팀원·권한 관리 확장** → 커밋 `47c8dbd` (푸시됨). `/revisions` #1·#2·#4 구현(#3은 승격으로 해소). 아래 "[✅ 완료 — 팀원·권한 관리 확장](#-완료--팀원권한-관리-확장--revisions-팀-요청-2026-07-06)" 절. 배포 후 대표(황성현)가 `/settings/staff`에서 **송수용·황성진 관리자 승격**(프로덕션 DB 미변경 — 설계대로).
+- ✅ **view 주간뷰 겹침 레인 분할** (`/revisions` #5) → 커밋 `9588766` (푸시됨). 시간그리드 겹침 뭉개짐을 좌우 레인 분할로 해소.
+- ✅ **view 현황판 후속 배치(아래 "[✅ 완료 — view 현황판 후속](#-완료--view-현황판-후속-2026-07-06)" 절)** → 커밋됨: ① 주간뷰 **+N 상한**(레인>3 초과분 "+N" 칩) ② **Week(5칸) range 제거**(1Day·3day만, 기본 3day) ③ **hide-completed 반응 즉시화**(Context 클라 상태). typecheck·lint·FHD 브라우저·글래도스 승인 완료. (검증 중 setState-during-render 버그 1건 발견·수정.)
+
+**다음 세션 착수 대상은 env 트랙(Slack·Sentry·cron 활성화).**
 
 #### env 트랙 (사용자가 "하나씩" 진행 중)
 1. ~~**Vercel 배포**~~ → **완료 (43번)**. <https://que-rouge-eight.vercel.app> (Root=`apps/web`, 리전 `icn1`, 실 DB+실 인증). **주의: Deployment Protection이 현재 꺼진 상태**(대시보드에서 재활성화 필요) — 단 실 인증+mock API 503이라 공개라도 안전. `QUE_ALLOW_MOCK_AUTH`는 **안 켬**(mock PAT 봉인). (`data/docs/deploy-vercel-supabase.md`)
@@ -43,9 +49,35 @@ mock 인증: 쿠키 `que-user=<id>` / PAT `que_pat_<id>` (예: `hwang-sunghyeon`
 - **비밀값**: `data/.env`(Supabase URL/키/비번/pooler)와 `db/supabase/backup-before-que/`(구 앱 데이터)는 gitignore됨 — 절대 커밋 금지.
 - **Supabase MCP**: `mcp.supabase.com` 등록됐으나 "Needs authentication" — 세션에서 `/mcp`로 재인증 필요(마이그레이션은 pooler 직결로 처리해 MCP 없이 완료). DDL은 pooler(pg), 런타임은 supabase-js(직접 호스트 `db.<ref>`는 IPv6/DNS 미해석).
 - **모델 방침**: 서브에이전트 결정형=fable, 구현형(frontend/backend-dev)=opus, 검증형=sonnet (`.claude/agents/*.md` frontmatter).
-- **글래도스 게이트**: 의미 있는 변경은 커밋 전 글래도스(general-purpose+페르소나 주입, `model:fable`) 적대적 심사 — 커스텀 `glados` 서브에이전트가 이번 세션 레지스트리에 안 잡혀 우회 중.
+- **글래도스 게이트**: 의미 있는 변경은 커밋 전 `glados` 서브에이전트(적대적 최종 심사)로 검증. **2026-07-06 세션 기준 `glados` 서브에이전트가 정상 등록돼 직접 호출 가능**(과거 세션엔 미등록이라 general-purpose+페르소나 주입으로 우회했음 — 이제 불필요). 이번 세션에서 팀원·권한 배치와 주간뷰 겹침 분할 심사에 사용해 승인받음.
 
 상세 이력은 아래 번호 항목(1~39)과 "남은 작업" 절 참고.
+
+---
+
+## ✅ 완료 — view 현황판 후속 (2026-07-06)
+
+> **상태**: 구현·검증·글래도스 승인·커밋 완료. typecheck·lint 통과, FHD(가로 디스플레이 = 실제 타깃) 브라우저 검증(② 토글 [1Day/3day]·기본 3day, ③ 토글 즉시 필터·URL replaceState·콘솔 0), 글래도스 게이트 승인.
+>
+> **검증 중 발견·수정한 버그**: `board-view-context.tsx`가 초기엔 `syncUrl`(history.replaceState)을 **`setHide` 업데이터 콜백 안에서** 호출 → App Router 렌더 중 갱신으로 "Cannot update a component (Router) while rendering BoardViewProvider" 경고. **수정**: 사이드이펙트를 이벤트 핸들러로 이동(`const next = !hideCompleted; setHide(next); syncUrl(next);`). 재검증 후 콘솔 0.
+>
+> **비차단 후속(수용)**: ① hc URL desync wart — `view-header.tsx` boardHref가 서버 렌더 시점 hc를 링크에 구움 → 토글 후 날짜/모드 이동 Link 클릭 시 URL의 hc가 어긋날 수 있으나 provider 클라 상태로 화면은 정합(하드 리로드 시에만 리셋). 고치려면 DateNav·BoardModeToggle을 context 읽는 클라 링크로 전환. ② +N low 2건(zero-length minHeight, 칩이 빈 구간 덮음).
+>
+> 대상: 공개 읽기전용 현황판 `view.griff.co.kr`(`app/(view)/view/`). 이예진 `/revisions` #5("주간뷰 너무 복잡") 후속 + 사용자 추가 요청.
+
+### ① 주간뷰 +N 상한 (검증 완료, 미커밋)
+- `components/view/week-grid.tsx`: 겹침 레인 분할(커밋됨) 위에 **레인 상한 `MAX_LANES=3`** 추가. 한 클러스터 레인>3이면 앞 2개는 카드, 나머지는 마지막 열에 점선 **"+N" 칩**(N=숨긴 이벤트 정확 개수). `LayoutEntry = CardEntry | OverflowEntry` 유니온, `OverflowChip` 컴포넌트 신설. **글래도스가 우려한 극단 narrow(8칸) 해소.**
+- **검증됨**: 워크플로우 7/7 시나리오 결함 0(경계 3/4, 그리디 레인, 접촉경계, 그리드밖, 칩 세로범위), 브라우저 FHD 확인(월요일 5겹침 → 2카드+"+3"). low 2건 수용(zero-length minHeight, 칩이 빈 구간 덮음).
+
+### ② Week(5칸) range 제거 (미검증)
+- 사용자 확정: view 현황판 [1Day/3day/Week]에서 **Week만 제거**, 1Day·3day 유지, **기본 3day**. 스케줄 "모드"(`?view=week`)는 유지(FAB 포함) — 없앤 건 서브 range뿐.
+- 파일: `lib/view-settings.ts`(`ViewSlideScheduleRange="1day"|"3day"`, 기본 3day, normalizeSettings week분기 제거 → **localStorage 옛 "week" 자동 3day 마이그레이션**) · `components/view/view-settings.tsx`(RANGE_OPTIONS week 제거) · `view-header.tsx`(Week SegLink·step·rangeLabel week 제거) · `app/(view)/view/page.tsx`(rangeParam 기본 3day) · `lib/view-data.ts`(**`getViewSchedule(anchor)` 시그니처 변경 — range 인자 제거**, dayCount=3 고정, `ViewWeek.range` 필드 제거, `ViewScheduleRange` type 삭제) · `slideshow-controller.tsx`(주석만).
+
+### ③ hide-completed 반응 즉시화 (미검증)
+- **원인**: 토글이 `router.push(?hc=1)` → `force-dynamic` 페이지가 매 클릭 DB 재로드·전체 재렌더로 느림. 보드는 이미 클라에서 `filter`만 함(서버 왕복 불필요).
+- **해결(설계)**: hideCompleted를 **클라 상태(Context)**로. 신규 `components/view/board-view-context.tsx`(`BoardViewProvider` useState + `history.replaceState`로 hc URL 동기화, `useBoardView()`). `page.tsx`가 트리를 provider로 감싸고 서버 `hideCompleted`를 initial로 전달(SSR 깜빡임 없음). `hide-completed-toggle.tsx`는 router 제거·context 사용, `board-grid.tsx`는 context에서 읽음. `router.refresh`(10분 auto-refresh)는 클라 상태 보존.
+- **근거**: board 데이터가 서버 프롭이라 `useSearchParams`만으론 force-dynamic 재렌더에 묶여 즉시 안 됨 → 서버 렌더와 분리한 클라 상태 필요.
+- **검증 포인트(다음 세션)**: 토글 즉시 반응(서버 왕복 없음), ?hc=1 로드 시 첫 페인트부터 필터(깜빡임 없음), auto-refresh 후 상태 유지, board 모드 날짜이동 Link 클릭 후에도 필터 유지(provider 상태 지속). **알려진 wart**: 서버 렌더 Link(날짜/모드)는 로드 시점 hc를 담아, Link 이동 시 URL의 hc가 잠깐 어긋날 수 있으나 board 표시는 클라 상태로 정합(수용).
 
 ---
 
