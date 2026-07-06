@@ -610,6 +610,12 @@ data/
     - 검증: core **157**(gradeForUser·personScope URL확대불가 테스트), typecheck·lint·build, qa PASS(3직급 홈 분기·성과 스코프 사원1/관리자7/대표8·저성과표 사원 숨김·**URL 스코프 확대 6시도 전부 차단**·클라이언트 필터·4해상도, console 0). glados 생략(qa가 스코프 보안 e2e[URL bypass 차단]+viewer 재유도 검증, core 157). 기획서(que-product-plan.md) 홈·성과 직급별 정의 반영.
     - 후속(비차단): 기존 홈 "작업 분포" 차트 3분기서 제외(계약에 없음·복원 가능), 대표 완료추이 cm 셀렉트 없이 기본월.
 
+74. **할일 추가 확인카드 프로젝트·시작/마감 필드 + 액션 점검 (2026-07-06)** — 사용자 "할일 추가/액션에 프로젝트·시작/마감 설정 누락".
+    - **할일 추가(전역 자연어 quick-add)**: 확인 카드에 **프로젝트 Select·우선순위·마감시간** 추가(기존엔 프로젝트·마감시간 부재, 마감=시작+1h 고정이었음). `createTaskAction` +projectId/priority(core createTask 이미 지원). 파싱 시각 기본값·수정 가능·마감≤시작 인라인 차단. 확인카드 규칙 유지. 프로젝트 getAssignableProjectsAction lazy(NO_PROJECT sentinel).
+    - **액션(확인필요)**: 배치4에서 이미 완비(담당자·프로젝트·마감일·마감시각·시작시각 편집/확정) — 점검만, 추가 작업 없음.
+    - **QA 후속 2건 수정**: (a) "모든 작업" 목록→상세 시트가 projectId 미전달로 "프로젝트 없음" 오표시(배치3 glados 후속 지점 표면화) → my-tasks-data `MyTaskItem`/`getMyTaskList` + my-task-table `TaskRowData`에 projectId 배선(TimelineRow와 동일). (b) getAssignableProjectsAction 라벨을 `formatProjectLabel`(클라이언트·프로젝트)로 → quick-add·task-status-sheet 프로젝트 Select 일관.
+    - 검증: typecheck·lint·build, qa PASS(필드 노출·등록 payload projectId/시각·마감≤시작 차단·4해상도, console 0; 프로젝트 미표시·라벨 후속 수정).
+
 73. **앱 검수 항목 19 — 설정 직원 관리 + 명단 DB化 (2026-07-06)** — dev-lead 설계 → 사용자 결정 5건 → backend(DB화·mutation) → frontend(설정 탭·직원화면) → qa → glados(반려 1건 수정 후 PASS).
     - **결정(승인)**: 삭제=비활성/복구만, 초기비번=자동 임시비번+강제변경, 온보딩=직원추가 안내로 흡수(별도 탭 없음), 부서=임시값 DB화(편집 가능), 비활성 시 열린 작업 재배정 전 차단.
     - **⚠️ 명단 DB化(최고위험 인증 경로)**: 정적 USERS 하드코딩 → **db.users 기반**. userSchema +rank/department/active(email·passwordHash는 도메인 미포함 유지). gradeForUser/rankForUser/departmentForUser/personScopeForGrade → User 객체 기반(동작 동일·성과 스코프 무회귀). current-user/verify/PAT resolve → db.users + **inactive 차단**(JWT 7일 구멍 봉쇄). 담당자 선택 9곳 → useRoster(active 필터)/db.users. **프로덕션 DDL 선적용**: `users.active`(not null default true)·rank·department + 8명 backfill(황성현 대표/경영·오승훈 관리/운영·나머지 사원)·change_logs entity_type 'user'(`add-user-management.sql`). 정적 USERS는 mock/dev 시드로 강등.

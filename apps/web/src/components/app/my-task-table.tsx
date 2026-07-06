@@ -63,6 +63,7 @@ export function MyTaskTable({
             metaText: item.description,
             startAt: item.startAt,
             endAt: item.endAt,
+            projectId: item.projectId,
             assigneeId: item.assignees[0]?.id,
             assigneeName: item.assignees[0]?.name,
             comments: commentsByTask.get(item.id) ?? [],

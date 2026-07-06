@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import {
+  formatProjectLabel,
   helpUserIdsOf,
   isQueRuleError,
   latestStatusLog,
@@ -146,8 +147,11 @@ export async function parseTaskAction(text: string): Promise<TaskDraft> {
 export async function createTaskAction(input: {
   title: string;
   assigneeId?: string;
+  /** 확인 카드에서 지정한 소속 프로젝트. core가 실재를 검증한다. */
+  projectId?: string;
   startAt?: string;
   endAt?: string;
+  priority?: "low" | "normal" | "high";
 }): Promise<ActionResult> {
   const user = await getCurrentUser();
   return toResult((db) =>
@@ -269,13 +273,18 @@ export async function getAssignableUsersAction(): Promise<{ id: string; name: st
   return db.users.map((u) => ({ id: u.id, name: u.name }));
 }
 
-/** 작업 상세 시트의 프로젝트 Select용 — 활성(보관 아님) 프로젝트 {id,name}. lazy 조회. */
+/** 작업 상세 시트·빠른등록의 프로젝트 Select용 — 활성(보관 아님) 프로젝트 {id,name}. lazy 조회.
+ *  name은 "클라이언트 · 프로젝트" 병기 라벨(동명 프로젝트 구분·다른 Select와 일관). */
 export async function getAssignableProjectsAction(): Promise<{ id: string; name: string }[]> {
   await getCurrentUser(); // 세션 강제 — 비인증 호출 차단(레포 표준)
   const db = await getDb();
+  const clientById = new Map(db.clients.map((c) => [c.id, c]));
   return db.projects
     .filter((p) => p.status !== "archived")
-    .map((p) => ({ id: p.id, name: p.name }));
+    .map((p) => ({
+      id: p.id,
+      name: formatProjectLabel(p, p.clientId ? clientById.get(p.clientId) : undefined),
+    }));
 }
 
 /**

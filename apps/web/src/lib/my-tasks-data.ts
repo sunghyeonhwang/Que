@@ -18,6 +18,8 @@ export interface MyTaskItem {
   endAt?: string;
   /** 정렬/표시용: 마감(endAt) 우선, 없으면 시작(startAt) */
   dueAt?: string;
+  /** 소속 프로젝트 — 상세 시트 프로젝트 Select 초기값에 필요(TimelineRow와 동일). */
+  projectId?: string;
   /** 담당자(+소유자) 아바타 스택용. 기존 모델은 단일 담당자라 대부분 1~2명. */
   assignees: ListViewMember[];
 }
@@ -110,6 +112,7 @@ export async function getMyTaskList(
         startAt: t.startAt,
         endAt: t.endAt,
         dueAt: t.endAt ?? t.startAt,
+        projectId: t.projectId,
         assignees,
       };
     })
