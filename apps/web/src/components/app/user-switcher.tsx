@@ -62,6 +62,10 @@ export function UserSwitcher({ current, rank }: { current: User; rank: string })
               startTransition(async () => {
                 try {
                   await logout();
+                  // 세션 정리 성공 → 로그인 화면으로 하드 내비게이션. 소프트 내비(router.push)와 달리
+                  // 클라 메모리 상태를 전량 폐기하고, (app) 레이아웃 getCurrentUser·/login auth() 게이트가
+                  // 소거된 세션으로 재평가된다(이 앱엔 인증 미들웨어가 없다 — proxy.ts는 view 호스트 라우팅만).
+                  window.location.href = "/login";
                 } catch (error) {
                   reportError(error, { source: "logout" });
                   toast.error(UNEXPECTED_ERROR_MESSAGE);

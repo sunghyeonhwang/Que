@@ -35,6 +35,8 @@ mock 인증: 쿠키 `que-user=<id>` / PAT `que_pat_<id>` (예: `hwang-sunghyeon`
 - ✅ **view 주간뷰 겹침 레인 분할** (`/revisions` #5) → 커밋 `9588766` (푸시됨). 시간그리드 겹침 뭉개짐을 좌우 레인 분할로 해소.
 - ✅ **view 현황판 후속 배치(아래 "[✅ 완료 — view 현황판 후속](#-완료--view-현황판-후속-2026-07-06)" 절)** → 커밋됨: ① 주간뷰 **+N 상한**(레인>3 초과분 "+N" 칩) ② **Week(5칸) range 제거**(1Day·3day만, 기본 3day) ③ **hide-completed 반응 즉시화**(Context 클라 상태). typecheck·lint·FHD 브라우저·글래도스 승인 완료. (검증 중 setState-during-render 버그 1건 발견·수정.)
 
+- ✅ **로그아웃 오류 수정** → 커밋·배포. 서버 액션 signOut redirect를 클라 try/catch가 NEXT_REDIRECT로 오인하던 버그. 아래 "[✅ 로그아웃 오류 수정](#-로그아웃-오류-수정-2026-07-06)" 절.
+
 **다음 세션 착수 대상은 env 트랙(Slack·Sentry·cron 활성화).**
 
 #### env 트랙 (사용자가 "하나씩" 진행 중)
@@ -54,6 +56,18 @@ mock 인증: 쿠키 `que-user=<id>` / PAT `que_pat_<id>` (예: `hwang-sunghyeon`
 상세 이력은 아래 번호 항목(1~39)과 "남은 작업" 절 참고.
 
 ---
+
+## ✅ 로그아웃 오류 수정 (2026-07-06)
+
+> **증상**: 프로덕션(que.griff.co.kr)에서 로그아웃 시 "알 수 없는 오류가 발생했습니다…" 토스트. 실제로 /login 이동은 되지만 오류 토스트가 뜸.
+>
+> **근본 원인**: `components/app/user-switcher.tsx`가 서버 액션 `logout()`(=`signOut({ redirectTo })`)을 `try { await logout() } catch { reportError; toast }`로 감쌈. next-auth v5의 signOut redirect는 **NEXT_REDIRECT 예외를 throw해 위로 전파돼야** 프레임워크가 네비게이션하는데, 그 예외를 catch가 실제 오류로 오인해 리포팅+토스트. (로컬 재현: 콘솔 `[que-error-report] {source: logout} Error: NEXT_REDIRECT`.)
+>
+> **수정**: `app/actions.ts`의 `logout()`을 `signOut({ redirect: false })`로 — 리다이렉트 예외를 던지지 않고 세션 쿠키만 정리. `user-switcher.tsx`는 `await logout()` 성공 후 `window.location.href = "/login"`(하드 내비). try/catch는 유지(이제 진짜 오류만 잡음).
+>
+> **⚠️ 확립된 규칙(재발 방지)**: **서버 액션의 `signOut`/`redirect()`를 클라이언트에서 `try/catch`로 감싸지 말 것.** 프레임워크 리다이렉트(NEXT_REDIRECT)는 전파돼야 한다. 감싸야 하면 (a) 액션에서 `redirect:false`로 예외를 없애고 클라가 이동하거나, (b) redirect 예외를 재던져야 한다. **주의: 이 Next 16.2.9엔 `unstable_rethrow`가 없다**(node_modules 전수 grep 0건 — 글래도스가 "있다"고 했으나 오확인). 그래서 (a) 방식 채택.
+>
+> **검증**: 로컬 dev(mock, 황성현) 로그아웃 재현 → 수정 후 /login 이동 + **콘솔 에러 0**. 글래도스가 별도 포트에서 logout 액션 직접 호출로 `Set-Cookie: authjs.session-token=; Max-Age=0`(세션 소거)·NEXT_REDIRECT 미발생 실측. change-password(`forced-change-form` = useActionState+`<form action>`)는 수동 catch 없어 이 버그 없음(확인). typecheck·lint·글래도스 승인.
 
 ## ✅ 완료 — view 현황판 후속 (2026-07-06)
 
