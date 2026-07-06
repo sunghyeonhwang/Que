@@ -27,7 +27,11 @@ pnpm -r typecheck && pnpm --filter @que/web lint && pnpm --filter @que/core test
 ```
 mock 인증: 쿠키 `que-user=<id>` / PAT `que_pat_<id>` (예: `hwang-sunghyeon`=관리자). 8명 id는 `packages/core/src/mock/users.ts`.
 
-### 다음 할 일 (사용자가 "하나씩" 진행 중 — env 트랙)
+### 다음 할 일
+
+**▶ 최우선: [🔜 다음 배치 — 팀원·권한 관리 확장](#-다음-배치-미착수--팀원권한-관리-확장--revisions-팀-요청-2026-07-06)** (아래 절). dev-lead 설계 완료·구현 0. `/revisions` 팀 요청 5건 중 #1·#2·#3·#4 처리(설정>직원관리 권한변경·정보편집). **선행 결함**(current-user.ts role JWT 우선→강등 7일 무효) 먼저 수정. 미해결 결정 5건 확정 후 착수.
+
+#### env 트랙 (사용자가 "하나씩" 진행 중)
 1. ~~**Vercel 배포**~~ → **완료 (43번)**. <https://que-rouge-eight.vercel.app> (Root=`apps/web`, 리전 `icn1`, 실 DB+실 인증). **주의: Deployment Protection이 현재 꺼진 상태**(대시보드에서 재활성화 필요) — 단 실 인증+mock API 503이라 공개라도 안전. `QUE_ALLOW_MOCK_AUTH`는 **안 켬**(mock PAT 봉인). (`data/docs/deploy-vercel-supabase.md`)
 2. ~~**웹 실 인증**~~ → **완료 (42번, Auth.js 이메일+비밀번호)**. 로그인: `<이름>.<성>@griff.co.kr`. **프로덕션 비번(2026-07-04): 테스트용 공용 비번으로 전 팀원 7명 통일 적용**(평문은 `data/passwords.txt` gitignore 참조, 여기엔 평문 금지). 프로덕션 `users.password_hash`에 bcrypt(rounds10) 직접 UPDATE, E2E 로그인 검증 완료. **테스트+개인 비번 작성 후 개인별 교체 예정**(`gen-passwords.mts` → `set-passwords.sql`). 로컬 dev 상수 `DEV_PASSWORD(que-2026!)`는 mock 전용(프로덕션 무관). **남은 B2**: API/MCP/CLI의 mock PAT를 `personal_access_tokens`(해시)로 교체 + `core/mock/tokens.ts` 폐기 → 그 후 `QUE_ALLOW_MOCK_AUTH` 제거.
 3. Sentry DSN(에러 리포팅) · Slack 앱(알림/스탠드업) · CLI/MCP 배포(30번) · ~~스케줄러 Vercel Cron 전환~~ → **🟡 B-2 엔드포인트 완성·배포(2026-07-04), 스케줄 활성화만 대기**. `/api/cron/sync`(CRON_SECRET 인증) 라이브. `db.ts` lazy는 `QUE_CRON_ACTIVE` 플래그 제어(기본 유지 → 지금도 체크인 정상). **Hobby 플랜은 cron 하루 1회라 `*/10` crons가 배포 거부돼 `vercel.json`에서 crons 제거함**(엔드포인트는 라이브). 활성화: (A) Pro 업그레이드 후 crons 추가, 또는 (B) 외부 스케줄러(GitHub Actions)가 엔드포인트 호출 → `CRON_SECRET` 설정 → 확인(HTTP 200, 건수는 플래그 켜야 유의미) → `QUE_CRON_ACTIVE=1`. 상세 `deploy-vercel-supabase.md` 4-1. 남은 로드맵 `data/docs/que-roadmap-plan.md`.
@@ -42,6 +46,64 @@ mock 인증: 쿠키 `que-user=<id>` / PAT `que_pat_<id>` (예: `hwang-sunghyeon`
 - **글래도스 게이트**: 의미 있는 변경은 커밋 전 글래도스(general-purpose+페르소나 주입, `model:fable`) 적대적 심사 — 커스텀 `glados` 서브에이전트가 이번 세션 레지스트리에 안 잡혀 우회 중.
 
 상세 이력은 아래 번호 항목(1~39)과 "남은 작업" 절 참고.
+
+---
+
+## 🔜 다음 배치 (미착수) — 팀원·권한 관리 확장 + /revisions 팀 요청 (2026-07-06)
+
+> **상태**: dev-lead 설계 완료, **구현 0**. 사용자가 "나머지는 나중에" 하여 중단. 다음 세션은 이 절부터.
+> **선행**: 아래 "미해결 사용자 결정 5건"을 먼저 확정한 뒤 구현.
+
+### 배경 — `/revisions`(수정사항 트래커)에 팀이 올린 요청 5건 (Supabase `revision_notes` 실조회)
+1. **설정·권한변경**(황성현/대표, 미해결): 설정에서 팀원 권한을 **관리자로 변경**.
+2. **팀·팀원추가**(송수용, 미해결): 팀원 추가 버튼 — **추가 자체는 항목19에서 이미 구현**(`/settings/staff`). **발견성만** 필요.
+3. **프로젝트·추가 안 됨**(송수용, 미해결): **코드 버그 아님**. 송수용=`member`(사원·디자인)이고 프로젝트 생성은 `/clients`(관리자 전용)에만 있어 **접근 경로가 없음**. 클라이언트 4건 정상 존재=생성경로 살아있음. **해결책=권한변경으로 대표가 송수용을 admin 승격**(그러면 /clients 접근 → 프로젝트 추가 가능). **프로젝트 관리 개방은 안 함**(관리자 전용 설계 유지 — 사용자 확정).
+4. **팀·팀개요**(송수용, 미해결): 팀원 **이메일·직급·부서 등 정보 변경**을 관리자가.
+5. **view.griff 주간뷰**(이예진, 미해결): "너무 복잡" → **이번 배치 제외, 나중에 별도**(사용자 확정).
+
+→ #1·#2·#4 = "팀원·권한 관리 확장" 배치(설정>직원관리). #3 = 그 권한변경으로 해소. #5 = 별도.
+
+### 확정된 사용자 결정
+- 관리 UI 위치 = **설정 > 직원관리 확장**(`/settings/staff`). 팀(/members)은 조회 전용 유지 + '직원 관리' 링크만.
+- 프로젝트 관리 **개방 안 함**(관리자 전용 유지). #3은 승격으로 해결.
+- **권한변경은 내가 프로덕션 DB를 직접 SQL로 바꾸지 않는다**(접근권한 임의변경=민감). UI를 만들어 대표가 직접 승격. 배포 후 클릭 한 번.
+- #5 view 주간뷰 = 나중에 별도.
+
+### ⚠️ 설계 중 발견한 선행 결함 (구현 전 반드시)
+**`apps/web/src/lib/current-user.ts`의 role이 JWT 세션 우선**(`session.user.role ?? base.role`). JWT maxAge 7일이라 **강등해도 대상이 최대 7일간 admin 잔존**(승격도 재로그인 전 무효). → **role을 `base.role`(DB 우선)로 고쳐야** 권한변경이 즉시 실효. active/rank/department는 이미 DB-first. name은 세션 우선 유지(무관). PAT resolve(`lib/auth/verify.ts`)는 이미 db.users 기반.
+
+### 핵심 구조 (조사 완료)
+- **쓰기 경로**: `apps/web/src/lib/auth/users.ts` — server-only, `QUE_DB=supabase` 전용(아니면 NOT_SUPPORTED), SECRET_KEY로 users 직접 write(**persist는 users write-back 안 함** — auth 컬럼 보호). createUser/deactivateUser/reactivateUser가 이 패턴. ChangeLog=`logUserChange()`(entity_type='user', 실패해도 주작업 유지).
+- **grade 유도(핵심 커플링)**: `packages/core/src/mock/users.ts` `gradeForRank()` = **순수 rank 문자열 매핑**("대표"→ceo/"관리"→manager/그외→staff), id 하드코딩 아님. → **rank 편집 = grade(홈 대시보드 getGradeHomeData + 성과 personScope) 즉시 변경**. 대표 2명이어도 `personScopeForGrade`는 구조상 안 깨짐(의미만 = 전사 조망 권한 부여).
+- **userSchema**: role·rank(opt)·department(opt)·active 포함, email·passwordHash 도메인 제외. **DDL 0건**(role/active/rank/department/email·`users_email_key` lower(email) 유니크·change_logs 'user' 전부 존재).
+
+### 구현 순서 (backend→frontend)
+- **B1 core**(`domain.ts`): `RANK_VALUES`/rank enum(대표·관리·사원) + `updateUserProfileInputSchema`(email?·rank?·department?, 최소1필드). createUserInputSchema.rank도 enum으로 조임. index export. 테스트.
+- **B2 선행 결함**(`current-user.ts`): role → `base.role` DB-first. (mutation보다 먼저.)
+- **B3 mutation**(`lib/auth/users.ts`): `updateUserRole({actor,via,targetId,role})` + `updateUserProfile({actor,via,targetId,data})`. 가드→update→logUserChange(before/after diff).
+- **B4 액션**(`app/(app)/settings/staff/actions.ts`): `updateStaffRoleAction`/`updateStaffProfileAction`(getCurrentUser→canManageUsers→mutation via=web→revalidatePath).
+- **F1 다이얼로그**(`components/settings/staff/`): `staff-edit-dialog`(이메일·직급 Select·부서 + **grade 영향 문구** + email 변경 안내) / `staff-role-dialog`(member↔admin confirm, 강등=destructive, 권한 설명).
+- **F2 표**(`staff-table.tsx`): 행에 '편집'·'권한' 버튼(44px, 본인 권한버튼 disabled). `staff-manager.tsx` 배선.
+- **F3 발견성**(`app/(app)/members/page.tsx`): 관리자 조건부 '직원 관리' 링크(→/settings/staff).
+
+### 가드레일 (서버 최종 강제)
+canManageUsers=admin · **본인 role 변경 금지** · **마지막 활성 admin 강등 금지**(active&admin 카운트, 비활성 admin 제외) · 비활성 대상 편집 거부 · email 유니크(사전 ilike + 23505) · rank="대표" 부여 시 **대표 단일성 강제**(다른 활성 대표 있으면 거부, 교체는 기존 대표 강등 후 2단계). role/rank/profile 변경은 **ChangeLog entity_type='user' via=web**.
+
+### 미해결 사용자 결정 5건 (구현 착수 전 확인)
+1. **admin 부여 주체**: 모든 admin vs 대표만? (추천: 모든 admin=canManageUsers 현행. #1이 대표 요청이라 "대표만" 선호 가능 — 확인.)
+2. **대표 단일성**: 서버 강제(추천) vs 경고만 vs UI 선택지 제거?
+3. **email 도메인 @griff.co.kr 강제** 여부? (추천: 강제 안 함 — createUser 현행과 일관.)
+4. **비활성자 편집**: 둘 다 거부(추천) 확정?
+5. **name 편집 제외** 동의? (#4에 명시 없음.)
+
+### 리스크
+rank→grade 커플링(직급 편집=노출 스코프 변경, member인데 대표 조합 가능) · 세션 role 잔존(B2 미선행 시 강등 7일 무효) · 락아웃(서버 최종 차단, 동시강등 레이스는 8인 규모 수용) · email=로그인식별자(세션은 id기반이라 안 끊김) · rank 변경 시 홈 급변(버그 아님, 문구 예고).
+
+### 그 외 대기 트랙 (변동 없음)
+- **항목15 회의록 액션플랜** — 회의록 md 샘플 대기.
+- **구글 캘린더 연동** — Vercel `GOOGLE_SERVICE_ACCOUNT_KEY`+도메인위임 대기([[google-calendar-integration-plan]], `data/docs/google-calendar-setup.md`).
+- **#5 view 주간뷰 정리** — 위 요청5, 나중에.
+- env 트랙(Slack·Sentry·cron) — 키 대기.
 
 ---
 
