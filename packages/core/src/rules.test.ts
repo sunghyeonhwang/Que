@@ -397,6 +397,7 @@ describe("결제 요청 등록", () => {
       { actorId: "kim-riwon", via: "web" },
       {
         title: "CS 교육 자료 구매",
+        recipientName: "교보문고",
         bankName: "국민은행",
         accountNumber: "123-45-678901",
         amount: 33000,
@@ -405,7 +406,23 @@ describe("결제 요청 등록", () => {
     );
     expect(payment.status).toBe("waiting");
     expect(payment.requesterId).toBe("kim-riwon");
+    expect(payment.recipientName).toBe("교보문고");
     expect(d.changeLogs.at(-1)!.entityType).toBe("payment_request");
+
+    // 수신자명 길이 상한(100자) 초과는 거부한다
+    expect(() =>
+      d.createPaymentRequest(
+        { actorId: "kim-riwon", via: "web" },
+        {
+          title: "t",
+          recipientName: "가".repeat(101),
+          bankName: "국민",
+          accountNumber: "1",
+          amount: 1000,
+          category: "기타",
+        },
+      ),
+    ).toThrowError(/상한 초과/);
 
     expect(() =>
       d.createPaymentRequest(

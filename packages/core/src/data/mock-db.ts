@@ -1677,6 +1677,7 @@ export class MockQueDb implements QueDb {
     ctx: ActorContext,
     input: {
       title: string;
+      recipientName?: string;
       bankName: string;
       accountNumber: string;
       amount: number;
@@ -1696,12 +1697,13 @@ export class MockQueDb implements QueDb {
     }
     if (
       input.title.length > 200 ||
+      (input.recipientName?.length ?? 0) > 100 ||
       input.bankName.length > 50 ||
       input.accountNumber.length > 50 ||
       input.category.length > 50 ||
       (input.description?.length ?? 0) > 2000
     ) {
-      throw new QueRuleError("INVALID_INPUT", "입력 길이 상한 초과 (제목 200, 은행/계좌/분류 50, 내용 2000자)");
+      throw new QueRuleError("INVALID_INPUT", "입력 길이 상한 초과 (제목 200, 수신자명 100, 은행/계좌/분류 50, 내용 2000자)");
     }
     if (!Number.isFinite(input.amount) || input.amount <= 0 || input.amount > 1_000_000_000_000) {
       throw new QueRuleError("INVALID_INPUT", "금액은 0보다 크고 1조 이하의 숫자여야 한다");
@@ -1714,6 +1716,7 @@ export class MockQueDb implements QueDb {
       id: this.nextId("pay"),
       title: input.title.trim(),
       requesterId: actor.id,
+      recipientName: input.recipientName?.trim() || undefined,
       bankName: input.bankName.trim(),
       accountNumber: input.accountNumber.trim(),
       amount: input.amount,

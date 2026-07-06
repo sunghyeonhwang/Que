@@ -319,6 +319,7 @@ pay
           title: string;
           status: string;
           requesterName: string;
+          recipientName?: string;
           bankName: string;
           accountDisplay: string;
           amountDisplay: string | null;
@@ -327,8 +328,9 @@ pay
       };
       for (const row of data.rows) {
         const flags = row.overdue ? " ⚠마감초과" : "";
+        const to = row.recipientName ? ` → ${row.recipientName}` : "";
         console.log(
-          `${row.id}  [${PAYMENT_STATUS_LABELS[row.status as keyof typeof PAYMENT_STATUS_LABELS]}]${flags} ${row.title} — ${row.requesterName} · ${row.bankName} ${row.accountDisplay} · ${row.amountDisplay ?? "금액 비공개"}`,
+          `${row.id}  [${PAYMENT_STATUS_LABELS[row.status as keyof typeof PAYMENT_STATUS_LABELS]}]${flags} ${row.title} — ${row.requesterName}${to} · ${row.bankName} ${row.accountDisplay} · ${row.amountDisplay ?? "금액 비공개"}`,
         );
       }
     } catch (error) {
@@ -339,6 +341,7 @@ pay
 pay
   .command("add")
   .requiredOption("--title <title>")
+  .option("--recipient <recipientName>", "입금받을 곳 (상호/사람/기관명)")
   .requiredOption("--bank <bankName>")
   .requiredOption("--account <accountNumber>")
   .requiredOption("--amount <amount>", "금액 (원)")
@@ -349,6 +352,7 @@ pay
   .action(
     async (opts: {
       title: string;
+      recipient?: string;
       bank: string;
       account: string;
       amount: string;
@@ -359,6 +363,7 @@ pay
       try {
         const { payment } = (await client().post("/api/payments", {
           title: opts.title,
+          recipientName: opts.recipient,
           bankName: opts.bank,
           accountNumber: opts.account,
           amount: Number(opts.amount),

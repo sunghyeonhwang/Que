@@ -135,6 +135,7 @@ create table if not exists payment_requests (
   id              text primary key,
   title           text not null check (char_length(title) <= 200),
   requester_id    text not null references users(id),
+  recipient_name  text check (char_length(recipient_name) <= 100),
   bank_name       text not null check (char_length(bank_name) <= 50),
   account_number  text not null check (char_length(account_number) <= 50),
   amount          numeric not null check (amount > 0 and amount <= 1000000000000),

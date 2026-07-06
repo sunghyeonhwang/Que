@@ -22,6 +22,7 @@ const CATEGORY_ITEMS = Object.fromEntries(CATEGORIES.map((c) => [c, c]));
 export function PaymentForm() {
   const { run, pending } = useSafeAction();
   const [title, setTitle] = useState("");
+  const [recipientName, setRecipientName] = useState("");
   const [bankName, setBankName] = useState("");
   const [accountNumber, setAccountNumber] = useState("");
   const [amount, setAmount] = useState("");
@@ -37,6 +38,7 @@ export function PaymentForm() {
       () =>
         createPaymentRequestAction({
           title,
+          recipientName: recipientName.trim() || undefined,
           bankName,
           accountNumber,
           amount: Number(amount),
@@ -48,6 +50,7 @@ export function PaymentForm() {
         success: "결제 요청이 대기 상태로 등록됐습니다.",
         onSuccess: () => {
           setTitle("");
+          setRecipientName("");
           setBankName("");
           setAccountNumber("");
           setAmount("");
@@ -67,6 +70,16 @@ export function PaymentForm() {
         <Field>
           <FieldLabel htmlFor="pay-title">제목</FieldLabel>
           <Input id="pay-title" value={title} onChange={(e) => setTitle(e.target.value)} />
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="pay-recipient">입금받을 곳 (선택)</FieldLabel>
+          <Input
+            id="pay-recipient"
+            value={recipientName}
+            maxLength={100}
+            onChange={(e) => setRecipientName(e.target.value)}
+            placeholder="상호·사람·기관명"
+          />
         </Field>
         <div className="grid grid-cols-2 gap-3">
           <Field>

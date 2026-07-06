@@ -312,6 +312,8 @@ export const paymentRequestSchema = z.object({
   id: z.string().min(1),
   title: z.string().min(1),
   requesterId: z.string().min(1),
+  /** 입금받을 곳 — 상호/사람/기관명. 기존 데이터 호환을 위해 선택 필드다. */
+  recipientName: z.string().min(1).max(100).optional(),
   bankName: z.string().min(1),
   /** 민감 정보 — 화면에서는 권한에 따라 마스킹한다 */
   accountNumber: z.string().min(1),

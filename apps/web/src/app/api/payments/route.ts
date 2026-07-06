@@ -11,6 +11,7 @@ export async function GET(request: Request) {
 
 const createSchema = z.object({
   title: z.string(),
+  recipientName: z.string().optional(),
   bankName: z.string(),
   accountNumber: z.string(),
   amount: z.number(),

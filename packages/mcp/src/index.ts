@@ -313,6 +313,7 @@ server.registerTool(
     description: "결제 요청을 등록한다 (기본 상태: 대기). 등록 전에 사용자에게 내용을 확인받아라.",
     inputSchema: {
       title: z.string(),
+      recipientName: z.string().optional().describe("입금받을 곳 (상호/사람/기관명)"),
       bankName: z.string(),
       accountNumber: z.string(),
       amount: z.number(),

@@ -610,6 +610,11 @@ data/
     - 검증: core **157**(gradeForUser·personScope URL확대불가 테스트), typecheck·lint·build, qa PASS(3직급 홈 분기·성과 스코프 사원1/관리자7/대표8·저성과표 사원 숨김·**URL 스코프 확대 6시도 전부 차단**·클라이언트 필터·4해상도, console 0). glados 생략(qa가 스코프 보안 e2e[URL bypass 차단]+viewer 재유도 검증, core 157). 기획서(que-product-plan.md) 홈·성과 직급별 정의 반영.
     - 후속(비차단): 기존 홈 "작업 분포" 차트 3분기서 제외(계약에 없음·복원 가능), 대표 완료추이 cm 셀렉트 없이 기본월.
 
+76. **결제요청 수신자명·계좌/금액 복사 (2026-07-06)** — 사용자 "수신자명(입금받을 곳)·계좌번호·금액 복사 버튼".
+    - paymentRequestSchema `recipientName`(≤100, optional) 추가. **⚠️ 프로덕션 DDL**: `payment_requests.recipient_name`(additive, `add-payment-recipient-name.sql`). createPaymentRequest·`/api/payments`·MCP·CLI 파리티. `PaymentRow` +`recipientName`/`accountNumberForCopy`/`amountForCopy`(**인가 뷰어[admin∨요청자 본인]에게만 raw 복사값**, 비인가는 마스킹 `accountDisplay`·`amountDisplay`만 유지).
+    - frontend: `components/app/copy-button.tsx` 공용(size-10=40px, navigator.clipboard + "복사했습니다" 토스트 + Check 1.2s). payment-form "입금받을 곳" 필드, payment-list 수신자명 표시 + 금액/계좌 복사 버튼(`*ForCopy` 있을 때만=인가).
+    - 검증: core **172**, typecheck·lint·build, qa PASS(수신자명 저장/표시·복사값 정확[계좌 `012-34-5678-901`·금액 `48000`]·**비인가 뷰어 복사버튼 0개/마스킹 유지**·4해상도, console 0).
+
 75. **수정사항(이슈/피드백) 트래커 /revisions (2026-07-06)** — 사용자 "테스트 중 수정사항 적는 메뉴". backend(모델·core·DDL·데이터·메뉴) → frontend → qa PASS.
     - 팀 공용 이슈 목록. 필드: 메뉴·위치·오류사항·상태(미해결/보류/해결). **작성자·시간 자동**, 상태 변경 시 updatedAt/updatedBy. **누구나 작성·상태 변경**(인증만, 소유자 제한 없음). ChangeLog 미기록(메타 도구).
     - core: `revisionNoteSchema`·`createRevisionNote`·`updateRevisionNoteStatus`. **⚠️ 프로덕션 DDL**: `revision_notes` 신규 테이블(id·menu·location·description·status check(unresolved/hold/resolved)·author_id FK·created_at·updated_at·updated_by FK + created_at desc idx, `add-revision-notes.sql`). 시드 2건. 영속 배선(supabase-rows TABLE_INSERT_ORDER·SEED_KEY_TO_TABLE·supabase-db TABLE_TO_FIELD). `getRevisionNotes`(작성자/변경자 이름·최신순).

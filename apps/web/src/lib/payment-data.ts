@@ -8,11 +8,17 @@ export interface PaymentRow {
   id: string;
   title: string;
   requesterName: string;
+  /** 입금받을 곳 (상호/사람/기관명). 미입력 시 undefined */
+  recipientName?: string;
   bankName: string;
   /** 마스킹 적용된 표시용 계좌번호 */
   accountDisplay: string;
+  /** 복사용 원본 계좌번호 — 인가된 뷰어(관리자·요청자 본인)에게만 채워진다 */
+  accountNumberForCopy?: string;
   /** 마스킹 적용된 표시용 금액 (null이면 비공개) */
   amountDisplay: string | null;
+  /** 복사용 원본 금액(원 단위 숫자) — 인가된 뷰어에게만 채워진다 */
+  amountForCopy?: number;
   category: string;
   description?: string;
   dueAt?: string;
@@ -58,9 +64,13 @@ export async function getPaymentData(viewer: User, now: Date = new Date()): Prom
         id: payment.id,
         title: payment.title,
         requesterName: userById.get(payment.requesterId)?.name ?? payment.requesterId,
+        recipientName: payment.recipientName,
         bankName: payment.bankName,
         accountDisplay: canSee ? payment.accountNumber : maskAccount(payment.accountNumber),
+        // 복사용 원본 값은 인가된 뷰어에게만 제공한다 (비인가 뷰어에겐 undefined → 복사 불가).
+        accountNumberForCopy: canSee ? payment.accountNumber : undefined,
         amountDisplay: canSee ? `${payment.amount.toLocaleString()}원` : null,
+        amountForCopy: canSee ? payment.amount : undefined,
         category: payment.category,
         description: payment.description,
         dueAt: payment.dueAt,

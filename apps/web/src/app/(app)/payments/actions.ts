@@ -24,6 +24,7 @@ async function toResult(fn: (db: Db) => Promise<unknown> | unknown): Promise<Act
 
 export async function createPaymentRequestAction(input: {
   title: string;
+  recipientName?: string;
   bankName: string;
   accountNumber: string;
   amount: number;

@@ -5,6 +5,7 @@ import { PAYMENT_STATUS_LABELS, type PaymentStatus } from "@que/core";
 import { updatePaymentStatusAction } from "@/app/(app)/payments/actions";
 import { useSafeAction } from "@/components/app/use-safe-action";
 import { ToneBadge, type BadgeTone } from "@/components/app/tone-badge";
+import { CopyButton } from "@/components/app/copy-button";
 import type { PaymentRow } from "@/lib/payment-data";
 import { Button } from "@/components/ui/button";
 
@@ -58,10 +59,25 @@ function PaymentRowView({ row }: { row: PaymentRow }) {
         <ToneBadge tone="neutral">{row.category}</ToneBadge>
       </div>
       <p className="mt-1 text-xs text-[var(--que-text-tertiary)]">
-        요청 {row.requesterName} · {row.bankName} {row.accountDisplay} ·{" "}
-        {row.amountDisplay ?? "금액 비공개"}
+        요청 {row.requesterName}
+        {row.recipientName ? ` · 입금받을 곳 ${row.recipientName}` : ""}
         {row.dueAt ? ` · 마감 ${format(new Date(row.dueAt), "M/d")}` : ""}
       </p>
+      <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[var(--que-text-tertiary)]">
+        <span className="inline-flex items-center gap-1">
+          <span>{row.bankName}</span>
+          <span className="tabular-nums">{row.accountDisplay}</span>
+          {row.accountNumberForCopy !== undefined && (
+            <CopyButton value={row.accountNumberForCopy} label="계좌번호 복사" />
+          )}
+        </span>
+        <span className="inline-flex items-center gap-1">
+          <span className="tabular-nums">{row.amountDisplay ?? "금액 비공개"}</span>
+          {row.amountForCopy !== undefined && (
+            <CopyButton value={String(row.amountForCopy)} label="금액 복사" />
+          )}
+        </span>
+      </div>
       {row.description && (
         <p className="mt-0.5 text-xs text-[var(--que-text-tertiary)]">{row.description}</p>
       )}
