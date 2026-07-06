@@ -86,7 +86,7 @@ export function TokenSettings({ tokens }: { tokens: PatRow[] }) {
             <button
               type="button"
               onClick={copy}
-              className="flex h-10 shrink-0 items-center gap-1.5 rounded-lg border border-[var(--que-border-strong)] bg-[var(--que-bg)] px-3 text-sm font-medium text-[var(--que-text-secondary)] hover:bg-[var(--que-bg-muted)]"
+              className="flex h-11 shrink-0 items-center gap-1.5 rounded-lg border border-[var(--que-border-strong)] bg-[var(--que-bg)] px-3 text-sm font-medium text-[var(--que-text-secondary)] hover:bg-[var(--que-bg-muted)]"
             >
               {copied ? (
                 <>
@@ -139,7 +139,7 @@ function TokenRow({ token }: { token: PatRow }) {
         <button
           type="submit"
           disabled={pending}
-          className="flex h-10 items-center gap-1.5 rounded-lg border border-[var(--que-border-strong)] px-3 text-sm font-medium text-[var(--que-text-secondary)] hover:bg-[var(--que-bg-muted)] disabled:opacity-60"
+          className="flex h-11 items-center gap-1.5 rounded-lg border border-[var(--que-border-strong)] px-3 text-sm font-medium text-[var(--que-text-secondary)] hover:bg-[var(--que-bg-muted)] disabled:opacity-60"
         >
           <Trash2 className="size-4" aria-hidden />
           {pending ? "폐기 중…" : "폐기"}

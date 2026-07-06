@@ -210,8 +210,21 @@ function itemMinutes(item: ViewWeekItem): { startMin: number; endMin: number } {
   return { startMin, endMin };
 }
 
+// 표시 창(10~19시)과 반열림 구간으로도 겹치지 않는 이벤트는 걸러낸다.
+// itemMinutes가 clamp하기 때문에, 창 밖 이벤트(예: 19:30~20:00, 또는 종료가 10:00 이전)는
+// startMin==endMin(높이 0)이 되는데 minHeight:52 탓에 그리드 가장자리에 52px 카드로
+// 잘못 쌓인다. clamp 전 원시 분으로 겹침을 판정해 그런 이벤트를 레이아웃에서 제외한다.
+// 부분 겹침(예: 9:00~11:00)은 rawStart<GRID_END_MIN && rawEnd>GRID_START_MIN 이 참이라 유지된다.
+function overlapsWindow(item: ViewWeekItem): boolean {
+  const rawStart = minutesOfDayKST(item.startAt);
+  const rawEndRaw = minutesOfDayKST(item.endAt);
+  const rawEnd = rawEndRaw > rawStart ? rawEndRaw : rawStart + 30;
+  return rawStart < GRID_END_MIN && rawEnd > GRID_START_MIN;
+}
+
 function layoutDayItems(items: readonly ViewWeekItem[]): LayoutEntry[] {
   const evs = items
+    .filter(overlapsWindow)
     .map((item) => ({ item, ...itemMinutes(item), lane: 0 }))
     .sort((a, b) => a.startMin - b.startMin || a.endMin - b.endMin);
 

@@ -73,8 +73,14 @@ export function StaffEditDialog({
   const open = user !== null;
 
   // 원본과의 diff — 바뀐 필드만 저장 대상.
+  // 원본 rank가 enum 밖 값(예: SQL 직삽입 "부장")이면 폼은 "사원"으로 폴백 초기화된다.
+  // 폴백값을 원본과 직접 비교하면 rankChanged가 항상 true가 되어(폼 미변경에도) rank가
+  // 조용히 "사원"으로 덮인다 → 원본도 같은 방식으로 정규화한 값과 비교해 오탐을 막는다.
+  const originalRank: Rank =
+    user && (RANK_VALUES as readonly string[]).includes(user.rank) ? (user.rank as Rank) : "사원";
+  const rankOutOfEnum = !!user && !(RANK_VALUES as readonly string[]).includes(user.rank);
   const emailChanged = !!user && email.trim().toLowerCase() !== user.email.trim().toLowerCase();
-  const rankChanged = !!user && rank !== user.rank;
+  const rankChanged = !!user && rank !== originalRank;
   const deptChanged = !!user && department.trim() !== user.department.trim();
   const hasChanges = emailChanged || rankChanged || deptChanged;
 
@@ -189,6 +195,17 @@ export function StaffEditDialog({
                 </span>
               </p>
             </div>
+            {rankOutOfEnum && (
+              <div className="rounded-lg border border-[var(--que-border)] bg-[var(--que-bg-muted)] p-3">
+                <p className="flex items-start gap-1.5 text-xs text-[var(--que-text-secondary)]">
+                  <Info className="mt-0.5 size-4 shrink-0 text-[var(--que-text-tertiary)]" aria-hidden />
+                  <span>
+                    현재 직급 &lsquo;{user?.rank}&rsquo;은(는) 표준 값(대표·관리·사원)이 아닙니다.
+                    직급을 바꾸지 않으면 그대로 유지됩니다.
+                  </span>
+                </p>
+              </div>
+            )}
           </Field>
 
           <Field>

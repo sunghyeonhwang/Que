@@ -57,6 +57,15 @@ mock 인증: 쿠키 `que-user=<id>` / PAT `que_pat_<id>` (예: `hwang-sunghyeon`
 
 ---
 
+## ✅ 비차단 후속 4건 — view/staff/token 폴리시 (2026-07-06)
+
+> **상태**: 구현·FHD 브라우저 검증·글래도스 승인·커밋. typecheck·lint 통과. 🟢 "지금 착수 가능"(키 불필요) 후속을 처리.
+
+- **#1 view hide-completed(hc) URL 정합화** — 위 "view 현황판 후속" 절의 **hc URL desync wart 해소**. board 모드 헤더 Link(세그먼트 토글·날짜이동)가 서버 렌더 시점 hc를 굽던 걸 **라이브 hc(context)**로. 신규 `components/view/view-nav.tsx`(universal — SegLink·NavCircle·DateNav·라벨헬퍼를 view-header에서 분리, server/client 공용) + `board-header-controls.tsx`("use client", `useBoardView()`로 hc 읽어 boardHref 빌드). `view-header.tsx`는 board 분기를 `<BoardHeaderControls>`로 교체·`ViewHeaderProps`에서 hideCompleted 제거, `page.tsx`는 ViewHeader의 hc prop만 제거(provider initial은 유지). 검증: 토글 hc=1 후 "다음"·"2명" Link URL이 `&hc=1` 유지(글래도스 SSR로 board href 5개 전부 확인).
+- **#2 staff-edit-dialog rank enum-밖 폴백** — 위 "팀원·권한" 절의 **rank 폴백 덮어쓰기 후속 해소**. `originalRank`(원본을 폼과 동일 정규화)와 비교하도록 `rankChanged` 수정 → enum-밖 원본을 안 건드리면 rank 미전송·보존. enum-밖이면 경고 안내 노출. **⚠️ 신규 관찰(비차단)**: enum-밖 유저를 **의도적으로 "사원"으로** 바꾸는 건 불가(폼이 이미 "사원"이라 변경 미감지) — 우회=관리 저장 후 사원 저장 2회. SQL 직삽입에서만 나는 저빈도 케이스.
+- **#3 주간뷰 그리드 밖 이벤트 필터** (`week-grid.tsx`) — 표시 창(10~19시)과 겹침 0인 이벤트를 `layoutDayItems`에서 `overlapsWindow`로 제외(`rawStart<1140 && rawEnd>600`). 창 밖 이벤트가 clamp돼 minHeight:52 **유령카드**로 쌓이던 것 제거. **동작 변화(글래도스 판정=수용)**: 종료가 정확히 10:00인 이벤트(예: 9:00~10:00 "재고 수량 확인")는 창과 공유 시간 0분이라 **드롭**(→ +N이 +3→+2로 재계산). 근거: 벽 디스플레이가 10시 시작인 게 의도된 설계 → 창 밖은 표시 안 하는 게 맞고, 살리려면 필터가 아니라 창 범위를 고쳐야 함. 겹침 레인/+N 로직 자체는 불변.
+- **#4 토큰 버튼 터치타깃** (`token-settings.tsx`) — 복사·폐기 버튼 `h-10`→`h-11`(40→44px, 발급 버튼과 정합, CLAUDE.md 권장).
+
 ## ✅ 로그아웃 오류 수정 (2026-07-06)
 
 > **증상**: 프로덕션(que.griff.co.kr)에서 로그아웃 시 "알 수 없는 오류가 발생했습니다…" 토스트. 실제로 /login 이동은 되지만 오류 토스트가 뜸.
@@ -79,15 +88,15 @@ mock 인증: 쿠키 `que-user=<id>` / PAT `que_pat_<id>` (예: `hwang-sunghyeon`
 >
 > 대상: 공개 읽기전용 현황판 `view.griff.co.kr`(`app/(view)/view/`). 이예진 `/revisions` #5("주간뷰 너무 복잡") 후속 + 사용자 추가 요청.
 
-### ① 주간뷰 +N 상한 (검증 완료, 미커밋)
+### ① 주간뷰 +N 상한 (커밋 완료)
 - `components/view/week-grid.tsx`: 겹침 레인 분할(커밋됨) 위에 **레인 상한 `MAX_LANES=3`** 추가. 한 클러스터 레인>3이면 앞 2개는 카드, 나머지는 마지막 열에 점선 **"+N" 칩**(N=숨긴 이벤트 정확 개수). `LayoutEntry = CardEntry | OverflowEntry` 유니온, `OverflowChip` 컴포넌트 신설. **글래도스가 우려한 극단 narrow(8칸) 해소.**
 - **검증됨**: 워크플로우 7/7 시나리오 결함 0(경계 3/4, 그리디 레인, 접촉경계, 그리드밖, 칩 세로범위), 브라우저 FHD 확인(월요일 5겹침 → 2카드+"+3"). low 2건 수용(zero-length minHeight, 칩이 빈 구간 덮음).
 
-### ② Week(5칸) range 제거 (미검증)
+### ② Week(5칸) range 제거 (커밋 완료)
 - 사용자 확정: view 현황판 [1Day/3day/Week]에서 **Week만 제거**, 1Day·3day 유지, **기본 3day**. 스케줄 "모드"(`?view=week`)는 유지(FAB 포함) — 없앤 건 서브 range뿐.
 - 파일: `lib/view-settings.ts`(`ViewSlideScheduleRange="1day"|"3day"`, 기본 3day, normalizeSettings week분기 제거 → **localStorage 옛 "week" 자동 3day 마이그레이션**) · `components/view/view-settings.tsx`(RANGE_OPTIONS week 제거) · `view-header.tsx`(Week SegLink·step·rangeLabel week 제거) · `app/(view)/view/page.tsx`(rangeParam 기본 3day) · `lib/view-data.ts`(**`getViewSchedule(anchor)` 시그니처 변경 — range 인자 제거**, dayCount=3 고정, `ViewWeek.range` 필드 제거, `ViewScheduleRange` type 삭제) · `slideshow-controller.tsx`(주석만).
 
-### ③ hide-completed 반응 즉시화 (미검증)
+### ③ hide-completed 반응 즉시화 (커밋 완료, #1에서 URL 정합화 후속 완료)
 - **원인**: 토글이 `router.push(?hc=1)` → `force-dynamic` 페이지가 매 클릭 DB 재로드·전체 재렌더로 느림. 보드는 이미 클라에서 `filter`만 함(서버 왕복 불필요).
 - **해결(설계)**: hideCompleted를 **클라 상태(Context)**로. 신규 `components/view/board-view-context.tsx`(`BoardViewProvider` useState + `history.replaceState`로 hc URL 동기화, `useBoardView()`). `page.tsx`가 트리를 provider로 감싸고 서버 `hideCompleted`를 initial로 전달(SSR 깜빡임 없음). `hide-completed-toggle.tsx`는 router 제거·context 사용, `board-grid.tsx`는 context에서 읽음. `router.refresh`(10분 auto-refresh)는 클라 상태 보존.
 - **근거**: board 데이터가 서버 프롭이라 `useSearchParams`만으론 force-dynamic 재렌더에 묶여 즉시 안 됨 → 서버 렌더와 분리한 클라 상태 필요.

@@ -134,7 +134,6 @@ export default async function ViewPage({
           boardDate={mode === "board" ? boardDate : undefined}
           boardMode={boardMode}
           todayISO={todayISO}
-          hideCompleted={hideCompleted}
           weekRange={mode === "week" ? rangeParam : undefined}
           weekAnchorISO={
             mode === "week"
