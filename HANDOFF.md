@@ -29,7 +29,7 @@ mock 인증: 쿠키 `que-user=<id>` / PAT `que_pat_<id>` (예: `hwang-sunghyeon`
 
 ### 다음 할 일
 
-**▶ 최우선: [🔜 다음 배치 — 팀원·권한 관리 확장](#-다음-배치-미착수--팀원권한-관리-확장--revisions-팀-요청-2026-07-06)** (아래 절). dev-lead 설계 완료·구현 0. `/revisions` 팀 요청 5건 중 #1·#2·#3·#4 처리(설정>직원관리 권한변경·정보편집). **선행 결함**(current-user.ts role JWT 우선→강등 7일 무효) 먼저 수정. 미해결 결정 5건 확정 후 착수.
+**▶ ~~팀원·권한 관리 확장~~ → 완료 (2026-07-06, 커밋 대기).** `/revisions` 팀 요청 #1·#2·#4 구현(#3은 승격으로 해소). 아래 "[✅ 완료 — 팀원·권한 관리 확장](#-완료--팀원권한-관리-확장--revisions-팀-요청-2026-07-06)" 절 참고. **다음 세션 착수 대상은 요청 #5(view.griff 주간뷰 정리)와 env 트랙(Slack·Sentry·cron 활성화)**. 배포 후 대표(황성현)가 `/settings/staff`에서 송수용·황성진을 UI로 관리자 승격(프로덕션 DB는 미변경 — 설계대로).
 
 #### env 트랙 (사용자가 "하나씩" 진행 중)
 1. ~~**Vercel 배포**~~ → **완료 (43번)**. <https://que-rouge-eight.vercel.app> (Root=`apps/web`, 리전 `icn1`, 실 DB+실 인증). **주의: Deployment Protection이 현재 꺼진 상태**(대시보드에서 재활성화 필요) — 단 실 인증+mock API 503이라 공개라도 안전. `QUE_ALLOW_MOCK_AUTH`는 **안 켬**(mock PAT 봉인). (`data/docs/deploy-vercel-supabase.md`)
@@ -49,10 +49,20 @@ mock 인증: 쿠키 `que-user=<id>` / PAT `que_pat_<id>` (예: `hwang-sunghyeon`
 
 ---
 
-## 🔜 다음 배치 (미착수) — 팀원·권한 관리 확장 + /revisions 팀 요청 (2026-07-06)
+## ✅ 완료 — 팀원·권한 관리 확장 + /revisions 팀 요청 (2026-07-06)
 
-> **상태**: dev-lead 설계 완료, **구현 0**. 사용자가 "나머지는 나중에" 하여 중단. 다음 세션은 이 절부터.
-> **선행**: 아래 "미해결 사용자 결정 5건"을 먼저 확정한 뒤 구현.
+> **상태**: **구현 완료·검증 통과·글래도스 승인, 커밋 대기.** backend-dev(B1~B4+시드)→frontend-dev(F1~F3)→qa-engineer(4해상도+가드)→글래도스 게이트 순으로 진행. typecheck/lint/core test(188/188)/build 전부 통과.
+>
+> **확정된 사용자 결정 (구현 반영됨)**: ① 변경 주체 = **모든 관리자**(canManageUsers=admin) · ② email @griff 도메인 **강제 안 함**(포맷·유니크만) · ③ **name 편집 제외**(email·rank·department만) · ④ 비활성 대상 편집 **거부** · ⑤ 대표 단일성 **서버 강제**(rank="대표" 부여 시 다른 활성 대표 있으면 거부).
+>
+> **조직 확정**: 대표=황성현(admin·ceo) / 관리자=오승훈·**송수용·황성진**(admin·manager) / 직원=박승환·이예진·김리원·이혜진(member·staff). 시드(`mock/users.ts`)는 이 목표조직으로 갱신됨. **프로덕션 DB는 미변경** — 배포 후 대표가 `/settings/staff`에서 송수용·황성진을 UI로 승격(설계대로 SQL 직접변경 안 함).
+>
+> **구현 파일**: core `domain.ts`(RANK_VALUES·rankSchema·updateUserProfileInputSchema, createUserInputSchema.rank enum화)+`user-management.test.ts` · `current-user.ts`(선행결함: role→base.role DB-first) · `lib/auth/users.ts`(updateUserRole·updateUserProfile, 서버 가드 전부 강제) · `settings/staff/actions.ts`(updateStaffRoleAction·updateStaffProfileAction) · `components/settings/staff/{staff-edit-dialog,staff-role-dialog,staff-table,staff-manager}.tsx` · `members/page.tsx`(관리자 '직원 관리' 링크) · `mock/users.ts`(시드 승격).
+>
+> **비차단 후속(글래도스 지적)**: `staff-edit-dialog.tsx`에서 DB rank가 enum 밖 값이면 폼이 "사원"으로 폴백 → 이메일만 고쳐 저장해도 rank가 조용히 "사원"으로 덮임(현 프로덕션 rank는 전부 enum 내라 실해 없음, SQL로 임의 rank 유입 시에만 문제). 폴백 시 경고/미포함 처리 고려.
+>
+> ---
+> 아래는 착수 전 설계 기록(참고용 보존).
 
 ### 배경 — `/revisions`(수정사항 트래커)에 팀이 올린 요청 5건 (Supabase `revision_notes` 실조회)
 1. **설정·권한변경**(황성현/대표, 미해결): 설정에서 팀원 권한을 **관리자로 변경**.
@@ -89,12 +99,12 @@ mock 인증: 쿠키 `que-user=<id>` / PAT `que_pat_<id>` (예: `hwang-sunghyeon`
 ### 가드레일 (서버 최종 강제)
 canManageUsers=admin · **본인 role 변경 금지** · **마지막 활성 admin 강등 금지**(active&admin 카운트, 비활성 admin 제외) · 비활성 대상 편집 거부 · email 유니크(사전 ilike + 23505) · rank="대표" 부여 시 **대표 단일성 강제**(다른 활성 대표 있으면 거부, 교체는 기존 대표 강등 후 2단계). role/rank/profile 변경은 **ChangeLog entity_type='user' via=web**.
 
-### 미해결 사용자 결정 5건 (구현 착수 전 확인)
-1. **admin 부여 주체**: 모든 admin vs 대표만? (추천: 모든 admin=canManageUsers 현행. #1이 대표 요청이라 "대표만" 선호 가능 — 확인.)
-2. **대표 단일성**: 서버 강제(추천) vs 경고만 vs UI 선택지 제거?
-3. **email 도메인 @griff.co.kr 강제** 여부? (추천: 강제 안 함 — createUser 현행과 일관.)
-4. **비활성자 편집**: 둘 다 거부(추천) 확정?
-5. **name 편집 제외** 동의? (#4에 명시 없음.)
+### 미해결 사용자 결정 5건 → ✅ 전부 확정(2026-07-06)
+1. **admin 부여 주체** → **모든 admin**(canManageUsers=admin 현행 유지).
+2. **대표 단일성** → **서버 강제**(rank="대표" 부여 시 다른 활성 대표 있으면 거부).
+3. **email @griff.co.kr 강제** → **강제 안 함**(포맷·유니크만, createUser와 일관).
+4. **비활성자 편집** → **둘 다(role·profile) 거부**.
+5. **name 편집** → **제외**(email·rank·department만 편집).
 
 ### 리스크
 rank→grade 커플링(직급 편집=노출 스코프 변경, member인데 대표 조합 가능) · 세션 role 잔존(B2 미선행 시 강등 7일 무효) · 락아웃(서버 최종 차단, 동시강등 레이스는 8인 규모 수용) · email=로그인식별자(세션은 id기반이라 안 끊김) · rank 변경 시 홈 급변(버그 아님, 문구 예고).

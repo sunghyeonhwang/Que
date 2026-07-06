@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { Check, UserPlus } from "lucide-react";
 import { toast } from "sonner";
-import type { CreateUserInput, UserRole } from "@que/core";
+import type { CreateUserInput, Rank, UserRole } from "@que/core";
 import { createStaffAction } from "@/app/(app)/settings/staff/actions";
 import { Button } from "@/components/ui/button";
 import { Field, FieldLabel } from "@/components/ui/field";
@@ -41,7 +41,7 @@ export function StaffAddForm({
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<UserRole>("member");
-  const [rank, setRank] = useState("사원");
+  const [rank, setRank] = useState<Rank>("사원");
   const [department, setDepartment] = useState("");
   const [color, setColor] = useState(suggestedColor);
   const [errors, setErrors] = useState<Errors>({});
@@ -155,7 +155,7 @@ export function StaffAddForm({
 
         <Field>
           <FieldLabel>직급</FieldLabel>
-          <Select items={RANK_ITEMS} value={rank} onValueChange={(v) => v && setRank(v)}>
+          <Select items={RANK_ITEMS} value={rank} onValueChange={(v) => v && setRank(v as Rank)}>
             <SelectTrigger aria-label="직급 선택" className="h-10 w-full">
               <SelectValue />
             </SelectTrigger>

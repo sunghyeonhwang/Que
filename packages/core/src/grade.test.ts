@@ -15,7 +15,8 @@ const byId = (id: string): User => {
 
 const CEO = byId("hwang-sunghyeon");
 const MANAGER = byId("oh-seunghoon");
-const STAFF = byId("hwang-sungjin");
+// 시드 목표 조직 반영 후 사원(staff)으로 남는 사람: 박승환·이예진·김리원·이혜진.
+const STAFF = byId("park-seunghwan");
 
 describe("gradeForUser — rank를 ceo/manager/staff로 감싼다", () => {
   it("대표는 ceo", () => {

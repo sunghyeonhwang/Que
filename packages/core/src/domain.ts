@@ -11,6 +11,13 @@ const isoDate = z.iso.date();
 export const userRoleSchema = z.enum(["admin", "member"]);
 export type UserRole = z.infer<typeof userRoleSchema>;
 
+/** 직급(rank) 허용값 — 성과 스코프(gradeForRank) 유도 소스이자 표시 라벨.
+ *  "대표"→ceo / "관리"→manager / "사원"→staff. 자유 문자열이 아니라 이 셋으로 강제한다
+ *  (편집 UI·createUser 입력이 grade 커플링을 깨는 임의값을 넣지 못하게). */
+export const RANK_VALUES = ["대표", "관리", "사원"] as const;
+export const rankSchema = z.enum(RANK_VALUES);
+export type Rank = z.infer<typeof rankSchema>;
+
 export const userSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
@@ -38,7 +45,7 @@ export const createUserInputSchema = z.object({
   name: z.string().trim().min(1, "이름은 필수다").max(50, "이름은 50자 이내"),
   email: z.string().trim().toLowerCase().email("올바른 이메일이 아니다").max(200),
   role: userRoleSchema,
-  rank: z.string().trim().min(1, "직급은 필수다").max(50),
+  rank: rankSchema,
   department: z.string().trim().max(50).optional(),
   /** 아바타/캘린더 구분색(hex). 미지정 시 서버가 미사용색을 제안한다. */
   avatarColor: z
@@ -47,6 +54,24 @@ export const createUserInputSchema = z.object({
     .optional(),
 });
 export type CreateUserInput = z.infer<typeof createUserInputSchema>;
+
+/**
+ * 직원 프로필 편집(updateUserProfile) 입력 검증 — 관리자만 호출. email·rank·department만 편집한다
+ * (name·role·active는 대상 밖: name은 편집 제외, role은 별도 mutation, active는 비활성/복구 경로).
+ * 부분 편집(PATCH)이라 모든 필드가 optional이지만, **최소 1개**는 있어야 한다(빈 요청 거부).
+ * department는 빈 문자열("")도 허용 — "부서 비우기"를 명시적 편집으로 받는다.
+ */
+export const updateUserProfileInputSchema = z
+  .object({
+    email: z.string().trim().toLowerCase().email("올바른 이메일이 아니다").max(200).optional(),
+    rank: rankSchema.optional(),
+    department: z.string().trim().max(50).optional(),
+  })
+  .refine(
+    (v) => v.email !== undefined || v.rank !== undefined || v.department !== undefined,
+    { message: "변경할 항목을 최소 하나는 지정해야 한다" },
+  );
+export type UpdateUserProfileInput = z.infer<typeof updateUserProfileInputSchema>;
 
 // ---------- Task ----------
 

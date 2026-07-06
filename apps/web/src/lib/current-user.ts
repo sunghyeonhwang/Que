@@ -17,10 +17,13 @@ export async function getCurrentUser(): Promise<User> {
   const base = db.users.find((u) => u.id === id);
   // DB에 없거나(삭제된 적은 없지만 방어) 비활성이면 접근 차단 — 재로그인/로그인 거부로 유도.
   if (!base || base.active === false) redirect("/login");
-  // avatarColor·rank·department·active는 DB(db.users)에서, name·role은 세션 값을 우선한다.
+  // avatarColor·rank·department·active·role은 DB(db.users)에서, name만 세션 값을 우선한다.
+  // role을 DB-first로 두는 이유: JWT 세션(maxAge 7일)에 굳은 role을 우선하면 관리자가 권한을
+  // 강등/승격해도 대상이 재로그인 전까지 최대 7일간 예전 권한으로 남는다(권한변경이 즉시 실효되지
+  // 않음). role은 접근제어의 근거라 항상 최신 DB 값을 신뢰한다. name은 권한과 무관해 세션 유지.
   return {
     ...base,
     name: session.user.name ?? base.name,
-    role: session.user.role ?? base.role,
+    role: base.role,
   };
 }

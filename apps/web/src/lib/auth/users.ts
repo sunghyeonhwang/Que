@@ -5,8 +5,11 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import {
   canManageUsers,
   createUserInputSchema,
+  updateUserProfileInputSchema,
+  userRoleSchema,
   type ChangeVia,
   type CreateUserInput,
+  type UpdateUserProfileInput,
   type UserRole,
 } from "@que/core";
 
@@ -315,6 +318,181 @@ export async function reactivateUser(input: {
     beforeValue: "inactive",
     afterValue: "active",
     reason: `${target.name} 복구`,
+    via: input.via,
+  });
+  return { ok: true };
+}
+
+/**
+ * 권한(role) 변경 — 관리자만. member↔admin 승격/강등.
+ * 가드(서버 최종 강제, 순서대로): 관리자만 → 유효한 role → 본인 role 변경 금지 → 대상 존재/활성 →
+ * (강등이면) 마지막 활성 admin 강등 금지. 무변경(동일 role)은 조용히 성공 처리한다.
+ */
+export async function updateUserRole(input: {
+  actor: Actor;
+  via: ChangeVia;
+  targetId: string;
+  role: UserRole;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!canManageUsers(input.actor)) return { ok: false, error: NOT_AUTHORIZED };
+  if (!useSupabase) return { ok: false, error: NOT_SUPPORTED };
+
+  // role은 클라이언트 직렬화 값 — TS 타입만 믿지 않고 런타임 검증한다.
+  const parsedRole = userRoleSchema.safeParse(input.role);
+  if (!parsedRole.success) return { ok: false, error: "올바른 권한 값이 아닙니다." };
+  const role = parsedRole.data;
+
+  if (input.targetId === input.actor.id) {
+    return { ok: false, error: "본인 권한은 변경할 수 없습니다." };
+  }
+
+  const client = admin();
+  const { data: target, error: tErr } = await client
+    .from("users")
+    .select("id,name,role,active")
+    .eq("id", input.targetId)
+    .maybeSingle();
+  if (tErr || !target) return { ok: false, error: "대상 계정을 찾을 수 없습니다." };
+  if (target.active === false) return { ok: false, error: "비활성 계정은 편집할 수 없습니다." };
+
+  const before = target.role as UserRole;
+  if (before === role) return { ok: true }; // 무변경 — 조용히 성공.
+
+  // 강등(admin→member): 마지막 활성 admin이 잠기지 않게 막는다(비활성 admin은 카운트 제외).
+  if (before === "admin" && role === "member") {
+    const { count: activeAdmins } = await client
+      .from("users")
+      .select("id", { count: "exact", head: true })
+      .eq("role", "admin")
+      .eq("active", true);
+    if ((activeAdmins ?? 0) <= 1) {
+      return { ok: false, error: "마지막 활성 관리자는 강등할 수 없습니다." };
+    }
+  }
+
+  const { error } = await client
+    .from("users")
+    .update({ role })
+    .eq("id", input.targetId);
+  if (error) return { ok: false, error: "권한 변경에 실패했습니다. 잠시 후 다시 시도해주세요." };
+
+  await logUserChange(client, {
+    entityId: input.targetId,
+    actorId: input.actor.id,
+    changeType: "update",
+    beforeValue: `role=${before}`,
+    afterValue: `role=${role}`,
+    reason: `${target.name} 권한 변경`,
+    via: input.via,
+  });
+  return { ok: true };
+}
+
+/**
+ * 프로필(email·rank·department) 편집 — 관리자만. name·role·active는 이 경로 대상이 아니다.
+ * 가드: 관리자만 → 입력 검증(최소1필드) → 대상 존재/활성 → email 유니크(사전 ilike + 23505) →
+ * rank="대표" 부여 시 대표 단일성(다른 활성 대표 있으면 거부). 실제 바뀌는 필드만 update/기록한다.
+ */
+export async function updateUserProfile(input: {
+  actor: Actor;
+  via: ChangeVia;
+  targetId: string;
+  data: UpdateUserProfileInput;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!canManageUsers(input.actor)) return { ok: false, error: NOT_AUTHORIZED };
+  if (!useSupabase) return { ok: false, error: NOT_SUPPORTED };
+
+  // 서버 경계 — 넘겨받은 data도 신뢰하지 않고 재검증한다(email 정규화·최소1필드·rank enum).
+  const parsed = updateUserProfileInputSchema.safeParse(input.data);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues.map((i) => i.message).join(", ") };
+  }
+  const data = parsed.data;
+
+  const client = admin();
+  const { data: target, error: tErr } = await client
+    .from("users")
+    .select("id,name,email,rank,department,active")
+    .eq("id", input.targetId)
+    .maybeSingle();
+  if (tErr || !target) return { ok: false, error: "대상 계정을 찾을 수 없습니다." };
+  if (target.active === false) return { ok: false, error: "비활성 계정은 편집할 수 없습니다." };
+
+  const currentEmail = ((target.email as string | null) ?? "").toLowerCase();
+  const currentRank = (target.rank as string | null) ?? "";
+  const currentDepartment = (target.department as string | null) ?? "";
+
+  // 실제로 바뀌는 필드만 골라낸다(무변경 필드는 update·로그에서 제외).
+  const changes: { email?: string; rank?: string; department?: string } = {};
+  if (data.email !== undefined && data.email !== currentEmail) changes.email = data.email;
+  if (data.rank !== undefined && data.rank !== currentRank) changes.rank = data.rank;
+  if (data.department !== undefined && data.department !== currentDepartment) {
+    changes.department = data.department;
+  }
+  if (Object.keys(changes).length === 0) return { ok: true }; // 무변경 — 조용히 성공.
+
+  // email 변경: 유니크 강제(다른 사용자와 충돌 사전 검사 + DB unique 위반 catch).
+  if (changes.email !== undefined) {
+    const { data: dup } = await client
+      .from("users")
+      .select("id")
+      .ilike("email", changes.email)
+      .neq("id", input.targetId)
+      .limit(1)
+      .maybeSingle();
+    if (dup) return { ok: false, error: "이미 등록된 이메일입니다." };
+  }
+
+  // rank="대표" 부여: 대표 단일성 — 다른 활성 대표가 있으면 거부(교체는 기존 대표 강등 후 2단계).
+  if (changes.rank === "대표") {
+    const { data: existingCeo } = await client
+      .from("users")
+      .select("id,name")
+      .eq("rank", "대표")
+      .eq("active", true)
+      .neq("id", input.targetId)
+      .limit(1)
+      .maybeSingle();
+    if (existingCeo) {
+      return {
+        ok: false,
+        error: `이미 대표(${existingCeo.name})가 있습니다. 기존 대표의 직급을 먼저 변경해주세요.`,
+      };
+    }
+  }
+
+  const { error } = await client
+    .from("users")
+    .update(changes)
+    .eq("id", input.targetId);
+  if (error) {
+    if (error.code === "23505") return { ok: false, error: "이미 등록된 이메일입니다." };
+    return { ok: false, error: "프로필 변경에 실패했습니다. 잠시 후 다시 시도해주세요." };
+  }
+
+  // 무엇이 바뀌었는지 before/after diff로 남긴다(변경된 필드만).
+  const beforeParts: string[] = [];
+  const afterParts: string[] = [];
+  if (changes.email !== undefined) {
+    beforeParts.push(`email=${currentEmail || "(없음)"}`);
+    afterParts.push(`email=${changes.email}`);
+  }
+  if (changes.rank !== undefined) {
+    beforeParts.push(`rank=${currentRank || "(없음)"}`);
+    afterParts.push(`rank=${changes.rank}`);
+  }
+  if (changes.department !== undefined) {
+    beforeParts.push(`department=${currentDepartment || "(없음)"}`);
+    afterParts.push(`department=${changes.department || "(없음)"}`);
+  }
+
+  await logUserChange(client, {
+    entityId: input.targetId,
+    actorId: input.actor.id,
+    changeType: "update",
+    beforeValue: beforeParts.join(", "),
+    afterValue: afterParts.join(", "),
+    reason: `${target.name} 프로필 편집`,
     via: input.via,
   });
   return { ok: true };

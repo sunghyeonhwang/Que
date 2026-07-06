@@ -1,12 +1,19 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { canManageUsers, type CreateUserInput } from "@que/core";
+import {
+  canManageUsers,
+  type CreateUserInput,
+  type UpdateUserProfileInput,
+  type UserRole,
+} from "@que/core";
 import { getCurrentUser } from "@/lib/current-user";
 import {
   createUser,
   deactivateUser,
   reactivateUser,
+  updateUserProfile,
+  updateUserRole,
   type CreatedUser,
 } from "@/lib/auth/users";
 import { adminResetPassword } from "@/lib/auth/password";
@@ -69,6 +76,52 @@ export async function reactivateStaffAction(targetId: string): Promise<Reactivat
     targetId,
   });
   if (res.ok) revalidatePath("/settings/staff");
+  return res;
+}
+
+export type UpdateStaffRoleResult = { ok: true } | { ok: false; error: string };
+
+/** 권한(role) 변경 — member↔admin. 본인 변경·마지막 활성 관리자 강등은 서버가 거부. */
+export async function updateStaffRoleAction(
+  targetId: string,
+  role: UserRole,
+): Promise<UpdateStaffRoleResult> {
+  const actor = await getCurrentUser();
+  if (!canManageUsers(actor)) return { ok: false, error: NOT_AUTHORIZED };
+
+  const res = await updateUserRole({
+    actor: { id: actor.id, role: actor.role },
+    via: "web",
+    targetId,
+    role,
+  });
+  if (res.ok) {
+    revalidatePath("/settings/staff");
+    revalidatePath("/members");
+  }
+  return res;
+}
+
+export type UpdateStaffProfileResult = { ok: true } | { ok: false; error: string };
+
+/** 프로필(email·rank·department) 편집 — 관리자만. email 유니크·대표 단일성은 서버가 강제. */
+export async function updateStaffProfileAction(
+  targetId: string,
+  data: UpdateUserProfileInput,
+): Promise<UpdateStaffProfileResult> {
+  const actor = await getCurrentUser();
+  if (!canManageUsers(actor)) return { ok: false, error: NOT_AUTHORIZED };
+
+  const res = await updateUserProfile({
+    actor: { id: actor.id, role: actor.role },
+    via: "web",
+    targetId,
+    data,
+  });
+  if (res.ok) {
+    revalidatePath("/settings/staff");
+    revalidatePath("/members");
+  }
   return res;
 }
 

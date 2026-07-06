@@ -2,7 +2,14 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { KeyRound, TriangleAlert, UserMinus, UserCheck } from "lucide-react";
+import {
+  KeyRound,
+  Pencil,
+  ShieldCheck,
+  TriangleAlert,
+  UserMinus,
+  UserCheck,
+} from "lucide-react";
 import { toast } from "sonner";
 import {
   deactivateStaffAction,
@@ -37,10 +44,12 @@ interface Props {
   users: ManagedUser[];
   currentUserId: string;
   onTempPassword: (info: { password: string; userName: string }) => void;
+  onEdit: (user: ManagedUser) => void;
+  onRole: (user: ManagedUser) => void;
 }
 
-/** 직원 목록 표 — 이름·이메일·직급·부서·역할·상태 + 행 액션(비활성/복구·비번 재설정). */
-export function StaffTable({ users, currentUserId, onTempPassword }: Props) {
+/** 직원 목록 표 — 이름·이메일·직급·부서·역할·상태 + 행 액션(편집·권한·비활성/복구·비번 재설정). */
+export function StaffTable({ users, currentUserId, onTempPassword, onEdit, onRole }: Props) {
   const [pending, startTransition] = useTransition();
   // 비활성 확인 대상(destructive 최종 확인은 Dialog).
   const [target, setTarget] = useState<ManagedUser | null>(null);
@@ -94,6 +103,9 @@ export function StaffTable({ users, currentUserId, onTempPassword }: Props) {
   // 다이얼로그 대상의 차단 여부(열린 작업/활성 템플릿) — 스냅샷 개수로 판단, 서버가 최종 강제.
   const blocked = !!target && (target.openTaskCount > 0 || target.activeTemplateCount > 0);
 
+  // 활성 관리자 수 — 마지막 활성 관리자 강등을 사전에 막는다(서버가 최종 강제).
+  const activeAdminCount = users.filter((u) => u.active && u.role === "admin").length;
+
   return (
     <section className="rounded-xl border border-[var(--que-border)] bg-[var(--que-bg)] shadow-[var(--que-shadow-sm)]">
       <div className="max-h-[560px] overflow-auto">
@@ -113,6 +125,17 @@ export function StaffTable({ users, currentUserId, onTempPassword }: Props) {
             {users.map((u) => {
               const inactive = !u.active;
               const isSelf = u.id === currentUserId;
+              // 본인 권한 변경 금지 · 마지막 활성 관리자 강등 금지(둘 다 서버가 최종 강제).
+              const isLastActiveAdmin =
+                u.active && u.role === "admin" && activeAdminCount <= 1;
+              const roleDisabled = pending || inactive || isSelf || isLastActiveAdmin;
+              const roleReason = isSelf
+                ? "본인 권한은 변경할 수 없습니다."
+                : isLastActiveAdmin
+                  ? "마지막 활성 관리자는 강등할 수 없습니다."
+                  : inactive
+                    ? "비활성 계정은 권한을 변경할 수 없습니다."
+                    : undefined;
               return (
                 <TableRow key={u.id} className={cn(inactive && "opacity-55")}>
                   <TableCell className="font-medium text-[var(--que-text)]">
@@ -152,10 +175,30 @@ export function StaffTable({ users, currentUserId, onTempPassword }: Props) {
                     )}
                   </TableCell>
                   <TableCell>
-                    <div className="flex items-center justify-end gap-1.5">
+                    <div className="flex flex-wrap items-center justify-end gap-1.5">
                       <Button
                         variant="outline"
-                        className="h-10"
+                        className="h-11"
+                        disabled={pending || inactive}
+                        title={inactive ? "비활성 계정은 편집할 수 없습니다." : undefined}
+                        onClick={() => onEdit(u)}
+                      >
+                        <Pencil className="size-4" aria-hidden />
+                        편집
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="h-11"
+                        disabled={roleDisabled}
+                        title={roleReason}
+                        onClick={() => onRole(u)}
+                      >
+                        <ShieldCheck className="size-4" aria-hidden />
+                        권한
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="h-11"
                         disabled={pending || inactive}
                         onClick={() => reset(u)}
                       >
@@ -165,7 +208,7 @@ export function StaffTable({ users, currentUserId, onTempPassword }: Props) {
                       {u.active ? (
                         <Button
                           variant="outline"
-                          className="h-10 text-[var(--que-error)]"
+                          className="h-11 text-[var(--que-error)]"
                           disabled={pending || isSelf}
                           title={isSelf ? "본인 계정은 비활성할 수 없습니다." : undefined}
                           onClick={() => setTarget(u)}
@@ -176,7 +219,7 @@ export function StaffTable({ users, currentUserId, onTempPassword }: Props) {
                       ) : (
                         <Button
                           variant="outline"
-                          className="h-10"
+                          className="h-11"
                           disabled={pending}
                           onClick={() => reactivate(u)}
                         >

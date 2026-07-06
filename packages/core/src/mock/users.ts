@@ -7,9 +7,9 @@ import type { User } from "../domain";
 const USER_RANK: Record<string, string> = {
   "hwang-sunghyeon": "대표",
   "oh-seunghoon": "관리",
-  "hwang-sungjin": "사원",
+  "hwang-sungjin": "관리",
   "park-seunghwan": "사원",
-  "song-suyong": "사원",
+  "song-suyong": "관리",
   "lee-yejin": "사원",
   "kim-riwon": "사원",
   "lee-hyejin": "사원",
@@ -30,11 +30,11 @@ const USER_DEPARTMENT: Record<string, string> = {
 
 // 시드 명단의 기본 프로필(id/name/role/avatarColor). rank/department/active는 아래에서 주입한다.
 const SEED_ROSTER: Omit<User, "rank" | "department" | "active">[] = [
-  { id: "hwang-sunghyeon", name: "황성현", role: "admin", avatarColor: "#2563eb" },
+  { id: "hwang-sunghyeon", name: "황성현", role: "admin", avatarColor: "#2563eb" }, // 대표
   { id: "oh-seunghoon", name: "오승훈", role: "admin", avatarColor: "#16a34a" }, // 직급 '관리' → 관리자
-  { id: "hwang-sungjin", name: "황성진", role: "member", avatarColor: "#d97706" },
+  { id: "hwang-sungjin", name: "황성진", role: "admin", avatarColor: "#d97706" }, // 직급 '관리' → 관리자
   { id: "park-seunghwan", name: "박승환", role: "member", avatarColor: "#dc2626" },
-  { id: "song-suyong", name: "송수용", role: "member", avatarColor: "#7c3aed" },
+  { id: "song-suyong", name: "송수용", role: "admin", avatarColor: "#7c3aed" }, // 직급 '관리' → 관리자
   { id: "lee-yejin", name: "이예진", role: "member", avatarColor: "#0891b2" },
   { id: "kim-riwon", name: "김리원", role: "member", avatarColor: "#db2777" },
   { id: "lee-hyejin", name: "이혜진", role: "member", avatarColor: "#0d9488" },
