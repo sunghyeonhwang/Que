@@ -610,6 +610,13 @@ data/
     - 검증: core **157**(gradeForUser·personScope URL확대불가 테스트), typecheck·lint·build, qa PASS(3직급 홈 분기·성과 스코프 사원1/관리자7/대표8·저성과표 사원 숨김·**URL 스코프 확대 6시도 전부 차단**·클라이언트 필터·4해상도, console 0). glados 생략(qa가 스코프 보안 e2e[URL bypass 차단]+viewer 재유도 검증, core 157). 기획서(que-product-plan.md) 홈·성과 직급별 정의 반영.
     - 후속(비차단): 기존 홈 "작업 분포" 차트 3분기서 제외(계약에 없음·복원 가능), 대표 완료추이 cm 셀렉트 없이 기본월.
 
+75. **수정사항(이슈/피드백) 트래커 /revisions (2026-07-06)** — 사용자 "테스트 중 수정사항 적는 메뉴". backend(모델·core·DDL·데이터·메뉴) → frontend → qa PASS.
+    - 팀 공용 이슈 목록. 필드: 메뉴·위치·오류사항·상태(미해결/보류/해결). **작성자·시간 자동**, 상태 변경 시 updatedAt/updatedBy. **누구나 작성·상태 변경**(인증만, 소유자 제한 없음). ChangeLog 미기록(메타 도구).
+    - core: `revisionNoteSchema`·`createRevisionNote`·`updateRevisionNoteStatus`. **⚠️ 프로덕션 DDL**: `revision_notes` 신규 테이블(id·menu·location·description·status check(unresolved/hold/resolved)·author_id FK·created_at·updated_at·updated_by FK + created_at desc idx, `add-revision-notes.sql`). 시드 2건. 영속 배선(supabase-rows TABLE_INSERT_ORDER·SEED_KEY_TO_TABLE·supabase-db TABLE_TO_FIELD). `getRevisionNotes`(작성자/변경자 이름·최신순).
+    - frontend: `/revisions`(폼: 메뉴 Select[menu.ts 라벨+view+기타]·위치·오류사항 필수·상태 / 목록 표: 메뉴·위치·오류사항·상태 배지 인라인 변경·작성자·작성시간·변경표기 / 필터 pill 전체·미해결·보류·해결+개수). 상태색 미해결=red·보류=amber·해결=green(semantic token). menu.ts "수정사항"(Bug, 기타 섹션, 전원). CLAUDE.md 동기화.
+    - 검증: core **172**, typecheck·lint·build, qa PASS(메뉴·등록[작성자/시간 자동]·상태 인라인+색·필터·4해상도, console 0).
+    - 후속(비차단): 1366 표 마지막 열 가로스크롤 발견성(오버레이 스크롤바 옅음).
+
 74. **할일 추가 확인카드 프로젝트·시작/마감 필드 + 액션 점검 (2026-07-06)** — 사용자 "할일 추가/액션에 프로젝트·시작/마감 설정 누락".
     - **할일 추가(전역 자연어 quick-add)**: 확인 카드에 **프로젝트 Select·우선순위·마감시간** 추가(기존엔 프로젝트·마감시간 부재, 마감=시작+1h 고정이었음). `createTaskAction` +projectId/priority(core createTask 이미 지원). 파싱 시각 기본값·수정 가능·마감≤시작 인라인 차단. 확인카드 규칙 유지. 프로젝트 getAssignableProjectsAction lazy(NO_PROJECT sentinel).
     - **액션(확인필요)**: 배치4에서 이미 완비(담당자·프로젝트·마감일·마감시각·시작시각 편집/확정) — 점검만, 추가 작업 없음.

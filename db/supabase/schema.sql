@@ -231,6 +231,21 @@ create table if not exists personal_access_tokens (
 -- 설정 화면 본인 활성 토큰 목록 쿼리용(B-3). 프로덕션 적용됨.
 create index if not exists idx_pat_user on personal_access_tokens (user_id) where revoked_at is null;
 
+-- 수정사항(이슈/피드백) 트래커 — 테스트 중 발견한 수정사항 팀 공용 목록. (add-revision-notes.sql)
+-- 업무 데이터가 아니라 change_logs에는 남기지 않고 updated_at/updated_by만 추적한다.
+create table if not exists revision_notes (
+  id          text primary key,
+  menu        text not null check (char_length(menu) <= 100),
+  location    text check (char_length(location) <= 200),
+  description text not null check (char_length(description) <= 2000),
+  status      text not null default 'unresolved'
+                check (status in ('unresolved', 'hold', 'resolved')),
+  author_id   text references users(id),
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz,
+  updated_by  text references users(id)
+);
+
 -- 조회 패턴 기반 인덱스
 create index if not exists idx_tasks_assignee_start on tasks (assignee_id, start_at);
 create index if not exists idx_tasks_project on tasks (project_id);
@@ -243,3 +258,4 @@ create index if not exists idx_check_ins_assignee on check_ins (assignee_id, ans
 create index if not exists idx_task_comments_task on task_comments (task_id, created_at);
 create index if not exists idx_task_comments_help on task_comments (help_user_id, created_at desc);
 create index if not exists idx_recurring_templates_active on recurring_templates (active);
+create index if not exists idx_revision_notes_created on revision_notes (created_at desc);

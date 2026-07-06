@@ -2220,3 +2220,78 @@ describe("Action 확정 override (담당자·프로젝트·날짜·시간)", () 
     ).toThrowError(/프로젝트 없음/);
   });
 });
+
+describe("수정사항(이슈/피드백) 트래커 — 팀 공용, 누구나 작성·상태 변경", () => {
+  it("누구나(비관리자도) 수정사항을 등록하고 기본 상태는 미해결이다", () => {
+    const d = db();
+    const note = d.createRevisionNote(
+      { actorId: "kim-riwon", via: "web" },
+      { menu: "일정", location: "주간 뷰 헤더", description: "날짜 이동 시 오늘 표시가 사라진다" },
+    );
+    expect(note.status).toBe("unresolved");
+    expect(note.authorId).toBe("kim-riwon");
+    expect(note.updatedAt).toBeUndefined();
+    expect(d.revisionNotes.some((n) => n.id === note.id)).toBe(true);
+  });
+
+  it("업무 데이터가 아니라 ChangeLog는 남기지 않는다", () => {
+    const d = db();
+    const before = d.changeLogs.length;
+    d.createRevisionNote(
+      { actorId: "hwang-sunghyeon", via: "mcp" },
+      { menu: "결제요청", description: "금액 입력 커서 튕김" },
+    );
+    expect(d.changeLogs.length).toBe(before);
+  });
+
+  it("오류사항(description)이 비었거나 상한을 넘으면 거부한다", () => {
+    const d = db();
+    expect(() =>
+      d.createRevisionNote({ actorId: "kim-riwon", via: "web" }, { menu: "일정", description: "   " }),
+    ).toThrowError(QueRuleError);
+    expect(() =>
+      d.createRevisionNote(
+        { actorId: "kim-riwon", via: "web" },
+        { menu: "일정", description: "가".repeat(2001) },
+      ),
+    ).toThrowError(/2000자/);
+    expect(() =>
+      d.createRevisionNote(
+        { actorId: "kim-riwon", via: "web" },
+        { menu: "가".repeat(101), description: "정상 내용" },
+      ),
+    ).toThrowError(/100자/);
+  });
+
+  it("작성자가 아닌 다른 팀원도 상태를 바꿀 수 있다(팀 공용) — updatedAt/updatedBy 추적", () => {
+    const d = db();
+    const note = d.createRevisionNote(
+      { actorId: "oh-seunghoon", via: "web" },
+      { menu: "팀 현황", description: "리포트 합계가 맞지 않는다" },
+    );
+    const updated = d.updateRevisionNoteStatus(
+      { actorId: "kim-riwon", via: "web" },
+      { id: note.id, status: "resolved" },
+    );
+    expect(updated.status).toBe("resolved");
+    expect(updated.updatedBy).toBe("kim-riwon");
+    expect(updated.updatedAt).toBeDefined();
+  });
+
+  it("없는 수정사항이나 잘못된 상태는 거부한다", () => {
+    const d = db();
+    expect(() =>
+      d.updateRevisionNoteStatus({ actorId: "kim-riwon", via: "web" }, { id: "rev-ghost", status: "hold" }),
+    ).toThrowError(/수정사항 없음/);
+    const note = d.createRevisionNote(
+      { actorId: "kim-riwon", via: "web" },
+      { menu: "일정", description: "정상 내용" },
+    );
+    expect(() =>
+      d.updateRevisionNoteStatus(
+        { actorId: "kim-riwon", via: "web" },
+        { id: note.id, status: "garbage" as never },
+      ),
+    ).toThrowError(QueRuleError);
+  });
+});

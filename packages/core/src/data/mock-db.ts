@@ -13,6 +13,8 @@ import type {
   Project,
   RecurrenceFrequency,
   RecurringTemplate,
+  RevisionNote,
+  RevisionNoteStatus,
   StatusDetail,
   StatusLog,
   Task,
@@ -20,7 +22,14 @@ import type {
   TaskStatus,
   User,
 } from "../domain";
-import { clientSchema, milestoneSchema, projectSchema, taskSchema } from "../domain";
+import {
+  clientSchema,
+  createRevisionNoteInputSchema,
+  milestoneSchema,
+  projectSchema,
+  revisionNoteStatusSchema,
+  taskSchema,
+} from "../domain";
 import { USERS } from "../mock/users";
 import {
   QueRuleError,
@@ -60,6 +69,7 @@ export interface QueDb {
   checkIns: CheckIn[];
   taskComments: TaskComment[];
   recurringTemplates: RecurringTemplate[];
+  revisionNotes: RevisionNote[];
 }
 
 interface ActorContext {
@@ -82,6 +92,7 @@ export class MockQueDb implements QueDb {
   checkIns: CheckIn[];
   taskComments: TaskComment[];
   recurringTemplates: RecurringTemplate[];
+  revisionNotes: RevisionNote[];
 
   private seq = 0;
   private readonly clock: () => Date;
@@ -103,6 +114,7 @@ export class MockQueDb implements QueDb {
     this.checkIns = seed.checkIns;
     this.taskComments = seed.taskComments;
     this.recurringTemplates = seed.recurringTemplates;
+    this.revisionNotes = seed.revisionNotes;
   }
 
   // ---------- 조회 ----------
@@ -1751,6 +1763,53 @@ export class MockQueDb implements QueDb {
       afterValue: input.to,
     });
     return payment;
+  }
+
+  /** 수정사항(이슈/피드백) 등록 — 팀 공용. 인증만 하면 누구나 작성한다(소유자 제한 없음).
+   *  테스트 중 발견한 수정사항 메모라 비즈니스 업무 데이터가 아니다 — ChangeLog는 남기지 않는다.
+   *  입력은 신뢰하지 않고 스키마로 파싱한다(웹/MCP/CLI 공유 경로). status 기본은 미해결(unresolved). */
+  createRevisionNote(
+    ctx: ActorContext,
+    input: { menu: string; location?: string; description: string; status?: RevisionNoteStatus },
+  ): RevisionNote {
+    const actor = this.requireUser(ctx.actorId);
+    const parsed = createRevisionNoteInputSchema.safeParse(input);
+    if (!parsed.success) {
+      throw new QueRuleError(
+        "INVALID_INPUT",
+        parsed.error.issues.map((i) => i.message).join(", "),
+      );
+    }
+    const note: RevisionNote = {
+      id: this.nextId("rev"),
+      menu: parsed.data.menu,
+      // trim 후 빈 문자열이면 undefined로 정규화(선택 컬럼)
+      location: parsed.data.location || undefined,
+      description: parsed.data.description,
+      status: parsed.data.status ?? "unresolved",
+      authorId: actor.id,
+      createdAt: this.now(),
+    };
+    this.revisionNotes.push(note);
+    return note;
+  }
+
+  /** 수정사항 상태 변경 — 팀 공용. 누구나 상태를 바꿀 수 있다(소유자 제한 없음).
+   *  updatedAt/updatedBy만 추적한다(ChangeLog 없음). status는 enum을 런타임 검증한다. */
+  updateRevisionNoteStatus(
+    ctx: ActorContext,
+    input: { id: string; status: RevisionNoteStatus },
+  ): RevisionNote {
+    const actor = this.requireUser(ctx.actorId);
+    const note = this.revisionNotes.find((n) => n.id === input.id);
+    if (!note) throw new QueRuleError("NOT_FOUND", `수정사항 없음: ${input.id}`);
+    if (!revisionNoteStatusSchema.safeParse(input.status).success) {
+      throw new QueRuleError("INVALID_INPUT", "잘못된 상태다");
+    }
+    note.status = input.status;
+    note.updatedAt = this.now();
+    note.updatedBy = actor.id;
+    return note;
   }
 
   // ---------- 내부 ----------

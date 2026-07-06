@@ -9,6 +9,7 @@ import type {
   PaymentRequest,
   Project,
   RecurringTemplate,
+  RevisionNote,
   StatusLog,
   Task,
   TaskComment,
@@ -32,6 +33,7 @@ export interface QueSeed {
   checkIns: CheckIn[];
   taskComments: TaskComment[];
   recurringTemplates: RecurringTemplate[];
+  revisionNotes: RevisionNote[];
 }
 
 export function createSeed(now: Date): QueSeed {
@@ -607,6 +609,30 @@ export function createSeed(now: Date): QueSeed {
     },
   ];
 
+  // 수정사항(이슈/피드백) 트래커 — 테스트 중 발견한 수정사항 팀 공용 메모. 샘플 2건.
+  const revisionNotes: RevisionNote[] = [
+    {
+      id: "rev-1",
+      menu: "일정",
+      location: "주간 뷰 상단 날짜 이동 버튼",
+      description: "이전 주로 이동하면 오늘 표시가 사라진다",
+      status: "unresolved",
+      authorId: oh.id,
+      createdAt: at(-2, 11),
+    },
+    {
+      id: "rev-2",
+      menu: "결제요청",
+      location: "금액 입력란",
+      description: "천 단위 구분 쉼표가 입력 중에 커서를 튕긴다",
+      status: "resolved",
+      authorId: yejin.id,
+      createdAt: at(-4, 15),
+      updatedAt: at(-1, 10),
+      updatedBy: hwang.id,
+    },
+  ];
+
   // ── 과거 6주 완료/취소 이력 (결정론적 생성) ──────────────────────────
   // 관리자 리포트의 주간/월간 집계가 빈 표가 아니라 실제 데이터로 검증되도록,
   // 지난 42~3일의 이력을 만든다. random 없이 인덱스 기반으로 분배해 재현 가능.
@@ -706,5 +732,6 @@ export function createSeed(now: Date): QueSeed {
     checkIns,
     taskComments,
     recurringTemplates,
+    revisionNotes,
   };
 }

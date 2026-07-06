@@ -13,6 +13,7 @@ import {
   Milestone,
   Building2,
   FolderKanban,
+  Bug,
   type LucideIcon,
 } from "lucide-react";
 
@@ -73,6 +74,8 @@ export const MENU_SECTIONS: MenuSection[] = [
       // 페이지(서버)와 서버 액션(core mutation)이 다시 강제한다(3중 게이트).
       { href: "/clients", label: "클라이언트", icon: Building2, adminOnly: true },
       { href: "/payments", label: "결제요청", icon: Receipt },
+      // 수정사항(이슈/피드백) 트래커 — 테스트 중 발견한 수정사항 팀 공용 목록. 전원 접근(adminOnly 아님).
+      { href: "/revisions", label: "수정사항", icon: Bug },
       { href: "/tools", label: "MCP · CLI", icon: Terminal },
       { href: "/help", label: "도움말", icon: CircleHelp },
       { href: "/settings", label: "설정", icon: Settings },

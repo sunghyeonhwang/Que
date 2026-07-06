@@ -261,6 +261,48 @@ export const recurringTemplateSchema = z
   });
 export type RecurringTemplate = z.infer<typeof recurringTemplateSchema>;
 
+// ---------- RevisionNote (수정사항/이슈 트래커) ----------
+
+// 테스트 중 발견한 수정사항을 적는 팀 공용 목록. 비즈니스 업무 데이터가 아니라 ChangeLog는 남기지
+// 않고(간단 유지), updatedAt/updatedBy만 추적한다. 인증만 하면 누구나 작성·상태 변경이 가능하다.
+export const revisionNoteStatusSchema = z.enum([
+  "unresolved", // 미해결
+  "hold", // 보류
+  "resolved", // 해결
+]);
+export type RevisionNoteStatus = z.infer<typeof revisionNoteStatusSchema>;
+
+export const revisionNoteSchema = z.object({
+  id: z.string().min(1),
+  /** 어느 화면(메뉴)에서 발견했는지 — 메뉴 라벨 등 자유 텍스트 */
+  menu: z.string().min(1).max(100),
+  /** 화면 내 위치(자유 텍스트). 선택. */
+  location: z.string().max(200).optional(),
+  /** 오류/수정 내용 — 필수 */
+  description: z.string().min(1).max(2000),
+  status: revisionNoteStatusSchema,
+  authorId: z.string().min(1),
+  createdAt: isoDateTime,
+  /** 마지막 상태 변경 시각 */
+  updatedAt: isoDateTime.optional(),
+  /** 마지막 상태 변경자 */
+  updatedBy: z.string().optional(),
+});
+export type RevisionNote = z.infer<typeof revisionNoteSchema>;
+
+/** 수정사항 등록 입력 검증. 신뢰 못 할 클라이언트/MCP/CLI 값을 mutation 경로에서 파싱한다. */
+export const createRevisionNoteInputSchema = z.object({
+  menu: z.string().trim().min(1, "메뉴는 필수다").max(100, "메뉴는 100자 이내"),
+  location: z.string().trim().max(200, "위치는 200자 이내").optional(),
+  description: z
+    .string()
+    .trim()
+    .min(1, "오류사항은 필수다")
+    .max(2000, "오류사항은 2000자 이내"),
+  status: revisionNoteStatusSchema.optional(),
+});
+export type CreateRevisionNoteInput = z.infer<typeof createRevisionNoteInputSchema>;
+
 // ---------- PaymentRequest ----------
 
 export const paymentStatusSchema = z.enum(["waiting", "done", "cancelled"]);

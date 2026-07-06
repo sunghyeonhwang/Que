@@ -68,6 +68,7 @@ export const TABLE_INSERT_ORDER = [
   "change_logs",
   "task_comments",
   "check_ins",
+  "revision_notes",
 ] as const;
 
 /** QueSeed의 필드명 → DB 테이블명. users는 USERS 상수에서 별도로 넣는다. */
@@ -85,4 +86,5 @@ export const SEED_KEY_TO_TABLE: Record<string, string> = {
   changeLogs: "change_logs",
   taskComments: "task_comments",
   checkIns: "check_ins",
+  revisionNotes: "revision_notes",
 };

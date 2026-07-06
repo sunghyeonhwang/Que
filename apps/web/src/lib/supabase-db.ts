@@ -28,6 +28,7 @@ const TABLE_TO_FIELD = {
   change_logs: "changeLogs",
   task_comments: "taskComments",
   check_ins: "checkIns",
+  revision_notes: "revisionNotes",
 } as const;
 
 type TableName = keyof typeof TABLE_TO_FIELD;
