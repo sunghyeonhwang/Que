@@ -174,7 +174,66 @@ function TimeAxis() {
   );
 }
 
+// 하루치 이벤트를 좌우 레인으로 배치한다. 같은 시간대에 겹치는 이벤트가 서로 위에
+// 절대배치돼 글자가 뭉개지던 문제를 막는다(그리드는 유지, 겹침만 분할).
+// 그리디: 시작시각 순으로 이미 끝난 레인을 재사용하고, 연쇄로 겹치는 묶음(클러스터)이
+// 레인 수를 공유해 그 안의 카드는 같은 폭(1/레인수)으로 나란히 놓인다.
+interface LaidOutItem {
+  item: ViewWeekItem;
+  startMin: number;
+  endMin: number;
+  lane: number;
+  lanes: number;
+}
+
+function itemMinutes(item: ViewWeekItem): { startMin: number; endMin: number } {
+  const startMin = clamp(minutesOfDayKST(item.startAt), GRID_START_MIN, GRID_END_MIN);
+  const rawEnd = minutesOfDayKST(item.endAt);
+  const endMin = clamp(rawEnd > startMin ? rawEnd : startMin + 30, GRID_START_MIN, GRID_END_MIN);
+  return { startMin, endMin };
+}
+
+function layoutDayItems(items: readonly ViewWeekItem[]): LaidOutItem[] {
+  const evs = items
+    .map((item) => ({ item, ...itemMinutes(item), lane: 0 }))
+    .sort((a, b) => a.startMin - b.startMin || a.endMin - b.endMin);
+
+  const out: LaidOutItem[] = [];
+  let cluster: typeof evs = [];
+  let clusterEnd = -1;
+
+  const flush = () => {
+    if (cluster.length === 0) return;
+    const laneEnds: number[] = []; // 각 레인의 마지막 이벤트 종료분
+    for (const ev of cluster) {
+      let lane = laneEnds.findIndex((end) => end <= ev.startMin);
+      if (lane === -1) {
+        lane = laneEnds.length;
+        laneEnds.push(ev.endMin);
+      } else {
+        laneEnds[lane] = ev.endMin;
+      }
+      ev.lane = lane;
+    }
+    const lanes = laneEnds.length;
+    for (const ev of cluster) {
+      out.push({ item: ev.item, startMin: ev.startMin, endMin: ev.endMin, lane: ev.lane, lanes });
+    }
+    cluster = [];
+    clusterEnd = -1;
+  };
+
+  for (const ev of evs) {
+    if (cluster.length > 0 && ev.startMin >= clusterEnd) flush();
+    cluster.push(ev);
+    clusterEnd = Math.max(clusterEnd, ev.endMin);
+  }
+  flush();
+  return out;
+}
+
 function DayColumn({ day }: { day: ViewWeekDay }) {
+  const laid = layoutDayItems(day.items);
   return (
     <div className="relative min-h-[420px] min-w-0 rounded-xl border border-neutral-200 bg-neutral-50/60">
       {/* 시간 구분선 */}
@@ -188,30 +247,33 @@ function DayColumn({ day }: { day: ViewWeekDay }) {
           />
         );
       })}
-      {day.items.map((item) => (
-        <EventCard key={item.id} item={item} />
+      {laid.map((pos) => (
+        <EventCard key={pos.item.id} pos={pos} />
       ))}
     </div>
   );
 }
 
-function EventCard({ item }: { item: ViewWeekItem }) {
-  const startMin = clamp(minutesOfDayKST(item.startAt), GRID_START_MIN, GRID_END_MIN);
-  const rawEnd = minutesOfDayKST(item.endAt);
-  const endMin = clamp(rawEnd > startMin ? rawEnd : startMin + 30, GRID_START_MIN, GRID_END_MIN);
+function EventCard({ pos }: { pos: LaidOutItem }) {
+  const { item, startMin, endMin, lane, lanes } = pos;
 
   const topPct = ((startMin - GRID_START_MIN) / GRID_SPAN) * 100;
   const heightPct = ((endMin - startMin) / GRID_SPAN) * 100;
+  // 좌우 레인 분할: 클러스터 레인 수로 폭을 나누고 3px씩 간격을 준다(단일 레인이면 전폭).
+  const widthPct = 100 / lanes;
+  const leftPct = lane * widthPct;
 
   return (
     <div
       className={cn(
-        "absolute inset-x-1.5 flex flex-col overflow-hidden rounded-lg",
+        "absolute flex flex-col overflow-hidden rounded-lg",
         scale("p-2", "p-2.5", "p-3.5", "p-5"),
       )}
       style={{
         top: `${topPct}%`,
         height: `${heightPct}%`,
+        left: `calc(${leftPct}% + 3px)`,
+        width: `calc(${widthPct}% - 6px)`,
         minHeight: 52,
         backgroundColor: withAlpha(item.ownerColor, "1f"),
       }}
