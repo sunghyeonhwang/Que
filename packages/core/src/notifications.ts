@@ -7,13 +7,16 @@ import { helpUserIdsOf } from "./rules";
 //
 // 색 의미 고정(CLAUDE.md·alerts-data.ts AlertTone과 동일): red=문제, amber=마감/주의, violet=회의록.
 
-/** 발송 톤. apps/web의 AlertTone과 값이 동일하다(계층 분리를 위해 core에 미러 정의). */
-export type NotificationTone = "red" | "amber" | "violet";
+/** 발송 톤. apps/web의 AlertTone과 값이 동일하다(계층 분리를 위해 core에 미러 정의).
+ *  blue=예정/정보(개인 데일리 브리핑) — CLAUDE.md 상태색 의미 고정과 일치. */
+export type NotificationTone = "red" | "amber" | "violet" | "blue";
 
 /** 알림 종류. 아웃박스 kind 컬럼·dedup_key 접두와 일치.
  *  standup은 팀 데일리 다이제스트(하루 1회) 전용 — status/deadline과 달리 순수 규칙 함수가 아니라
- *  web dispatch가 직접 intent를 만든다(getStandupData가 web 계층). dedup만 아웃박스로 강제한다. */
-export type NotificationKind = "issue" | "on_hold" | "deadline" | "standup";
+ *  web dispatch가 직접 intent를 만든다(getStandupData가 web 계층). dedup만 아웃박스로 강제한다.
+ *  personal_digest는 개인 DM 데일리 브리핑(하루 1회, 아침 9:50 KST) — recipient=Que userId를 담아
+ *  발송 직전 Bot Token으로 Slack member ID를 해석한다. dedup_key `personal_digest:<userId>:<date>`. */
+export type NotificationKind = "issue" | "on_hold" | "deadline" | "standup" | "personal_digest";
 
 /** 아웃박스 status 컬럼. */
 export type NotificationStatus = "pending" | "held" | "sent" | "skipped" | "failed";
@@ -32,11 +35,15 @@ export interface NotificationPayload {
  */
 export interface NotificationIntent {
   kind: NotificationKind;
-  /** 대상 종류. status/deadline은 "task", standup 다이제스트는 "team". */
+  /** 대상 종류. status/deadline은 "task", standup 다이제스트는 "team", personal_digest는 "user". */
   entityType: string;
   entityId: string;
-  /** kind별 이벤트 유일성 마커. status계열=전이 시각/변경로그id, deadline=마감 버킷(YYYY-MM-DD). */
+  /** kind별 이벤트 유일성 마커. status계열=전이 시각/변경로그id, deadline=마감 버킷(YYYY-MM-DD),
+   *  standup/personal_digest=KST 날짜 키(YYYY-MM-DD). */
   marker: string;
+  /** 개인 수신자(Que userId). personal_digest만 세팅한다 — 발송 직전 Slack member ID로 해석.
+   *  팀채널 계열은 undefined(단일 채널 발송). enqueueNotifications가 아웃박스 recipient로 적재한다. */
+  recipient?: string;
   payload: NotificationPayload;
 }
 

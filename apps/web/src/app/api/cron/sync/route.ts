@@ -1,7 +1,12 @@
 import { timingSafeEqual } from "node:crypto";
 import { getDb } from "@/lib/db";
 import { notificationsEnabled } from "@/lib/notifications/config";
-import { drainOutbox, postStandupDigest, scanDeadlines } from "@/lib/notifications/dispatch";
+import {
+  drainOutbox,
+  postPersonalDigests,
+  postStandupDigest,
+  scanDeadlines,
+} from "@/lib/notifications/dispatch";
 
 export const dynamic = "force-dynamic";
 
@@ -33,8 +38,9 @@ export async function GET(request: Request) {
   const tasksCreated = db.syncRecurringTemplates(now).length;
   await db.persist();
 
-  // Slack 알림 드레인/스캔/스탠드업. 기존 sync와 분리된 try/catch — 알림 실패가 sync를 깨지 않는다.
-  // SLACK_WEBHOOK_URL 미설정이면 notificationsEnabled()=false → 각 함수가 즉시 no-op.
+  // Slack 알림 드레인/스캔/스탠드업/개인브리핑. 기존 sync와 분리된 try/catch — 알림 실패가 sync를 깨지 않는다.
+  // 게이트: 팀채널=SLACK_WEBHOOK_URL, 개인DM=SLACK_BOT_TOKEN. 둘 다 미설정이면 notificationsEnabled()=false로 블록 skip.
+  // 한쪽만 설정돼도 각 함수가 자기 크레덴셜로 개별 판정 → 설정된 채널만 동작(다른 쪽 조용히 no-op).
   let notifications:
     | {
         deadlineEnqueued: number;
@@ -43,6 +49,9 @@ export async function GET(request: Request) {
         drainedSent: number;
         drainedFailed: number;
         standupSent: boolean;
+        digestEnqueued: number;
+        digestSent: number;
+        digestFailed: number;
       }
     | { error: true }
     | { skipped: true } = { skipped: true };
@@ -51,6 +60,8 @@ export async function GET(request: Request) {
       const deadline = await scanDeadlines(db, now);
       const drained = await drainOutbox(db, now);
       const standupSent = await postStandupDigest(db, now);
+      // 개인 DM 브리핑 — Bot Token 게이트 + 9:50~10:30 KST 창. 자체 try/catch로 sync·팀채널과 격리.
+      const digest = await postPersonalDigests(db, now);
       notifications = {
         deadlineEnqueued: deadline.enqueued,
         deadlineSent: deadline.sent,
@@ -58,6 +69,9 @@ export async function GET(request: Request) {
         drainedSent: drained.sent,
         drainedFailed: drained.failed,
         standupSent,
+        digestEnqueued: digest.enqueued,
+        digestSent: digest.sent,
+        digestFailed: digest.failed,
       };
     } catch (error) {
       console.error("[que-cron] 알림 처리 실패(무시)", error);

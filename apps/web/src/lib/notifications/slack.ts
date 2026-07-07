@@ -11,6 +11,7 @@ const TONE_COLOR: Record<SlackMessage["tone"], string> = {
   red: "#e33030",
   amber: "#f59e0b",
   violet: "#7c3aed",
+  blue: "#2563eb",
 };
 
 const TIMEOUT_MS = 5000;

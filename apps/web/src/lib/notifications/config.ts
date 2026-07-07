@@ -12,9 +12,33 @@ export function slackWebhookUrl(): string | undefined {
   return url ? url : undefined;
 }
 
-/** 알림 경로 활성 여부. false면 enqueue·발송을 모두 건너뛴다. */
+/**
+ * Slack Bot User OAuth Token(xoxb-…). 개인 DM 브리핑(personal_digest) 전용 크레덴셜.
+ * 미설정/공백이면 undefined → 개인 DM 경로만 조용히 비활성(팀채널 Webhook 경로와 독립).
+ * (시크릿 — Vercel env 전용, 클라이언트 노출 금지.) 필요 scope: users:read.email, chat:write, im:write.
+ */
+export function slackBotToken(): string | undefined {
+  const token = process.env.SLACK_BOT_TOKEN?.trim();
+  return token ? token : undefined;
+}
+
+/**
+ * 알림 경로 활성 여부(둘 중 하나라도). false면 크론의 알림 블록 전체를 건너뛴다.
+ * ⚠️ "둘 중 하나"는 크론 진입 게이트일 뿐이다 — 팀채널(webhook)·개인DM(botToken)은 각자 크레덴셜로
+ *    개별 판정한다(webhookEnabled/personalDigestEnabled). 한쪽만 설정돼도 다른 쪽이 조용히 죽지 않게.
+ */
 export function notificationsEnabled(): boolean {
+  return webhookEnabled() || personalDigestEnabled();
+}
+
+/** 팀채널 계열(issue/on_hold/deadline/standup) 발송 활성 여부. Webhook 크레덴셜 게이트. */
+export function webhookEnabled(): boolean {
   return slackWebhookUrl() !== undefined;
+}
+
+/** 개인 DM 브리핑(personal_digest) 발송 활성 여부. Bot Token 크레덴셜 게이트. */
+export function personalDigestEnabled(): boolean {
+  return slackBotToken() !== undefined;
 }
 
 /** 딥링크 베이스 URL. 미설정이면 프로덕션 도메인. (하드코딩 금지 — env 우선.) */

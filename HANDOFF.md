@@ -67,6 +67,21 @@ mock 인증: 쿠키 `que-user=<id>` / PAT `que_pat_<id>` (예: `hwang-sunghyeon`
 - **#3 주간뷰 그리드 밖 이벤트 필터** (`week-grid.tsx`) — 표시 창(10~19시)과 겹침 0인 이벤트를 `layoutDayItems`에서 `overlapsWindow`로 제외(`rawStart<1140 && rawEnd>600`). 창 밖 이벤트가 clamp돼 minHeight:52 **유령카드**로 쌓이던 것 제거. **동작 변화(글래도스 판정=수용)**: 종료가 정확히 10:00인 이벤트(예: 9:00~10:00 "재고 수량 확인")는 창과 공유 시간 0분이라 **드롭**(→ +N이 +3→+2로 재계산). 근거: 벽 디스플레이가 10시 시작인 게 의도된 설계 → 창 밖은 표시 안 하는 게 맞고, 살리려면 필터가 아니라 창 범위를 고쳐야 함. 겹침 레인/+N 로직 자체는 불변.
 - **#4 토큰 버튼 터치타깃** (`token-settings.tsx`) — 복사·폐기 버튼 `h-10`→`h-11`(40→44px, 발급 버튼과 정합, CLAUDE.md 권장).
 
+## ✅ Slack Phase 2 — 개인 DM 데일리 브리핑 (2026-07-07)
+
+> B-1(팀 채널) 위에 **개인별 DM** 추가. 매일 **KST 9:50~10:30 창**, 각 active 팀원에게 본인 **오늘 작업·막힘·마감·담당 마일스톤 위험** 4섹션 DM. **빌드 완료·미활성**(`SLACK_BOT_TOKEN` 미설정이라 게이트로 비활성 → 현 프로덕션 동작 변화 0). 로드맵 C-2 1차.
+
+- **인프라 재사용**: B-1 outbox/dedup/cron 그대로. `recipient` 컬럼(=Que userId 저장, 발송 직전 Slack ID 해석)에 개인 수신자를 담고, `sendEntry`가 recipient/kind=personal_digest면 **Bot DM**, 아니면 팀채널 Webhook으로 분기.
+- **게이트 분리(중요)**: 팀채널(issue/on_hold/deadline/standup)=`webhookEnabled()`(SLACK_WEBHOOK_URL), 개인DM=`personalDigestEnabled()`(SLACK_BOT_TOKEN). `notificationsEnabled()`=either는 **크론 진입 게이트일 뿐** — 각 경로가 자기 크레덴셜로 개별 판정(한쪽만 설정돼도 다른 쪽 안 죽음). `drainOutbox`는 항목별 `channelReady` 필터로 크레덴셜 없는 채널을 헛failed 안 만듦.
+- **멤버 매핑**: `users.slack_user_id` 컬럼 + lazy backfill(`resolveSlackUserId`: 캐시→email 직조회→`users.lookupByEmail`→UPDATE backfill, **전용 admin 직접 쿼리** — persist는 users write-back 안 함). ⚠️ **slack_user_id는 도메인 User 밖**(supabase-db `load()`가 email·passwordHash와 함께 `delete u.slackUserId` — 글래도스 반려로 추가한 유출 방지 1줄. 이거 없으면 /api/team·/team으로 Slack ID 직렬화 유출). 이름 로마자 불일치 멤버는 `update users set slack_user_id=...` 수동 오버라이드.
+- **콘텐츠(4섹션 유지, 사용자 확정)**: 오늘 작업(overlapsToday, startAt만 보는 getStandupData 아님)·막힘(issue/on_hold)·마감(오늘~임계)·마일스톤(project.ownerId===user && riskStatus!==on_track). active 유저만·본인 것만·전섹션 0건 유저 생략. 본문은 숫자 카운트 위주(비공개 유출 없음).
+- **스케줄**: 기존 `*/10` 크론 재사용. `postPersonalDigests`가 KST 9:50~10:30 분 단위 창(크론 지연 흡수) + 개인별 dedup(`personal_digest:<userId>:<date>`)로 하루 1회. 방해금지(22-8) 밖.
+- **DB**: `add-user-slack-id.sql`(users.slack_user_id) + `add-notification-personal-digest-kind.sql`(kind에 personal_digest) **프로덕션 적용 완료**. schema.sql 동기화.
+- **활성화**: Slack 앱에 **Bot Token Scope**(`chat:write`·`im:write`·`users:read.email`, 정책상 `users:read` 병요 가능) 추가 → **Reinstall** → `xoxb-` 토큰을 Vercel env **`SLACK_BOT_TOKEN`** 설정 → 배포. 이후 9:50 창 첫 크론이 발송.
+- **검증**: typecheck·lint·core test(209)·build 통과, 글래도스 승인(유출 1건 수정 후). 실발송은 토큰 설정 후 익일 검증.
+- **비차단 후속(글래도스)**: TONE_COLOR 중복(slack.ts↔slack-bot.ts) export 공유 · personal-digest kstDateKey export 미사용 · dayStart 서버TZ 기준(today-data 패턴, KST 정규화 장기과제) · sendEntry의 `recipient` 분기에 "팀 kind에 recipient 싣지 말 것" 주석.
+- **C-2b(별도)**: Slack 버튼으로 Slack에서 바로 체크인 응답(서명검증·인터랙티브) — 이번 제외.
+
 ## ✅ Slack 알림 B-1 (1단계 · 알림·스탠드업) (2026-07-07)
 
 > 로드맵 `que-roadmap-plan.md` "B-1"대로 구현. **빌드 완료·미활성**(`SLACK_WEBHOOK_URL` 미설정이라 게이트로 비활성 → 현 프로덕션 동작 변화 0). URL 넣으면 활성.

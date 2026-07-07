@@ -1980,7 +1980,7 @@ export class MockQueDb implements QueDb {
         kind: intent.kind,
         entityType: intent.entityType,
         entityId: intent.entityId,
-        recipient: undefined, // 1단계 팀 채널
+        recipient: intent.recipient, // 팀채널 계열=undefined, personal_digest=Que userId(발송 직전 해석)
         payload: intent.payload,
         status: opts?.holdUntil ? "held" : "pending",
         attempts: 0,

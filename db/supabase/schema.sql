@@ -18,6 +18,7 @@ create table if not exists users (
   rank         text,          -- 직급(대표/관리/사원) — grade(성과 스코프) 유도 소스. add-user-management.sql로 backfill.
   department   text,          -- 부서(팀 표시용) — 임시 배정값, 편집 가능.
   email        text,          -- 실 로그인 식별자 (Auth.js Credentials)
+  slack_user_id text,         -- Slack member ID(개인 DM 브리핑 발송용). email lookup 후 lazy backfill. 도메인 User엔 미노출.
   password_hash text,         -- bcrypt 해시. 서버에서만 읽고 도메인 User/세션 밖으로 내보내지 않는다.
   must_change_password boolean not null default false, -- 참이면 로그인 후 비밀번호 변경 강제(임시 비번)
   password_changed_at  timestamptz,                    -- 마지막 변경 시각
@@ -262,10 +263,10 @@ create table if not exists revision_notes (
 create table if not exists notification_outbox (
   id          text primary key,
   dedup_key   text not null unique,   -- 이벤트 유일키(issue:/on_hold:/deadline:/standup: 접두). 중복 적재 차단.
-  kind        text not null check (kind in ('issue', 'on_hold', 'deadline', 'standup')),
+  kind        text not null check (kind in ('issue', 'on_hold', 'deadline', 'standup', 'personal_digest')),
   entity_type text not null,
   entity_id   text not null,
-  recipient   text,                   -- 1단계 팀 채널이라 NULL. 2단계 Bot 개인 멘션 매핑용.
+  recipient   text,                   -- 팀채널 계열(issue/on_hold/deadline/standup)은 NULL. personal_digest는 Que userId(발송 직전 Slack ID 해석).
   payload     jsonb not null,         -- { title, text, deeplinkPath, tone }
   status      text not null default 'pending'
                 check (status in ('pending', 'held', 'sent', 'skipped', 'failed')),

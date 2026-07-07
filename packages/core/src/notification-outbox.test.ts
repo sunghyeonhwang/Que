@@ -40,6 +40,48 @@ describe("enqueueNotifications — dedup DO NOTHING", () => {
   });
 });
 
+describe("enqueueNotifications — recipient · personal_digest", () => {
+  it("intent.recipient(Que userId)를 아웃박스 행에 적재한다", () => {
+    const db = createMockDb(NOW);
+    const [entry] = db.enqueueNotifications([
+      intent({
+        kind: "personal_digest",
+        entityType: "user",
+        entityId: "lee-yejin",
+        marker: "2026-07-07",
+        recipient: "lee-yejin",
+        payload: { title: "브리핑", text: "y", deeplinkPath: "/today", tone: "blue" },
+      }),
+    ]);
+    expect(entry.recipient).toBe("lee-yejin");
+    expect(entry.kind).toBe("personal_digest");
+  });
+
+  it("recipient 없는 팀채널 계열은 recipient가 undefined다", () => {
+    const db = createMockDb(NOW);
+    const [entry] = db.enqueueNotifications([intent()]);
+    expect(entry.recipient).toBeUndefined();
+  });
+
+  it("personal_digest dedup_key는 kind:userId:date 형태로 유저·날짜당 1건이다", () => {
+    const db = createMockDb(NOW);
+    const make = (userId: string, date: string) =>
+      intent({
+        kind: "personal_digest",
+        entityType: "user",
+        entityId: userId,
+        marker: date,
+        recipient: userId,
+      });
+    const first = db.enqueueNotifications([make("lee-yejin", "2026-07-07")]);
+    const dup = db.enqueueNotifications([make("lee-yejin", "2026-07-07")]); // 같은 유저·날짜
+    const other = db.enqueueNotifications([make("kim-riwon", "2026-07-07")]); // 다른 유저
+    expect(first[0].dedupKey).toBe("personal_digest:lee-yejin:2026-07-07");
+    expect(dup).toHaveLength(0);
+    expect(other).toHaveLength(1);
+  });
+});
+
 describe("releaseHeldNotifications — 방해금지 창 종료분만 pending으로", () => {
   it("hold_until이 지난 held만 풀고 holdUntil을 지운다", () => {
     const db = createMockDb(NOW);

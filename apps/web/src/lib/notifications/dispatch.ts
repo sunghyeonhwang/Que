@@ -13,13 +13,22 @@ import {
   type TaskStatus,
 } from "@que/core";
 import { getStandupData } from "@/lib/team-data";
-import { deadlineThresholdHours, notificationsEnabled, quietHoursConfig } from "./config";
+import {
+  deadlineThresholdHours,
+  notificationsEnabled,
+  personalDigestEnabled,
+  quietHoursConfig,
+  webhookEnabled,
+} from "./config";
+import { buildPersonalDigestIntents } from "./personal-digest";
 import { postToSlack } from "./slack";
+import { postDmToSlack, resolveSlackUserId } from "./slack-bot";
 
 // Slack 알림 오케스트레이터 (B-1, web 계층). core 규칙(무엇을 보낼지)과 어댑터(어떻게 보낼지)를 잇는다.
 //
 // 불변식:
-//  - 모든 진입점은 notificationsEnabled()로 먼저 가드한다(SLACK_WEBHOOK_URL 미설정이면 알림 경로 전체 skip).
+//  - 각 진입점은 자기 채널 크레덴셜로 가드한다: 팀채널(status/deadline/standup)=webhookEnabled(SLACK_WEBHOOK_URL),
+//    개인 DM 브리핑=personalDigestEnabled(SLACK_BOT_TOKEN). drainOutbox만 either 게이트 후 항목별로 채널을 가른다.
 //  - enqueueAndSend/notifyTaskStatusChanged는 절대 throw하지 않는다 — 발송 실패가 작업 변경/응답을 막지 않는다.
 //  - enqueue(아웃박스 적재)는 발송 전에 persist해 커밋한다(발송 실패해도 크론 drainOutbox가 재시도).
 //  - mutation과 persist는 반드시 같은 db 인스턴스(호출부가 넘긴 db로만 작업).
@@ -29,6 +38,10 @@ const MAX_ATTEMPTS = 5;
 // 스탠드업 다이제스트 발송 시각(KST 시). 크론이 */10이라 이 시(hour) 첫 실행 1건만 dedup으로 발송된다.
 // 방해금지 기본 창(22-8) 밖의 아침 시각으로 둬 자정 발송·야간 발송을 막는다.
 const STANDUP_HOUR_KST = 9;
+// 개인 DM 브리핑 발송 창(KST 분 단위). 9:50~10:30 — 크론(*/10) 지연을 흡수하되 하루 1회는 dedup으로 강제.
+// standup의 hour 게이트와 달리 분 단위 창을 쓰는 이유: 9:50 정시 크론이 밀려도 창 안 첫 실행이 발송.
+const DIGEST_WINDOW_START_MIN = 9 * 60 + 50; // 09:50
+const DIGEST_WINDOW_END_MIN = 10 * 60 + 30; // 10:30
 
 /** 발송 결과 요약(크론 응답·호출부 로깅용). */
 export interface DispatchCounts {
@@ -45,6 +58,12 @@ function notificationContext(db: MockQueDb, now: Date): NotificationContext {
 /** now의 KST 벽시계 시(hour, 0-23). */
 function kstHour(now: Date): number {
   return new Date(now.getTime() + KST_OFFSET_MS).getUTCHours();
+}
+
+/** now의 KST 벽시계 분(자정 이후 누적 분, 0-1439). 개인 브리핑 발송 창 판정용. */
+function kstMinuteOfDay(now: Date): number {
+  const d = new Date(now.getTime() + KST_OFFSET_MS);
+  return d.getUTCHours() * 60 + d.getUTCMinutes();
 }
 
 /** now의 KST 날짜 키(YYYY-MM-DD). standup dedup에 쓴다. */
@@ -76,9 +95,22 @@ function quietWindowEnd(now: Date, quiet: { start: number; end: number }): Date 
   return new Date(releaseMs);
 }
 
+/** 발송 지점(단일). 개인 수신자(recipient/personal_digest)면 Bot DM, 아니면 팀채널 Webhook으로 분기. */
 async function sendEntry(db: MockQueDb, entry: NotificationOutboxEntry): Promise<boolean> {
   try {
-    await postToSlack(messageFor(entry));
+    if (entry.kind === "personal_digest" || entry.recipient) {
+      // recipient(Que userId)를 발송 직전 Slack member ID로 해석 — 캐시→email lookup→backfill.
+      const slackId = await resolveSlackUserId(entry.recipient ?? entry.entityId);
+      if (!slackId) {
+        // 매핑 실패: failed로 남겨 크론이 재시도(매핑이 나중에 채워질 수 있음). throw는 안 함.
+        db.markFailed(entry.id);
+        console.error("[que-notify] Slack 사용자 매핑 실패", entry.recipient ?? entry.entityId);
+        return false;
+      }
+      await postDmToSlack(slackId, messageFor(entry));
+    } else {
+      await postToSlack(messageFor(entry));
+    }
     db.markNotificationSent(entry.id);
     return true;
   } catch (error) {
@@ -100,7 +132,8 @@ export async function enqueueAndSend(
   now: Date = new Date(),
 ): Promise<DispatchCounts> {
   const counts: DispatchCounts = { enqueued: 0, sent: 0, held: 0 };
-  if (!notificationsEnabled() || intents.length === 0) return counts;
+  // enqueueAndSend는 팀채널(status/deadline) 전용 경로 — Webhook 크레덴셜로 게이트한다.
+  if (!webhookEnabled() || intents.length === 0) return counts;
   try {
     const quiet = quietHoursConfig();
     if (quiet && inQuietHours(now, quiet)) {
@@ -137,7 +170,7 @@ export async function notifyTaskStatusChanged(
   detail?: StatusDetail,
   now: Date = new Date(),
 ): Promise<void> {
-  if (!notificationsEnabled()) return;
+  if (!webhookEnabled()) return; // 팀채널 발송 — Webhook 게이트
   const task = db.tasks.find((t) => t.id === taskId);
   if (!task) return;
   const ctx = notificationContext(db, now);
@@ -155,10 +188,14 @@ export async function drainOutbox(
 ): Promise<{ released: number; sent: number; failed: number }> {
   if (!notificationsEnabled()) return { released: 0, sent: 0, failed: 0 };
   const released = db.releaseHeldNotifications(now).length;
+  // 각 항목은 자기 채널 크레덴셜이 켜져 있어야 발송한다 — 한쪽만 설정 시 다른 채널 항목을
+  // 헛되이 failed로 만들지 않게(재시도 폭주 방지). personal_digest/recipient=Bot, 그 외=Webhook.
+  const channelReady = (e: NotificationOutboxEntry): boolean =>
+    e.kind === "personal_digest" || e.recipient ? personalDigestEnabled() : webhookEnabled();
   const targets = [
     ...db.pendingNotifications(),
     ...db.notificationOutbox.filter((e) => e.status === "failed" && e.attempts < MAX_ATTEMPTS),
-  ];
+  ].filter(channelReady);
   let sent = 0;
   let failed = 0;
   for (const entry of targets) {
@@ -171,7 +208,7 @@ export async function drainOutbox(
 
 /** 마감 임박(기본 24h) 스캔 → 적재/발송. 크론용. */
 export async function scanDeadlines(db: MockQueDb, now: Date): Promise<DispatchCounts> {
-  if (!notificationsEnabled()) return { enqueued: 0, sent: 0, held: 0 };
+  if (!webhookEnabled()) return { enqueued: 0, sent: 0, held: 0 }; // 팀채널 발송 — Webhook 게이트
   const ctx = notificationContext(db, now);
   const intents = buildDeadlineIntents(ctx, db.tasks, deadlineThresholdHours());
   return enqueueAndSend(db, intents, now);
@@ -184,7 +221,7 @@ export async function scanDeadlines(db: MockQueDb, now: Date): Promise<DispatchC
  * 시간창 게이트로 자정·야간(방해금지) 발송을 막는다.
  */
 export async function postStandupDigest(db: MockQueDb, now: Date): Promise<boolean> {
-  if (!notificationsEnabled()) return false;
+  if (!webhookEnabled()) return false; // 팀채널 다이제스트 — Webhook 게이트
   if (kstHour(now) !== STANDUP_HOUR_KST) return false;
   const dateKey = kstDateKey(now);
   // payload 없이 dedup 키만 먼저 확인 — 이미 오늘 발송했으면 getStandupData 로드를 아낀다.
@@ -221,4 +258,50 @@ export async function postStandupDigest(db: MockQueDb, now: Date): Promise<boole
   await sendEntry(db, created[0]);
   await db.persist();
   return true;
+}
+
+/** 개인 브리핑 발송 결과 요약(크론 응답용). */
+export interface PersonalDigestCounts {
+  enqueued: number;
+  sent: number;
+  failed: number;
+}
+
+/**
+ * 개인 DM 데일리 브리핑 — active 유저별 하루 1회 아침(9:50~10:30 KST 창). Bot Token 게이트.
+ * dedup_key `personal_digest:<userId>:<YYYY-MM-DD(KST)>`로 유저·날짜당 1건. 10분 주기 크론 지연을
+ * 분 단위 창으로 흡수하되, 창 안 첫 실행이 적재→발송하고 이후 실행은 dedup으로 no-op이 된다.
+ * 8명 순차 발송이 함수 타임아웃에 걸리지 않게 Promise.allSettled로 병렬 발송한다.
+ * 빈 브리핑(전 섹션 0건) 유저는 빌더가 intent를 생략하므로 여기서 enqueue되지 않는다.
+ */
+export async function postPersonalDigests(
+  db: MockQueDb,
+  now: Date,
+): Promise<PersonalDigestCounts> {
+  const empty: PersonalDigestCounts = { enqueued: 0, sent: 0, failed: 0 };
+  if (!personalDigestEnabled()) return empty; // 개인 DM — Bot Token 게이트
+  const minutes = kstMinuteOfDay(now);
+  if (minutes < DIGEST_WINDOW_START_MIN || minutes > DIGEST_WINDOW_END_MIN) return empty;
+
+  try {
+    const intents = buildPersonalDigestIntents(db, now);
+    if (intents.length === 0) return empty;
+    const created = db.enqueueNotifications(intents); // 유저·날짜 dedup — 이미 보낸 유저는 걸러진다
+    if (created.length === 0) return empty; // 오늘분 전부 적재 완료(재실행)
+    await db.persist(); // 적재를 먼저 커밋 — 발송 실패해도 크론 drainOutbox가 재시도
+
+    const results = await Promise.allSettled(created.map((entry) => sendEntry(db, entry)));
+    let sent = 0;
+    let failed = 0;
+    for (const r of results) {
+      if (r.status === "fulfilled" && r.value) sent += 1;
+      else failed += 1;
+    }
+    await db.persist(); // sent/failed 상태 반영
+    return { enqueued: created.length, sent, failed };
+  } catch (error) {
+    // 개인 브리핑 실패가 크론(sync·다른 알림)을 깨지 않게 흡수한다.
+    console.error("[que-notify] postPersonalDigests 실패(무시)", error);
+    return empty;
+  }
 }
