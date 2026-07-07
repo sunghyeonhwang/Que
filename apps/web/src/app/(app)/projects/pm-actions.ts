@@ -9,6 +9,7 @@ import {
 } from "@que/core";
 import { getDb } from "@/lib/db";
 import { getCurrentUser } from "@/lib/current-user";
+import { notifyTaskStatusChanged } from "@/lib/notifications/dispatch";
 import type { ActionResult } from "@/app/(app)/today/actions";
 
 // /projects PM 도구 서버 액션 — core mutation 경유. 카드 = core Task.
@@ -125,10 +126,20 @@ export async function moveTaskAction(input: {
   detail?: StatusDetail;
 }): Promise<ActionResult> {
   const user = await getCurrentUser();
-  return toResult((db) =>
+  try {
+    const db = await getDb();
+    const from = db.tasks.find((t) => t.id === input.taskId)?.status; // 변경 전 status(알림 훅용)
     db.changeTaskStatus(
       { actorId: user.id, via: "web" },
       { taskId: input.taskId, to: input.to, detail: input.detail },
-    ),
-  );
+    );
+    await db.persist();
+    revalidatePath("/projects");
+    // 홀드·문제 열로 이동하면 알림 발송(core 규칙). 발송 실패해도 이동은 유지된다.
+    if (from) await notifyTaskStatusChanged(db, input.taskId, from, input.detail);
+    return { ok: true };
+  } catch (error) {
+    if (isQueRuleError(error)) return { ok: false, error: error.message };
+    throw error;
+  }
 }

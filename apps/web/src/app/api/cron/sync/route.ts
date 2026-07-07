@@ -1,5 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { getDb } from "@/lib/db";
+import { notificationsEnabled } from "@/lib/notifications/config";
+import { drainOutbox, postStandupDigest, scanDeadlines } from "@/lib/notifications/dispatch";
 
 export const dynamic = "force-dynamic";
 
@@ -31,10 +33,43 @@ export async function GET(request: Request) {
   const tasksCreated = db.syncRecurringTemplates(now).length;
   await db.persist();
 
+  // Slack 알림 드레인/스캔/스탠드업. 기존 sync와 분리된 try/catch — 알림 실패가 sync를 깨지 않는다.
+  // SLACK_WEBHOOK_URL 미설정이면 notificationsEnabled()=false → 각 함수가 즉시 no-op.
+  let notifications:
+    | {
+        deadlineEnqueued: number;
+        deadlineSent: number;
+        released: number;
+        drainedSent: number;
+        drainedFailed: number;
+        standupSent: boolean;
+      }
+    | { error: true }
+    | { skipped: true } = { skipped: true };
+  if (notificationsEnabled()) {
+    try {
+      const deadline = await scanDeadlines(db, now);
+      const drained = await drainOutbox(db, now);
+      const standupSent = await postStandupDigest(db, now);
+      notifications = {
+        deadlineEnqueued: deadline.enqueued,
+        deadlineSent: deadline.sent,
+        released: drained.released,
+        drainedSent: drained.sent,
+        drainedFailed: drained.failed,
+        standupSent,
+      };
+    } catch (error) {
+      console.error("[que-cron] 알림 처리 실패(무시)", error);
+      notifications = { error: true };
+    }
+  }
+
   return Response.json({
     ok: true,
     checkInsCreated,
     tasksCreated,
+    notifications,
     at: now.toISOString(),
   });
 }

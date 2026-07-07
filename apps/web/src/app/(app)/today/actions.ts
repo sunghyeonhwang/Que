@@ -15,6 +15,7 @@ import {
 } from "@que/core";
 import { getDb } from "@/lib/db";
 import { getCurrentUser } from "@/lib/current-user";
+import { notifyTaskStatusChanged } from "@/lib/notifications/dispatch";
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
 
@@ -44,7 +45,19 @@ export async function changeTaskStatusAction(input: {
   mergedIntoTaskId?: string;
 }): Promise<ActionResult> {
   const user = await getCurrentUser();
-  return toResult((db) => db.changeTaskStatus({ actorId: user.id, via: "web" }, input));
+  try {
+    const db = await getDb();
+    const from = db.tasks.find((t) => t.id === input.taskId)?.status; // 변경 전 status(알림 훅용)
+    db.changeTaskStatus({ actorId: user.id, via: "web" }, input);
+    await db.persist();
+    revalidatePath("/today");
+    // 커밋 성공 직후 알림 훅. issue/on_hold 전환만 발송되고, 실패해도 상태 변경을 되돌리지 않는다.
+    if (from) await notifyTaskStatusChanged(db, input.taskId, from, input.detail);
+    return { ok: true };
+  } catch (error) {
+    if (isQueRuleError(error)) return { ok: false, error: error.message };
+    throw error;
+  }
 }
 
 /** 병합 대상 후보 — 자기 자신과 종료 상태 작업을 제외한 활성 작업 목록. */
@@ -213,7 +226,21 @@ export async function answerCheckInAction(input: {
   snoozeUntil?: string;
 }): Promise<ActionResult> {
   const user = await getCurrentUser();
-  return toResult((db) => db.answerCheckIn({ actorId: user.id, via: "web" }, input));
+  try {
+    const db = await getDb();
+    // answerCheckIn은 내부에서 changeTaskStatus를 호출한다 — 대상 task와 변경 전 status를 먼저 확보.
+    const checkIn = db.checkIns.find((c) => c.id === input.checkInId);
+    const taskId = checkIn?.taskId;
+    const from = taskId ? db.tasks.find((t) => t.id === taskId)?.status : undefined;
+    db.answerCheckIn({ actorId: user.id, via: "web" }, input);
+    await db.persist();
+    revalidatePath("/today");
+    if (taskId && from) await notifyTaskStatusChanged(db, taskId, from, input.detail);
+    return { ok: true };
+  } catch (error) {
+    if (isQueRuleError(error)) return { ok: false, error: error.message };
+    throw error;
+  }
 }
 
 /** 취소·재배정처럼 여러 운영 화면에 파급되는 변경 뒤에 관련 경로를 함께 무효화한다. */

@@ -4,6 +4,7 @@
 export * from "./domain";
 export * from "./labels";
 export * from "./rules";
+export * from "./notifications";
 export {
   USERS,
   DEFAULT_USER_ID,

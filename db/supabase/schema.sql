@@ -257,6 +257,27 @@ create table if not exists revision_notes (
   updated_by  text references users(id)
 );
 
+-- 알림 아웃박스 — Slack Webhook 발송 원장(B-1 1단계). (add-notifications.sql)
+-- dedup_key UNIQUE가 서버리스 중복 발송 방지의 핵심. 발송/드레인은 크론이 처리.
+create table if not exists notification_outbox (
+  id          text primary key,
+  dedup_key   text not null unique,   -- 이벤트 유일키(issue:/on_hold:/deadline:/standup: 접두). 중복 적재 차단.
+  kind        text not null check (kind in ('issue', 'on_hold', 'deadline', 'standup')),
+  entity_type text not null,
+  entity_id   text not null,
+  recipient   text,                   -- 1단계 팀 채널이라 NULL. 2단계 Bot 개인 멘션 매핑용.
+  payload     jsonb not null,         -- { title, text, deeplinkPath, tone }
+  status      text not null default 'pending'
+                check (status in ('pending', 'held', 'sent', 'skipped', 'failed')),
+  attempts    integer not null default 0 check (attempts >= 0),
+  hold_until  timestamptz,            -- 방해금지 보류 해제 시각. NULL이면 즉시 대상.
+  created_at  timestamptz not null default now(),
+  sent_at     timestamptz
+);
+create index if not exists idx_notification_outbox_status on notification_outbox (status, created_at);
+create index if not exists idx_notification_outbox_hold on notification_outbox (hold_until)
+  where status = 'held';
+
 -- 조회 패턴 기반 인덱스
 create index if not exists idx_tasks_assignee_start on tasks (assignee_id, start_at);
 create index if not exists idx_tasks_project on tasks (project_id);

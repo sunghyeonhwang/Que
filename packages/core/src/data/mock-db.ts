@@ -51,6 +51,7 @@ import {
   parseScheduleRange,
 } from "../rules";
 import type { CalendarProvider } from "../calendar-provider";
+import { dedupKeyFor, type NotificationIntent, type NotificationOutboxEntry } from "../notifications";
 import { createSeed } from "./seed";
 
 // 인메모리 mock DB. 모든 변경(mutation)은 도메인 규칙을 통과해야 하고
@@ -98,6 +99,8 @@ export class MockQueDb implements QueDb {
   taskComments: TaskComment[];
   recurringTemplates: RecurringTemplate[];
   revisionNotes: RevisionNote[];
+  /** Slack 발송 원장(B-1). 시드에 없다 — mutation 훅이 enqueue로 채운다. Supabase 어댑터가 load에서 덮어쓴다. */
+  notificationOutbox: NotificationOutboxEntry[] = [];
 
   private seq = 0;
   private readonly clock: () => Date;
@@ -1950,6 +1953,101 @@ export class MockQueDb implements QueDb {
 
   private meetingNoteOf(item: ActionItem): MeetingNote | undefined {
     return this.meetingNotes.find((n) => n.id === item.meetingNoteId);
+  }
+
+  // ---------- 알림 아웃박스 (Slack 발송 원장, B-1) ----------
+  // mutation과 동일 인스턴스에서 조작하고, 호출부가 이어서 `await db.persist()`로 write-through한다.
+  // 발송/드레인/훅 배선은 web 계층(dispatch·cron)이 담당한다 — core는 원장 CRUD만 제공.
+
+  /**
+   * 발송 의도를 아웃박스에 적재. dedup_key 기준 "ON CONFLICT DO NOTHING" 시맨틱 —
+   * 이미 같은 키가 있으면 무시한다(재요청·크론 재실행 안전). 새로 적재된 항목만 반환한다.
+   * holdUntil을 주면 방해금지 보류 상태(held)로 적재(없으면 pending).
+   */
+  enqueueNotifications(
+    intents: NotificationIntent[],
+    opts?: { holdUntil?: string },
+  ): NotificationOutboxEntry[] {
+    const existing = new Set(this.notificationOutbox.map((e) => e.dedupKey));
+    const created: NotificationOutboxEntry[] = [];
+    for (const intent of intents) {
+      const dedupKey = dedupKeyFor(intent);
+      if (existing.has(dedupKey)) continue; // 이미 있음 → 무시
+      existing.add(dedupKey);
+      const entry: NotificationOutboxEntry = {
+        id: this.nextId("notif"),
+        dedupKey,
+        kind: intent.kind,
+        entityType: intent.entityType,
+        entityId: intent.entityId,
+        recipient: undefined, // 1단계 팀 채널
+        payload: intent.payload,
+        status: opts?.holdUntil ? "held" : "pending",
+        attempts: 0,
+        holdUntil: opts?.holdUntil,
+        createdAt: this.now(),
+      };
+      this.notificationOutbox.push(entry);
+      created.push(entry);
+    }
+    return created;
+  }
+
+  /** 발송 대기(pending) 항목. */
+  pendingNotifications(): NotificationOutboxEntry[] {
+    return this.notificationOutbox.filter((e) => e.status === "pending");
+  }
+
+  /** 방해금지로 보류(held)된 항목. 크론이 hold_until 경과분을 드레인한다. */
+  heldNotifications(): NotificationOutboxEntry[] {
+    return this.notificationOutbox.filter((e) => e.status === "held");
+  }
+
+  /**
+   * 방해금지(quiet hours)로 보류(held)된 항목 중 hold_until이 지난 것을 pending으로 푼다.
+   * 크론 드레인이 먼저 호출해, 방해금지 창이 끝난 알림을 발송 대기로 되돌린다. 푼 항목을 반환한다.
+   * (hold_until이 없는 held는 방어적으로 즉시 해제한다 — 정상 경로에선 항상 hold_until이 있다.)
+   */
+  releaseHeldNotifications(now: Date = new Date()): NotificationOutboxEntry[] {
+    const nowMs = now.getTime();
+    const released: NotificationOutboxEntry[] = [];
+    for (const entry of this.notificationOutbox) {
+      if (entry.status !== "held") continue;
+      if (entry.holdUntil && Date.parse(entry.holdUntil) > nowMs) continue; // 아직 보류 창 안
+      entry.status = "pending";
+      entry.holdUntil = undefined;
+      released.push(entry);
+    }
+    return released;
+  }
+
+  private outboxEntry(id: string): NotificationOutboxEntry {
+    const entry = this.notificationOutbox.find((e) => e.id === id);
+    if (!entry) throw new QueRuleError("NOT_FOUND", `알림 없음: ${id}`);
+    return entry;
+  }
+
+  /** 발송 성공 기록. */
+  markNotificationSent(id: string): NotificationOutboxEntry {
+    const entry = this.outboxEntry(id);
+    entry.status = "sent";
+    entry.sentAt = this.now();
+    return entry;
+  }
+
+  /** 발송 실패 기록(재시도 대상). attempts 증가. */
+  markFailed(id: string): NotificationOutboxEntry {
+    const entry = this.outboxEntry(id);
+    entry.status = "failed";
+    entry.attempts += 1;
+    return entry;
+  }
+
+  /** 발송하지 않기로 함(예: 조건 미충족). */
+  markSkipped(id: string): NotificationOutboxEntry {
+    const entry = this.outboxEntry(id);
+    entry.status = "skipped";
+    return entry;
   }
 
   private logChange(

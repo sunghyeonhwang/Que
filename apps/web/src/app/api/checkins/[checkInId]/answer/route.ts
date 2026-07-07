@@ -2,6 +2,7 @@ import { z } from "zod";
 import { checkInResponseSchema, statusDetailSchema } from "@que/core";
 import { withApi } from "@/lib/api/respond";
 import { getDb } from "@/lib/db";
+import { notifyTaskStatusChanged } from "@/lib/notifications/dispatch";
 
 const bodySchema = z.object({
   response: checkInResponseSchema,
@@ -19,6 +20,10 @@ export async function POST(
     const { checkInId } = await params;
     const body = bodySchema.parse(await request.json());
     const db = await getDb();
+    // answerCheckIn 내부의 changeTaskStatus 전에 대상 task·변경 전 status를 확보(알림 훅용).
+    const existing = db.checkIns.find((c) => c.id === checkInId);
+    const taskId = existing?.taskId;
+    const from = taskId ? db.tasks.find((t) => t.id === taskId)?.status : undefined;
     const checkIn = db.answerCheckIn(
       { actorId: user.id, via },
       {
@@ -29,6 +34,7 @@ export async function POST(
       },
     );
     await db.persist();
+    if (taskId && from) await notifyTaskStatusChanged(db, taskId, from, body.detail);
     return Response.json({ checkIn });
   });
 }

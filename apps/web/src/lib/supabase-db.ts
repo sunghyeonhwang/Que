@@ -5,6 +5,7 @@ import {
   fromRow,
   rowForTable,
   type Milestone,
+  type NotificationOutboxEntry,
   type Project,
 } from "@que/core";
 
@@ -38,6 +39,8 @@ export class SupabaseQueDb extends MockQueDb {
   private readonly client: SupabaseClient;
   /** 로드 시점의 엔티티별 직렬화 스냅샷(테이블→id→JSON). persist가 이 기준으로 diff한다. */
   private baseline: Record<string, Map<string, string>> = {};
+  /** 알림 아웃박스 전용 baseline(id→JSON). 제네릭 TABLE_TO_FIELD 경로를 타지 않는다 — 아래 참조. */
+  private outboxBaseline: Map<string, string> = new Map();
 
   constructor(url: string, key: string, now = new Date()) {
     super(now); // mock 시드로 채워지지만 load()에서 전부 덮어쓴다
@@ -81,7 +84,23 @@ export class SupabaseQueDb extends MockQueDb {
         .filter((m) => m.projectId === p.id)
         .map((m) => m.id);
     }
+    // 알림 아웃박스는 TABLE_TO_FIELD 제네릭 diff 경로를 쓰지 않는다 — 신규 적재는 id(PK)가 아니라
+    // dedup_key ON CONFLICT DO NOTHING으로 써야 서버리스 동시 삽입에서 중복이 안 생긴다. 별도로 로드.
+    await this.loadOutbox();
     this.snapshotBaseline();
+  }
+
+  /** notification_outbox 스냅샷 로드 + 전용 baseline 기록. */
+  private async loadOutbox(): Promise<void> {
+    const { data, error } = await this.client
+      .from("notification_outbox")
+      .select("*")
+      .order("created_at", { ascending: true });
+    if (error) throw new Error(`Supabase load notification_outbox 실패: ${error.message}`);
+    this.notificationOutbox = (data ?? []).map((r) =>
+      fromRow<NotificationOutboxEntry>(r as Record<string, unknown>),
+    );
+    this.outboxBaseline = new Map(this.notificationOutbox.map((e) => [e.id, JSON.stringify(e)]));
   }
 
   private snapshotBaseline(): void {
@@ -122,6 +141,38 @@ export class SupabaseQueDb extends MockQueDb {
         if (error) throw new Error(`Supabase delete ${table} 실패: ${error.message}`);
       }
     }
+    await this.persistOutbox();
     this.snapshotBaseline(); // 같은 요청에서 persist가 여러 번 불릴 때를 대비해 기준 갱신
+  }
+
+  /**
+   * 알림 아웃박스 write-through. 신규(적재)와 변경(상태 전이)을 분리한다.
+   *  - 신규: dedup_key ON CONFLICT DO NOTHING(ignoreDuplicates) — 동시 요청/크론 재실행이 같은 키를 넣어도
+   *    UNIQUE 위반으로 persist가 throw하지 않고 조용히 흡수(중복 발송 방지의 핵심). 삭제는 없음(원장 보존).
+   *  - 변경: 이미 DB에 있는 행(id)의 status/sent_at/attempts 등 → id(PK) upsert.
+   */
+  private async persistOutbox(): Promise<void> {
+    const arr = this.notificationOutbox;
+    const newRows = arr.filter((e) => !this.outboxBaseline.has(e.id));
+    const changed = arr.filter(
+      (e) => this.outboxBaseline.has(e.id) && this.outboxBaseline.get(e.id) !== JSON.stringify(e),
+    );
+    if (newRows.length > 0) {
+      const rows = newRows.map((e) =>
+        rowForTable("notification_outbox", e as unknown as Record<string, unknown>),
+      );
+      const { error } = await this.client
+        .from("notification_outbox")
+        .upsert(rows, { onConflict: "dedup_key", ignoreDuplicates: true });
+      if (error) throw new Error(`Supabase insert notification_outbox 실패: ${error.message}`);
+    }
+    if (changed.length > 0) {
+      const rows = changed.map((e) =>
+        rowForTable("notification_outbox", e as unknown as Record<string, unknown>),
+      );
+      const { error } = await this.client.from("notification_outbox").upsert(rows);
+      if (error) throw new Error(`Supabase upsert notification_outbox 실패: ${error.message}`);
+    }
+    this.outboxBaseline = new Map(arr.map((e) => [e.id, JSON.stringify(e)]));
   }
 }
