@@ -120,6 +120,20 @@ mock 인증: 쿠키 `que-user=<id>` / PAT `que_pat_<id>` (예: `hwang-sunghyeon`
 - **알려진 갭(배치 6 이전 기존 갭·후속 후보)**: `/clients`가 아직 `?client=` 쿼리를 소비하지 않음. 배치 6 범위 밖, 후속 후보로 기록.
 - 검증: dev 서버 부재(`pgrep` exit 1) 확인 후 `pnpm lint`·`pnpm typecheck` 전 패키지 Done · `pnpm build` ✓ 7.3s 오류 0. 스코프 크립·죽은 코드 0, 도메인 규칙 경로(core mutation·StatusDetailForm) 무변경.
 
+## ✅ 접근성·색·정리 마감 감사 배치 8 — 최종 라운드 (2026-07-08)
+
+감사 원문 RWD-3(+RPT-5)·RPT-3·DASH-5·PLAN-5·PLAN-2·PLAN-6·PLAN-7·PLAN-8 최소 diff 구현(P2 2 + P3 6). 표시/접근성/색·죽은 코드 정리 전용 — **core·도메인 파일 diff 0건**, 상태색 의미 고정 준수(색+텍스트/아이콘 병행), 새 mutation 경로 없음. projects/·now/·home/ 무접촉.
+
+- **⚠️ 공용 `ui/` 전역 변경(승인된 예외) — `ui/table.tsx` `TableHead`에 기본 `scope="col"` 부여**(RWD-3/RPT-5): 순수 부가 접근성 속성으로 spread 앞에 두어 개별 `scope` override 가능. 배치 7의 `select size=lg` 예외와 같은 성격(순수 추가·회귀 없음). DESIGN.md §12 'table header/cell 의미 유지' 근거. '공용 ui/ 전역 변경 금지' 가드레일의 **승인된 예외**.
+- **RPT-3 (기한 초과 색 통일)**: `overdue-area-chart.tsx`의 앰버 `#d97706` → red `#e33030`(=`performance-line-chart.tsx`의 '기한 초과' 계열색). gradient id `que-area-amber`→`que-area-overdue`, 주석 갱신. 같은 화면 동일 지표 동일색.
+- **DASH-5 (알림 벨 violet 토큰화)**: `notifications-bell.tsx` `TONE_DOT.violet` `bg-violet-500` → `bg-[var(--que-violet)]`(라이트/다크 토큰 대응).
+- **PLAN-5 (해시 팔레트 violet 제거)**: `schedule/event-color.ts` PALETTE에서 violet 항목 삭제 — violet=회의록/응답대기 예약 의미 보호. pink·teal은 예약 의미 없어 유지(과한 재설계 금지). 해시 분배는 자연 재배치.
+- **PLAN-2 (캘린더 '수정됨' 배지 복원)**: `calendar-data.ts`가 이미 계산하는 `recentlyChanged`(24h)를 라이브 캘린더에 렌더 — `week-calendar.tsx` EventBlock·`schedule/month-chip.tsx`에 텍스트 배지(중립 톤, 색 단독 아님). month-chip의 배치 7 `min-h-10` 유지(회귀 없음).
+- **PLAN-6 (마일스톤 기한 초과 힌트)**: `milestone-list.tsx` `dueAt<now && riskStatus!=='late'`면 배지 옆에 red 텍스트+AlertTriangle 아이콘 '기한 초과'. 리스크 값 자동 변경 없이 시각 힌트만.
+- **PLAN-7 (편집 권한 안내)**: `milestone-list.tsx`·`template-list.tsx` `canManage=false`일 때 '프로젝트 담당자·관리자만 수정할 수 있습니다.' 안내(합니다체). task-status-sheet 선례 패턴.
+- **PLAN-8 (죽은 코드 삭제)**: `components/calendar/` 디렉터리 전체 삭제(month-grid·week-grid·timeline-grid·timeline-vertical·timeline-shared·members-grid·view-switcher·item-chip·drop-cell·drag·use-move). 삭제 전 grep으로 참조 0건 재확인. `app/(app)/calendar/page.tsx`(redirect 셸)는 유지. `components/view/`(별개 디렉터리)는 무관.
+- 검증: dev 서버 부재 확인 후 `lint`·`typecheck` clean · `build` ✓ 6.9s 오류 0.
+
 ## ✅ 터치·권한·폼 마감 감사 배치 7 — 마감 라운드 (2026-07-07)
 
 글래도스 게이트 재심사 배치. 감사 원문 PERM-1·2·3, PLAN-3·4, PROJ-7, DASH-3, RWD-1 최소 diff 구현. 표시/터치/권한/폼/반응형 전용 — **core·도메인 파일 diff 0건**(core mutation·canManage*·changeTaskStatus 무접촉), 상태색 의미 고정 준수(색+아이콘/텍스트 병행), 새 mutation 경로 없음. now/·search·성과 무접촉. 임시파일/죽은 코드 없음. **변경 12개 수정 + 1개 신규 = 13파일**.

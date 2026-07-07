@@ -72,6 +72,11 @@ function TemplateRow({ template }: { template: TemplateListItem }) {
           {template.active ? "끄기" : "켜기"}
         </Button>
       )}
+      {!template.canManage && (
+        <p className="w-full text-xs text-muted-foreground">
+          프로젝트 담당자·관리자만 수정할 수 있습니다.
+        </p>
+      )}
     </div>
   );
 }

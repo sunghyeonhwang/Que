@@ -8,11 +8,11 @@ export interface EventSwatch {
   text: string;
 }
 
-// 카테고리 팔레트 (보라/초록/파랑/분홍/노랑/청록). 값은 globals.css --ev-* 토큰(라이트=파스텔·
+// 카테고리 팔레트 (초록/파랑/분홍/노랑/청록). 값은 globals.css --ev-* 토큰(라이트=파스텔·
 // 다크=어두운 틴트)을 참조 — 소비처(month-view·week-calendar)가 인라인 style이라 var() 해석됨.
 // 일반 이벤트·작업은 id 해시로 안정 배정한다(같은 항목 = 항상 같은 색).
+// violet은 회의록/응답대기 고정 의미(CLAUDE.md §색상)라 일반 항목 해시 팔레트에서 제외한다.
 const PALETTE: EventSwatch[] = [
-  { bg: "var(--ev-violet-bg)", border: "var(--ev-violet-border)", accent: "var(--ev-violet-accent)", text: "var(--ev-violet-text)" },
   { bg: "var(--ev-green-bg)", border: "var(--ev-green-border)", accent: "var(--ev-green-accent)", text: "var(--ev-green-text)" },
   { bg: "var(--ev-blue-bg)", border: "var(--ev-blue-border)", accent: "var(--ev-blue-accent)", text: "var(--ev-blue-text)" },
   { bg: "var(--ev-pink-bg)", border: "var(--ev-pink-border)", accent: "var(--ev-pink-accent)", text: "var(--ev-pink-text)" },

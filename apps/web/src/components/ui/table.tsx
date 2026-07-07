@@ -69,6 +69,8 @@ function TableHead({ className, ...props }: React.ComponentProps<"th">) {
   return (
     <th
       data-slot="table-head"
+      // 기본 scope="col"로 스크린리더에 열 헤더-셀 관계를 명시. row header가 필요한 곳은 props로 override.
+      scope="col"
       className={cn(
         "h-10 px-2 text-left align-middle font-medium whitespace-nowrap text-foreground [&:has([role=checkbox])]:pr-0",
         className

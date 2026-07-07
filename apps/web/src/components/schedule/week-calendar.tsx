@@ -248,6 +248,12 @@ function EventBlock({ pos }: { pos: PositionedItem }) {
         {!item.movable && (
           <Lock className="size-3 shrink-0" style={{ color: swatch.accent }} aria-hidden />
         )}
+        {item.recentlyChanged && (
+          // 최근 24h 내 변경(ChangeLog 투명성) — 색 단독이 아닌 텍스트 배지.
+          <span className="ml-auto shrink-0 rounded-sm bg-[var(--que-bg)]/70 px-1 py-px text-[9px] font-medium text-[var(--que-text-tertiary)]">
+            수정됨
+          </span>
+        )}
       </div>
       <div
         className={cn(

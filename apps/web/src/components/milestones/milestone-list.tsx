@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
+import { AlertTriangle } from "lucide-react";
 import { updateMilestoneAction } from "@/app/(app)/planning/actions";
 import { useSafeAction } from "@/components/app/use-safe-action";
 import { ToneBadge, type BadgeTone } from "@/components/app/tone-badge";
@@ -47,6 +48,9 @@ function MilestoneRowItem({ milestone: m }: { milestone: MilestoneRow }) {
   const [title, setTitle] = useState(m.title);
   const [dueAt, setDueAt] = useState(toLocalInput(m.dueAt));
 
+  // 기한이 지났는데 리스크가 아직 '지연'이 아니면 시각 힌트만 덧붙인다(리스크 값 자동 변경 안 함).
+  const overdue = new Date(m.dueAt) < new Date() && m.riskStatus !== "late";
+
   const changeRisk = (risk: Risk) => {
     run(() => updateMilestoneAction({ milestoneId: m.id, riskStatus: risk }), {
       success: "위험 상태를 바꿨습니다.",
@@ -75,6 +79,12 @@ function MilestoneRowItem({ milestone: m }: { milestone: MilestoneRow }) {
           </p>
         </div>
         <ToneBadge tone={RISK[m.riskStatus].tone}>{RISK[m.riskStatus].label}</ToneBadge>
+        {overdue && (
+          <span className="flex items-center gap-1 text-xs font-medium text-[var(--que-error)]">
+            <AlertTriangle className="size-3.5" aria-hidden />
+            기한 초과
+          </span>
+        )}
         {m.canManage && (
           <div className="flex items-center gap-1.5">
             <Select
@@ -105,6 +115,11 @@ function MilestoneRowItem({ milestone: m }: { milestone: MilestoneRow }) {
               {editing ? "닫기" : "수정"}
             </Button>
           </div>
+        )}
+        {!m.canManage && (
+          <p className="text-xs text-[var(--que-text-tertiary)]">
+            프로젝트 담당자·관리자만 수정할 수 있습니다.
+          </p>
         )}
       </div>
 

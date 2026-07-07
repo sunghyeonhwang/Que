@@ -10,7 +10,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 const TONE_DOT: Record<AlertTone, string> = {
   red: "bg-[var(--que-error)]",
   amber: "bg-[var(--que-warning)]",
-  violet: "bg-violet-500",
+  violet: "bg-[var(--que-violet)]",
 };
 
 /** 상단바 알림 — 운영 신호(문제/기한초과/확인필요/결제)를 목록으로 보여주고 각 화면으로 이동. */

@@ -29,6 +29,12 @@ export function MonthChip({ item }: { item: CalendarViewItem }) {
           {format(new Date(item.startAt), "H:mm")}
         </span>
         <span className="truncate">{item.title}</span>
+        {item.recentlyChanged && (
+          // 최근 24h 내 변경(ChangeLog 투명성) — 색 단독이 아닌 텍스트 배지.
+          <span className="ml-auto shrink-0 rounded-sm bg-[var(--que-bg-muted)] px-1 py-px text-[9px] font-normal text-[var(--que-text-tertiary)]">
+            수정됨
+          </span>
+        )}
       </div>
     </EventDetailPopover>
   );
