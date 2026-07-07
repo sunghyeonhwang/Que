@@ -69,7 +69,11 @@ mock 인증: 쿠키 `que-user=<id>` / PAT `que_pat_<id>` (예: `hwang-sunghyeon`
 
 ## ✅ Slack Phase 2 — 개인 DM 데일리 브리핑 (2026-07-07)
 
-> B-1(팀 채널) 위에 **개인별 DM** 추가. 매일 **KST 9:50~10:30 창**, 각 active 팀원에게 본인 **오늘 작업·막힘·마감·담당 마일스톤 위험** 4섹션 DM. **빌드 완료·미활성**(`SLACK_BOT_TOKEN` 미설정이라 게이트로 비활성 → 현 프로덕션 동작 변화 0). 로드맵 C-2 1차.
+> B-1(팀 채널) 위에 **개인별 DM** 추가. 매일 **KST 9:50~10:30 창**, 각 active 팀원에게 본인 **오늘 작업·막힘·마감·담당 마일스톤 위험** 4섹션 DM. **✅ 활성화 완료·전체 라이브 (2026-07-07)**: `SLACK_BOT_TOKEN`(Bot `que_alarm`, GRIFF 워크스페이스) 설정, **8명 전원 이메일→Slack ID 매핑 확인**, 송수용·황성현 실 DM 발송 검증 후 전체 롤아웃(첫 자동 발송 = 익일 KST 9:50). 로드맵 C-2 1차.
+>
+> **⚠️ 활성화 중 실버그 1건 수정(커밋 `dd0b3e0`)**: Slack Web API를 JSON 바디로 호출하면 `users.lookupByEmail`이 `invalid_arguments`(read 메서드는 JSON 미수용) → **매핑 전량 실패**할 뻔. `slack-bot.ts slackApi`를 **form-urlencoded**로 변경(attachments 등 객체 필드는 JSON 문자열 인코딩 — read/write 모두 동작). 임시 검증 라우트가 포착.
+>
+> **단계적 롤아웃 메커니즘**: `QUE_DIGEST_RECIPIENTS`(콤마구분 userId) env 설정 시 그 유저만 수신(테스트/부분 롤아웃), 미설정=전체 active. `config.digestRecipientAllowlist` + personal-digest 필터. (테스트 때 2명으로 제한 후 해제해 전체 켬.)
 
 - **인프라 재사용**: B-1 outbox/dedup/cron 그대로. `recipient` 컬럼(=Que userId 저장, 발송 직전 Slack ID 해석)에 개인 수신자를 담고, `sendEntry`가 recipient/kind=personal_digest면 **Bot DM**, 아니면 팀채널 Webhook으로 분기.
 - **게이트 분리(중요)**: 팀채널(issue/on_hold/deadline/standup)=`webhookEnabled()`(SLACK_WEBHOOK_URL), 개인DM=`personalDigestEnabled()`(SLACK_BOT_TOKEN). `notificationsEnabled()`=either는 **크론 진입 게이트일 뿐** — 각 경로가 자기 크레덴셜로 개별 판정(한쪽만 설정돼도 다른 쪽 안 죽음). `drainOutbox`는 항목별 `channelReady` 필터로 크레덴셜 없는 채널을 헛failed 안 만듦.
@@ -81,6 +85,13 @@ mock 인증: 쿠키 `que-user=<id>` / PAT `que_pat_<id>` (예: `hwang-sunghyeon`
 - **검증**: typecheck·lint·core test(209)·build 통과, 글래도스 승인(유출 1건 수정 후). 실발송은 토큰 설정 후 익일 검증.
 - **비차단 후속(글래도스)**: TONE_COLOR 중복(slack.ts↔slack-bot.ts) export 공유 · personal-digest kstDateKey export 미사용 · dayStart 서버TZ 기준(today-data 패턴, KST 정규화 장기과제) · sendEntry의 `recipient` 분기에 "팀 kind에 recipient 싣지 말 것" 주석.
 - **C-2b(별도)**: Slack 버튼으로 Slack에서 바로 체크인 응답(서명검증·인터랙티브) — 이번 제외.
+
+### 🔜 Phase 3 (계획·미착수, 2026-07-07 사용자 요청) — 할일 생성 시 담당자 DM
+- **목표**: **할일(Task)을 생성하면 그 즉시 담당자(assignee)에게 개인 DM**으로 새 할일을 알린다(스탠드업/브리핑처럼 배치가 아니라 **생성 이벤트 즉시**).
+- **DM 내용 필드**(사용자 지정): **클라이언트 · 프로젝트 · 상태 · 우선순위 · 제목 · 시작일 · 마감일** + Que 딥링크.
+- **재사용**: Phase 2 Bot DM 인프라 그대로 — core intent(신규 kind 예 `task_created`) + `slack-bot.postDmToSlack`(form-encoded 수정본) + outbox(recipient=assigneeId, dedup `task_created:<taskId>`) + `resolveSlackUserId`(8명 매핑 완료·backfill됨). 발송 로직·게이트(personalDigestEnabled=SLACK_BOT_TOKEN)·실패격리 재사용.
+- **이벤트 훅**: `createTask`(또는 자연어등록 확정) **커밋(persist) 성공 직후** — B-1 status 훅(notifyTaskStatusChanged) 패턴 동일. web 서버액션 + `/api/tasks`(MCP/CLI) 생성 경로 전수. 담당자 없거나 본인 생성=본인 담당이면 발송 여부 결정 필요(도메인 규칙: 담당자 없는 Action은 Task 자동생성 안 함 참고).
+- **확인 필요(착수 전)**: 방해금지(22-8) 창 안 생성 시 hold vs 즉시 · 본인이 본인에게 할당한 생성도 DM 보낼지 · 대량 생성(반복템플릿 회차) 시 묶음/억제 여부.
 
 ## ✅ Slack 알림 B-1 (1단계 · 알림·스탠드업) (2026-07-07)
 
