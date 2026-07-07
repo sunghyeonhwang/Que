@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ExternalLink, Terminal, Bot, KeyRound, ShieldCheck, MessageSquareQuote } from "lucide-react";
+import { ExternalLink, Terminal, Bot, KeyRound, ShieldCheck, MessageSquareQuote, Download } from "lucide-react";
 import { emailForUser } from "@que/core";
 import { PageHeader } from "@/components/app/page-header";
 import { CopyBlock } from "@/components/tools/copy-block";
@@ -90,6 +90,41 @@ export default async function ToolsPage() {
             에서 <b className="font-semibold text-[var(--que-text)]">직접 발급</b>하세요(발급 순간 1회만 표시).
             로컬 개발용 mock 토큰 형식은 <code className="rounded bg-[var(--que-bg)] px-1 py-0.5 text-xs">{mockToken}</code> 입니다(프로덕션에선 통하지 않음).
           </div>
+        </Card>
+
+        {/* 사전 준비 */}
+        <Card icon={Download} title="사전 준비 (최초 1회)">
+          <p className="mb-3 text-sm text-[var(--que-text-secondary)]">
+            아래 CLI·MCP 명령을 쓰려면 <b className="font-semibold text-[var(--que-text)]">Node.js · pnpm · git</b>이 필요합니다.
+            터미널을 열고 <b className="font-semibold text-[var(--que-text)]">본인 OS 블록만</b> 복사·붙여넣기 하세요.
+            이미 설치돼 있으면 건너뛰어도 됩니다.
+          </p>
+          <div className="flex flex-col gap-3">
+            <CopyBlock
+              label="macOS (터미널)"
+              code={`# 1) Homebrew (이미 있으면 이 줄은 생략)
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
+# 2) Node·git 설치 + pnpm 활성화
+brew install node git
+corepack enable`}
+            />
+            <CopyBlock
+              label="Windows (PowerShell)"
+              code={`# winget (Windows 10/11 기본 제공)
+winget install OpenJS.NodeJS Git.Git
+corepack enable`}
+            />
+            <CopyBlock
+              label="설치 확인 (버전이 뜨면 성공)"
+              code={`node -v
+pnpm -v
+git --version`}
+            />
+          </div>
+          <p className="mt-2 text-xs text-[var(--que-text-tertiary)]">
+            ※ 설치 후 <b className="font-medium text-[var(--que-text-secondary)]">터미널 창을 새로 여세요</b>(경로 반영). 버전이 안 뜨면 재설치하거나 관리자에게 문의하세요.
+          </p>
         </Card>
 
         {/* CLI */}
