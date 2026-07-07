@@ -43,17 +43,20 @@ export const MENU_SECTIONS: MenuSection[] = [
   {
     label: "메뉴",
     items: [
+      // 순서: 실행(할 일·프로젝트·일정) → 운영(팀 현황·회의록·반복) → 분석/참조(성과·팀).
+      // 매일 쓰는 화면을 상단으로. (2026-07-07 UX 감사 IA 재정렬)
       { href: "/home", label: "홈", icon: Home },
-      { href: "/schedule", label: "일정", icon: Calendar },
-      { href: "/heatmap", label: "성과", icon: ChartColumn },
+      // 작업 목록(/today·/now) — 팀원·관리자 공통 daily 진입점이라 홈 다음 최상단.
       {
         href: "/today",
         label: "작업 목록",
         icon: ListChecks,
         match: ["/today", "/now"],
       },
-      { href: "/members", label: "팀", icon: Users },
-      // 팀 현황(/team) — 스탠드업·[관리자]리포트·운영보드. 재설계 IA에서 누락됐던 핵심 운영 화면 복귀.
+      // 프로젝트 PM 도구 — 보드(status 4열)/목록/캘린더. 카드=core Task. 전원 노출(쓰기는 카드별 권한).
+      { href: "/projects", label: "프로젝트", icon: FolderKanban },
+      { href: "/schedule", label: "일정", icon: Calendar },
+      // 팀 현황(/team) — 스탠드업·[관리자]리포트·운영보드. 관리자·팀장 상시 사용 핵심 운영 화면.
       { href: "/team", label: "팀 현황", icon: LayoutDashboard },
       {
         href: "/meeting-notes",
@@ -63,8 +66,10 @@ export const MENU_SECTIONS: MenuSection[] = [
       },
       // 반복 업무 템플릿(Task 자동 생성) + 프로젝트 마일스톤 관리. 백엔드는 기존 완성분 재연결.
       { href: "/planning", label: "반복·마일스톤", icon: Milestone },
-      // 프로젝트 PM 도구 — 보드(status 4열)/목록/캘린더. 카드=core Task. 전원 노출(쓰기는 카드별 권한).
-      { href: "/projects", label: "프로젝트", icon: FolderKanban },
+      // 성과(/heatmap) — 분석 화면(비-daily)이라 실행 화면들 아래로.
+      { href: "/heatmap", label: "성과", icon: ChartColumn },
+      // 팀(/members) — 조회 전용, 분석/참조 성격이라 하단.
+      { href: "/members", label: "팀", icon: Users },
     ],
   },
   {
