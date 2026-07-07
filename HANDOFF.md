@@ -83,6 +83,17 @@ mock 인증: 쿠키 `que-user=<id>` / PAT `que_pat_<id>` (예: `hwang-sunghyeon`
 - 검증: dev 서버 부재 확인(`pgrep -fl "next dev"` 0건) 후 실행 — `pnpm lint` clean · `pnpm -r typecheck` Done · `pnpm build` exit 0(전 라우트 정상, `/schedule` 포함). `git status` 위 파일만 M/신규.
 - 비차단 메모: (1) 월간 `dayItems.slice(0,3)` 상한에 마일스톤 미산입 — 셀 소폭 성장하나 grid minmax+overflow-auto로 파괴 없음, (2) 키워드/우선순위 필터는 마일스톤 미적용(수용 가능한 설계), (3) AUTH_SECRET 미설정으로 해상도별 시각 검증 미수행 — 복구 후 1024x768 주간 밴드 확인 권장.
 
+## ✅ /now(작업목록·Now 운영표) 감사 배치 4 — 조치 가능화 (2026-07-07)
+
+글래도스 게이트 재심사 배치. 회의 Action·캘린더 일정이 실제 Que 작업과 연결됐는지 확인하고 바로 조치하도록 Now 운영표를 표시/조치 가능화. 표시·데이터 스코핑 전용, 새 mutation 경로 없음(상태변경은 기존 `changeTaskStatusAction`→`db.changeTaskStatus`→`assertCanEditTask`+`assertStatusDetail` 사슬 재사용). 상태색 의미 고정 준수. 변경 파일 3개: `apps/web/src/app/(app)/now/page.tsx`, `apps/web/src/lib/now-data.ts`, `apps/web/src/components/app/status-badge.tsx`.
+
+- **행 조치 어포던스**: 항목 셀을 행 유형별로 분기 — (a) Que 작업(taskStatus 보유)=`TaskStatusSheet` 상세/상태변경/댓글(comments·canEdit 포함, team/page.tsx와 데이터 계약 일치), (b) 회의록 Action(noteId 보유)=`/action?note=` 링크로 해당 회의록 필터 진입, (c) 회사/개인 일정(event)=읽기 전용 텍스트(클릭 불가 유지).
+- **터치 대상(재심사 블로커 1 수정)**: 트리거를 제목 텍스트에만 걸던 방식(세로 히트박스 ~20px)을 **/today 정본 패턴(`my-task-table.tsx:83-88` absolute inset-0 + sr-only 라벨)으로 교체**. `TableRow`에 `relative`, 보이는 제목은 별도 `span`, 트리거(TaskStatusSheet/Link)는 `absolute inset-0`로 행 전체를 덮어 터치 40px+ 확보. TaskStatusSheet·Action 링크 모두 동일 적용. event 행은 트리거 없음.
+- **KPI 카드**: `issueHold`=`/now?filter=issue`, `missingAssignee`=`/action`로 링크(화살표 `→`+hover 통일). 일정 충돌은 amber 경고 스타일(색 단독 금지 — 라벨 텍스트 병행).
+- **표 내부 스크롤**: wrapper `max-h-[calc(100dvh-22rem)] overflow-auto` + `sticky top-0` 헤더(페이지 레이아웃 비파괴).
+- **ActionStatusBadge 신설**(`status-badge.tsx`): 회의록 Action 상태를 아이콘+라벨로 표시(`needs_review`=destructive 유지, 새 색 의미 도입 없음). ignored 배지는 secondary→outline+dim(중립 톤, 색 의미 위반 아님).
+- 검증: dev 서버 부재 확인(`pgrep -fl "next dev"` 0건) 후 lint·typecheck·build 통과. QA는 AUTH_SECRET dev 서버 + 3계정(admin 2·member 1) 실 로그인으로 행 클릭 Sheet·canEdit 뷰어별 분기·Action 링크·KPI 카드 링크·내부 스크롤을 실측. 글래도스는 도메인 규칙 위반 3건(비담당자 수정·사유 없는 issue/hold 전환)을 직접 주입해 전부 차단 확인 + core 테스트 209 통과. `git status` 위 3개 파일만 변경.
+
 ### 반드시 지킬 규칙 / 함정
 - **⚠️ 임시 "발송" 검증 라우트 + Vercel 빌드캐시 사고(2026-07-07)**: 개인 DM 검증용 임시 라우트(`/api/digest-check`)가 **매 호출마다 발송(dedup 없음)**이었는데, ① 배포 상태 폴링으로 그 라우트를 **인증 호출로 여러 번 때려** 팀에 중복 DM이 갔고, ② git에서 라우트를 지웠는데도 **Vercel Turbopack 빌드캐시가 삭제된 라우트를 잔존**시켜 계속 200을 반환했다. 교훈: **(a) 임시 발송 엔드포인트는 반드시 dedup/1회 가드**를 넣고, **(b) 발송 트리거 엔드포인트를 상태폴링으로 반복 호출하지 말 것**(`-o /dev/null`이어도 서버는 실행됨), **(c) 라우트/파일 삭제가 배포에 반영 안 되면 `vercel --prod --force`(캐시 무시)로 강제 재빌드**.
 - **dev 서버 켜진 동안 `pnpm build` 금지** (같은 `.next` 공유로 캐시 오염). build 전 dev 종료.

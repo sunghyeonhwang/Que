@@ -1,4 +1,5 @@
 import {
+  canEditTask,
   canViewMeetingNote,
   canViewPrivateEventDetail,
   type ActionItemStatus,
@@ -24,6 +25,16 @@ export interface NowRow {
   source: string;
   mine: boolean;
   attention: boolean;
+  // --- 행 클릭 상세 Sheet(TaskStatusSheet)용 — Que 작업 행에만 채워진다 ---
+  taskId?: string;
+  assigneeId?: string;
+  projectId?: string;
+  endAt?: string;
+  description?: string;
+  /** 뷰어가 이 작업을 수정할 수 있는지(core canEditTask). Sheet가 편집 UI 노출을 결정. */
+  canEdit?: boolean;
+  // --- Action 행 상세 이동용 — 해당 회의록 필터로 링크 ---
+  noteId?: string;
 }
 
 export interface NowData {
@@ -59,6 +70,7 @@ export async function getNowData(
 
   const userById = new Map(db.users.map((u) => [u.id, u]));
   const noteById = new Map(db.meetingNotes.map((n) => [n.id, n]));
+  const projectById = new Map(db.projects.map((p) => [p.id, p]));
 
   const taskRows: NowRow[] = clientTasks
     .filter(
@@ -75,6 +87,16 @@ export async function getNowData(
       source: task.source === "action_item" ? "회의록 Action" : "Que 캘린더",
       mine: task.assigneeId === viewer.id || task.ownerId === viewer.id,
       attention: task.status === "issue" || task.status === "on_hold",
+      taskId: task.id,
+      assigneeId: task.assigneeId,
+      projectId: task.projectId,
+      endAt: task.endAt,
+      description: task.description,
+      canEdit: canEditTask(
+        viewer,
+        task,
+        task.projectId ? projectById.get(task.projectId) : undefined,
+      ),
     }));
 
   const eventRows: NowRow[] = db.calendarEvents
@@ -110,6 +132,7 @@ export async function getNowData(
       source: noteById.get(item.meetingNoteId)?.fileName ?? item.meetingNoteId,
       mine: item.assigneeId === viewer.id,
       attention: item.status === "needs_review",
+      noteId: item.meetingNoteId,
     }));
 
   let rows = [...taskRows, ...eventRows, ...actionRows].sort((a, b) =>

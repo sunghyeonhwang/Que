@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
-import { ACTION_ITEM_STATUS_LABELS } from "@que/core";
 import { PageHeader } from "@/components/app/page-header";
 import { TaskTabs } from "@/components/app/task-tabs";
-import { StatusBadge } from "@/components/app/status-badge";
+import { ActionStatusBadge, StatusBadge } from "@/components/app/status-badge";
+import { TaskStatusSheet, type TaskRowData } from "@/components/app/task-status-sheet";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/table";
 import { buttonVariants } from "@/components/ui/button";
 import { getClientFilter } from "@/lib/client-filter";
+import { getCommentViewsByTask } from "@/lib/comments";
 import { getCurrentUser } from "@/lib/current-user";
 import { getNowData, type NowFilter } from "@/lib/now-data";
 import { cn } from "@/lib/utils";
@@ -44,13 +45,14 @@ export default async function NowPage({
   const clientId = await getClientFilter();
   const now = new Date();
   const data = await getNowData(user, filter, now, clientId);
+  const commentsByTask = await getCommentViewsByTask();
 
   const metrics = [
     { value: data.summary.calendarCount, label: "오늘 캘린더 항목" },
     { value: data.summary.actionCount, label: "Action 후보" },
-    { value: data.summary.issueHold, label: "문제/홀드" },
+    { value: data.summary.issueHold, label: "문제/홀드", href: "/now?filter=issue" },
     { value: data.summary.dueToday, label: "오늘 마감" },
-    { value: data.summary.missingAssignee, label: "담당자 확인 필요" },
+    { value: data.summary.missingAssignee, label: "담당자 확인 필요", href: "/action" },
     {
       value: data.summary.scheduleConflicts,
       label: "일정 충돌",
@@ -111,7 +113,7 @@ export default async function NowPage({
             <Link
               key={metric.label}
               href={metric.href}
-              aria-label={`${metric.label} ${metric.value}건 · 팀 현황 충돌 목록 보기`}
+              aria-label={`${metric.label} ${metric.value}건 · 목록 보기`}
               className="block rounded-xl transition-colors hover:bg-[var(--que-bg-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               {card}
@@ -138,7 +140,7 @@ export default async function NowPage({
         ))}
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-[var(--que-border)] bg-[var(--que-bg)]">
+      <div className="max-h-[calc(100dvh-22rem)] overflow-auto rounded-xl border border-[var(--que-border)] bg-[var(--que-bg)]">
         <Table className="min-w-[720px]">
           <TableHeader className="sticky top-0 z-10 bg-[var(--que-bg)] [&_tr]:border-b [&_tr]:border-[var(--que-border)]">
             <TableRow className="hover:bg-transparent">
@@ -158,44 +160,88 @@ export default async function NowPage({
                 </TableCell>
               </TableRow>
             )}
-            {data.rows.map((row) => (
-              <TableRow
-                key={row.key}
-                className="border-[var(--que-border)] transition-colors hover:bg-[var(--que-bg-muted)]"
-              >
-                <TableCell className="h-12 tabular-nums">
-                  {row.at ? format(new Date(row.at), "HH:mm") : "—"}
-                  {row.at && (
-                    <span className="block text-xs text-[var(--que-text-tertiary)]">
-                      {format(new Date(row.at), "M/d")}
-                    </span>
-                  )}
-                </TableCell>
-                <TableCell>
-                  <Badge variant={row.kind === "action" ? "outline" : "secondary"}>
-                    {row.kind === "action" ? "Action" : "Calendar"}
-                  </Badge>
-                </TableCell>
-                <TableCell className="max-w-64">
+            {data.rows.map((row) => {
+              // 항목 셀은 행 유형에 따라 클릭 어포던스를 다르게 준다:
+              // - Que 작업(taskStatus 보유) → TaskStatusSheet로 상세·상태변경·댓글
+              // - 회의록 Action → 해당 회의록 필터(/action?note=...)로 이동
+              // - 회사/개인 일정(event) → 클릭 대상 아님(읽기 전용 텍스트)
+              // 트리거는 /today 정본 패턴(my-task-table.tsx)과 동일하게 행 전체(absolute inset-0)를
+              // 덮어 터치 대상 40px+를 확보한다. 보이는 제목은 별도 span, 트리거는 sr-only 라벨.
+              const titleCell = row.taskId ? (
+                <>
                   <span className="block truncate font-medium">{row.title}</span>
-                </TableCell>
-                <TableCell>
-                  {row.assigneeName ?? (
-                    <span className="text-[var(--que-error)]">미지정</span>
-                  )}
-                </TableCell>
-                <TableCell>
-                  {row.taskStatus && <StatusBadge status={row.taskStatus} />}
-                  {row.actionStatus && (
-                    <Badge variant={row.actionStatus === "needs_review" ? "destructive" : "secondary"}>
-                      {ACTION_ITEM_STATUS_LABELS[row.actionStatus]}
+                  <TaskStatusSheet
+                    task={
+                      {
+                        id: row.taskId,
+                        title: row.title,
+                        status: row.taskStatus!,
+                        timeText: row.at
+                          ? `${format(new Date(row.at), "HH:mm")}${
+                              row.endAt ? `–${format(new Date(row.endAt), "HH:mm")}` : ""
+                            }`
+                          : "",
+                        metaText: row.description,
+                        startAt: row.at,
+                        endAt: row.endAt,
+                        projectId: row.projectId,
+                        assigneeId: row.assigneeId,
+                        assigneeName: row.assigneeName,
+                        comments: commentsByTask.get(row.taskId) ?? [],
+                        canEdit: row.canEdit,
+                      } satisfies TaskRowData
+                    }
+                    triggerClassName="absolute inset-0 z-0 rounded-md focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
+                  >
+                    <span className="sr-only">{row.title} 상세 열기</span>
+                  </TaskStatusSheet>
+                </>
+              ) : row.kind === "action" && row.noteId ? (
+                <>
+                  <span className="block truncate font-medium">{row.title}</span>
+                  <Link
+                    href={`/action?note=${row.noteId}`}
+                    className="absolute inset-0 z-0 rounded-md focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
+                  >
+                    <span className="sr-only">{row.title} 회의록 열기</span>
+                  </Link>
+                </>
+              ) : (
+                <span className="block truncate font-medium">{row.title}</span>
+              );
+              return (
+                <TableRow
+                  key={row.key}
+                  className="relative border-[var(--que-border)] transition-colors hover:bg-[var(--que-bg-muted)]"
+                >
+                  <TableCell className="h-12 tabular-nums">
+                    {row.at ? format(new Date(row.at), "HH:mm") : "—"}
+                    {row.at && (
+                      <span className="block text-xs text-[var(--que-text-tertiary)]">
+                        {format(new Date(row.at), "M/d")}
+                      </span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={row.kind === "action" ? "outline" : "secondary"}>
+                      {row.kind === "action" ? "Action" : "Calendar"}
                     </Badge>
-                  )}
-                  {row.eventLabel && <Badge variant="outline">{row.eventLabel}</Badge>}
-                </TableCell>
-                <TableCell className="text-xs text-[var(--que-text-tertiary)]">{row.source}</TableCell>
-              </TableRow>
-            ))}
+                  </TableCell>
+                  <TableCell className="max-w-64">{titleCell}</TableCell>
+                  <TableCell>
+                    {row.assigneeName ?? (
+                      <span className="text-[var(--que-error)]">미지정</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {row.taskStatus && <StatusBadge status={row.taskStatus} />}
+                    {row.actionStatus && <ActionStatusBadge status={row.actionStatus} />}
+                    {row.eventLabel && <Badge variant="outline">{row.eventLabel}</Badge>}
+                  </TableCell>
+                  <TableCell className="text-xs text-[var(--que-text-tertiary)]">{row.source}</TableCell>
+                </TableRow>
+              );
+            })}
           </TableBody>
         </Table>
       </div>
