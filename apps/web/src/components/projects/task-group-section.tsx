@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ChevronDown, Plus, Lock } from "lucide-react";
+import { ChevronDown, Plus, Lock, AlertTriangle } from "lucide-react";
 import type { BoardColumn } from "@/lib/projects-data";
 import { TONE_STYLE, COLUMN_TONE } from "@/lib/pm-columns";
 import { IconButton } from "@/components/app/icon-button";
@@ -120,8 +120,19 @@ export function TaskGroupSection({
                     {card.title}
                   </span>
                 </div>
-                <span className="hidden text-sm text-[var(--que-text-secondary)] md:block">
+                <span
+                  className={cn(
+                    "hidden items-center gap-1 text-sm md:flex",
+                    card.isOverdue
+                      ? "font-medium text-[var(--que-error)]"
+                      : "text-[var(--que-text-secondary)]",
+                  )}
+                >
+                  {card.isOverdue ? (
+                    <AlertTriangle className="size-3.5 shrink-0" aria-hidden />
+                  ) : null}
                   {card.dueLabel ?? "-"}
+                  {card.isOverdue ? <span className="sr-only">(기한 초과)</span> : null}
                 </span>
                 <span>
                   <PriorityBadge priority={card.priority} />

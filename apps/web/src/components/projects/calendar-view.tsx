@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
+import { AlertTriangle, CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
 import type { CalendarCard, CalendarDay, ProjectCalendar } from "@/lib/projects-data";
 import { STATUS_TONE, TONE_STYLE } from "@/lib/pm-columns";
 import { buttonVariants } from "@/components/ui/button";
@@ -158,12 +158,23 @@ function TaskPill({ card, href }: { card: CalendarCard; href: string }) {
     <Link
       href={href}
       scroll={false}
-      aria-label={`${card.title} 상세 열기`}
-      className="flex items-center gap-1.5 rounded-md px-1.5 py-1 text-xs text-[var(--que-text)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--que-brand)]"
+      aria-label={`${card.title} 상세 열기${card.isOverdue ? " (기한 초과)" : ""}`}
+      className={cn(
+        "flex items-center gap-1.5 rounded-md px-1.5 py-1 text-xs text-[var(--que-text)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--que-brand)]",
+        card.isOverdue && "ring-1 ring-[var(--que-error)] ring-inset",
+      )}
       style={{ backgroundColor: tone.tint }}
-      title={card.title}
+      title={card.isOverdue ? `${card.title} (기한 초과)` : card.title}
     >
-      <span className="size-1.5 shrink-0 rounded-full" style={{ backgroundColor: tone.dot }} aria-hidden />
+      {card.isOverdue ? (
+        <AlertTriangle className="size-3 shrink-0 text-[var(--que-error)]" aria-hidden />
+      ) : (
+        <span
+          className="size-1.5 shrink-0 rounded-full"
+          style={{ backgroundColor: tone.dot }}
+          aria-hidden
+        />
+      )}
       <span className="truncate">{card.title}</span>
     </Link>
   );

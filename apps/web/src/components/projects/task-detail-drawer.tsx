@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
+  AlertTriangle,
   CalendarDays,
   Circle,
   Flag,
@@ -54,6 +55,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { TaskComments } from "@/components/app/task-comments";
 import { MemberAvatars } from "./member-avatars";
 import { BlockedStatusDialog, type BlockedStatus } from "./blocked-status-dialog";
 import { cn } from "@/lib/utils";
@@ -331,15 +333,34 @@ function DrawerBody({
 
           <FieldRow icon={<CalendarDays className="size-4" aria-hidden />} label="마감일">
             {canEdit ? (
-              <Input
-                type="date"
-                value={dueDate}
-                onChange={(e) => setDueDate(e.target.value)}
-                aria-label="마감일"
-                className="h-10 min-h-10 border-[var(--que-border)]"
-              />
+              <div className="w-full">
+                <Input
+                  type="date"
+                  value={dueDate}
+                  onChange={(e) => setDueDate(e.target.value)}
+                  aria-label="마감일"
+                  className="h-10 min-h-10 border-[var(--que-border)]"
+                />
+                {detail.isOverdue ? (
+                  <p className="mt-1 flex items-center gap-1 text-xs font-medium text-[var(--que-error)]">
+                    <AlertTriangle className="size-3.5 shrink-0" aria-hidden />
+                    기한이 지났습니다.
+                  </p>
+                ) : null}
+              </div>
             ) : (
-              <span className="text-sm text-[var(--que-text)]">{detail.dueLabel ?? "미정"}</span>
+              <span
+                className={cn(
+                  "flex items-center gap-1.5 text-sm text-[var(--que-text)]",
+                  detail.isOverdue && "font-medium text-[var(--que-error)]",
+                )}
+              >
+                {detail.isOverdue ? (
+                  <AlertTriangle className="size-3.5 shrink-0" aria-hidden />
+                ) : null}
+                {detail.dueLabel ?? "미정"}
+                {detail.isOverdue ? <span className="sr-only"> (기한 초과)</span> : null}
+              </span>
             )}
           </FieldRow>
 
@@ -405,9 +426,15 @@ function DrawerBody({
 
         {!canEdit ? (
           <p className="mt-5 rounded-lg border border-dashed border-[var(--que-border)] p-3 text-sm text-[var(--que-text-secondary)]">
-            이 작업은 본인, 프로젝트 담당자, 관리자만 수정할 수 있습니다.
+            이 작업은 본인, 프로젝트 담당자, 관리자만 수정할 수 있습니다. 아래 댓글로 의견이나 도움
+            요청을 남길 수 있습니다.
           </p>
         ) : null}
+
+        {/* 댓글·도움 요청 — 타인 작업에도 항상 노출(기획 권한 모델) */}
+        <div className="mt-5 border-t border-[var(--que-border)] pt-5">
+          <TaskComments taskId={detail.taskId} comments={detail.comments} />
+        </div>
       </div>
 
       {/* 저장 바 */}

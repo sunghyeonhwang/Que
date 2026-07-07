@@ -18,6 +18,8 @@ import {
   type User,
 } from "@que/core";
 import { getDb } from "./db";
+import { getCommentViewsByTask } from "./comments";
+import type { TaskCommentView } from "@/components/app/task-comments";
 import type { ListViewMember } from "./pm-types";
 
 // 프로젝트(/projects) PM 도구 뷰모델 계층. 구 pm-data.ts(in-memory mock)를 대체한다.
@@ -104,6 +106,8 @@ export interface TaskCard {
   endAt: string | null;
   /** "2025년 9월 8일 금요일" 포맷. 없으면 null. */
   dueLabel: string | null;
+  /** 마감이 지났고 아직 완료/취소/병합이 아닌 지연 상태인지. red 신호용. */
+  isOverdue: boolean;
   /** task_comments 실집계 수. */
   commentCount: number;
   /** 현재 사용자가 이 카드를 편집/이동할 수 있는지(canEditTask). false면 읽기 전용. */
@@ -138,6 +142,8 @@ export interface CalendarCard {
   title: string;
   status: TaskStatus;
   columnKey: BoardColumnKey;
+  /** 마감이 지났고 아직 완료/취소/병합이 아닌 지연 상태인지. red 신호용. */
+  isOverdue: boolean;
 }
 
 export interface CalendarDay {
@@ -175,8 +181,12 @@ export interface TaskDetail {
   dueDate: string | null;
   /** "2025년 9월 12일 금요일". 없으면 null. */
   dueLabel: string | null;
+  /** 마감이 지났고 아직 완료/취소/병합이 아닌 지연 상태인지. red 신호용. */
+  isOverdue: boolean;
   assignee: ListViewMember | null;
   commentCount: number;
+  /** 댓글·도움 요청 목록. 타인 작업에도 노출(기획 권한 모델). */
+  comments: TaskCommentView[];
   canEdit: boolean;
 }
 
@@ -192,6 +202,18 @@ function resolveMember(id: string | undefined): ListViewMember | null {
 function formatDue(endAt: string | undefined): string | null {
   if (!endAt) return null;
   return format(new Date(endAt), "yyyy년 M월 d일 EEEE", { locale: ko });
+}
+
+/**
+ * 마감이 지났고 아직 완료/취소/병합이 아닌 지연 상태인지.
+ * Que 다른 화면(home-data·performance-data)과 동일 규칙(endMs < nowMs).
+ */
+function isTaskOverdue(task: Task): boolean {
+  if (!task.endAt) return false;
+  if (task.status === "done" || task.status === "cancelled" || task.status === "merged") {
+    return false;
+  }
+  return new Date(task.endAt).getTime() < Date.now();
 }
 
 function toDate(endAt: string | undefined): string | null {
@@ -241,6 +263,7 @@ function toCard(
     priority: task.priority,
     endAt: task.endAt ?? null,
     dueLabel: formatDue(task.endAt),
+    isOverdue: isTaskOverdue(task),
     commentCount: comments.get(task.id) ?? 0,
     canEdit: canEditTask(actor, task, project),
   };
@@ -377,6 +400,7 @@ export async function getProjectCalendar(
       title: task.title,
       status: task.status,
       columnKey: columnForStatus(task.status)!,
+      isOverdue: isTaskOverdue(task),
     };
     const list = byDate.get(key) ?? [];
     list.push(card);
@@ -415,6 +439,7 @@ export async function getTaskDetail(
   if (!task) return null;
   const project = db.projects.find((p) => p.id === task.projectId);
   const comments = commentCountMap(db);
+  const commentViews = await getCommentViewsByTask();
   const columnKey = columnForStatus(task.status) ?? "scheduled";
 
   return {
@@ -428,8 +453,10 @@ export async function getTaskDetail(
     endAt: task.endAt ?? null,
     dueDate: toDate(task.endAt),
     dueLabel: formatDue(task.endAt),
+    isOverdue: isTaskOverdue(task),
     assignee: resolveMember(task.assigneeId),
     commentCount: comments.get(task.id) ?? 0,
+    comments: commentViews.get(task.id) ?? [],
     canEdit: canEditTask(actor, task, project),
   };
 }

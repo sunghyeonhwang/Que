@@ -2,7 +2,7 @@
 
 import { useState, type DragEvent } from "react";
 import Link from "next/link";
-import { Plus, CalendarDays, MessageSquare, Lock } from "lucide-react";
+import { Plus, CalendarDays, MessageSquare, Lock, AlertTriangle } from "lucide-react";
 import type { StatusDetail } from "@que/core";
 import type { BoardColumn, TaskCard, BoardColumnKey } from "@/lib/projects-data";
 import { SIMPLE_COLUMN_STATUS, TONE_STYLE, COLUMN_TONE } from "@/lib/pm-columns";
@@ -271,9 +271,21 @@ function BoardCard({
         {card.title}
       </h3>
 
-      <div className="mt-3 flex items-center gap-1.5 text-xs text-[var(--que-text-tertiary)]">
-        <CalendarDays className="size-3.5 shrink-0" aria-hidden />
+      <div
+        className={cn(
+          "mt-3 flex items-center gap-1.5 text-xs",
+          card.isOverdue
+            ? "font-medium text-[var(--que-error)]"
+            : "text-[var(--que-text-tertiary)]",
+        )}
+      >
+        {card.isOverdue ? (
+          <AlertTriangle className="size-3.5 shrink-0" aria-hidden />
+        ) : (
+          <CalendarDays className="size-3.5 shrink-0" aria-hidden />
+        )}
         <span>{card.dueLabel ?? "마감일 미정"}</span>
+        {card.isOverdue ? <span className="sr-only">(기한 초과)</span> : null}
       </div>
 
       <div className="mt-3 flex items-center justify-between gap-2">
