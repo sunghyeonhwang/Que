@@ -35,18 +35,20 @@ export function PerformanceHeatmap({ data }: { data: HeatmapData }) {
             minWidth: `${5 + data.days.length * 2.75}rem`,
           }}
         >
-          <div />
+          {/* 교차 코너(이름 헤더) — 가로·세로 동시 sticky, 가장 높은 z (RPT-4) */}
+          <div className="sticky left-0 top-0 z-30 bg-[var(--que-bg)]" />
           {data.days.map((date) => (
             <div
               key={date}
-              className="px-1 pb-1 text-center text-xs text-[var(--que-text-tertiary)]"
+              className="sticky top-0 z-20 bg-[var(--que-bg)] px-1 pb-1 text-center text-xs text-[var(--que-text-tertiary)]"
             >
               {format(new Date(`${date}T00:00:00`), "M/d", { locale: ko })}
             </div>
           ))}
           {data.rows.map(({ user, cells }) => (
             <div key={user.id} className="contents">
-              <div className="flex items-center gap-2 py-1 pr-2 text-sm text-[var(--que-text)]">
+              {/* 이름 컬럼 — 가로 스크롤 시 좌측 고정 (RPT-4 / DESIGN.md §11) */}
+              <div className="sticky left-0 z-10 flex items-center gap-2 bg-[var(--que-bg)] py-1 pr-2 text-sm text-[var(--que-text)]">
                 <span
                   className="size-2.5 shrink-0 rounded-full"
                   style={{ backgroundColor: user.avatarColor }}

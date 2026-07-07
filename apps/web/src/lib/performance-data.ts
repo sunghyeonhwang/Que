@@ -26,6 +26,8 @@ export interface PerfKpi {
   /** 전기(직전 동일 기간) 대비 증감% — 데이터 부족 시 0 근사 */
   deltaPct: number;
   direction: KpiDirection;
+  /** 지표 극성: 이 방향으로 움직이면 "좋음"(green). 예: 기한초과=down이 좋음. (RPT-2) */
+  goodDirection: "up" | "down";
   subLabel: string;
 }
 
@@ -221,6 +223,7 @@ export async function getPerformanceData(
       value: totalValue,
       deltaPct: totalDelta.deltaPct,
       direction: totalDelta.direction,
+      goodDirection: "up",
       subLabel: `새 작업 ${newCur}건 (최근 4주)`,
     },
     {
@@ -229,6 +232,7 @@ export async function getPerformanceData(
       value: inProgressValue,
       deltaPct: ipDelta.deltaPct,
       direction: ipDelta.direction,
+      goodDirection: "up",
       subLabel: `${inProgressValue}개 작업 진행 중`,
     },
     {
@@ -237,6 +241,7 @@ export async function getPerformanceData(
       value: completedValue,
       deltaPct: doneDelta.deltaPct,
       direction: doneDelta.direction,
+      goodDirection: "up",
       subLabel: `최근 4주 ${doneCur}건 완료`,
     },
     {
@@ -245,6 +250,7 @@ export async function getPerformanceData(
       value: overdueValue,
       deltaPct: overdueDelta.deltaPct,
       direction: overdueDelta.direction,
+      goodDirection: "down",
       subLabel: `${overdueValue}건 마감 지남`,
     },
   ];
@@ -329,10 +335,18 @@ export async function getPerformanceData(
     const assignee = taskAssignee.get(l.taskId);
     if (assignee) doneInLmByUser.set(assignee, (doneInLmByUser.get(assignee) ?? 0) + 1);
   }
-  // 부하표(lowPerformers)는 사람 스코프로 제한(대표=전원/관리=대표 제외/사원=본인). 사원은
-  // 프론트가 표 자체를 숨기므로 본인 1행만 나가도 노출 문제 없음.
+  // 부하 순위표(lowPerformers)는 대표(ceo) 전용이다(RPT-1, 2026-07-07 UX 감사).
+  // 관리자 레벨 줄세우기 노출을 없애기 위해, 비대표(관리/사원)에게는 본인 1행만 계산해
+  // "내 월간 요약" 카드에만 쓴다(순위표 자체는 프론트가 대표에게만 렌더). 히트맵 rows는
+  // personScope 그대로라 관리자도 팀 부하 히트맵(재배분용)은 계속 본다.
   const scopedUsers = personSet ? db.users.filter((u) => personSet.has(u.id)) : db.users;
-  const lowPerformers: LowPerformerRow[] = scopedUsers
+  const lowPerfUsers =
+    viewerGrade === "ceo"
+      ? scopedUsers
+      : opts.viewer
+        ? db.users.filter((u) => u.id === opts.viewer!.id)
+        : scopedUsers;
+  const lowPerformers: LowPerformerRow[] = lowPerfUsers
     .map((u) => {
       const mine = clientTasks.filter((t) => t.assigneeId === u.id);
       return {

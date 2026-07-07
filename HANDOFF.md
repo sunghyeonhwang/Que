@@ -61,6 +61,16 @@ mock 인증: 쿠키 `que-user=<id>` / PAT `que_pat_<id>` (예: `hwang-sunghyeon`
 - 검증: lint/typecheck/build 전부 통과(46라우트, 정적 15/15). dev 서버 미실행 확인 후 build.
 - ⚠️ 오케스트레이션 메모: 직전 2라운드는 배치 스펙이 리터럴 'undefined'로 전달돼 구현 0건 공회전. 원인은 상위 프롬프트 조립(finding 본문 미치환), 코드 결함 아님. 재호출 시 audit-parsed.txt의 실제 finding 본문(T/EVID/FIX/COMP/VERIFY)을 채워 전달해야 함. (남은 감사 findings: PROJ-2·4·5·6=P2, PROJ-7·8=P3 — 미착수.)
 
+## ✅ /heatmap(성과) 감사 배치 1 — 정체성 복구 (2026-07-07)
+
+글래도스 게이트 재심사 배치. 감사 원문 RPT-1·RPT-2·RPT-4 최소 diff 구현. 표시/데이터 스코핑 전용 변경 — mutation 경로 무접촉, 상태색 의미 고정 준수. 변경 파일 4개: `apps/web/src/app/(app)/heatmap/page.tsx`, `apps/web/src/components/performance/kpi-card.tsx`, `apps/web/src/components/performance/performance-heatmap.tsx`, `apps/web/src/lib/performance-data.ts`.
+
+- **RPT-1 (팀 부하 순위표 노출 범위 축소 — 정책 결정)**: 저성과/부하 순위표(`lowPerformers`)를 **대표(ceo) 전용**으로 축소. 기존엔 관리자 전반에 노출됐으나, 사용자 승인 범위에 따라 **관리자 노출을 제거**하고 대표만 팀 순위를 본다. 이중 방어: (1) 화면 계층 `heatmap/page.tsx:79` `isCeo` 분기(`ceo`는 core `UserGrade` 실존 값)로 대표에게만 순위표 섹션 렌더, (2) 데이터 계층 `performance-data.ts:343-348` 스코핑 — **비대표는 본인 1행만** 계산(`selfRow`은 비대표에서 항상 본인). 히트맵 `rows`는 `personScope`를 유지해 **관리자의 업무 재배분 기능(히트맵/KPI)은 보존**. `lowPerformers` 소비처는 heatmap 페이지가 유일이라 홈 회귀 없음. 관련 주석 갱신 완료.
+- **RPT-2 (KPI 방향성 색 의미 오류)**: `PerfKpi`에 `goodDirection` 도입 — **overdue(기한초과)만 `down`이 좋음, 나머지는 `up`이 좋음**. `kpi-card`는 `direction === goodDirection` 비교로 배지 색을 결정(좋은 방향=`--que-success`, 나쁜 방향=`--que-error`, `flat`은 중립 유지). aria-label에 '개선/악화/변화 없음' 병행(색 단독 금지 준수). `PerfKpi` 생성처는 `getPerformanceData` 단일이라 홈(staff/ceo) `KpiCard`도 자동 수혜. 기존 `--que-success`/`--que-error` 토큰만 사용(글로벌 theme token 무변).
+- **RPT-4 (히트맵 sticky 부재)**: 이름열 `sticky left-0 z-10` / 날짜헤더 `top-0 z-20` / 교차 코너 `z-30`(z 우선순위 30>20>10). 전부 `bg-[var(--que-bg)]`로 SectionCard 배경과 일치(스크롤 시 투명 겹침 없음). `display:contents` 하위 셀도 그리드 아이템이라 sticky 유효. 셀 `min-h-10`·`2.75rem` 폭 무변(터치 40px 유지).
+- 검증: dev 서버 부재 확인(`pgrep -fl "next dev"` 0건) 후 실행 — `pnpm lint` clean · `pnpm -r typecheck` 4패키지 Done · `pnpm build` 'Compiled successfully in 7.6s' exit 0. `git status` 정확히 위 4개 파일만 M(projects 무접촉, 임시/죽은 코드 없음).
+- 후속 권고(비차단): 실 계정 3개 grade(ceo/admin/staff) 브라우저 렌더 + 가로 스크롤 sticky 시각 확인 미수행.
+
 ### 반드시 지킬 규칙 / 함정
 - **⚠️ 임시 "발송" 검증 라우트 + Vercel 빌드캐시 사고(2026-07-07)**: 개인 DM 검증용 임시 라우트(`/api/digest-check`)가 **매 호출마다 발송(dedup 없음)**이었는데, ① 배포 상태 폴링으로 그 라우트를 **인증 호출로 여러 번 때려** 팀에 중복 DM이 갔고, ② git에서 라우트를 지웠는데도 **Vercel Turbopack 빌드캐시가 삭제된 라우트를 잔존**시켜 계속 200을 반환했다. 교훈: **(a) 임시 발송 엔드포인트는 반드시 dedup/1회 가드**를 넣고, **(b) 발송 트리거 엔드포인트를 상태폴링으로 반복 호출하지 말 것**(`-o /dev/null`이어도 서버는 실행됨), **(c) 라우트/파일 삭제가 배포에 반영 안 되면 `vercel --prod --force`(캐시 무시)로 강제 재빌드**.
 - **dev 서버 켜진 동안 `pnpm build` 금지** (같은 `.next` 공유로 캐시 오염). build 전 dev 종료.

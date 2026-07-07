@@ -73,9 +73,10 @@ export default async function PerformancePage({
   // viewer를 넘기면 데이터 계층이 viewer.id로 스코프를 재유도한다 — URL 파라미터로 넓힐 수 없다.
   const data = await getPerformanceData(now, { hm, cm, ot, lm, clientId, viewer: user });
 
-  // 사원은 팀 부하표(다른 사람 나열)를 숨기고 본인 월간 요약만 본다. 관리자/대표는 데이터가
-  // 이미 스코프돼 있어(대표=전원·관리=대표 제외) 표를 그대로 유지한다.
-  const isStaff = gradeForUser(user) === "staff";
+  // 부하 순위표는 대표(ceo) 전용이다(RPT-1, 2026-07-07 UX 감사 — 관리자 레벨 줄세우기 노출 제거).
+  // 관리자/사원은 표 대신 본인 월간 요약만 본다. 데이터 계층도 비대표에게는 lowPerformers를 본인
+  // 1행으로만 계산한다(순위 데이터가 아예 안 내려감). 관리자의 부하 히트맵·KPI는 재배분용으로 유지.
+  const isCeo = gradeForUser(user) === "ceo";
   const selfRow = data.lowPerformers[0];
 
   return (
@@ -150,9 +151,9 @@ export default async function PerformancePage({
         </SectionCard>
       </div>
 
-      {/* 4행: (관리자/대표) 팀 부하 표 · (사원) 내 월간 요약 | 프로젝트 진행률 */}
+      {/* 4행: (대표) 팀 부하 순위표 · (관리자/사원) 내 월간 요약 | 프로젝트 진행률 */}
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-        {isStaff ? (
+        {!isCeo ? (
           <SectionCard
             title="내 월간 요약"
             action={
