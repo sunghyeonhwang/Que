@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
-import { AlertTriangle, Clock, HandHelping, Pause } from "lucide-react";
 import { PageHeader } from "@/components/app/page-header";
 import { StatusBadge } from "@/components/app/status-badge";
+import { ATTENTION_CONFIG } from "@/components/app/attention-config";
 import { TaskStatusSheet, type TaskRowData } from "@/components/app/task-status-sheet";
 import { AdminReport } from "@/components/team/admin-report";
 import { StandupGrid } from "@/components/team/standup-grid";
@@ -272,18 +272,14 @@ export default async function TeamPage({
 }
 
 function AttentionRow({ entry }: { entry: AttentionEntry }) {
-  const config = {
-    issue: { icon: AlertTriangle, label: "문제발생", variant: "destructive" as const },
-    on_hold: { icon: Pause, label: "홀드", variant: "secondary" as const },
-    awaiting_response: { icon: Clock, label: "응답대기", variant: "outline" as const },
-    help_request: { icon: HandHelping, label: "도움 요청", variant: "outline" as const },
-  }[entry.type];
+  // 색·아이콘·라벨은 홈(AttentionList)과 공유하는 단일 소스에서 가져온다(DASH-2).
+  const config = ATTENTION_CONFIG[entry.type];
   const Icon = config.icon;
 
   return (
     <div className="rounded-md border p-3">
       <div className="flex items-center gap-2">
-        <Badge variant={config.variant}>
+        <Badge variant="outline" className={"gap-1 " + config.className}>
           <Icon className="size-3" aria-hidden />
           {config.label}
         </Badge>

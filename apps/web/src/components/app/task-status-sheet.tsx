@@ -96,12 +96,15 @@ export function TaskStatusSheet({
   task,
   children,
   triggerClassName = "w-full rounded-md text-left focus-visible:outline-2 focus-visible:outline-ring",
+  defaultOpen = false,
 }: {
   task: TaskRowData;
   children: React.ReactNode;
   triggerClassName?: string;
+  /** 마운트 시 시트를 바로 연다 — 딥링크(/now?task=<id>)로 도착했을 때 상세를 자동 노출. */
+  defaultOpen?: boolean;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
   const router = useRouter();
   const { run, pending, startTransition } = useSafeAction();
   const [detailFor, setDetailFor] = useState<TaskStatus | null>(null);

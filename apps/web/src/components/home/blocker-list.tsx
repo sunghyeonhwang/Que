@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { AlertTriangle, Pause } from "lucide-react";
 import type { ReportBlocker } from "@/lib/report-data";
 import { Badge } from "@/components/ui/badge";
@@ -15,9 +16,10 @@ export function BlockerList({ blockers }: { blockers: ReportBlocker[] }) {
       {blockers.map((b) => {
         const isIssue = b.status === "issue";
         return (
-          <div
+          <Link
             key={b.taskId}
-            className="flex min-h-11 flex-wrap items-center gap-2 rounded-lg border border-[var(--que-border)] px-3 py-2"
+            href={`/now?task=${b.taskId}`}
+            className="flex min-h-11 flex-wrap items-center gap-2 rounded-lg border border-[var(--que-border)] px-3 py-2 transition-colors hover:bg-[var(--que-bg-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <Badge
               variant="outline"
@@ -46,7 +48,7 @@ export function BlockerList({ blockers }: { blockers: ReportBlocker[] }) {
                 사유: {b.reason}
               </span>
             )}
-          </div>
+          </Link>
         );
       })}
     </div>

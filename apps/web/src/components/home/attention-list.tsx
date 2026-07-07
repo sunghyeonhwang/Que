@@ -1,34 +1,8 @@
+import Link from "next/link";
 import { format } from "date-fns";
-import { AlertTriangle, Clock, HandHelping, Pause } from "lucide-react";
 import type { AttentionEntry } from "@/lib/team-data";
+import { ATTENTION_CONFIG } from "@/components/app/attention-config";
 import { Badge } from "@/components/ui/badge";
-
-// 상태색 의미 고정: red=문제, amber=홀드/대기, violet=응답대기/도움요청(회의록·응답 계열).
-const CONFIG = {
-  issue: {
-    icon: AlertTriangle,
-    label: "문제발생",
-    className: "border-[var(--que-error)] bg-[var(--que-error-bg)] text-[var(--que-error)]",
-  },
-  on_hold: {
-    icon: Pause,
-    label: "홀드",
-    className:
-      "border-[var(--que-warning)] bg-[var(--que-warning-bg)] text-[var(--que-warning)]",
-  },
-  awaiting_response: {
-    icon: Clock,
-    label: "응답대기",
-    className:
-      "border-[var(--que-violet)] bg-[var(--que-violet-bg)] text-[var(--que-violet)]",
-  },
-  help_request: {
-    icon: HandHelping,
-    label: "도움 요청",
-    className:
-      "border-[var(--que-violet)] bg-[var(--que-violet-bg)] text-[var(--que-violet)]",
-  },
-} as const;
 
 /** 주의 필요(병목) — 문제·홀드·응답대기·도움요청 + 사유/다음 액션. 팀 현황 Attention Queue와 같은 소스. */
 export function AttentionList({ entries }: { entries: AttentionEntry[] }) {
@@ -43,13 +17,14 @@ export function AttentionList({ entries }: { entries: AttentionEntry[] }) {
   return (
     <div className="flex flex-col gap-2">
       {entries.map((entry) => {
-        const config = CONFIG[entry.type];
+        const config = ATTENTION_CONFIG[entry.type];
         const Icon = config.icon;
         const helpNames = entry.helpUserNames ?? (entry.helpUserName ? [entry.helpUserName] : []);
         return (
-          <div
+          <Link
             key={`${entry.type}-${entry.taskId}`}
-            className="rounded-lg border border-[var(--que-border)] p-3"
+            href={`/now?task=${entry.taskId}`}
+            className="block rounded-lg border border-[var(--que-border)] p-3 transition-colors hover:bg-[var(--que-bg-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <div className="flex items-center gap-2">
               <Badge variant="outline" className={"gap-1 " + config.className}>
@@ -73,7 +48,7 @@ export function AttentionList({ entries }: { entries: AttentionEntry[] }) {
                   : ""}
               </p>
             )}
-          </div>
+          </Link>
         );
       })}
     </div>

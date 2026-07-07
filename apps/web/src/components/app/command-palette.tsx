@@ -219,6 +219,16 @@ export function CommandPalette() {
                     />
                   </CommandItem>
                 ))}
+                {group.total > group.hits.length && (
+                  <CommandItem
+                    value={`more:${group.kind}`}
+                    onSelect={() => go(group.listHref)}
+                    className="min-h-10 justify-between gap-2 text-xs text-[var(--que-text-secondary)]"
+                  >
+                    <span>{group.total - group.hits.length}건 더 있음</span>
+                    <span className="font-medium text-[var(--que-brand)]">전체 보기 →</span>
+                  </CommandItem>
+                )}
               </CommandGroup>
             );
           })}

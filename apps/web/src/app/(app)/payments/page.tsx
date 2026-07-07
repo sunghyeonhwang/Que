@@ -20,7 +20,12 @@ const METRIC_TONE: Record<string, string> = {
   neutral: "text-[var(--que-text-tertiary)]",
 };
 
-export default async function PaymentsPage() {
+export default async function PaymentsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ payment?: string }>;
+}) {
+  const { payment: highlightPaymentId } = await searchParams;
   const user = await getCurrentUser();
   const isAdmin = user.role === "admin";
   const [data, activeCategories, allCategories] = await Promise.all([
@@ -69,7 +74,7 @@ export default async function PaymentsPage() {
         {/* 좁은 폭(태블릿 가로 등)에서는 목록을 위로, xl 2열에서는 원래 순서(폼 좌·목록 우). */}
         <div className="order-first min-w-0 xl:order-none">
           <h2 className="mb-2 text-base font-semibold text-[var(--que-text)]">결제 요청 목록</h2>
-          <PaymentList rows={data.rows} />
+          <PaymentList rows={data.rows} highlightId={highlightPaymentId} />
         </div>
       </div>
     </div>

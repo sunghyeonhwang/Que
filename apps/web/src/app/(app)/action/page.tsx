@@ -118,9 +118,10 @@ export default async function ActionPage({
               <p className="text-sm text-[var(--que-text-tertiary)]">아직 생성된 Task가 없습니다.</p>
             )}
             {createdTasks.map((task) => (
-              <div
+              <Link
                 key={task.id}
-                className="flex items-center gap-2 rounded-lg border border-[var(--que-border)] px-3 py-2"
+                href={`/now?task=${task.id}`}
+                className="flex min-h-11 items-center gap-2 rounded-lg border border-[var(--que-border)] px-3 py-2 transition-colors hover:bg-[var(--que-bg-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-medium text-[var(--que-text)]">
@@ -132,7 +133,7 @@ export default async function ActionPage({
                   </span>
                 </span>
                 <StatusBadge status={task.status} />
-              </div>
+              </Link>
             ))}
           </div>
         </section>

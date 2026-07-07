@@ -10,7 +10,12 @@ import { getDb } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
-export default async function MeetingNotesPage() {
+export default async function MeetingNotesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ note?: string }>;
+}) {
+  const { note: highlightNoteId } = await searchParams;
   const user = await getCurrentUser();
   const db = await getDb();
   const summary = await getNoteSummary(user);
@@ -77,7 +82,7 @@ export default async function MeetingNotesPage() {
             </span>
           </div>
           <div className="max-h-[calc(100dvh-16rem)] overflow-y-auto pr-0.5">
-            <NoteList notes={notes} />
+            <NoteList notes={notes} highlightId={highlightNoteId} />
           </div>
         </div>
       </div>

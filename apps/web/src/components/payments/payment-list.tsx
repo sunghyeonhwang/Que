@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { format } from "date-fns";
 import { PAYMENT_STATUS_LABELS, type PaymentStatus } from "@que/core";
 import { updatePaymentStatusAction } from "@/app/(app)/payments/actions";
@@ -22,8 +23,9 @@ const STATUS_TONE: Record<PaymentStatus, BadgeTone> = {
 const COPY_COMPACT = "size-8";
 
 /** 결제 요청 목록 — view.griff task 카드처럼 얇은 단일 행 카드 나열.
- *  마감 초과 대기 항목이 상단에 온다. */
-export function PaymentList({ rows }: { rows: PaymentRow[] }) {
+ *  마감 초과 대기 항목이 상단에 온다.
+ *  highlightId(전역 검색 딥링크 /payments?payment=<id>)가 있으면 해당 행을 강조·스크롤한다. */
+export function PaymentList({ rows, highlightId }: { rows: PaymentRow[]; highlightId?: string }) {
   return (
     <div className="max-h-[calc(100dvh-19rem)] overflow-y-auto pr-0.5">
       <div className="flex flex-col gap-1.5">
@@ -33,15 +35,21 @@ export function PaymentList({ rows }: { rows: PaymentRow[] }) {
           </p>
         )}
         {rows.map((row) => (
-          <PaymentRowView key={row.id} row={row} />
+          <PaymentRowView key={row.id} row={row} highlighted={row.id === highlightId} />
         ))}
       </div>
     </div>
   );
 }
 
-function PaymentRowView({ row }: { row: PaymentRow }) {
+function PaymentRowView({ row, highlighted }: { row: PaymentRow; highlighted: boolean }) {
   const { run, pending } = useSafeAction();
+  const rowRef = useRef<HTMLDivElement | null>(null);
+
+  // 딥링크로 강조된 행은 마운트 시 화면 안으로 스크롤한다.
+  useEffect(() => {
+    if (highlighted) rowRef.current?.scrollIntoView({ block: "center" });
+  }, [highlighted]);
 
   const change = (to: PaymentStatus) => {
     run(() => updatePaymentStatusAction({ paymentId: row.id, to }), {
@@ -55,12 +63,14 @@ function PaymentRowView({ row }: { row: PaymentRow }) {
 
   return (
     <div
+      ref={rowRef}
       className={cn(
-        "flex min-h-[3.25rem] items-center gap-3 rounded-xl border px-3.5 py-2 transition-colors",
+        "flex min-h-[3.25rem] scroll-mt-4 items-center gap-3 rounded-xl border px-3.5 py-2 transition-colors",
         row.overdue
           ? "border-[var(--que-error)]/40 bg-[var(--que-error-bg)]/30"
           : "border-[var(--que-border)] bg-[var(--que-bg)] hover:bg-[var(--que-bg-muted)]",
         row.status === "cancelled" && "opacity-70",
+        highlighted && "border-[var(--que-brand)] bg-[var(--que-brand-subtle)] ring-2 ring-[var(--que-brand)]",
       )}
     >
       {/* 좌: 제목(볼드) + 부제(수신자 · 은행·계좌[복사] · 마감 · 요청자) */}

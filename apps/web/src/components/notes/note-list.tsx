@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import Link from "next/link";
 import { format } from "date-fns";
 import { FileText } from "lucide-react";
@@ -33,8 +34,15 @@ export interface NoteListItem {
   restrictedCount?: number;
 }
 
-/** 업로드된 회의록 목록. 원문 미리보기(Sheet)와 Action 추출 버튼을 제공한다. */
-export function NoteList({ notes }: { notes: NoteListItem[] }) {
+/** 업로드된 회의록 목록. 원문 미리보기(Sheet)와 Action 추출 버튼을 제공한다.
+ *  highlightId(전역 검색 딥링크 /meeting-notes?note=<id>)가 있으면 해당 행을 강조·스크롤한다. */
+export function NoteList({
+  notes,
+  highlightId,
+}: {
+  notes: NoteListItem[];
+  highlightId?: string;
+}) {
   return (
     <div className="flex flex-col gap-2">
       {notes.length === 0 && (
@@ -43,14 +51,20 @@ export function NoteList({ notes }: { notes: NoteListItem[] }) {
         </p>
       )}
       {notes.map((note) => (
-        <NoteRow key={note.id} note={note} />
+        <NoteRow key={note.id} note={note} highlighted={note.id === highlightId} />
       ))}
     </div>
   );
 }
 
-function NoteRow({ note }: { note: NoteListItem }) {
+function NoteRow({ note, highlighted }: { note: NoteListItem; highlighted: boolean }) {
   const { run, pending } = useSafeAction();
+  const rowRef = useRef<HTMLDivElement | null>(null);
+
+  // 딥링크로 강조된 행은 마운트 시 화면 안으로 스크롤한다.
+  useEffect(() => {
+    if (highlighted) rowRef.current?.scrollIntoView({ block: "center" });
+  }, [highlighted]);
 
   const extract = () => {
     run(() => extractActionsAction(note.id), {
@@ -59,7 +73,15 @@ function NoteRow({ note }: { note: NoteListItem }) {
   };
 
   return (
-    <div className="flex min-h-12 flex-wrap items-center gap-2 rounded-xl border border-[var(--que-border)] bg-[var(--que-bg)] px-3.5 py-3">
+    <div
+      ref={rowRef}
+      className={cn(
+        "flex min-h-12 scroll-mt-4 flex-wrap items-center gap-2 rounded-xl border bg-[var(--que-bg)] px-3.5 py-3",
+        highlighted
+          ? "border-[var(--que-brand)] bg-[var(--que-brand-subtle)] ring-2 ring-[var(--que-brand)]"
+          : "border-[var(--que-border)]",
+      )}
+    >
       <span
         className="hidden size-9 shrink-0 items-center justify-center rounded-lg bg-[var(--que-brand-subtle)] text-[var(--que-brand)] sm:flex"
         aria-hidden

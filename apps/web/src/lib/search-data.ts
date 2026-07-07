@@ -18,6 +18,10 @@ export interface SearchGroup {
   kind: SearchKind;
   label: string;
   hits: SearchHit[];
+  /** 캡(PER_GROUP) 적용 전 실제 매치 총 수 — 초과 시 '더 있음' 안내에 사용. */
+  total: number;
+  /** '전체 보기' 대상 목록 화면 경로. */
+  listHref: string;
 }
 
 const GROUP_LABEL: Record<SearchKind, string> = {
@@ -26,6 +30,15 @@ const GROUP_LABEL: Record<SearchKind, string> = {
   action: "Action",
   payment: "결제",
   member: "팀원",
+};
+
+/** 각 종류의 '전체 보기'가 향하는 목록 화면. */
+const GROUP_LIST_HREF: Record<SearchKind, string> = {
+  task: "/now",
+  note: "/meeting-notes",
+  action: "/action",
+  payment: "/payments",
+  member: "/members",
 };
 
 /** 그룹별 최대 노출 수 */
@@ -49,67 +62,71 @@ export async function searchWorkspace(query: string, user: User): Promise<Search
   const viewableNoteIds = new Set(viewableNotes.map((n) => n.id));
 
   const groups: SearchGroup[] = [];
-  const push = (kind: SearchKind, hits: SearchHit[]) => {
-    if (hits.length > 0) groups.push({ kind, label: GROUP_LABEL[kind], hits });
+  // allHits = 캡 적용 전 전체 매치. total은 전체 수, hits는 PER_GROUP까지만 노출.
+  const push = (kind: SearchKind, allHits: SearchHit[]) => {
+    if (allHits.length === 0) return;
+    groups.push({
+      kind,
+      label: GROUP_LABEL[kind],
+      hits: allHits.slice(0, PER_GROUP),
+      total: allHits.length,
+      listHref: GROUP_LIST_HREF[kind],
+    });
   };
 
-  // 작업 — 팀 운영표(/now)가 전체 작업을 나열하므로 그쪽으로 보낸다
+  // 작업 — 팀 운영표(/now)가 전체 작업을 나열하고, ?task=<id>로 해당 행을 자동으로 연다
   push(
     "task",
     db.tasks
       .filter((t) => match(t.title, q))
-      .slice(0, PER_GROUP)
       .map((t) => ({
         kind: "task" as const,
         id: t.id,
         title: t.title,
         subtitle: `담당 ${nameOf(t.assigneeId)}`,
-        href: "/now",
+        href: `/now?task=${t.id}`,
       })),
   );
 
-  // 회의록 (제목/파일명)
+  // 회의록 (제목/파일명) → 해당 회의록 하이라이트
   push(
     "note",
     viewableNotes
       .filter((n) => match(n.title, q) || match(n.fileName, q))
-      .slice(0, PER_GROUP)
       .map((n) => ({
         kind: "note" as const,
         id: n.id,
         title: n.title,
         subtitle: n.fileName,
-        href: "/meeting-notes",
+        href: `/meeting-notes?note=${n.id}`,
       })),
   );
 
-  // Action 후보 (열람 가능한 회의록에서 나온 것만)
+  // Action 후보 (열람 가능한 회의록에서 나온 것만) → 해당 회의록으로 좁힌 확인필요 화면
   push(
     "action",
     db.actionItems
       .filter((a) => viewableNoteIds.has(a.meetingNoteId) && match(a.title, q))
-      .slice(0, PER_GROUP)
       .map((a) => ({
         kind: "action" as const,
         id: a.id,
         title: a.title,
         subtitle: "회의록",
-        href: "/action",
+        href: `/action?note=${a.meetingNoteId}`,
       })),
   );
 
-  // 결제 (제목/분류만 — 금액·계좌는 검색 결과에 노출하지 않는다)
+  // 결제 (제목/분류만 — 금액·계좌는 검색 결과에 노출하지 않는다) → 해당 결제 행 하이라이트
   push(
     "payment",
     db.paymentRequests
       .filter((p) => match(p.title, q) || match(p.category, q))
-      .slice(0, PER_GROUP)
       .map((p) => ({
         kind: "payment" as const,
         id: p.id,
         title: p.title,
         subtitle: p.category,
-        href: "/payments",
+        href: `/payments?payment=${p.id}`,
       })),
   );
 
@@ -118,7 +135,6 @@ export async function searchWorkspace(query: string, user: User): Promise<Search
     "member",
     db.users
       .filter((u) => u.active !== false && match(u.name, q))
-      .slice(0, PER_GROUP)
       .map((u) => ({
         kind: "member" as const,
         id: u.id,

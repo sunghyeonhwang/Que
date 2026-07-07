@@ -151,6 +151,16 @@ export function GlobalSearch() {
                     </span>
                   </Link>
                 ))}
+                {group.total > group.hits.length && (
+                  <Link
+                    href={group.listHref}
+                    onClick={() => go(group.listHref)}
+                    className="flex items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-xs text-[var(--que-text-secondary)] hover:bg-[var(--que-bg-muted)] focus-visible:bg-[var(--que-bg-muted)] focus-visible:outline-none"
+                  >
+                    <span>{group.total - group.hits.length}건 더 있음</span>
+                    <span className="font-medium text-[var(--que-brand)]">전체 보기 →</span>
+                  </Link>
+                )}
               </div>
             );
           })}

@@ -105,6 +105,21 @@ mock 인증: 쿠키 `que-user=<id>` / PAT `que_pat_<id>` (예: `hwang-sunghyeon`
 - **PROJ-8 (필수 필드 검증)**: 태스크 생성 폼 제목 필수 — `titleTouched`(blur/제출) + `title.trim().length===0` 통합 에러. 라벨 `*` + sr-only "(필수)". `autoFocus` 덕에 비활성 버튼 클릭도 blur→에러 노출 경로 확보(react-hook-form 패턴 유지, 에러는 필드 아래).
 - 검증: dev 서버 부재 확인 후 실행 — `pnpm -r typecheck` 4워크스페이스 Done · `pnpm --filter @que/web lint` exit 0 · `pnpm --filter @que/core test` 209/209 · `pnpm build` 'Compiled successfully in 6.9s' + 전 라우트 생성. `git status` 위 11개 파일만 변경(projects 영역 한정, 스코프 크립·임시 파일·죽은 코드 0). 도메인 규칙 회귀 없음(읽기 전용 추가·canEditTask/BlockedStatusDialog 무접촉).
 
+## ✅ 홈·협업·검색 연결 감사 배치 6 — 딥링크 공통 기반 (2026-07-07)
+
+글래도스 게이트 재심사 배치. 감사 원문 DASH-1·2·4·COLLAB-2·3·4 최소 diff 구현 + `/now` 작업 딥링크 공통 기반 신설. 표시/데이터 유도·라우팅 전용 — 새 mutation 경로 없음(core mutation·StatusDetailForm 무접촉), 상태색 의미 고정 준수(색+아이콘+텍스트 병행). projects/·schedule/·performance/·ceo-home(DASH-6)·theme 미접촉.
+
+- **`/now?task=<taskId>` = 작업 딥링크 정본 규격**: 홈 병목(attention-list·blocker-list)·전역 검색·활동 피드·회의록 Action 생성Task가 전부 이 규격으로 `/now`에 진입한다. `now/page.tsx`가 `task` searchParam + `data.rows.some()` **존재 가드**로 `activeTaskId`를 산출 — 해당 행만 ring 하이라이트 + `TaskStatusSheet defaultOpen`. ⚠️ **알려진 한계**: `/now` 운영표 행은 **오늘 시작한 작업만** 담기므로 과거 병목·활동 피드 딥링크가 **행 없이 도착할 수 있다**. 이때 `activeTaskId` 가드(undefined)로 **하이라이트/시트 미발동**(회귀 아님 — 스펙이 명시 선택한 도착지+가드). 직전 라운드 회귀(쿼리 없는 `/now` 상시 하이라이트)는 이 undefined 가드로 수리됨. 배치 4의 3분기 구조(Task→Sheet / Action→`/action?note` / event→읽기전용) 보존.
+- **TaskStatusSheet `defaultOpen` prop 신설**: `useState` 초기값으로 소비. 딥링크 도착 시 시트 자동 오픈에 사용.
+- **DASH-1 (홈 병목 행 조치 어포던스)**: attention/blocker row를 `/now?task=`로 Link화(`min-h-11` 터치 40px+, hover·focus ring, 기존 아이콘·색 유지).
+- **DASH-2 (Attention 색·아이콘 단일 소스)**: `apps/web/src/components/app/attention-config.ts` 신설 — Attention 상태의 색·아이콘 단일 소스(홈 + 팀 현황 공유). team `AttentionRow` 무채색 variant를 이 공유 톤으로 교체(색+아이콘+텍스트 병행). 토큰 라이트/다크 실재 확인.
+- **DASH-4 (클라이언트명 셀 링크)**: 클라이언트명 셀 `p-0` + `h-11` 전체 Link화.
+- **COLLAB-2 (도착 페이지 하이라이트)**: task/note/payment/action 딥링크 + `note-list`·`payment-list` 도착 시 `?note=`/`?payment=`로 하이라이트 + `scrollIntoView`. (note/payment 도착 페이지가 각각 `?note=`/`?payment=` 쿼리 소비.)
+- **COLLAB-3 (활동 피드 딥링크)**: `MemberActivity.taskId` 필수화(소스가 `statusLogs`라 항상 보유). 피드·생성Task를 Link화.
+- **COLLAB-4 (검색 그룹 계약)**: `search-data`의 `SearchGroup`에 `total`/`listHref` 계약 추가 + 'N건 더 있음' 양쪽 UI. command-palette는 `shouldFilter={false}`라 cmdk 필터에 안 삼켜짐.
+- **알려진 갭(배치 6 이전 기존 갭·후속 후보)**: `/clients`가 아직 `?client=` 쿼리를 소비하지 않음. 배치 6 범위 밖, 후속 후보로 기록.
+- 검증: dev 서버 부재(`pgrep` exit 1) 확인 후 `pnpm lint`·`pnpm typecheck` 전 패키지 Done · `pnpm build` ✓ 7.3s 오류 0. 스코프 크립·죽은 코드 0, 도메인 규칙 경로(core mutation·StatusDetailForm) 무변경.
+
 ### 반드시 지킬 규칙 / 함정
 - **⚠️ 임시 "발송" 검증 라우트 + Vercel 빌드캐시 사고(2026-07-07)**: 개인 DM 검증용 임시 라우트(`/api/digest-check`)가 **매 호출마다 발송(dedup 없음)**이었는데, ① 배포 상태 폴링으로 그 라우트를 **인증 호출로 여러 번 때려** 팀에 중복 DM이 갔고, ② git에서 라우트를 지웠는데도 **Vercel Turbopack 빌드캐시가 삭제된 라우트를 잔존**시켜 계속 200을 반환했다. 교훈: **(a) 임시 발송 엔드포인트는 반드시 dedup/1회 가드**를 넣고, **(b) 발송 트리거 엔드포인트를 상태폴링으로 반복 호출하지 말 것**(`-o /dev/null`이어도 서버는 실행됨), **(c) 라우트/파일 삭제가 배포에 반영 안 되면 `vercel --prod --force`(캐시 무시)로 강제 재빌드**.
 - **dev 서버 켜진 동안 `pnpm build` 금지** (같은 `.next` 공유로 캐시 오염). build 전 dev 종료.

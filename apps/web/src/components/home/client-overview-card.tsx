@@ -46,10 +46,10 @@ export function ClientOverviewCard({ rows }: { rows: ClientOverviewRow[] }) {
               key={r.clientId}
               className="border-[var(--que-border)] transition-colors hover:bg-[var(--que-bg-muted)]"
             >
-              <TableCell className="h-11">
+              <TableCell className="h-11 p-0">
                 <Link
                   href={`/clients?client=${r.clientId}`}
-                  className="font-medium text-[var(--que-text)] underline-offset-2 hover:underline"
+                  className="flex h-11 items-center px-4 font-medium text-[var(--que-text)] underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
                 >
                   {r.clientName}
                 </Link>

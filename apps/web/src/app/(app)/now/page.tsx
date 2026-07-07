@@ -37,7 +37,7 @@ const FILTERS: { key: NowFilter; label: string }[] = [
 export default async function NowPage({
   searchParams,
 }: {
-  searchParams: Promise<{ filter?: string }>;
+  searchParams: Promise<{ filter?: string; task?: string }>;
 }) {
   const params = await searchParams;
   const filter = parseFilter(params.filter);
@@ -46,6 +46,13 @@ export default async function NowPage({
   const now = new Date();
   const data = await getNowData(user, filter, now, clientId);
   const commentsByTask = await getCommentViewsByTask();
+
+  // 딥링크(/now?task=<id>) — 홈 병목·전역 검색·활동 피드에서 넘어온 작업을 자동으로 연다.
+  // 해당 taskId 행이 실제로 있을 때만 하이라이트+시트 자동 오픈 대상으로 삼는다.
+  const activeTaskId =
+    params.task && data.rows.some((row) => row.taskId === params.task)
+      ? params.task
+      : undefined;
 
   const metrics = [
     { value: data.summary.calendarCount, label: "오늘 캘린더 항목" },
@@ -192,6 +199,7 @@ export default async function NowPage({
                       } satisfies TaskRowData
                     }
                     triggerClassName="absolute inset-0 z-0 rounded-md focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
+                    defaultOpen={activeTaskId !== undefined && row.taskId === activeTaskId}
                   >
                     <span className="sr-only">{row.title} 상세 열기</span>
                   </TaskStatusSheet>
@@ -212,7 +220,12 @@ export default async function NowPage({
               return (
                 <TableRow
                   key={row.key}
-                  className="relative border-[var(--que-border)] transition-colors hover:bg-[var(--que-bg-muted)]"
+                  className={cn(
+                    "relative border-[var(--que-border)] transition-colors hover:bg-[var(--que-bg-muted)]",
+                    activeTaskId !== undefined &&
+                      row.taskId === activeTaskId &&
+                      "bg-[var(--que-brand-subtle)] ring-2 ring-inset ring-[var(--que-brand)]",
+                  )}
                 >
                   <TableCell className="h-12 tabular-nums">
                     {row.at ? format(new Date(row.at), "HH:mm") : "—"}

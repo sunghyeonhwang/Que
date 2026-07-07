@@ -171,6 +171,8 @@ export interface MemberActivity {
   title: string;
   description: string;
   relative: string;
+  /** 이 활동이 가리키는 작업 — 피드에서 해당 작업 상세로 클릭-스루하는 데 쓴다. */
+  taskId: string;
 }
 
 export interface MemberHeatCell {
@@ -264,7 +266,14 @@ export async function getMemberDetail(id: string, now?: Date): Promise<MemberDet
       }
       const description =
         kind === "created" ? `${taskTitle} · ${to}` : `${taskTitle} · ${from} → ${to}`;
-      return { id: log.id, kind, title, description, relative: formatRelative(log.createdAt, at) };
+      return {
+        id: log.id,
+        kind,
+        title,
+        description,
+        relative: formatRelative(log.createdAt, at),
+        taskId: log.taskId,
+      };
     });
 
   // ── 히트맵: 최근 35일(오늘 포함 과거 5주), 멤버 스코프 ──
