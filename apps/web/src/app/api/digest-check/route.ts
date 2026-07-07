@@ -43,29 +43,30 @@ export async function GET(request: Request) {
 
   const results: Array<Record<string, unknown>> = [];
   for (const userId of targets) {
-    const slackId = await resolveSlackUserId(userId);
-    if (!slackId) {
-      results.push({ userId, mapped: false, sent: false });
-      continue;
-    }
-    const intent: NotificationIntent = intentByUser.get(userId) ?? {
-      kind: "personal_digest",
-      entityType: "user",
-      entityId: userId,
-      marker: dateKey,
-      recipient: userId,
-      payload: {
-        title: "오늘의 브리핑 (테스트)",
-        text: "오늘 예정된 항목이 없습니다. (연동 테스트 메시지)",
-        deeplinkPath: "/today",
-        tone: "blue",
-      },
-    };
     try {
+      const slackId = await resolveSlackUserId(userId);
+      if (!slackId) {
+        results.push({ userId, mapped: false, sent: false });
+        continue;
+      }
+      const intent: NotificationIntent = intentByUser.get(userId) ?? {
+        kind: "personal_digest",
+        entityType: "user",
+        entityId: userId,
+        marker: dateKey,
+        recipient: userId,
+        payload: {
+          title: "오늘의 브리핑 (테스트)",
+          text: "오늘 예정된 항목이 없습니다. (연동 테스트 메시지)",
+          deeplinkPath: "/today",
+          tone: "blue",
+        },
+      };
       await postDmToSlack(slackId, messageFor(intent));
       results.push({ userId, mapped: true, sent: true });
     } catch (error) {
-      results.push({ userId, mapped: true, sent: false, error: String(error) });
+      // resolveSlackUserId(lookupByEmail)·postDmToSlack 실패를 유저별로 노출(500 방지, 원인 확인용).
+      results.push({ userId, sent: false, error: String(error) });
     }
   }
 
