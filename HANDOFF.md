@@ -46,6 +46,7 @@ mock 인증: 쿠키 `que-user=<id>` / PAT `que_pat_<id>` (예: `hwang-sunghyeon`
 4. ~~**Pro 계정으로 프로젝트 이전**~~ → **✅ 완료 (2026-07-07)**. Vercel "Transfer Project"로 `que`를 Hobby 팀 `griff0120s-projects` → **Pro 팀 `griff-fde0dc32`("GRIFF")**로 이전. **env(AUTH_SECRET·SUPABASE_URL·SUPABASE_SECRET_KEY·QUE_DB)·도메인(que.griff.co.kr·view.griff.co.kr)·git 연동이 함께 이동**(Transfer 마법사가 자동 처리 — 재설정 불필요했음). `.vercel/project.json` orgId `team_adk2R8uxbLjr0BeZ9yzjfZxC` → **`team_rSoKnhEmb773JXpYGBdkdQwU`**(projectId `prj_FSGUPN9iXotjqSw5X5btx4dN0At9` 동일). 검증: que/view 도메인 200·icn1·noindex 정상, env 4개 정상. **버려진 `que-web` 프로젝트(GRIFF 팀, 도메인 없음)는 삭제 예정**. ⚠️ [[end-of-work-routine]] 메모의 배포 팀을 GRIFF로 갱신함. **이제 cron `*/10` 활성화 언블록**(위 3번 (A)안): `vercel.json` crons 복구 + `CRON_SECRET` 설정 + `QUE_CRON_ACTIVE=1` → 다음 단계.
 
 ### 반드시 지킬 규칙 / 함정
+- **⚠️ 임시 "발송" 검증 라우트 + Vercel 빌드캐시 사고(2026-07-07)**: 개인 DM 검증용 임시 라우트(`/api/digest-check`)가 **매 호출마다 발송(dedup 없음)**이었는데, ① 배포 상태 폴링으로 그 라우트를 **인증 호출로 여러 번 때려** 팀에 중복 DM이 갔고, ② git에서 라우트를 지웠는데도 **Vercel Turbopack 빌드캐시가 삭제된 라우트를 잔존**시켜 계속 200을 반환했다. 교훈: **(a) 임시 발송 엔드포인트는 반드시 dedup/1회 가드**를 넣고, **(b) 발송 트리거 엔드포인트를 상태폴링으로 반복 호출하지 말 것**(`-o /dev/null`이어도 서버는 실행됨), **(c) 라우트/파일 삭제가 배포에 반영 안 되면 `vercel --prod --force`(캐시 무시)로 강제 재빌드**.
 - **dev 서버 켜진 동안 `pnpm build` 금지** (같은 `.next` 공유로 캐시 오염). build 전 dev 종료.
 - **웹 계층에서 core 에러 판별은 `instanceof` 금지 → `isQueRuleError()` 사용** (HMR 이중 로딩, 27번).
 - **서버 액션에서 mutation과 persist는 반드시 같은 db 인스턴스** (`getDb()` cache 정체성은 액션 경계에서 미보장 — 39번 치명 버그). 각 `toResult`가 db 한 번 획득해 콜백에 넘김.
