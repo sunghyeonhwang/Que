@@ -1,7 +1,7 @@
 import "server-only";
 
 import type { MockQueDb, NotificationIntent, Task } from "@que/core";
-import { deadlineThresholdHours } from "./config";
+import { deadlineThresholdHours, digestRecipientAllowlist } from "./config";
 
 // 개인 DM 데일리 브리핑(personal_digest) 콘텐츠 빌더 — Slack Phase 2, web 계층.
 // active 유저별로 4섹션(오늘 작업/막힘/마감/마일스톤 위험)을 조립해 NotificationIntent[]를 만든다.
@@ -52,9 +52,12 @@ export function buildPersonalDigestIntents(db: MockQueDb, now: Date): Notificati
     riskByOwner.set(owner, (riskByOwner.get(owner) ?? 0) + 1);
   }
 
+  const allow = digestRecipientAllowlist(); // null이면 전체, 아니면 그 유저만(테스트/단계적 롤아웃)
+
   const intents: NotificationIntent[] = [];
   for (const user of db.users) {
     if (user.active === false) continue; // active 유저만
+    if (allow && !allow.includes(user.id)) continue; // 허용목록 있으면 그 유저만
 
     const mine = db.tasks.filter(
       (t) => t.assigneeId === user.id && t.status !== "cancelled" && t.status !== "merged",

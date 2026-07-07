@@ -41,6 +41,17 @@ export function personalDigestEnabled(): boolean {
   return slackBotToken() !== undefined;
 }
 
+/**
+ * 개인 DM 브리핑 수신자 허용목록(Que userId, 콤마구분). env `QUE_DIGEST_RECIPIENTS`.
+ * 설정되면 그 유저만 받는다(테스트/단계적 롤아웃). 미설정/빈값이면 null = 전체 active 유저.
+ */
+export function digestRecipientAllowlist(): string[] | null {
+  const raw = process.env.QUE_DIGEST_RECIPIENTS?.trim();
+  if (!raw) return null;
+  const ids = raw.split(",").map((s) => s.trim()).filter(Boolean);
+  return ids.length > 0 ? ids : null;
+}
+
 /** 딥링크 베이스 URL. 미설정이면 프로덕션 도메인. (하드코딩 금지 — env 우선.) */
 export function appBaseUrl(): string {
   const url = process.env.QUE_APP_URL?.trim();
