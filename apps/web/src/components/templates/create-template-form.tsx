@@ -75,6 +75,7 @@ export function CreateTemplateForm({
           <FieldLabel htmlFor="tmpl-title">제목</FieldLabel>
           <Input
             id="tmpl-title"
+            className="h-10"
             placeholder="예: 주간 스탠드업 준비"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
@@ -88,7 +89,7 @@ export function CreateTemplateForm({
               value={effectiveAssignee}
               onValueChange={(v) => v && setAssigneeId(v)}
             >
-              <SelectTrigger aria-label="담당자 선택">
+              <SelectTrigger aria-label="담당자 선택" size="lg">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -107,7 +108,7 @@ export function CreateTemplateForm({
               value={projectId}
               onValueChange={(v) => setProjectId(v ?? "")}
             >
-              <SelectTrigger aria-label="프로젝트 선택">
+              <SelectTrigger aria-label="프로젝트 선택" size="lg">
                 <SelectValue placeholder="선택 안 함" />
               </SelectTrigger>
               <SelectContent>
@@ -128,7 +129,7 @@ export function CreateTemplateForm({
               value={frequency}
               onValueChange={(v) => v && setFrequency(v as RecurrenceFrequency)}
             >
-              <SelectTrigger aria-label="주기 선택">
+              <SelectTrigger aria-label="주기 선택" size="lg">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -145,7 +146,7 @@ export function CreateTemplateForm({
                 value={dayOfWeek}
                 onValueChange={(v) => v && setDayOfWeek(v)}
               >
-                <SelectTrigger aria-label="요일 선택">
+                <SelectTrigger aria-label="요일 선택" size="lg">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -165,6 +166,7 @@ export function CreateTemplateForm({
                 type="number"
                 min={1}
                 max={28}
+                className="h-10"
                 value={dayOfMonth}
                 onChange={(e) => setDayOfMonth(e.target.value)}
               />
@@ -177,6 +179,7 @@ export function CreateTemplateForm({
             <Input
               id="tmpl-start-time"
               type="time"
+              className="h-10"
               value={startTime}
               onChange={(e) => setStartTime(e.target.value)}
             />
@@ -187,6 +190,7 @@ export function CreateTemplateForm({
               id="tmpl-duration"
               type="number"
               min={1}
+              className="h-10"
               value={durationMinutes}
               onChange={(e) => setDurationMinutes(e.target.value)}
             />

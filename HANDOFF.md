@@ -120,6 +120,22 @@ mock 인증: 쿠키 `que-user=<id>` / PAT `que_pat_<id>` (예: `hwang-sunghyeon`
 - **알려진 갭(배치 6 이전 기존 갭·후속 후보)**: `/clients`가 아직 `?client=` 쿼리를 소비하지 않음. 배치 6 범위 밖, 후속 후보로 기록.
 - 검증: dev 서버 부재(`pgrep` exit 1) 확인 후 `pnpm lint`·`pnpm typecheck` 전 패키지 Done · `pnpm build` ✓ 7.3s 오류 0. 스코프 크립·죽은 코드 0, 도메인 규칙 경로(core mutation·StatusDetailForm) 무변경.
 
+## ✅ 터치·권한·폼 마감 감사 배치 7 — 마감 라운드 (2026-07-07)
+
+글래도스 게이트 재심사 배치. 감사 원문 PERM-1·2·3, PLAN-3·4, PROJ-7, DASH-3, RWD-1 최소 diff 구현. 표시/터치/권한/폼/반응형 전용 — **core·도메인 파일 diff 0건**(core mutation·canManage*·changeTaskStatus 무접촉), 상태색 의미 고정 준수(색+아이콘/텍스트 병행), 새 mutation 경로 없음. now/·search·성과 무접촉. 임시파일/죽은 코드 없음. **변경 12개 수정 + 1개 신규 = 13파일**.
+
+- **⚠️ 공용 `ui/` 전역 변경(승인된 예외) — `ui/select.tsx`에 `size="lg"` variant 신설**: `data-[size=lg]:h-10` 추가(순수 신규 variant). **사유**: 직전 라운드 mustFix였던 "Select 트리거가 `data-[size=default]:h-8`로 터치 40px 미달" 문제의 근본 해결. 개별 사용처에서 className으로 높이를 덮어쓰면 우선순위 충돌이 재발하므로, **폼용 lg 사이즈를 컴포넌트 계약으로 신설**했다. **default/sm variant는 문자 그대로 무변경**이라 기존 사용처 회귀 없음(순수 추가). '공용 ui/ 전역 변경 금지' 가드레일의 **승인된 예외**임을 명기(글래도스 조건부 수용 — 순수 추가·근본 해결). 폼(PLAN-4)에서 Select는 `size="lg"`로 소비.
+- **PERM-1 (권한별 컨트롤 터치·정리)**: `payment-list`에서 `COPY_COMPACT`(과밀 소형 버튼) 삭제 + 취소/되돌리기 버튼 `h-10`. `client-groups` 3개 액션 버튼 `h-10`. `payment-category-manager` 재정렬 컨트롤을 28px → `size-10` outline 패턴으로 교체(기존 outline 아이콘 버튼 패턴 재사용).
+- **PLAN-3 (반복 회귀 없이 터치만)**: `month-chip`에 `min-h-10`만 추가. `milestone-chip`·`month-view`는 **무접촉**(배치 3 마일스톤 가시성 회귀 없음).
+- **PLAN-4 (폼 컨트롤 40px)**: `milestone-list`·`create-milestone-form`·`create-template-form` 전 컨트롤 40px. Select는 위 `size="lg"` 소비.
+- **PROJ-7 (체크박스 히트박스, P3 잔여)**: `task-done-toggle` 사용부에 `after:-inset-y-3`로 히트박스 40px 확보. **`ui/checkbox`·`ui/button`은 diff 없음**(사용부에서만 해결).
+- **DASH-3 (홈 아이콘 버튼 터치)**: `size-10` 적용.
+- **PERM-2 (보관 확인 Dialog)**: 클라이언트/프로젝트 보관에 확인 Dialog + **파급효과 문구**(보관 시 영향 명시), 복구는 즉시. **core mutation 무변경**(기존 canManageClient/Project 경유).
+- **PERM-3 (필수 필드 폼 UX)**: 필수 5필드에 `*` + `sr-only "(필수)"`. `touched` 이후 필드별 에러 메시지 + `aria-invalid`. **"버튼 비활성 침묵" 안티패턴 제거**(왜 못 누르는지 안 보이던 문제). 선택 필드는 '(선택)' 라벨 유지. react-hook-form + zod 패턴, 에러는 필드 아래.
+- **RWD-1 (lg~xl 반응형) + 신규 `sidebar-rail.tsx`**: `apps/web/src/components/app/sidebar-rail.tsx` **신규** — lg~xl 구간 72px 아이콘 레일. **`SidebarNav`와 adminOnly·match(활성 경로)·뱃지 로직을 문자 그대로 동일하게 유지할 의무**(둘 중 하나만 고치면 IA 불일치 발생 — 동기화 필수). 레일 Link는 40px + `aria-label` + `aria-current`. xl 이상은 풀 사이드바, <lg는 기존 `MobileNav` **무접촉**. **lg~xl 구간 클라이언트 스위처는 상단바로 이동**(`layout.tsx` `xl:hidden` — 좁은 레일엔 스위처 공간이 없어 상단바로 재배치하는 결정).
+- **변경 파일 13개 전체 목록**: `ui/select.tsx`(신규 variant), `components/app/sidebar-rail.tsx`(신규), `app/(app)/layout.tsx`, `payments/payment-list.tsx`, `payments/payment-category-manager.tsx`, `clients/client-groups.tsx`, `schedule/month-chip.tsx`, `planning/{milestone-list,create-milestone-form,create-template-form}.tsx`(정확 경로는 planning 영역), `projects/task-done-toggle` 사용부, 홈 아이콘 버튼(DASH-3), 보관 확인 Dialog(PERM-2) — **직전 구현자 보고서에서 누락됐던 `ui/select.tsx` 포함**해 13파일. (파일 경로 세부는 `git show`로 대조 가능.)
+- 검증: dev 서버 부재 확인(`pgrep -fl "next dev"` 0건) 후 실행 — `pnpm lint` 클린 · `pnpm -r typecheck` 4패키지 Done · `pnpm build` 46라우트 성공 · `pnpm --filter @que/core test` **209/209 통과**. diff에 core/도메인 파일 0건 + core 가드 테스트 전건 통과로 도메인 규칙 회귀 위험 없음.
+
 ### 반드시 지킬 규칙 / 함정
 - **⚠️ 임시 "발송" 검증 라우트 + Vercel 빌드캐시 사고(2026-07-07)**: 개인 DM 검증용 임시 라우트(`/api/digest-check`)가 **매 호출마다 발송(dedup 없음)**이었는데, ① 배포 상태 폴링으로 그 라우트를 **인증 호출로 여러 번 때려** 팀에 중복 DM이 갔고, ② git에서 라우트를 지웠는데도 **Vercel Turbopack 빌드캐시가 삭제된 라우트를 잔존**시켜 계속 200을 반환했다. 교훈: **(a) 임시 발송 엔드포인트는 반드시 dedup/1회 가드**를 넣고, **(b) 발송 트리거 엔드포인트를 상태폴링으로 반복 호출하지 말 것**(`-o /dev/null`이어도 서버는 실행됨), **(c) 라우트/파일 삭제가 배포에 반영 안 되면 `vercel --prod --force`(캐시 무시)로 강제 재빌드**.
 - **dev 서버 켜진 동안 `pnpm build` 금지** (같은 `.next` 공유로 캐시 오염). build 전 dev 종료.

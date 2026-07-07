@@ -10,6 +10,7 @@ import { getClientFilter, getClientOptions } from "@/lib/client-filter";
 import { Brand } from "@/components/app/brand";
 import { ClientSwitcher } from "@/components/app/client-switcher";
 import { SidebarNav } from "@/components/app/sidebar-nav";
+import { SidebarRail } from "@/components/app/sidebar-rail";
 import { UserSwitcher } from "@/components/app/user-switcher";
 import { MobileNav } from "@/components/app/mobile-nav";
 import { GlobalSearch } from "@/components/app/global-search";
@@ -20,8 +21,9 @@ import { AddTaskDialog } from "@/components/app/add-task-dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 // App Shell (재설계).
-// - lg 이상: 좌측 고정 사이드바(로고+메뉴) + 우측 상단바(검색·알림·사용자)
-// - lg 미만(태블릿 세로): 상단바에 햄버거(Sheet 내비) + 컴팩트 로고
+// - xl 이상: 좌측 고정 풀 사이드바(로고+워드마크+클라이언트 스위처+라벨 메뉴)
+// - lg~xl(태블릿 가로): 아이콘 전용 축소 레일(72px, 라벨은 Tooltip). 클라이언트 스위처는 상단바로 이동
+// - lg 미만(태블릿 세로): 상단바에 햄버거(Sheet 내비) + 컴팩트 로고 + 클라이언트 스위처
 // 뷰포트 고정 높이(h-dvh) + main 내부 스크롤. 페이지 전체 레이아웃을 깨지 않는다.
 export default async function AppLayout({
   children,
@@ -54,7 +56,18 @@ export default async function AppLayout({
     <div className="flex h-dvh w-full overflow-hidden bg-[var(--que-bg)] text-[var(--que-text)]">
       <CommandPalette />
       <KeyboardShortcuts />
-      <aside className="hidden w-[236px] shrink-0 flex-col border-r border-[var(--que-border)] bg-[var(--que-bg)] lg:flex">
+      {/* 태블릿 가로(lg~xl): 아이콘 전용 축소 레일 — 본문 가용폭 확보(보드뷰 컬럼 수 유지) */}
+      <aside className="hidden w-[72px] shrink-0 flex-col border-r border-[var(--que-border)] bg-[var(--que-bg)] lg:flex xl:hidden">
+        <div className="flex h-[72px] shrink-0 items-center justify-center border-b border-[var(--que-border)]">
+          <Brand compact />
+        </div>
+        <ScrollArea className="min-h-0 flex-1 px-2 py-4">
+          <SidebarRail badges={menuBadges} isAdmin={isAdmin} />
+        </ScrollArea>
+      </aside>
+
+      {/* xl 이상: 풀 사이드바(로고+클라이언트 스위처+라벨 메뉴) */}
+      <aside className="hidden w-[236px] shrink-0 flex-col border-r border-[var(--que-border)] bg-[var(--que-bg)] xl:flex">
         <div className="flex h-[72px] shrink-0 items-center justify-center border-b border-[var(--que-border)] px-5">
           <Brand />
         </div>
@@ -77,7 +90,8 @@ export default async function AppLayout({
             <Brand compact />
           </div>
 
-          <div className="lg:hidden">
+          {/* 풀 사이드바가 없는 구간(축소 레일 lg~xl · 모바일 <lg)에서는 상단바에 클라이언트 스위처 노출 */}
+          <div className="xl:hidden">
             <ClientSwitcher clients={clientOptions} current={clientFilter} />
           </div>
 

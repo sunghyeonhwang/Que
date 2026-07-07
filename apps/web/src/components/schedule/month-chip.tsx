@@ -18,7 +18,7 @@ export function MonthChip({ item }: { item: CalendarViewItem }) {
         role="button"
         tabIndex={0}
         aria-label={`${item.title}, ${format(new Date(item.startAt), "h:mm a")}`}
-        className="flex cursor-pointer items-center gap-1 truncate rounded border px-1.5 py-1 text-[11px] font-medium outline-none focus-visible:ring-2 focus-visible:ring-[var(--que-brand)]"
+        className="flex min-h-10 cursor-pointer items-center gap-1 truncate rounded border px-1.5 py-1 text-[11px] font-medium outline-none focus-visible:ring-2 focus-visible:ring-[var(--que-brand)]"
         style={{
           backgroundColor: swatch.bg,
           borderColor: swatch.border,

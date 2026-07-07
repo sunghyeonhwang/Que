@@ -74,7 +74,7 @@ export function CreateMilestoneForm({
             value={projectId}
             onValueChange={(v) => v && setProjectId(v)}
           >
-            <SelectTrigger aria-label="프로젝트 선택">
+            <SelectTrigger aria-label="프로젝트 선택" size="lg">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -90,6 +90,7 @@ export function CreateMilestoneForm({
           <FieldLabel htmlFor="ms-title">제목</FieldLabel>
           <Input
             id="ms-title"
+            className="h-10"
             placeholder="예: 결제 QA 완료"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
@@ -100,6 +101,7 @@ export function CreateMilestoneForm({
           <Input
             id="ms-due"
             type="datetime-local"
+            className="h-10"
             value={dueAt}
             onChange={(e) => setDueAt(e.target.value)}
           />

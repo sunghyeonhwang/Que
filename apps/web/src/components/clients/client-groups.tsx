@@ -10,6 +10,15 @@ import {
 import { useSafeAction } from "@/components/app/use-safe-action";
 import { ToneBadge } from "@/components/app/tone-badge";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -188,6 +197,8 @@ function ClientCard({
   const { run, pending } = useSafeAction();
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(c.name);
+  // 보관은 전역 클라이언트 필터에 파급되므로 확인 Dialog를 거친다(복구는 즉시).
+  const [archiveOpen, setArchiveOpen] = useState(false);
 
   const archived = c.status === "archived";
   const trimmed = name.trim();
@@ -220,7 +231,10 @@ function ClientCard({
     run(
       () =>
         updateClientAction({ clientId: c.id, status: archived ? "active" : "archived" }),
-      { success: archived ? "클라이언트를 복구했습니다." : "클라이언트를 보관했습니다." },
+      {
+        success: archived ? "클라이언트를 복구했습니다." : "클라이언트를 보관했습니다.",
+        onSuccess: () => setArchiveOpen(false),
+      },
     );
   };
 
@@ -283,7 +297,7 @@ function ClientCard({
           <Button
             variant="outline"
             size="sm"
-            className="h-9"
+            className="h-10"
             disabled={pending}
             onClick={() => setEditing((v) => !v)}
           >
@@ -292,9 +306,9 @@ function ClientCard({
           <Button
             variant="outline"
             size="sm"
-            className="h-9"
+            className="h-10"
             disabled={pending}
-            onClick={toggleArchive}
+            onClick={archived ? toggleArchive : () => setArchiveOpen(true)}
           >
             {archived ? "복구" : "보관"}
           </Button>
@@ -332,6 +346,27 @@ function ClientCard({
           ))
         )}
       </div>
+
+      {/* 보관 확인 — 전역 파급효과를 사전에 설명한다(결제 분류 보관 안내와 동일 수준). */}
+      <Dialog open={archiveOpen} onOpenChange={setArchiveOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{c.name} 보관</DialogTitle>
+            <DialogDescription>
+              보관하면 전체 화면의 클라이언트 필터에서 숨겨지고, 새 프로젝트에 배정할 수
+              없습니다. 이미 연결된 프로젝트는 그대로 유지되며, 언제든 복구할 수 있습니다.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <DialogClose render={<Button variant="outline" className="h-10" />}>
+              취소
+            </DialogClose>
+            <Button className="h-10" disabled={pending} onClick={toggleArchive}>
+              {pending ? "보관 중…" : "보관"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -393,7 +428,7 @@ function ProjectRow({
         <Button
           variant="outline"
           size="sm"
-          className="h-9"
+          className="h-10"
           disabled={pending}
           onClick={() => setEditing((v) => !v)}
         >

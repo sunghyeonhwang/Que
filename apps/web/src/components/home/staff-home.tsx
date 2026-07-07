@@ -58,7 +58,7 @@ export function StaffHome({ data, month }: { data: StaffHomeData; month: number 
             <Link
               href="/schedule"
               aria-label="일정 전체 보기"
-              className="flex size-9 items-center justify-center rounded-lg text-[var(--que-text-tertiary)] hover:bg-[var(--que-bg-muted)] hover:text-[var(--que-text)]"
+              className="flex size-10 items-center justify-center rounded-lg text-[var(--que-text-tertiary)] hover:bg-[var(--que-bg-muted)] hover:text-[var(--que-text)]"
             >
               <Maximize2 className="size-4" aria-hidden />
             </Link>

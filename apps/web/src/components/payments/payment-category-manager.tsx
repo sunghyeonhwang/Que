@@ -136,20 +136,21 @@ export function PaymentCategoryManager({ categories }: { categories: PaymentCate
                     key={cat.id}
                     className="flex items-center gap-2 rounded-lg border border-[var(--que-border)] bg-[var(--que-bg)] p-2"
                   >
-                    <div className="flex shrink-0 flex-col">
+                    {/* 재정렬 버튼 — client-groups의 40px 위/아래 이동 패턴과 통일(터치 40px). */}
+                    <div className="flex shrink-0 flex-col gap-1">
                       <Tooltip>
                         <TooltipTrigger
                           render={
                             <Button
-                              variant="ghost"
-                              size="icon-sm"
+                              variant="outline"
+                              className="size-10 rounded-lg"
                               aria-label="위로 이동"
                               disabled={index === 0 || pending}
                               onClick={() => move(index, -1)}
                             />
                           }
                         >
-                          <ArrowUp className="size-3.5" aria-hidden />
+                          <ArrowUp className="size-4" aria-hidden />
                         </TooltipTrigger>
                         <TooltipContent>위로</TooltipContent>
                       </Tooltip>
@@ -157,15 +158,15 @@ export function PaymentCategoryManager({ categories }: { categories: PaymentCate
                         <TooltipTrigger
                           render={
                             <Button
-                              variant="ghost"
-                              size="icon-sm"
+                              variant="outline"
+                              className="size-10 rounded-lg"
                               aria-label="아래로 이동"
                               disabled={index === categories.length - 1 || pending}
                               onClick={() => move(index, 1)}
                             />
                           }
                         >
-                          <ArrowDown className="size-3.5" aria-hidden />
+                          <ArrowDown className="size-4" aria-hidden />
                         </TooltipTrigger>
                         <TooltipContent>아래로</TooltipContent>
                       </Tooltip>

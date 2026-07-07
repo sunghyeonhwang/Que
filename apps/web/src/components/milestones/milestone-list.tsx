@@ -84,7 +84,7 @@ function MilestoneRowItem({ milestone: m }: { milestone: MilestoneRow }) {
               value={m.riskStatus}
               onValueChange={(v) => v && v !== m.riskStatus && changeRisk(v as Risk)}
             >
-              <SelectTrigger aria-label="위험 상태 변경" className="h-9 w-24">
+              <SelectTrigger aria-label="위험 상태 변경" size="lg" className="w-24">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -98,7 +98,7 @@ function MilestoneRowItem({ milestone: m }: { milestone: MilestoneRow }) {
             <Button
               variant="outline"
               size="sm"
-              className="h-9"
+              className="h-10"
               disabled={pending}
               onClick={() => setEditing((v) => !v)}
             >
@@ -112,12 +112,13 @@ function MilestoneRowItem({ milestone: m }: { milestone: MilestoneRow }) {
         <div className="mt-2.5 flex flex-wrap items-end gap-2 border-t border-[var(--que-border)] pt-2.5">
           <label className="flex flex-1 flex-col gap-1 text-xs text-[var(--que-text-secondary)]">
             제목
-            <Input value={title} onChange={(e) => setTitle(e.target.value)} />
+            <Input className="h-10" value={title} onChange={(e) => setTitle(e.target.value)} />
           </label>
           <label className="flex flex-col gap-1 text-xs text-[var(--que-text-secondary)]">
             기한
             <Input
               type="datetime-local"
+              className="h-10"
               value={dueAt}
               onChange={(e) => setDueAt(e.target.value)}
             />

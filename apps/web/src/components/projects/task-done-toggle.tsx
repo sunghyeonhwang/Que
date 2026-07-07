@@ -35,7 +35,9 @@ export function TaskDoneToggle({
       onPointerDown={(event) => event.stopPropagation()}
       onClick={(event) => event.stopPropagation()}
       aria-label={`${taskTitle} 완료`}
-      className={cn("relative z-20 shrink-0", className)}
+      // 목록 행 완료 토글의 실제 터치 히트박스를 40px로 확대한다.
+      // (ui/checkbox 기본 after:-inset-y-2=32px를 세로 -inset-y-3=40px로 덮어씀 — 전역 미변경)
+      className={cn("relative z-20 shrink-0 after:-inset-y-3", className)}
     />
   );
 }

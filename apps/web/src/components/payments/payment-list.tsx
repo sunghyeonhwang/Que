@@ -19,9 +19,6 @@ const STATUS_TONE: Record<PaymentStatus, BadgeTone> = {
   cancelled: "red",
 };
 
-// 부제 안 인라인 복사 버튼 — 얇은 행을 유지하려 작게(32px). 40px 완료 원형과 대비.
-const COPY_COMPACT = "size-8";
-
 /** 결제 요청 목록 — view.griff task 카드처럼 얇은 단일 행 카드 나열.
  *  마감 초과 대기 항목이 상단에 온다.
  *  highlightId(전역 검색 딥링크 /payments?payment=<id>)가 있으면 해당 행을 강조·스크롤한다. */
@@ -92,11 +89,7 @@ function PaymentRowView({ row, highlighted }: { row: PaymentRow; highlighted: bo
             <span className="text-[var(--que-text-secondary)]">{row.bankName}</span>
             <span className="tabular-nums">{row.accountDisplay}</span>
             {row.accountNumberForCopy !== undefined && (
-              <CopyButton
-                value={row.accountNumberForCopy}
-                label="계좌번호 복사"
-                className={COPY_COMPACT}
-              />
+              <CopyButton value={row.accountNumberForCopy} label="계좌번호 복사" />
             )}
           </span>
           {dueText && (
@@ -129,11 +122,7 @@ function PaymentRowView({ row, highlighted }: { row: PaymentRow; highlighted: bo
             {row.amountDisplay ?? "비공개"}
           </span>
           {row.amountForCopy !== undefined && (
-            <CopyButton
-              value={String(row.amountForCopy)}
-              label="금액 복사"
-              className={COPY_COMPACT}
-            />
+            <CopyButton value={String(row.amountForCopy)} label="금액 복사" />
           )}
         </span>
 
@@ -143,7 +132,7 @@ function PaymentRowView({ row, highlighted }: { row: PaymentRow; highlighted: bo
           <Button
             variant="outline"
             size="sm"
-            className="h-9 rounded-lg border-[var(--que-error)]/40 px-2.5 text-xs text-[var(--que-error)] hover:bg-[var(--que-error-bg)] hover:text-[var(--que-error)]"
+            className="h-10 rounded-lg border-[var(--que-error)]/40 px-2.5 text-xs text-[var(--que-error)] hover:bg-[var(--que-error-bg)] hover:text-[var(--que-error)]"
             disabled={pending}
             onClick={() => change("cancelled")}
           >
@@ -154,7 +143,7 @@ function PaymentRowView({ row, highlighted }: { row: PaymentRow; highlighted: bo
           <Button
             variant="outline"
             size="sm"
-            className="h-9 rounded-lg px-2.5 text-xs"
+            className="h-10 rounded-lg px-2.5 text-xs"
             disabled={pending}
             onClick={() => change("waiting")}
           >
