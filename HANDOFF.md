@@ -42,7 +42,7 @@ mock 인증: 쿠키 `que-user=<id>` / PAT `que_pat_<id>` (예: `hwang-sunghyeon`
 #### env 트랙 (사용자가 "하나씩" 진행 중)
 1. ~~**Vercel 배포**~~ → **완료 (43번)**. <https://que-rouge-eight.vercel.app> (Root=`apps/web`, 리전 `icn1`, 실 DB+실 인증). **주의: Deployment Protection이 현재 꺼진 상태**(대시보드에서 재활성화 필요) — 단 실 인증+mock API 503이라 공개라도 안전. `QUE_ALLOW_MOCK_AUTH`는 **안 켬**(mock PAT 봉인). (`data/docs/deploy-vercel-supabase.md`)
 2. ~~**웹 실 인증**~~ → **완료 (42번, Auth.js 이메일+비밀번호)**. 로그인: `<이름>.<성>@griff.co.kr`. **프로덕션 비번(2026-07-04): 테스트용 공용 비번으로 전 팀원 7명 통일 적용**(평문은 `data/passwords.txt` gitignore 참조, 여기엔 평문 금지). 프로덕션 `users.password_hash`에 bcrypt(rounds10) 직접 UPDATE, E2E 로그인 검증 완료. **테스트+개인 비번 작성 후 개인별 교체 예정**(`gen-passwords.mts` → `set-passwords.sql`). 로컬 dev 상수 `DEV_PASSWORD(que-2026!)`는 mock 전용(프로덕션 무관). **남은 B2**: API/MCP/CLI의 mock PAT를 `personal_access_tokens`(해시)로 교체 + `core/mock/tokens.ts` 폐기 → 그 후 `QUE_ALLOW_MOCK_AUTH` 제거.
-3. Sentry DSN(에러 리포팅) · Slack 앱(알림/스탠드업) · CLI/MCP 배포(30번) → **아직 대기(키/결정)**. ~~스케줄러 Vercel Cron 전환~~ → **✅ 활성화 완료 (2026-07-07)**: Pro 이전(4번) 후 `apps/web/vercel.json`에 `crons */10 * * * *`(`/api/cron/sync`) 복구·배포 성공(Pro라 수락). `CRON_SECRET`(랜덤, data/.env 기록)·`QUE_CRON_ACTIVE=1`을 Vercel **production** env에 설정 → lazy sync 꺼지고 cron이 스케줄 권위. 검증: 무인증/오시크릿 401, 올바른 Bearer 200 `{ok:true,checkInsCreated:4}`(실제 체크인 생성). Vercel이 10분마다 자동 호출(대시보드 Crons 탭에서 스케줄·다음 실행 확인 가능). 상세 `deploy-vercel-supabase.md` 4-1.
+3. ~~Sentry DSN(에러 리포팅)~~ → **✅ 완료 (2026-07-07)**: `@sentry/nextjs` 붙임(에러 캡처만, 트레이싱/리플레이/소스맵은 후속). 아래 "[✅ Sentry 에러 리포팅](#-sentry-에러-리포팅-2026-07-07)" 절. · Slack 앱(알림/스탠드업) · CLI/MCP 배포(30번) → **아직 대기(키/결정)**. ~~스케줄러 Vercel Cron 전환~~ → **✅ 활성화 완료 (2026-07-07)**: Pro 이전(4번) 후 `apps/web/vercel.json`에 `crons */10 * * * *`(`/api/cron/sync`) 복구·배포 성공(Pro라 수락). `CRON_SECRET`(랜덤, data/.env 기록)·`QUE_CRON_ACTIVE=1`을 Vercel **production** env에 설정 → lazy sync 꺼지고 cron이 스케줄 권위. 검증: 무인증/오시크릿 401, 올바른 Bearer 200 `{ok:true,checkInsCreated:4}`(실제 체크인 생성). Vercel이 10분마다 자동 호출(대시보드 Crons 탭에서 스케줄·다음 실행 확인 가능). 상세 `deploy-vercel-supabase.md` 4-1.
 4. ~~**Pro 계정으로 프로젝트 이전**~~ → **✅ 완료 (2026-07-07)**. Vercel "Transfer Project"로 `que`를 Hobby 팀 `griff0120s-projects` → **Pro 팀 `griff-fde0dc32`("GRIFF")**로 이전. **env(AUTH_SECRET·SUPABASE_URL·SUPABASE_SECRET_KEY·QUE_DB)·도메인(que.griff.co.kr·view.griff.co.kr)·git 연동이 함께 이동**(Transfer 마법사가 자동 처리 — 재설정 불필요했음). `.vercel/project.json` orgId `team_adk2R8uxbLjr0BeZ9yzjfZxC` → **`team_rSoKnhEmb773JXpYGBdkdQwU`**(projectId `prj_FSGUPN9iXotjqSw5X5btx4dN0At9` 동일). 검증: que/view 도메인 200·icn1·noindex 정상, env 4개 정상. **버려진 `que-web` 프로젝트(GRIFF 팀, 도메인 없음)는 삭제 예정**. ⚠️ [[end-of-work-routine]] 메모의 배포 팀을 GRIFF로 갱신함. **이제 cron `*/10` 활성화 언블록**(위 3번 (A)안): `vercel.json` crons 복구 + `CRON_SECRET` 설정 + `QUE_CRON_ACTIVE=1` → 다음 단계.
 
 ### 반드시 지킬 규칙 / 함정
@@ -66,6 +66,18 @@ mock 인증: 쿠키 `que-user=<id>` / PAT `que_pat_<id>` (예: `hwang-sunghyeon`
 - **#2 staff-edit-dialog rank enum-밖 폴백** — 위 "팀원·권한" 절의 **rank 폴백 덮어쓰기 후속 해소**. `originalRank`(원본을 폼과 동일 정규화)와 비교하도록 `rankChanged` 수정 → enum-밖 원본을 안 건드리면 rank 미전송·보존. enum-밖이면 경고 안내 노출. **⚠️ 신규 관찰(비차단)**: enum-밖 유저를 **의도적으로 "사원"으로** 바꾸는 건 불가(폼이 이미 "사원"이라 변경 미감지) — 우회=관리 저장 후 사원 저장 2회. SQL 직삽입에서만 나는 저빈도 케이스.
 - **#3 주간뷰 그리드 밖 이벤트 필터** (`week-grid.tsx`) — 표시 창(10~19시)과 겹침 0인 이벤트를 `layoutDayItems`에서 `overlapsWindow`로 제외(`rawStart<1140 && rawEnd>600`). 창 밖 이벤트가 clamp돼 minHeight:52 **유령카드**로 쌓이던 것 제거. **동작 변화(글래도스 판정=수용)**: 종료가 정확히 10:00인 이벤트(예: 9:00~10:00 "재고 수량 확인")는 창과 공유 시간 0분이라 **드롭**(→ +N이 +3→+2로 재계산). 근거: 벽 디스플레이가 10시 시작인 게 의도된 설계 → 창 밖은 표시 안 하는 게 맞고, 살리려면 필터가 아니라 창 범위를 고쳐야 함. 겹침 레인/+N 로직 자체는 불변.
 - **#4 토큰 버튼 터치타깃** (`token-settings.tsx`) — 복사·폐기 버튼 `h-10`→`h-11`(40→44px, 발급 버튼과 정합, CLAUDE.md 권장).
+
+## ✅ Sentry 에러 리포팅 (2026-07-07)
+
+> `reportError()`가 콘솔만 찍던 걸 Sentry로도 전송(프로덕션 오류 실시간 포착). `@sentry/nextjs ^10.63.0`.
+
+- **범위 결정**: **에러 캡처만**. 성능 트레이싱(`tracesSampleRate: 0`)·세션리플레이·소스맵 업로드는 후속.
+- **DSN = 공개 식별자**(비밀 아님, 이벤트 전송 전용): `NEXT_PUBLIC_SENTRY_DSN`으로 **Vercel production+preview**에 설정. **로컬 dev엔 미설정 → `enabled:!!dsn`로 no-op**(개발 중 Sentry 안 감). DSN 값은 소스 하드코딩 없음(env 참조만).
+- **파일**: `next.config.ts`(`withSentryConfig`, authToken 없어 소스맵 업로드는 스킵) · `src/instrumentation.ts`(TZ=Asia/Seoul **유지** + 런타임별 server/edge init + `onRequestError`) · `src/instrumentation-client.ts`(신규, 클라 init + `onRouterTransitionStart`) · `src/sentry.server.config.ts`·`sentry.edge.config.ts`(신규) · `src/lib/report-error.ts`(`captureException`, context→tags).
+- **pnpm v11**: `pnpm-workspace.yaml`의 `allowBuilds['@sentry/cli']: true`(빌드 스크립트 승인 — 미승인 시 install/build가 하드 에러). ⚠️ `package.json`의 `pnpm` 필드는 pnpm v11이 무시하므로 쓰지 말 것(설정은 pnpm-workspace.yaml).
+- **참고**: Next 16에서 proxy.ts는 기본 Node.js 런타임 → server config가 커버. edge config는 향후 edge 라우트 대비 보험.
+- **검증**: typecheck·lint·build(Turbopack) 통과, 글래도스 승인. 배포 후 임시 체크 라우트로 실제 이벤트 전송(flush) 확인.
+- **후속(비차단)**: `SENTRY_AUTH_TOKEN` 추가 → 소스맵 업로드(현재 미니파이 스택). 성능 트레이싱/리플레이 필요 시 sampleRate 상향.
 
 ## ✅ 로그아웃 오류 수정 (2026-07-06)
 
@@ -346,7 +358,7 @@ data/
 21. **자연어 작업 생성 + 에러 표시 P0 (2026-07-02)**: MVP 잔여 항목이던 자연어 입력 완성.
     - core: `parseTaskInput`(순수 함수, 규칙 기반 — 담당자 이름/오늘·내일·모레·N월M일/오전·오후 H시(반·분) 해석, 모호하면 questions 반환, **저장 안 함**), `createTask` mutation(제목 필수·200자, 유령 담당자/역순 일정 거부, 담당 미지정=본인, 타인 지정 허용+ChangeLog) — 테스트 43케이스.
     - web: 오늘 화면 QuickAdd(자연어 입력→해석→**확인 카드**(편집 가능)→등록), API POST /api/tasks + /api/tasks/parse, MCP 도구 parse_task_input/create_task (15→17개, 스모크 갱신).
-    - 에러 표시 P0: `(app)/error.tsx` + `global-error.tsx`(한국어, digest 코드, 다시 시도) + `lib/report-error.ts` 스텁(Sentry DSN 결정 시 교체 지점). 기획: `data/docs/que-error-reporting-plan.md` — **Sentry 채택/피드백 폼 시점/베타 공지 문구 3가지 결정 대기**.
+    - 에러 표시 P0: `(app)/error.tsx` + `global-error.tsx`(한국어, digest 코드, 다시 시도) + `lib/report-error.ts`(**2026-07-07 Sentry 배선 완료** — 콘솔 + `Sentry.captureException`). 기획: `data/docs/que-error-reporting-plan.md`.
     - 파서 알려진 한계: 요일 표현("금요일") 미해석 — 잔여어가 제목에 남지만 확인 카드에서 수정 가능. 개선 후보.
 22. **에러 표시 P0-2 완료 (2026-07-02)**: `useSafeAction` 공통 훅(`components/app/use-safe-action.tsx`) — 서버 액션 결과를 성공 토스트+refresh / 규칙 거부 토스트(리포팅 안 함) / **예상 못 한 예외는 reportError+안내 토스트**(조용히 죽지 않음)로 일원화. 클라이언트 9곳 전환: checkin-panel, task-status-sheet(+ScheduleMoveForm), quick-add(parse는 별도 try/catch), use-move, upload-note-form, note-list, action-row, payment-form/list, user-switcher(void 액션이라 try/catch). 이로써 에러 리포팅 기획의 P0 중 env 불필요분(1·2번) 완료 — 남은 P0는 Sentry DSN 대기.
 

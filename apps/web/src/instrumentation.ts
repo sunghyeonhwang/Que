@@ -10,6 +10,20 @@
 // 참고: Vercel은 `TZ`를 예약 환경변수로 막아 프로젝트 env로는 설정할 수 없다(항상 UTC).
 // 그래서 서버 시작 시 코드에서 강제 설정한다 — Node는 process.env.TZ 재할당 시 이후 Date
 // 연산부터 KST를 반영한다. instrumentation.register()는 앱의 다른 코드보다 먼저 실행된다.
-export function register() {
+//
+// 아울러 런타임별 Sentry 서버/엣지 SDK를 여기서 초기화한다(DSN 미설정이면 no-op).
+import * as Sentry from "@sentry/nextjs";
+
+export async function register() {
   process.env.TZ = "Asia/Seoul";
+
+  if (process.env.NEXT_RUNTIME === "nodejs") {
+    await import("./sentry.server.config");
+  }
+  if (process.env.NEXT_RUNTIME === "edge") {
+    await import("./sentry.edge.config");
+  }
 }
+
+// 서버 컴포넌트·라우트 핸들러·proxy의 중첩 오류를 Sentry로 포착.
+export const onRequestError = Sentry.captureRequestError;
