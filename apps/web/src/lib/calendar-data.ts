@@ -48,9 +48,12 @@ export interface ScheduleFilters {
   keyword?: string;
 }
 
+/** 캘린더에 얹는 마일스톤(프로젝트명 포함). 일정 화면에선 읽기 전용 마커로만 표시한다. */
+export type CalendarMilestone = Milestone & { projectName: string };
+
 export interface CalendarData {
   items: CalendarViewItem[];
-  milestones: (Milestone & { projectName: string })[];
+  milestones: CalendarMilestone[];
   projects: Project[];
   users: User[];
 }

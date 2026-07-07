@@ -1,6 +1,7 @@
 import { format, isSameDay, isSameMonth, isToday } from "date-fns";
-import type { CalendarViewItem } from "@/lib/calendar-data";
+import type { CalendarMilestone, CalendarViewItem } from "@/lib/calendar-data";
 import { cn } from "@/lib/utils";
+import { MilestoneChip } from "./milestone-chip";
 import { MonthChip } from "./month-chip";
 
 const WEEKDAYS = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
@@ -10,10 +11,12 @@ export function MonthView({
   weeks,
   anchor,
   items,
+  milestones = [],
 }: {
   weeks: Date[][];
   anchor: Date;
   items: CalendarViewItem[];
+  milestones?: CalendarMilestone[];
 }) {
   return (
     <div className="flex h-[calc(100dvh-13rem)] flex-col overflow-hidden rounded-xl border border-[var(--que-border)] bg-[var(--que-bg)]">
@@ -32,6 +35,8 @@ export function MonthView({
               const dayItems = items
                 .filter((it) => isSameDay(new Date(it.startAt), day))
                 .sort((a, b) => a.startAt.localeCompare(b.startAt));
+              // 마일스톤은 해당 마감일 셀 상단에 읽기 전용 마커로 표시(빈 날은 렌더 안 함).
+              const dayMilestones = milestones.filter((m) => isSameDay(new Date(m.dueAt), day));
               const outside = !isSameMonth(day, anchor);
               const today = isToday(day);
               return (
@@ -56,6 +61,9 @@ export function MonthView({
                     {format(day, "d")}
                   </div>
                   <div className="flex flex-col gap-1">
+                    {dayMilestones.map((m) => (
+                      <MilestoneChip key={`milestone-${m.id}`} milestone={m} />
+                    ))}
                     {dayItems.slice(0, 3).map((it) => (
                       <MonthChip key={`${it.kind}-${it.id}`} item={it} />
                     ))}

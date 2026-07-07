@@ -71,6 +71,18 @@ mock 인증: 쿠키 `que-user=<id>` / PAT `que_pat_<id>` (예: `hwang-sunghyeon`
 - 검증: dev 서버 부재 확인(`pgrep -fl "next dev"` 0건) 후 실행 — `pnpm lint` clean · `pnpm -r typecheck` 4패키지 Done · `pnpm build` 'Compiled successfully in 7.6s' exit 0. `git status` 정확히 위 4개 파일만 M(projects 무접촉, 임시/죽은 코드 없음).
 - 후속 권고(비차단): 실 계정 3개 grade(ceo/admin/staff) 브라우저 렌더 + 가로 스크롤 sticky 시각 확인 미수행.
 
+## ✅ /schedule(일정) 감사 배치 3 — 마일스톤 가시성 (2026-07-07)
+
+글래도스 게이트 재심사 배치. 감사 원문 PLAN-1 최소 diff 구현. 캘린더 표시 전용 변경 — mutation 경로 무접촉, packages/core 무변경, 상태색 의미 고정 준수. 죽은 코드(`components/calendar/*`)·projects·performance·theme token 무접촉. 변경 파일 4개(수정 3+신규 1): `apps/web/src/app/(app)/schedule/page.tsx`, `apps/web/src/components/schedule/month-view.tsx`, `apps/web/src/components/schedule/week-calendar.tsx`, `apps/web/src/components/schedule/milestone-chip.tsx`(신규), `apps/web/src/lib/calendar-data.ts`(타입 export).
+
+- **PLAN-1 (마일스톤 가시성 부재)**: `/schedule` 4개 뷰(주/월 × 관련 경로) 전부에 프로젝트 마일스톤을 배선. `schedule/page.tsx:106-114`에서 4개 뷰 모두 `data.milestones` 전달. **월간**은 날짜 셀 상단에 마커(`month-view.tsx:38-66`의 `MilestoneChip`), **주간**은 요일 헤더와 동일 sticky 래퍼·`colTemplate` 공유하는 종일(all-day) 밴드로 렌더(`week-calendar.tsx` — 레이아웃 비파괴).
+- **읽기 전용 결정**: 마일스톤 칩은 클릭 진입점 없음 — `onClick`/`href`/`draggable` 전무(`milestone-chip.tsx`). `title` 툴팁으로만 상세 노출. 캘린더 상 마일스톤은 편집 대상이 아니라 **일정 맥락 표시**이므로 드래그 재일정·상세 시트 없이 조회만. 칩 자체는 터치 대상이 아니지만 셀/밴드가 40px+ 유지되어 터치 규칙 무해.
+- **riskStatus 색 매핑**: core `domain.ts:196` `z.enum(["on_track","at_risk","late"])`를 CLAUDE.md 고정 색 의미에 매핑 — `on_track`→green(진행), `at_risk`→amber(주의), `late`→red(문제). 색 단독 금지 준수: `Diamond` 아이콘 + 제목 텍스트 + `sr-only` 위험 상태 병행.
+- **타입 export**: `calendar-data.ts`에 `CalendarMilestone` 타입 export 추가(뷰 컴포넌트가 공유). 마일스톤은 활성 클라이언트 필터 스코프 존중(`calendar-data.ts:145-151`).
+- **빈 상태**: 주간은 `hasMilestones` 게이트로 마일스톤 없는 기간엔 밴드 미렌더(빈 밴드 무점유). 월간은 빈 배열이면 셀 상단 무점유.
+- 검증: dev 서버 부재 확인(`pgrep -fl "next dev"` 0건) 후 실행 — `pnpm lint` clean · `pnpm -r typecheck` Done · `pnpm build` exit 0(전 라우트 정상, `/schedule` 포함). `git status` 위 파일만 M/신규.
+- 비차단 메모: (1) 월간 `dayItems.slice(0,3)` 상한에 마일스톤 미산입 — 셀 소폭 성장하나 grid minmax+overflow-auto로 파괴 없음, (2) 키워드/우선순위 필터는 마일스톤 미적용(수용 가능한 설계), (3) AUTH_SECRET 미설정으로 해상도별 시각 검증 미수행 — 복구 후 1024x768 주간 밴드 확인 권장.
+
 ### 반드시 지킬 규칙 / 함정
 - **⚠️ 임시 "발송" 검증 라우트 + Vercel 빌드캐시 사고(2026-07-07)**: 개인 DM 검증용 임시 라우트(`/api/digest-check`)가 **매 호출마다 발송(dedup 없음)**이었는데, ① 배포 상태 폴링으로 그 라우트를 **인증 호출로 여러 번 때려** 팀에 중복 DM이 갔고, ② git에서 라우트를 지웠는데도 **Vercel Turbopack 빌드캐시가 삭제된 라우트를 잔존**시켜 계속 200을 반환했다. 교훈: **(a) 임시 발송 엔드포인트는 반드시 dedup/1회 가드**를 넣고, **(b) 발송 트리거 엔드포인트를 상태폴링으로 반복 호출하지 말 것**(`-o /dev/null`이어도 서버는 실행됨), **(c) 라우트/파일 삭제가 배포에 반영 안 되면 `vercel --prod --force`(캐시 무시)로 강제 재빌드**.
 - **dev 서버 켜진 동안 `pnpm build` 금지** (같은 `.next` 공유로 캐시 오염). build 전 dev 종료.

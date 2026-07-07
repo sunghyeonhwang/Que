@@ -104,13 +104,13 @@ export default async function SchedulePage({
       </header>
 
       {range === "month" ? (
-        <MonthView weeks={monthWeeks} anchor={anchor} items={items} />
+        <MonthView weeks={monthWeeks} anchor={anchor} items={items} milestones={data.milestones} />
       ) : range === "day" ? (
-        <WeekCalendar days={[anchor]} items={items} />
+        <WeekCalendar days={[anchor]} items={items} milestones={data.milestones} />
       ) : range === "3day" ? (
-        <WeekCalendar days={threeDays} items={items} />
+        <WeekCalendar days={threeDays} items={items} milestones={data.milestones} />
       ) : (
-        <WeekCalendar days={weekDays} items={items} />
+        <WeekCalendar days={weekDays} items={items} milestones={data.milestones} />
       )}
     </div>
   );

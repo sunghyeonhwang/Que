@@ -3,10 +3,11 @@
 import { useEffect, useState } from "react";
 import { format, isSameDay, isToday } from "date-fns";
 import { Lock } from "lucide-react";
-import type { CalendarViewItem } from "@/lib/calendar-data";
+import type { CalendarMilestone, CalendarViewItem } from "@/lib/calendar-data";
 import { cn } from "@/lib/utils";
 import { eventSwatch } from "./event-color";
 import { EventDetailPopover } from "./event-detail-popover";
+import { MilestoneChip } from "./milestone-chip";
 import {
   GRID_HEIGHT,
   HOURS,
@@ -33,7 +34,15 @@ function timeRangeLabel(startAt: string, endAt: string): string {
 }
 
 /** 시간축 캘린더. days가 1개면 일간, 7개면 주간. 읽기 전용. */
-export function WeekCalendar({ days, items }: { days: Date[]; items: CalendarViewItem[] }) {
+export function WeekCalendar({
+  days,
+  items,
+  milestones = [],
+}: {
+  days: Date[];
+  items: CalendarViewItem[];
+  milestones?: CalendarMilestone[];
+}) {
   const [now, setNow] = useState<Date | null>(null);
 
   useEffect(() => {
@@ -53,6 +62,8 @@ export function WeekCalendar({ days, items }: { days: Date[]; items: CalendarVie
     days.some((d) => isSameDay(d, now));
   const nowY = now ? timeToY(now) : 0;
   const colTemplate = `4rem repeat(${days.length}, minmax(0, 1fr))`;
+  // 마일스톤 밴드는 표시 기간에 마감 마일스톤이 하나라도 있을 때만 렌더(빈 밴드로 공간 낭비 금지).
+  const hasMilestones = days.some((d) => milestones.some((m) => isSameDay(new Date(m.dueAt), d)));
   // 가로 스크롤 임계폭을 컬럼 수에 비례시킨다(시간축 4rem + 컬럼당 6.2rem).
   // 7일=약 760px로 기존 주간 레이아웃 유지, 3일/1일은 과하게 넓어지지 않음.
   const minWidth = `calc(4rem + ${days.length} * 6.2rem)`;
@@ -61,43 +72,71 @@ export function WeekCalendar({ days, items }: { days: Date[]; items: CalendarVie
     <div className="overflow-hidden rounded-xl border border-[var(--que-border)] bg-[var(--que-bg)]">
       <div className="max-h-[calc(100dvh-15rem)] overflow-auto">
         <div style={{ minWidth }}>
-          {/* 요일 헤더 (sticky top) */}
-          <div
-            className="sticky top-0 z-30 grid border-b border-[var(--que-border)] bg-[var(--que-bg)]"
-            style={{ gridTemplateColumns: colTemplate }}
-          >
-            <div className="sticky left-0 z-10 flex items-center justify-center border-r border-[var(--que-border)] bg-[var(--que-bg)] px-2 py-3 text-[11px] font-medium text-[var(--que-text-tertiary)]">
-              {TZ_LABEL}
+          {/* 요일 헤더 + 마일스톤 밴드 (sticky top) */}
+          <div className="sticky top-0 z-30 border-b border-[var(--que-border)] bg-[var(--que-bg)]">
+            <div className="grid" style={{ gridTemplateColumns: colTemplate }}>
+              <div className="sticky left-0 z-10 flex items-center justify-center border-r border-[var(--que-border)] bg-[var(--que-bg)] px-2 py-3 text-[11px] font-medium text-[var(--que-text-tertiary)]">
+                {TZ_LABEL}
+              </div>
+              {days.map((day) => {
+                const today = isToday(day);
+                return (
+                  <div
+                    key={day.toISOString()}
+                    className={cn(
+                      "border-l border-[var(--que-border)] px-2 py-3 text-center",
+                      today && "bg-[var(--que-brand-subtle)]",
+                    )}
+                  >
+                    <div
+                      className={cn(
+                        "text-[11px] font-semibold uppercase tracking-wide",
+                        today ? "text-[var(--que-brand)]" : "text-[var(--que-text-tertiary)]",
+                      )}
+                    >
+                      {format(day, "EEE")}
+                    </div>
+                    <div
+                      className={cn(
+                        "text-lg font-semibold leading-tight",
+                        today ? "text-[var(--que-brand)]" : "text-[var(--que-text)]",
+                      )}
+                    >
+                      {format(day, "d")}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-            {days.map((day) => {
-              const today = isToday(day);
-              return (
-                <div
-                  key={day.toISOString()}
-                  className={cn(
-                    "border-l border-[var(--que-border)] px-2 py-3 text-center",
-                    today && "bg-[var(--que-brand-subtle)]",
-                  )}
-                >
-                  <div
-                    className={cn(
-                      "text-[11px] font-semibold uppercase tracking-wide",
-                      today ? "text-[var(--que-brand)]" : "text-[var(--que-text-tertiary)]",
-                    )}
-                  >
-                    {format(day, "EEE")}
-                  </div>
-                  <div
-                    className={cn(
-                      "text-lg font-semibold leading-tight",
-                      today ? "text-[var(--que-brand)]" : "text-[var(--que-text)]",
-                    )}
-                  >
-                    {format(day, "d")}
-                  </div>
+
+            {/* 마일스톤 종일 밴드 — 해당 요일 마감 마일스톤을 읽기 전용 마커로. 없으면 밴드 자체를 숨김. */}
+            {hasMilestones && (
+              <div
+                className="grid border-t border-[var(--que-border)]"
+                style={{ gridTemplateColumns: colTemplate }}
+              >
+                <div className="sticky left-0 z-10 flex items-center justify-center border-r border-[var(--que-border)] bg-[var(--que-bg)] px-1 py-1 text-[10px] font-medium text-[var(--que-text-tertiary)]">
+                  마일스톤
                 </div>
-              );
-            })}
+                {days.map((day) => {
+                  const today = isToday(day);
+                  const dayMilestones = milestones.filter((m) => isSameDay(new Date(m.dueAt), day));
+                  return (
+                    <div
+                      key={day.toISOString()}
+                      className={cn(
+                        "flex min-w-0 flex-col gap-1 border-l border-[var(--que-border)] px-1 py-1",
+                        today && "bg-[var(--que-brand-subtle)]",
+                      )}
+                    >
+                      {dayMilestones.map((m) => (
+                        <MilestoneChip key={`milestone-${m.id}`} milestone={m} />
+                      ))}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {/* 본문: 시간축 + 요일 컬럼 */}
