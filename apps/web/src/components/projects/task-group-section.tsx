@@ -3,9 +3,11 @@
 import { useState } from "react";
 import Link from "next/link";
 import { ChevronDown, Plus, Lock, AlertTriangle } from "lucide-react";
+import { TASK_STATUS_LABELS } from "@que/core";
 import type { BoardColumn } from "@/lib/projects-data";
 import { TONE_STYLE, COLUMN_TONE } from "@/lib/pm-columns";
 import { IconButton } from "@/components/app/icon-button";
+import { StatusBadge } from "@/components/app/status-badge";
 import { PriorityBadge } from "./priority-badge";
 import { MemberAvatars } from "./member-avatars";
 import { TaskDoneToggle } from "./task-done-toggle";
@@ -87,6 +89,11 @@ export function TaskGroupSection({
 
           {column.cards.map((card) => {
             const done = card.status === "done";
+            // 컬럼 라벨이 상태를 그대로 말해주는 status는 sr-only, 애매한 status만 시각 뱃지.
+            const columnConveysStatus =
+              card.status === "scheduled" ||
+              card.status === "in_progress" ||
+              card.status === "done";
             return (
               <div
                 key={card.taskId}
@@ -119,6 +126,13 @@ export function TaskGroupSection({
                   >
                     {card.title}
                   </span>
+                  {columnConveysStatus ? (
+                    <span className="sr-only">상태: {TASK_STATUS_LABELS[card.status]}</span>
+                  ) : (
+                    <span className="relative z-20 shrink-0">
+                      <StatusBadge status={card.status} />
+                    </span>
+                  )}
                 </div>
                 <span
                   className={cn(

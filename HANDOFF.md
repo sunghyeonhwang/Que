@@ -59,7 +59,7 @@ mock 인증: 쿠키 `que-user=<id>` / PAT `que_pat_<id>` (예: `hwang-sunghyeon`
 - **PROJ-3 (overdue 시각 신호 부재)**: `projects-data.ts`에 `isTaskOverdue(task)` 헬퍼(endMs<nowMs && status∉{done,cancelled,merged} — home/performance-data와 동일 규칙). `TaskCard`·`CalendarCard`·`TaskDetail`에 `isOverdue` 추가. 보드 카드·목록 행·드로어 마감일은 red(`--que-error`) 텍스트+`AlertTriangle` 아이콘, 캘린더 pill은 red ring-inset+아이콘. **색 단독 금지 준수**: 모든 지점에 아이콘/`sr-only "(기한 초과)"` 병행.
 - 변경 파일: `lib/projects-data.ts`, `lib/comments.ts`(무변경, 재사용), `components/projects/{task-detail-drawer,board-view,task-group-section,calendar-view}.tsx`.
 - 검증: lint/typecheck/build 전부 통과(46라우트, 정적 15/15). dev 서버 미실행 확인 후 build.
-- ⚠️ 오케스트레이션 메모: 직전 2라운드는 배치 스펙이 리터럴 'undefined'로 전달돼 구현 0건 공회전. 원인은 상위 프롬프트 조립(finding 본문 미치환), 코드 결함 아님. 재호출 시 audit-parsed.txt의 실제 finding 본문(T/EVID/FIX/COMP/VERIFY)을 채워 전달해야 함. (남은 감사 findings: PROJ-2·4·5·6=P2, PROJ-7·8=P3 — 미착수.)
+- ⚠️ 오케스트레이션 메모: 직전 2라운드는 배치 스펙이 리터럴 'undefined'로 전달돼 구현 0건 공회전. 원인은 상위 프롬프트 조립(finding 본문 미치환), 코드 결함 아님. 재호출 시 audit-parsed.txt의 실제 finding 본문(T/EVID/FIX/COMP/VERIFY)을 채워 전달해야 함. (남은 감사 findings: PROJ-7(P3, 체크박스 히트박스)만 미착수 — PROJ-2·4·5·6·8은 배치 5에서 완료.)
 
 ## ✅ /heatmap(성과) 감사 배치 1 — 정체성 복구 (2026-07-07)
 
@@ -93,6 +93,17 @@ mock 인증: 쿠키 `que-user=<id>` / PAT `que_pat_<id>` (예: `hwang-sunghyeon`
 - **표 내부 스크롤**: wrapper `max-h-[calc(100dvh-22rem)] overflow-auto` + `sticky top-0` 헤더(페이지 레이아웃 비파괴).
 - **ActionStatusBadge 신설**(`status-badge.tsx`): 회의록 Action 상태를 아이콘+라벨로 표시(`needs_review`=destructive 유지, 새 색 의미 도입 없음). ignored 배지는 secondary→outline+dim(중립 톤, 색 의미 위반 아님).
 - 검증: dev 서버 부재 확인(`pgrep -fl "next dev"` 0건) 후 lint·typecheck·build 통과. QA는 AUTH_SECRET dev 서버 + 3계정(admin 2·member 1) 실 로그인으로 행 클릭 Sheet·canEdit 뷰어별 분기·Action 링크·KPI 카드 링크·내부 스크롤을 실측. 글래도스는 도메인 규칙 위반 3건(비담당자 수정·사유 없는 issue/hold 전환)을 직접 주입해 전부 차단 확인 + core 테스트 209 통과. `git status` 위 3개 파일만 변경.
+
+## ✅ /projects(프로젝트) 감사 배치 5 — 보강 (2026-07-07)
+
+글래도스 게이트 재심사 배치. 감사 원문 PROJ-2·4·5·6·8 최소 diff 구현. 표시/데이터 유도 전용 — 새 mutation 경로 없음(pm-actions.ts 무접촉), core 계층 경유, 상태색 의미 고정 준수, canEditTask/BlockedStatusDialog 무접촉. 변경 파일 11개 전부 /projects 영역: `apps/web/src/app/(app)/projects/page.tsx`, `apps/web/src/components/projects/{project-view,project-header,project-scope-filters,priority-badge,create-task-dialog,board-view,task-group-section,calendar-view,task-detail-drawer}.tsx`, `apps/web/src/lib/projects-data.ts` 등(page.tsx·project-view.tsx는 isAdmin 배선 필수분).
+
+- **PROJ-2 (클라이언트 맥락 부재)**: `ProjectMeta`/`ProjectListItem`에 `clientId`/`clientName`을 `db.clients`에서 **core 경유 유도**(하드코딩 없음). 헤더 클라이언트 표기는 **관리자만 `/clients` Link**, 비관리자는 텍스트(클라이언트 메뉴 adminOnly·관리자 전용 리다이렉트 존중). 프로젝트 Select에 클라이언트 보조 텍스트 추가하되 트리거는 `projectItems`(id→name 단일)라 두 줄 유출 없음.
+- **PROJ-4 (상태 가시성)**: 드로어는 `StatusBadge(detail.status)`, 목록 행도 `StatusBadge`, 캘린더 pill은 `title`에 상태 라벨. **보드 카드 상태 표기 판단**: 컬럼이 이미 상태를 말하는 `scheduled`/`in_progress`/`done`은 **sr-only**(중복 시각 뱃지 제거), 컬럼-애매(홀드·문제 열에 섞이는) `needs_reschedule`/`on_hold`/`issue`만 **시각 StatusBadge** 노출(근거 코드 주석에 명시). 나머지는 sr-only로 스크린리더 접근성 유지.
+- **PROJ-5 (우선순위 신호 — 상태색과 충돌 회피)**: 우선순위 뱃지를 **중립 팔레트 + 방향 아이콘**으로 신설(단일 공용 컴포넌트, 사용처 일관). 높음=`--que-text` 반전 + `ArrowUp`, 보통=`muted` + `Minus`, 낮음=`outline` + `ArrowDown`. **상태색(green/blue/amber/red)·violet 미사용** — 우선순위가 상태 색 의미와 충돌하지 않도록 중립 톤으로 격리. 색 단독 금지 준수(방향 아이콘 병행).
+- **PROJ-6 (활동 로그)**: `getTaskDetail`이 `db.changeLogs`를 **읽기 전용 최신순 5건**으로 노출(pm-actions.ts 무접촉, 새 mutation 0건). ⚠️ **드로어 활동 로그는 mock-db `logChange` 원문 포맷에 의존**: `status_change`는 before/afterValue가 **raw enum**(→ `STATUS_LABEL` 완전 매핑으로 사람 표기 변환), `reassignTask`는 afterValue가 **`'담당: 이름'` 접두 형식**. 이 포맷 가정을 mock-db 실물과 대조 확인함 — 포맷 변경 시 드로어 표기 동기화 필요.
+- **PROJ-8 (필수 필드 검증)**: 태스크 생성 폼 제목 필수 — `titleTouched`(blur/제출) + `title.trim().length===0` 통합 에러. 라벨 `*` + sr-only "(필수)". `autoFocus` 덕에 비활성 버튼 클릭도 blur→에러 노출 경로 확보(react-hook-form 패턴 유지, 에러는 필드 아래).
+- 검증: dev 서버 부재 확인 후 실행 — `pnpm -r typecheck` 4워크스페이스 Done · `pnpm --filter @que/web lint` exit 0 · `pnpm --filter @que/core test` 209/209 · `pnpm build` 'Compiled successfully in 6.9s' + 전 라우트 생성. `git status` 위 11개 파일만 변경(projects 영역 한정, 스코프 크립·임시 파일·죽은 코드 0). 도메인 규칙 회귀 없음(읽기 전용 추가·canEditTask/BlockedStatusDialog 무접촉).
 
 ### 반드시 지킬 규칙 / 함정
 - **⚠️ 임시 "발송" 검증 라우트 + Vercel 빌드캐시 사고(2026-07-07)**: 개인 DM 검증용 임시 라우트(`/api/digest-check`)가 **매 호출마다 발송(dedup 없음)**이었는데, ① 배포 상태 폴링으로 그 라우트를 **인증 호출로 여러 번 때려** 팀에 중복 DM이 갔고, ② git에서 라우트를 지웠는데도 **Vercel Turbopack 빌드캐시가 삭제된 라우트를 잔존**시켜 계속 200을 반환했다. 교훈: **(a) 임시 발송 엔드포인트는 반드시 dedup/1회 가드**를 넣고, **(b) 발송 트리거 엔드포인트를 상태폴링으로 반복 호출하지 말 것**(`-o /dev/null`이어도 서버는 실행됨), **(c) 라우트/파일 삭제가 배포에 반영 안 되면 `vercel --prod --force`(캐시 무시)로 강제 재빌드**.

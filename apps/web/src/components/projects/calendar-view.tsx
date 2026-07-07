@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { AlertTriangle, CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
+import { TASK_STATUS_LABELS } from "@que/core";
 import type { CalendarCard, CalendarDay, ProjectCalendar } from "@/lib/projects-data";
 import { STATUS_TONE, TONE_STYLE } from "@/lib/pm-columns";
 import { buttonVariants } from "@/components/ui/button";
@@ -154,17 +155,19 @@ function DayCell({
 
 function TaskPill({ card, href }: { card: CalendarCard; href: string }) {
   const tone = TONE_STYLE[STATUS_TONE[card.status]];
+  const statusLabel = TASK_STATUS_LABELS[card.status];
+  const tooltip = `${card.title} · ${statusLabel}${card.isOverdue ? " (기한 초과)" : ""}`;
   return (
     <Link
       href={href}
       scroll={false}
-      aria-label={`${card.title} 상세 열기${card.isOverdue ? " (기한 초과)" : ""}`}
+      aria-label={`${card.title} 상세 열기 · 상태 ${statusLabel}${card.isOverdue ? " (기한 초과)" : ""}`}
       className={cn(
         "flex items-center gap-1.5 rounded-md px-1.5 py-1 text-xs text-[var(--que-text)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--que-brand)]",
         card.isOverdue && "ring-1 ring-[var(--que-error)] ring-inset",
       )}
       style={{ backgroundColor: tone.tint }}
-      title={card.isOverdue ? `${card.title} (기한 초과)` : card.title}
+      title={tooltip}
     >
       {card.isOverdue ? (
         <AlertTriangle className="size-3 shrink-0 text-[var(--que-error)]" aria-hidden />

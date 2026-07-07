@@ -56,6 +56,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { TaskComments } from "@/components/app/task-comments";
+import { StatusBadge } from "@/components/app/status-badge";
 import { MemberAvatars } from "./member-avatars";
 import { BlockedStatusDialog, type BlockedStatus } from "./blocked-status-dialog";
 import { cn } from "@/lib/utils";
@@ -270,8 +271,8 @@ function DrawerBody({
           <p className="mb-2 flex items-center gap-2 px-0.5 text-sm text-[var(--que-text-secondary)]">
             <Circle className="size-4 text-[var(--que-text-tertiary)]" aria-hidden />
             상태
-            <span className="ml-1 text-xs font-medium text-[var(--que-text)]">
-              {detail.statusLabel}
+            <span className="ml-1">
+              <StatusBadge status={detail.status} />
             </span>
           </p>
           {canEdit ? (
@@ -429,6 +430,29 @@ function DrawerBody({
             이 작업은 본인, 프로젝트 담당자, 관리자만 수정할 수 있습니다. 아래 댓글로 의견이나 도움
             요청을 남길 수 있습니다.
           </p>
+        ) : null}
+
+        {/* 최근 변경 이력 — core ChangeLog(via:web) 읽기 전용 표시. 누가·무엇을·언제. */}
+        {detail.activity.length > 0 ? (
+          <div className="mt-5 border-t border-[var(--que-border)] pt-5">
+            <p className="text-sm font-medium text-[var(--que-text-secondary)]">최근 변경</p>
+            <ul className="mt-3 space-y-2.5">
+              {detail.activity.map((item) => (
+                <li key={item.id} className="flex gap-2 text-sm leading-snug">
+                  <span
+                    className="mt-1.5 size-1.5 shrink-0 rounded-full bg-[var(--que-text-tertiary)]"
+                    aria-hidden
+                  />
+                  <span className="min-w-0 text-[var(--que-text)]">
+                    <span className="font-medium">{item.actorName}</span>님이 {item.text}
+                    <span className="ml-1 text-xs text-[var(--que-text-tertiary)]">
+                      · {item.timeLabel}
+                    </span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
         ) : null}
 
         {/* 댓글·도움 요청 — 타인 작업에도 항상 노출(기획 권한 모델) */}

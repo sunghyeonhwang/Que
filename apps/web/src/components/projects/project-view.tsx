@@ -34,6 +34,7 @@ export function ProjectView({
   list,
   calendar,
   meta,
+  isAdmin,
 }: {
   clients: { id: string; name: string }[];
   selectedClient: string;
@@ -44,6 +45,7 @@ export function ProjectView({
   list: ProjectList;
   calendar: ProjectCalendar;
   meta: ProjectMeta;
+  isAdmin: boolean;
 }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -68,7 +70,7 @@ export function ProjectView({
           projects={projects}
           selectedProjectId={selectedProjectId}
         />
-        <ProjectHeader meta={meta} />
+        <ProjectHeader meta={meta} isAdmin={isAdmin} />
       </div>
 
       <div className="mt-4 flex shrink-0 flex-wrap items-end justify-between gap-2 border-b border-[var(--que-border)]">

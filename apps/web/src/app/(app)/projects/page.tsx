@@ -108,6 +108,7 @@ export default async function ProjectsPage({
         list={list}
         calendar={calendar}
         meta={meta}
+        isAdmin={user.role === "admin"}
       />
       <TaskDetailDrawer detail={taskDetail} meta={meta} />
     </Suspense>

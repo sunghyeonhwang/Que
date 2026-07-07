@@ -45,6 +45,8 @@ export function CreateTaskDialog({ projectId, meta }: { projectId: string; meta:
   const [open, setOpen] = useState(false);
 
   const [title, setTitle] = useState("");
+  // blur 또는 제출 시도 후에만 필수 에러를 노출한다(입력 전 침묵).
+  const [titleTouched, setTitleTouched] = useState(false);
   const [description, setDescription] = useState("");
   const [priority, setPriority] = useState<TaskPriority>("normal");
   const [dueDate, setDueDate] = useState("");
@@ -58,11 +60,14 @@ export function CreateTaskDialog({ projectId, meta }: { projectId: string; meta:
     [meta.members],
   );
 
-  const titleError = title.length > 0 && !title.trim() ? "작업 이름을 입력하세요." : null;
+  // 빈 값(한 번도 입력 안 함)과 공백만 입력한 경우를 하나로 통합해 같은 에러를 낸다.
+  const titleError =
+    titleTouched && title.trim().length === 0 ? "작업 이름을 입력하세요." : null;
   const canSubmit = title.trim().length > 0 && !pending;
 
   const reset = () => {
     setTitle("");
+    setTitleTouched(false);
     setDescription("");
     setPriority("normal");
     setDueDate("");
@@ -70,6 +75,7 @@ export function CreateTaskDialog({ projectId, meta }: { projectId: string; meta:
   };
 
   const submit = () => {
+    setTitleTouched(true);
     if (!canSubmit) return;
     run(
       () =>
@@ -115,16 +121,25 @@ export function CreateTaskDialog({ projectId, meta }: { projectId: string; meta:
 
         <div className="flex flex-col gap-3">
           <Field>
-            <FieldLabel htmlFor="ct-title">작업 이름</FieldLabel>
+            <FieldLabel htmlFor="ct-title">
+              작업 이름
+              <span className="ml-0.5 text-[var(--que-error)]" aria-hidden>
+                *
+              </span>
+              <span className="sr-only">(필수)</span>
+            </FieldLabel>
             <Input
               id="ct-title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
+              onBlur={() => setTitleTouched(true)}
               onKeyDown={(e) => {
                 if (e.key === "Enter") submit();
               }}
               placeholder="예: 상세페이지 QA"
               className="h-10"
+              required
+              aria-required
               aria-invalid={titleError ? true : undefined}
               autoFocus
             />

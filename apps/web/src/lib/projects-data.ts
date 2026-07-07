@@ -12,6 +12,7 @@ import { ko } from "date-fns/locale";
 import {
   canEditTask,
   findUser,
+  type ChangeLog,
   type Project,
   type Task,
   type TaskStatus,
@@ -78,6 +79,8 @@ export interface ProjectListItem {
   id: string;
   name: string;
   description: string | null;
+  /** 소속 클라이언트(거래처). 내부 잡무 등 미소속이면 null. */
+  clientName: string | null;
   /** 보드에 노출되는(취소/병합 제외) 태스크 수. */
   taskCount: number;
 }
@@ -87,6 +90,10 @@ export interface ProjectMeta {
   id: string;
   name: string;
   description: string | null;
+  /** 소속 클라이언트 id. 미소속이면 null. */
+  clientId: string | null;
+  /** 소속 클라이언트명(헤더 보조 텍스트용). 미소속이면 null. */
+  clientName: string | null;
   /** 담당 지정 드롭다운·아바타 스택용 멤버(프로젝트 owner + 태스크 담당자). */
   members: ListViewMember[];
 }
@@ -167,6 +174,17 @@ export interface ProjectCalendar {
 
 // ---------- 태스크 상세(드로어) ----------
 
+/** 드로어 활동 로그 항목 — core ChangeLog(via:web) 1건을 표시용으로 접은 것. 읽기 전용. */
+export interface TaskActivityItem {
+  id: string;
+  /** 변경한 사람 이름(로스터에서 못 찾으면 "알 수 없음"). */
+  actorName: string;
+  /** "담당자를 △△(으)로 변경했습니다" 식 요약 문구. */
+  text: string;
+  /** "3일 전" 식 상대 시각. */
+  timeLabel: string;
+}
+
 export interface TaskDetail {
   taskId: string;
   title: string;
@@ -187,6 +205,8 @@ export interface TaskDetail {
   commentCount: number;
   /** 댓글·도움 요청 목록. 타인 작업에도 노출(기획 권한 모델). */
   comments: TaskCommentView[];
+  /** 최근 변경 이력(누가·무엇을·언제). 최신순 최대 5건. core ChangeLog에서 읽음. */
+  activity: TaskActivityItem[];
   canEdit: boolean;
 }
 
@@ -219,6 +239,49 @@ function isTaskOverdue(task: Task): boolean {
 function toDate(endAt: string | undefined): string | null {
   if (!endAt) return null;
   return format(new Date(endAt), "yyyy-MM-dd");
+}
+
+/** 분/시간/일 전 상대 시각(members-data.ts와 동일 규칙). */
+function formatRelative(iso: string, now: number): string {
+  const min = Math.floor((now - new Date(iso).getTime()) / 60000);
+  if (min < 1) return "방금 전";
+  if (min < 60) return `${min}분 전`;
+  const hours = Math.floor(min / 60);
+  if (hours < 24) return `${hours}시간 전`;
+  return `${Math.floor(hours / 24)}일 전`;
+}
+
+/** 태스크 status enum → 사람이 읽는 라벨(활동 로그용, 미지원 값은 원문 유지). */
+function statusText(raw: string | undefined): string {
+  if (!raw) return "";
+  return (STATUS_LABEL as Record<string, string>)[raw] ?? raw;
+}
+
+/**
+ * core ChangeLog 1건을 드로어 활동 문구로 접는다(읽기 전용, 새 mutation 없음).
+ * before/after 원문 포맷(mock-db.ts logChange)에 의존한다.
+ */
+function changeLogText(log: ChangeLog): string {
+  switch (log.changeType) {
+    case "create":
+      return "작업을 만들었습니다";
+    case "delete":
+      return "작업을 취소했습니다";
+    case "move":
+      return "일정을 변경했습니다";
+    case "status_change":
+      return `상태를 ${statusText(log.beforeValue)} → ${statusText(log.afterValue)}(으)로 변경했습니다`;
+    case "update": {
+      // 담당자 변경은 afterValue가 "담당: 홍길동" 형태(mock-db reassignTask).
+      const after = log.afterValue ?? "";
+      if (after.startsWith("담당: ")) {
+        return `담당자를 ${after.slice("담당: ".length)}(으)로 변경했습니다`;
+      }
+      return "작업 정보를 수정했습니다";
+    }
+    default:
+      return "작업을 변경했습니다";
+  }
 }
 
 const STATUS_LABEL: Record<TaskStatus, string> = {
@@ -282,6 +345,8 @@ export async function getActiveProjects(clientFilter?: string): Promise<ProjectL
     if (!t.projectId || columnForStatus(t.status) === null) continue;
     counts.set(t.projectId, (counts.get(t.projectId) ?? 0) + 1);
   }
+  const clientNameOf = (clientId: string | undefined): string | null =>
+    clientId ? (db.clients.find((c) => c.id === clientId)?.name ?? null) : null;
   return db.projects
     .filter((p) => p.status === "active")
     .filter((p) => (clientFilter ? p.clientId === clientFilter : true))
@@ -290,6 +355,7 @@ export async function getActiveProjects(clientFilter?: string): Promise<ProjectL
       id: p.id,
       name: p.name,
       description: p.description ?? null,
+      clientName: clientNameOf(p.clientId),
       taskCount: counts.get(p.id) ?? 0,
     }));
 }
@@ -321,10 +387,16 @@ export async function getProjectMeta(projectId: string): Promise<ProjectMeta | n
     .map(resolveMember)
     .filter((m): m is ListViewMember => m !== null);
 
+  const client = project.clientId
+    ? db.clients.find((c) => c.id === project.clientId)
+    : undefined;
+
   return {
     id: project.id,
     name: project.name,
     description: project.description ?? null,
+    clientId: client?.id ?? null,
+    clientName: client?.name ?? null,
     members,
   };
 }
@@ -442,6 +514,19 @@ export async function getTaskDetail(
   const commentViews = await getCommentViewsByTask();
   const columnKey = columnForStatus(task.status) ?? "scheduled";
 
+  // 최근 변경 이력 — 이 태스크 대상 ChangeLog를 최신순 최대 5건.
+  const now = Date.now();
+  const activity: TaskActivityItem[] = db.changeLogs
+    .filter((log) => log.entityType === "task" && log.entityId === task.id)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .slice(0, 5)
+    .map((log) => ({
+      id: log.id,
+      actorName: findUser(log.actorId)?.name ?? "알 수 없음",
+      text: changeLogText(log),
+      timeLabel: formatRelative(log.createdAt, now),
+    }));
+
   return {
     taskId: task.id,
     title: task.title,
@@ -457,6 +542,7 @@ export async function getTaskDetail(
     assignee: resolveMember(task.assigneeId),
     commentCount: comments.get(task.id) ?? 0,
     comments: commentViews.get(task.id) ?? [],
+    activity,
     canEdit: canEditTask(actor, task, project),
   };
 }

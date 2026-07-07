@@ -3,12 +3,13 @@
 import { useState, type DragEvent } from "react";
 import Link from "next/link";
 import { Plus, CalendarDays, MessageSquare, Lock, AlertTriangle } from "lucide-react";
-import type { StatusDetail } from "@que/core";
+import { TASK_STATUS_LABELS, type StatusDetail } from "@que/core";
 import type { BoardColumn, TaskCard, BoardColumnKey } from "@/lib/projects-data";
 import { SIMPLE_COLUMN_STATUS, TONE_STYLE, COLUMN_TONE } from "@/lib/pm-columns";
 import { moveTaskAction } from "@/app/(app)/projects/pm-actions";
 import { useSafeAction } from "@/components/app/use-safe-action";
 import { IconButton } from "@/components/app/icon-button";
+import { StatusBadge } from "@/components/app/status-badge";
 import { PriorityBadge } from "./priority-badge";
 import { MemberAvatars } from "./member-avatars";
 import { TaskCardMenu } from "./task-card-menu";
@@ -211,6 +212,10 @@ function BoardCard({
 }) {
   const [dragging, setDragging] = useState(false);
   const editable = card.canEdit;
+  // 컬럼 라벨이 상태를 그대로 말해주는 status(예정/진행중/완료)는 시각 뱃지를 생략(밀도 보존).
+  // 컬럼이 애매한 status(예정 열의 시간변경필요, 홀드·문제 열의 홀드/문제발생)만 뱃지를 노출한다.
+  const columnConveysStatus =
+    card.status === "scheduled" || card.status === "in_progress" || card.status === "done";
 
   const handleDragStart = (event: DragEvent) => {
     if (!editable) {
@@ -270,6 +275,15 @@ function BoardCard({
       <h3 className="mt-1.5 text-sm leading-snug font-semibold text-[var(--que-text)]">
         {card.title}
       </h3>
+
+      {/* 상태: 컬럼이 애매한 경우만 시각 뱃지, 그 외엔 색맹·스크린리더용 sr-only 텍스트. */}
+      {columnConveysStatus ? (
+        <span className="sr-only">상태: {TASK_STATUS_LABELS[card.status]}</span>
+      ) : (
+        <div className="mt-2">
+          <StatusBadge status={card.status} />
+        </div>
+      )}
 
       <div
         className={cn(

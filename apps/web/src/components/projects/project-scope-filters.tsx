@@ -106,7 +106,14 @@ export function ProjectScopeFilters({
           <SelectContent>
             {projects.map((p) => (
               <SelectItem key={p.id} value={p.id}>
-                <span className="truncate">{p.name}</span>
+                <span className="flex min-w-0 flex-col">
+                  <span className="truncate">{p.name}</span>
+                  {p.clientName ? (
+                    <span className="truncate text-xs text-[var(--que-text-tertiary)]">
+                      {p.clientName}
+                    </span>
+                  ) : null}
+                </span>
                 <span className="ml-auto text-xs text-[var(--que-text-tertiary)]">
                   {p.taskCount}
                 </span>
