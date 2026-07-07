@@ -40,3 +40,13 @@ export function quietHoursConfig(): { start: number; end: number } | null {
   if (start === end) return null;
   return { start, end };
 }
+
+/**
+ * 마감임박 알림 임계(시간). 열린 작업의 마감(endAt)이 now ~ now+이 시간 이내면 알림 대상.
+ * env `QUE_DEADLINE_THRESHOLD_HOURS`(기본 24). 양의 유한수만 유효, 아니면 24로 폴백.
+ * 재배포 없이 Vercel env로 조정 가능(예: 48=이틀 전부터, 12=반나절 전부터).
+ */
+export function deadlineThresholdHours(): number {
+  const v = Number(process.env.QUE_DEADLINE_THRESHOLD_HOURS);
+  return Number.isFinite(v) && v > 0 ? v : 24;
+}

@@ -13,7 +13,7 @@ import {
   type TaskStatus,
 } from "@que/core";
 import { getStandupData } from "@/lib/team-data";
-import { notificationsEnabled, quietHoursConfig } from "./config";
+import { deadlineThresholdHours, notificationsEnabled, quietHoursConfig } from "./config";
 import { postToSlack } from "./slack";
 
 // Slack 알림 오케스트레이터 (B-1, web 계층). core 규칙(무엇을 보낼지)과 어댑터(어떻게 보낼지)를 잇는다.
@@ -25,7 +25,6 @@ import { postToSlack } from "./slack";
 //  - mutation과 persist는 반드시 같은 db 인스턴스(호출부가 넘긴 db로만 작업).
 
 const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
-const DEADLINE_THRESHOLD_HOURS = 24;
 const MAX_ATTEMPTS = 5;
 // 스탠드업 다이제스트 발송 시각(KST 시). 크론이 */10이라 이 시(hour) 첫 실행 1건만 dedup으로 발송된다.
 // 방해금지 기본 창(22-8) 밖의 아침 시각으로 둬 자정 발송·야간 발송을 막는다.
@@ -174,7 +173,7 @@ export async function drainOutbox(
 export async function scanDeadlines(db: MockQueDb, now: Date): Promise<DispatchCounts> {
   if (!notificationsEnabled()) return { enqueued: 0, sent: 0, held: 0 };
   const ctx = notificationContext(db, now);
-  const intents = buildDeadlineIntents(ctx, db.tasks, DEADLINE_THRESHOLD_HOURS);
+  const intents = buildDeadlineIntents(ctx, db.tasks, deadlineThresholdHours());
   return enqueueAndSend(db, intents, now);
 }
 
