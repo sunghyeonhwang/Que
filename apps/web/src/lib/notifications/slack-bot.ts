@@ -38,7 +38,12 @@ function adminClient() {
   });
 }
 
-/** Slack Web API 공통 호출. Bot Token Bearer + 타임아웃. body.ok=false면 throw. */
+/**
+ * Slack Web API 공통 호출. Bot Token Bearer + 타임아웃. body.ok=false면 throw.
+ * ⚠️ form-urlencoded로 보낸다 — users.lookupByEmail 등 read 메서드는 JSON 바디를 받지 않아
+ *    JSON으로 보내면 invalid_arguments가 난다. 객체/배열 필드(attachments 등)는 JSON 문자열로
+ *    인코딩한다(Slack 표준). 이 방식이 read/write 메서드 모두에서 동작한다.
+ */
 async function slackApi<T extends { ok: boolean; error?: string }>(
   method: string,
   token: string,
@@ -46,14 +51,19 @@ async function slackApi<T extends { ok: boolean; error?: string }>(
 ): Promise<T> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  const form = new URLSearchParams();
+  for (const [k, v] of Object.entries(body)) {
+    if (v === undefined || v === null) continue;
+    form.set(k, typeof v === "string" ? v : JSON.stringify(v));
+  }
   try {
     const res = await fetch(`${SLACK_API}/${method}`, {
       method: "POST",
       headers: {
         authorization: `Bearer ${token}`,
-        "content-type": "application/json; charset=utf-8",
+        "content-type": "application/x-www-form-urlencoded; charset=utf-8",
       },
-      body: JSON.stringify(body),
+      body: form.toString(),
       signal: controller.signal,
     });
     if (!res.ok) throw new Error(`Slack ${method} HTTP ${res.status}`);
