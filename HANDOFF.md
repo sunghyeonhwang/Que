@@ -1,6 +1,6 @@
 # Que 핸드오프 문서
 
-마지막 업데이트: 2026-07-06
+마지막 업데이트: 2026-07-07
 
 ---
 
@@ -9,11 +9,11 @@
 **Que = 8인 팀용 캘린더 기반 작업 상태 관리 도구.** 감시 도구가 아니라 병목·일정충돌을 빨리 드러내는 운영 도구. 저장소 <https://github.com/sunghyeonhwang/Que.git>. 스택: TypeScript · Next.js 16 App Router · Tailwind · shadcn/ui(base-nova) · zod. pnpm 모노레포(`apps/web` 웹, `packages/core` 도메인/규칙/데이터, `packages/mcp` MCP, `packages/cli` CLI).
 
 ### 지금까지 완성된 것
-- **웹 MVP 11화면**: 오늘·Now·캘린더(3뷰+드래그)·팀 현황(+스탠드업+관리자 리포트)·히트맵·회의록·Action·프로젝트·결제. 하루 사이클 완결(자연어 등록→체크인→충돌 제안→댓글/도움요청→하루 마감).
+- **웹 MVP 전 화면 + 재설계 IA(2026-07-04 배포)**: 홈·일정·성과·작업목록(오늘/Now)·팀·팀 현황(+스탠드업+관리자 리포트)·회의록(+Action)·반복·마일스톤·프로젝트·클라이언트·결제요청·수정사항·MCP·CLI·도움말. 하루 사이클 완결(자연어 등록→체크인→충돌 제안→댓글/도움요청→하루 마감). 정본은 `apps/web/src/lib/menu.ts`.
 - **REST API + MCP(도구 19개) + CLI(19명령)** — 전부 `packages/core`의 규칙 공유, 변경은 `via: web|mcp|cli` 기록.
 - **백로그 1~5위 완료**: ①비공개 일정 관리자 열람 ②회의록 단위 열람 권한(restricted) ③반복 업무 템플릿 ④관리자 리포트(점수화 없음, 팀 현황 admin 뷰) ⑤Google Calendar 비-env 골격(CalendarProvider+동기화 엔진+`/api/calendar/sync`, 실 OAuth만 대기).
 - **Supabase 실 DB 연동 완료 (핵심)**: 실 프로젝트 `rnsqhipljpdmmkviiypy`에 스키마·시드 적용. `SupabaseQueDb`(`apps/web/src/lib/supabase-db.ts`)가 MockQueDb를 상속해 요청마다 스냅샷 load→mutation→diff persist. **`QUE_DB=supabase`면 실 DB, 없으면 mock(기본).**
-- core 테스트 74케이스. 글래도스 게이트 누적 20+회(반려 전부 수정 후 승인).
+- core 테스트 209케이스(전부 통과). 글래도스 게이트 누적 30+회(반려 전부 수정 후 승인).
 
 ### 실행 방법
 ```bash
@@ -29,15 +29,21 @@ mock 인증: 쿠키 `que-user=<id>` / PAT `que_pat_<id>` (예: `hwang-sunghyeon`
 
 ### 다음 할 일
 
-**▶ 이번 세션(2026-07-06) 요약 — 커밋 2건 + 미커밋 view 배치 1건.**
+**프로덕션은 GRIFF Pro 팀(`griff-fde0dc32/que`) · <https://que.griff.co.kr> · 실 DB(`QUE_DB=supabase`)+실 인증(Auth.js) 라이브.** 비밀값은 `data/.env`(gitignore). Vercel env로 기능 게이트(아래 참고).
 
-- ✅ **팀원·권한 관리 확장** → 커밋 `47c8dbd` (푸시됨). `/revisions` #1·#2·#4 구현(#3은 승격으로 해소). 아래 "[✅ 완료 — 팀원·권한 관리 확장](#-완료--팀원권한-관리-확장--revisions-팀-요청-2026-07-06)" 절. 배포 후 대표(황성현)가 `/settings/staff`에서 **송수용·황성진 관리자 승격**(프로덕션 DB 미변경 — 설계대로).
-- ✅ **view 주간뷰 겹침 레인 분할** (`/revisions` #5) → 커밋 `9588766` (푸시됨). 시간그리드 겹침 뭉개짐을 좌우 레인 분할로 해소.
-- ✅ **view 현황판 후속 배치(아래 "[✅ 완료 — view 현황판 후속](#-완료--view-현황판-후속-2026-07-06)" 절)** → 커밋됨: ① 주간뷰 **+N 상한**(레인>3 초과분 "+N" 칩) ② **Week(5칸) range 제거**(1Day·3day만, 기본 3day) ③ **hide-completed 반응 즉시화**(Context 클라 상태). typecheck·lint·FHD 브라우저·글래도스 승인 완료. (검증 중 setState-during-render 버그 1건 발견·수정.)
+#### ✅ 완료·라이브 (2026-07-06~07) — 상세는 각 절 참고
+- **팀원·권한 관리 확장**(설정›직원관리: 추가·비활성·권한변경·정보편집) · **view 현황판**(주간뷰 겹침 레인 분할+N 상한, Week range 제거·기본 3day, hide-completed 즉시반응) · **로그아웃 오류 수정**(NEXT_REDIRECT 오인).
+- **Pro 팀 이전**(GRIFF, env·도메인·git 함께) · **cron 활성화**(`*/10` `/api/cron/sync`) · **Sentry**(에러 리포팅) · **Slack B-1**(팀채널 알림·스탠드업, `SLACK_WEBHOOK_URL`) · **Slack Phase 2**(개인 DM 브리핑 9:50, `SLACK_BOT_TOKEN`, 8명 매핑) · **CLI/MCP**(방식 (b) repo 실행 + `/tools` 사전준비 온보딩) · **마감임박 임계 env화** · **도움말 전면 개편**(8→13섹션).
 
-- ✅ **로그아웃 오류 수정** → 커밋·배포. 서버 액션 signOut redirect를 클라 try/catch가 NEXT_REDIRECT로 오인하던 버그. 아래 "[✅ 로그아웃 오류 수정](#-로그아웃-오류-수정-2026-07-06)" 절.
+#### 🔜 다음 세션 착수 대상 (파킹 — 키/자산/팀행동 대기)
+1. **② B2 인증 마무리** — mock PAT 폴백 제거(`api/auth.ts`) + `core/mock/tokens.ts` 삭제 + `QUE_ALLOW_MOCK_AUTH` 제거. **전제: 팀 8명 각자 PAT 재발급**(현재 프로덕션 7/8이 아직 `label='initial'`, 실 재발급은 송수용 1건만). 제거 시 로컬 dev mock 테스트가 깨지니 **다른 개발 다 끝난 맨 마지막에**. (사용자 확정: 맨 마지막.)
+2. **③ 개인 비밀번호 배포** — 현재 전원 공용 `good121930`(`must_change=false`). 개인별 랜덤 + `must_change_password=true`(첫 로그인 강제 변경). 스크립트 있음: `db/supabase/gen-passwords.mts` → `set-passwords.sql`. **전원 강제 변경이라 팀 공지 직전에**. (사용자 확정: 맨 마지막.)
+3. **④ 구글 캘린더 실연동** — `GOOGLE_SERVICE_ACCOUNT_KEY`+도메인위임 대기. **현재 더미 유지**(회사 일정=Mock, Que 일정=실제). **전환 절차: provider 교체 → source=`company` 더미 삭제 → 실 sync**(아래 "그 외 대기 트랙" 참고).
+4. **회의록 액션플랜(항목15)** — 회의록 md 샘플 대기.
+5. **Phase 3 (할일 생성→담당자 DM)** — 계획 기재됨(아래 "Slack Phase 2" 절 하단). Phase 2 인프라 재사용, createTask 훅.
+6. (후순위) 그리프 3,4Q 프로젝트 임포트([[griff-3-4q-schedule-sheet]], 담당자 부재 블로커) · 홈 정식 디자인(프리뷰 전 착수 금지).
 
-**다음 세션 착수 대상은 env 트랙(Slack·Sentry·cron 활성화).**
+**Vercel env 게이트 현황(GRIFF/que production)**: `SLACK_WEBHOOK_URL`·`SLACK_BOT_TOKEN`·`CRON_SECRET`·`QUE_CRON_ACTIVE=1`·`NEXT_PUBLIC_SENTRY_DSN`·`QUE_DB=supabase`·`SUPABASE_*`·`AUTH_SECRET` 설정됨. 미설정: `QUE_DEADLINE_THRESHOLD_HOURS`(기본24)·`QUE_QUIET_HOURS`(기본22-8)·`QUE_DIGEST_RECIPIENTS`(미설정=전체)·`GOOGLE_SERVICE_ACCOUNT_KEY`·`QUE_ALLOW_MOCK_AUTH`(의도적 미설정).
 
 #### env 트랙 (사용자가 "하나씩" 진행 중)
 1. ~~**Vercel 배포**~~ → **완료 (43번)**. <https://que-rouge-eight.vercel.app> (Root=`apps/web`, 리전 `icn1`, 실 DB+실 인증). **주의: Deployment Protection이 현재 꺼진 상태**(대시보드에서 재활성화 필요) — 단 실 인증+mock API 503이라 공개라도 안전. `QUE_ALLOW_MOCK_AUTH`는 **안 켬**(mock PAT 봉인). (`data/docs/deploy-vercel-supabase.md`)
