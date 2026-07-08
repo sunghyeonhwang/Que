@@ -35,6 +35,9 @@ export interface NotificationPayload {
   /** 딥링크 경로(예: "/now"). 베이스 URL 주입은 web 계층. */
   deeplinkPath: string;
   tone: NotificationTone;
+  /** (선택) 요약 1줄(text) 뒤에 붙일 상세 목록 mrkdwn 본문. personal_digest v2만 채운다.
+   *  아웃박스 payload(jsonb) 패스스루라 스키마/마이그레이션 무관. 없으면 기존 1줄 동작. */
+  detail?: string;
 }
 
 /**
@@ -188,18 +191,21 @@ export function buildDeadlineIntents(
 }
 
 export interface SlackMessage {
-  /** Slack에 넣을 본문(제목 + 상세). 딥링크 링크 구성은 web 계층이 deeplinkPath로 만든다. */
+  /** Slack에 넣을 본문(제목 + 요약 1줄). 딥링크 링크 구성은 web 계층이 deeplinkPath로 만든다. */
   text: string;
   deeplinkPath: string;
   tone: NotificationTone;
+  /** (선택) 요약 뒤에 붙일 상세 목록 mrkdwn 본문. 발송 어댑터가 blocks에 이어 붙인다. */
+  detail?: string;
 }
 
 /** 아웃박스 페이로드 → Slack 발송용 메시지. 베이스 URL 주입은 web 계층(deeplinkPath만 넘긴다). */
 export function messageFor(entry: Pick<NotificationOutboxEntry, "payload">): SlackMessage {
-  const { title, text, deeplinkPath, tone } = entry.payload;
+  const { title, text, deeplinkPath, tone, detail } = entry.payload;
   return {
     text: `*${title}*\n${text}`,
     deeplinkPath,
     tone,
+    detail,
   };
 }

@@ -194,7 +194,28 @@ mock 인증: 쿠키 `que-user=<id>` / PAT `que_pat_<id>` (예: `hwang-sunghyeon`
 - **인프라 재사용**: B-1 outbox/dedup/cron 그대로. `recipient` 컬럼(=Que userId 저장, 발송 직전 Slack ID 해석)에 개인 수신자를 담고, `sendEntry`가 recipient/kind=personal_digest면 **Bot DM**, 아니면 팀채널 Webhook으로 분기.
 - **게이트 분리(중요)**: 팀채널(issue/on_hold/deadline/standup)=`webhookEnabled()`(SLACK_WEBHOOK_URL), 개인DM=`personalDigestEnabled()`(SLACK_BOT_TOKEN). `notificationsEnabled()`=either는 **크론 진입 게이트일 뿐** — 각 경로가 자기 크레덴셜로 개별 판정(한쪽만 설정돼도 다른 쪽 안 죽음). `drainOutbox`는 항목별 `channelReady` 필터로 크레덴셜 없는 채널을 헛failed 안 만듦.
 - **멤버 매핑**: `users.slack_user_id` 컬럼 + lazy backfill(`resolveSlackUserId`: 캐시→email 직조회→`users.lookupByEmail`→UPDATE backfill, **전용 admin 직접 쿼리** — persist는 users write-back 안 함). ⚠️ **slack_user_id는 도메인 User 밖**(supabase-db `load()`가 email·passwordHash와 함께 `delete u.slackUserId` — 글래도스 반려로 추가한 유출 방지 1줄. 이거 없으면 /api/team·/team으로 Slack ID 직렬화 유출). 이름 로마자 불일치 멤버는 `update users set slack_user_id=...` 수동 오버라이드.
-- **콘텐츠(4섹션 유지, 사용자 확정)**: 오늘 작업(overlapsToday, startAt만 보는 getStandupData 아님)·막힘(issue/on_hold)·마감(오늘~임계)·마일스톤(project.ownerId===user && riskStatus!==on_track). active 유저만·본인 것만·전섹션 0건 유저 생략. 본문은 숫자 카운트 위주(비공개 유출 없음).
+- **콘텐츠(4섹션 유지, 사용자 확정)**: 오늘 작업(overlapsToday, startAt만 보는 getStandupData 아님)·막힘(issue/on_hold)·마감(오늘~임계)·마일스톤(project.ownerId===user && riskStatus!==on_track). active 유저만·본인 것만·전섹션 0건 유저 생략.
+- **✅ v2 — 작업 개요 목록 (사용자 요청 2026-07-08)**: 숫자 요약만이 아니라 각 섹션에 **항목 목록**을 추가. `payload.text`는 **기존 요약 1줄 그대로**(Slack 알림 미리보기/폴백 겸용), 상세 목록은 **`payload.detail`(mrkdwn)** 로 별도로 실어 `slack-bot.postDmToSlack`이 본문 blocks에 붙인다. 0건 섹션은 헤더 생략(빈 브리핑 미발송 원칙 유지). 목표 폼:
+  ```
+  *오늘의 브리핑*
+  오늘 작업 3 · 막힘 1 · 마감 임박 2 · 마일스톤 위험 0
+
+  *오늘 작업*
+  • 제목 — 프로젝트명 · 상태라벨 (· ~HH:mm까지)   ← 마감 빠른 순, 최대 5건, 초과 시 '…외 N건'
+  *막힘*
+  • 제목 — 문제발생|홀드 · 사유 요약(40자 절단)      ← 오래 막힌 순(최근 issue/on_hold StatusLog createdAt 오름차순)
+  *마감 임박*
+  • 제목 — 오늘 HH:mm | 내일 HH:mm (KST)          ← endAt 오름차순
+  *마일스톤 위험*
+  • 마일스톤명 — 프로젝트명 · 주의|지연             ← dueAt 오름차순
+
+  <…|Que에서 열기>   (/today 딥링크 유지)
+  ```
+  - 섹션당 **최대 5건 + '…외 N건'**. 조립 후 mrkdwn 블록 2900자(3000 한도 마진) 초과 시 **뒷섹션부터 표기 상한을 강등**하는 안전 가드(`buildDetail`).
+  - 상태 라벨=core `TASK_STATUS_LABELS`(한글) 재사용, 마일스톤 위험=at_risk 주의/late 지연(홈 카드와 동일). 막힘 사유=최근 issue/on_hold StatusLog.reason(report-data currentBlockers 선례). 시간=KST 벽시계.
+  - mrkdwn 링크 문법(`<url|text>`) 깨짐 방지 — 제목·프로젝트명·사유의 `&<>`를 HTML 이스케이프(Slack 표준 escape 대상). `*_~`는 Slack 공식 escape가 없어 링크 트리오만 처리.
+  - **core 스키마 무변경**: `NotificationPayload`/`SlackMessage`에 `detail?` optional 필드만 추가(아웃박스 payload jsonb 패스스루 — DB 마이그레이션 불필요). Phase 3(task_created)·standup·팀채널 경로·dedup·발송창·allowlist는 무접촉.
+  - 변경 파일: `personal-digest.ts`(항목 수집·정렬·`buildDetail` 조립), `slack-bot.ts`(detail 있으면 blocks 본문에 이어붙임), core `notifications.ts`(`detail?` 필드 + `messageFor` 패스스루).
 - **스케줄**: 기존 `*/10` 크론 재사용. `postPersonalDigests`가 KST 9:50~10:30 분 단위 창(크론 지연 흡수) + 개인별 dedup(`personal_digest:<userId>:<date>`)로 하루 1회. 방해금지(22-8) 밖.
 - **DB**: `add-user-slack-id.sql`(users.slack_user_id) + `add-notification-personal-digest-kind.sql`(kind에 personal_digest) **프로덕션 적용 완료**. schema.sql 동기화.
 - **활성화**: Slack 앱에 **Bot Token Scope**(`chat:write`·`im:write`·`users:read.email`, 정책상 `users:read` 병요 가능) 추가 → **Reinstall** → `xoxb-` 토큰을 Vercel env **`SLACK_BOT_TOKEN`** 설정 → 배포. 이후 9:50 창 첫 크론이 발송.
@@ -213,7 +234,8 @@ mock 인증: 쿠키 `que-user=<id>` / PAT `que_pat_<id>` (예: `hwang-sunghyeon`
 - **게이트 확장**: `enqueueAndSend`가 팀채널(Webhook)/개인DM(Bot Token)을 배치가 실제 필요로 하는 채널만 요구하도록 채널별 게이트로 변경(기존 team 경로 회귀 없음 — 여전히 webhookEnabled 요구). 단계적 롤아웃: `digestRecipientAllowlist()`(QUE_DIGEST_RECIPIENTS) 존중.
 - **훅 위치(생성 커밋 성공 직후, B-1 패턴 동일)**: `today/actions.ts`(자연어 확정) · `schedule/actions.ts`(manual) · `projects/pm-actions.ts`(manual) · `action/actions.ts`(Action→Task 확정) 각 서버액션 `toResult`에 `afterCommit` 훅 추가 + `/api/tasks`·`/api/action-items/[id]/confirm`(MCP/CLI) persist 직후. **반복 템플릿 스케줄러 경로는 훅 없음**(결정 ③ — 이중으로 훅 자체도 안 검·source 판별도 no-op).
 - **검증**: typecheck·lint·core test(210)·build 통과. 실 Slack 발송은 프로덕션 Bot Token 하에 라이브 검증 예정(로컬은 가짜 토큰으로 파이프라인만).
-- **⚠️ 롤아웃 상태(2026-07-08 배포)**: **대표만 먼저** — Vercel production에 `QUE_DIGEST_RECIPIENTS=hwang-sunghyeon` 설정 후 배포. **부작용(사용자 감수 결정)**: 이 allowlist는 Phase 2 아침 브리핑과 공유라 **적용 기간 동안 나머지 7명의 아침 브리핑도 함께 꺼진다**. **전체 확대 절차**: 대표 검증 완료 후 `vercel env rm QUE_DIGEST_RECIPIENTS production` → `vercel --prod` 재배포(env 변경은 재배포로 반영). 확대를 잊으면 팀 브리핑이 계속 죽어 있으니 이 항목을 완료 처리하기 전엔 절대 넘어가지 말 것.
+- **⚠️ 롤아웃 상태(2026-07-08 배포)**: **대표만 먼저** — Vercel production에 `QUE_DIGEST_RECIPIENTS=hwang-sunghyeon` 설정 후 배포. **부작용(사용자 감수 결정)**: 이 allowlist는 Phase 2 아침 브리핑과 공유라 **적용 기간 동안 나머지 7명의 아침 브리핑도 함께 꺼진다**. **전체 확대 절차**: `vercel env rm QUE_DIGEST_RECIPIENTS production` → `vercel --prod` 재배포(env 변경은 재배포로 반영).
+- **🕒 전원확대 시점 = 구글캘린더 실연결 전환 후 (사용자 결정, 2026-07-08)**: 확대를 "잊은" 게 아니라 **의도적으로 미룬 것**이다. 순서 = ① 대표가 새 브리핑 폼 DM 검증 → ② 구글캘린더 더미→실연결 전환(더미 청소 먼저) 완료 → ③ 그때 allowlist 제거로 7명 브리핑 복구 + Phase 3/브리핑 전원 활성. 그 전까지 7명 브리핑 꺼짐은 **알려진·수용된 상태**.
 
 ## ✅ Slack 알림 B-1 (1단계 · 알림·스탠드업) (2026-07-07)
 

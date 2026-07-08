@@ -155,18 +155,17 @@ export async function postDmToSlack(slackUserId: string, msg: SlackMessage): Pro
   if (!channel) throw new Error("Slack conversations.open: 채널 없음");
 
   const url = `${appBaseUrl()}${msg.deeplinkPath}`;
+  // 요약 1줄(text) + (있으면) 상세 목록(detail) + 딥링크. detail은 personal_digest v2가 실어준다.
+  const body = msg.detail
+    ? `${msg.text}\n\n${msg.detail}\n\n<${url}|Que에서 열기>`
+    : `${msg.text}\n<${url}|Que에서 열기>`;
   await slackApi<{ ok: boolean; error?: string }>("chat.postMessage", token, {
     channel,
-    text: msg.text, // 알림/폴백 텍스트
+    text: msg.text, // 알림/폴백 텍스트(요약 1줄)
     attachments: [
       {
         color: TONE_COLOR[msg.tone],
-        blocks: [
-          {
-            type: "section",
-            text: { type: "mrkdwn", text: `${msg.text}\n<${url}|Que에서 열기>` },
-          },
-        ],
+        blocks: [{ type: "section", text: { type: "mrkdwn", text: body } }],
       },
     ],
   });
