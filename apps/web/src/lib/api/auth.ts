@@ -85,7 +85,9 @@ export async function authenticate(request: Request): Promise<ApiContext> {
   }
 
   const viaHeader = request.headers.get("x-que-via");
-  const via: ChangeVia = viaHeader === "mcp" ? "mcp" : "cli";
+  // 화이트리스트 매칭 — 알 수 없는 값은 기본 'cli'로 떨어뜨린다.
+  const via: ChangeVia =
+    viaHeader === "mcp" ? "mcp" : viaHeader === "mobile" ? "mobile" : "cli";
 
   return { user, via };
 }

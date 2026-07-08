@@ -183,7 +183,7 @@ create table if not exists change_logs (
   before_value text,
   after_value  text,
   reason       text,
-  via          text not null check (via in ('web','mcp','cli')),
+  via          text not null check (via in ('web','mcp','cli','mobile')),
   visible_to   text[],
   created_at   timestamptz not null default now()
 );

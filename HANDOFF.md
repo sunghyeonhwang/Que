@@ -55,7 +55,17 @@ mock 인증: 쿠키 `que-user=<id>` / PAT `que_pat_<id>` (예: `hwang-sunghyeon`
 6. **Sentry 소스맵/트레이싱** — ⏭ 스킵(읽기 힘든 프로덕션 에러 실제 발생 시만).
 7. **그리프 3·4Q 시트 임포트** — ✋ 수동 처리 중, 자동화 불요.
 
-**🆕 D 트랙 — todo_griff(DayBlocks) × Que Task 연동 (2026-07-08 신규, 계획 수립 중)**: 별도 앱 `todo_griff`(Vite+React PWA 데이 플래너 "DayBlocks", `todo.griff.co.kr`+iOS/Android 예정). 현재 **Que 연동 0%(localStorage 섬)**. **아키텍처: DB 직결 지양 → Que REST API 경유**(Que가 이미 Task 전체를 규칙 강제하며 API 노출). 선결(Que쪽): **D-1 모바일 로그인 엔드포인트(email+비번→토큰, 현재 PAT는 로그인 UX 아님) · D-2 CORS 허용+via='mobile'**. 앱쪽: D-3 태스크 동기화·D-4 OKR 모델(Que에 없음, 신규)·D-5 오프라인 충돌·D-6 Capacitor 네이티브. 보안: RLS-off 4테이블은 anon-키 앱 붙기 전 정책 필요. 상세는 로드맵 `que-roadmap-plan.md` "D 트랙" 절 + **사용자 피드백 반영 예정**.
+**🆕 D 트랙 — todo_griff(DayBlocks) × Que Task 연동 (2026-07-08 신규)**: 별도 앱 `todo_griff`(Vite+React PWA 데이 플래너 "DayBlocks", `todo.griff.co.kr`+iOS/Android 예정). 현재 **Que 연동 0%(localStorage 섬)**. **아키텍처: DB 직결 지양 → Que REST API 경유**(Que가 이미 Task 전체를 규칙 강제하며 API 노출). 선결(Que쪽): **D-1 모바일 로그인 엔드포인트(email+비번→토큰, 현재 PAT는 로그인 UX 아님) · D-2 CORS 허용+via='mobile'**. 앱쪽: D-3 태스크 동기화·D-4 OKR 모델(Que에 없음, 신규)·D-5 오프라인 충돌·D-6 Capacitor 네이티브. 보안: RLS-off 4테이블은 anon-키 앱 붙기 전 정책 필요. 상세는 로드맵 `que-roadmap-plan.md` "D 트랙" 절 + **사용자 피드백 반영 예정**. **→ Que쪽 선결(D-1·D-2) 구현 완료: 아래 "✅ D 트랙 배치 1" 절.**
+
+#### ✅ D 트랙 배치 1 — Que-side enabler (D-1 모바일 인증 + D-2 CORS + via='mobile') (2026-07-08)
+
+todo_griff(DayBlocks) 연동을 위한 **Que쪽 선결 2건**을 구현했다. 앱쪽(D-3~D-6)은 별도 레포 작업. 다음 결정을 기록한다:
+
+- **(a) middleware가 아니라 `apps/web/src/proxy.ts`에 통합**: Next.js 16 규약(middleware→proxy 개명)을 따라 CORS 처리를 `proxy.ts`에 넣었다. `middleware.ts`를 새로 만들지 않는다.
+- **(b) CORS 화이트리스트 = `QUE_CORS_ORIGINS` env + 기본값**(todo.griff.co.kr + localhost dev 포트). origin이 화이트리스트에 있을 때만 `Access-Control-Allow-Origin`을 그 origin으로 에코한다(와일드카드 아님). **`Access-Control-Allow-Credentials`는 미사용**(토큰은 Authorization 헤더로 전달, 쿠키 아님). evil origin에는 CORS 헤더를 전혀 붙이지 않는다.
+- **(c) `must_change_password=true` 계정은 모바일 로그인(D-1)에서 토큰 발급 거부**(403 + "웹에서 비밀번호를 먼저 변경하세요"). 첫 로그인 강제 변경(env 트랙 ③)이 모바일을 우회하지 못하게 한다.
+- **(d) 배포 순서 주의**: `db/supabase/add-via-mobile.sql`(change_logs.via 제약에 'mobile' 추가)을 **코드 배포 전에 먼저 적용**한다. 안 하면 via='mobile' 쓰기가 제약 위반 500으로 실패한다(sql 파일 6행 경고와 동일). **schema.sql:186도 `('web','mcp','cli','mobile')`로 동기화 완료**(schema.sql 기반 신규 DB 셋업 대비 — 이 레포는 전 마이그레이션을 schema.sql에 반영하는 관례).
+- 검증: core test 211/211(via='mobile' 포함)·lint 0·typecheck 4워크스페이스·build 성공(`/api/auth/mobile`+Proxy 등록). mock dev 서버 curl 실측 — CORS 프리플라이트 204+ACAO 에코(화이트리스트만)+Methods/Headers/Max-Age/Vary, evil origin 헤더 전무, ACA-Credentials 없음. 모바일 로그인 실패(401/400) 일반 메시지로 계정 존재 미누설(verifyCredentials 잠금 카운터 경유). 도메인 규칙(x-que-via: mobile 사유 없는 on_hold) 422 STATUS_DETAIL_REQUIRED 차단. 비차단 관찰: 비화이트리스트 origin 응답에 `Vary: Origin` 미부착(공유 캐시 이론적 오염 여지, 권고).
 
 **🆕 E 트랙 — 사용자 피드백 10건 (2026-07-08)**: 로드맵 `que-roadmap-plan.md` "E 트랙" 절 정본. ① **E-A 빠른 UX**(프로젝트 셀렉트+전체보기·목록/보드 완료버튼(컨페티 done-circle 재사용)·전체화면 버튼·CLI 명령어별 복사) ② **E-B 도움말**(일정vs캘린더·반복마일스톤 사용법) ③ **E-C**(E-7 MCP PAT 포함 복사=미노출 정책 충돌 — 결정 필요 · **E-8 파스텔 톤 = 결정·구현 완료(2026-07-08)**: 상태 5색 의미 고정 유지 + 브랜드 토큰만 소프트 인디고 파스텔, 아래 "E 트랙 배치 2 — E-8" 절 참고) ④ **E-D 신규 대형**(E-9 Gantt=의존성 데이터모델 신규·E-10 분석 AI Gemini/Qwen). **권장: E-A+E-B를 감사 배치처럼 먼저.** E-C 결정 후, E-D 별도 스코핑.
 

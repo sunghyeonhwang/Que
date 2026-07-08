@@ -12,6 +12,7 @@ import { USERS } from "./mock/users";
 import {
   MockGoogleCalendarProvider,
   calendarEventSchema,
+  changeViaSchema,
   extractMeetingDateTime,
   type ExternalCalendarEvent,
   type StatusLog,
@@ -97,6 +98,21 @@ describe("작업 상태 변경", () => {
     const clog = d.changeLogs.at(-1)!;
     expect(clog.via).toBe("mcp");
     expect(clog.changeType).toBe("status_change");
+  });
+
+  it("via='mobile'(DayBlocks 앱)도 허용되고 ChangeLog에 그대로 기록된다", () => {
+    const d = db();
+    d.changeTaskStatus(
+      { actorId: "hwang-sunghyeon", via: "mobile" },
+      {
+        taskId: "task-landing-copy",
+        to: "on_hold",
+        detail: { reason: "폰에서 보류", helpUserId: "kim-riwon" },
+      },
+    );
+    const clog = d.changeLogs.at(-1)!;
+    expect(clog.via).toBe("mobile");
+    expect(changeViaSchema.parse("mobile")).toBe("mobile");
   });
 
   it("도움 필요한 사람을 여러 명 지정하면 StatusLog에 배열로 저장된다(단일 컬럼=첫 번째)", () => {
