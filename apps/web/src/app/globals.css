@@ -127,8 +127,8 @@
   --font-ko-active: var(--font-suit);
 
   /* Que 디자인 토큰 — 퓨어 Attio 방향: 뉴트럴 지배·저채도 액센트·하이라인 보더·소프트 elevation. */
-  --que-brand: #3b5bd9;
-  --que-brand-hover: #2f49bd;
+  --que-brand: #4e6cde; /* 소프트 인디고(팔레트 A). 흰 텍스트 대비 4.6:1로 WCAG AA 충족. */
+  --que-brand-hover: #3f5dd4;
   --que-brand-subtle: #eef1fb;
   --que-on-brand: #ffffff; /* 브랜드 배경 위 텍스트(버튼·배지). 다크는 밝은 인디고라 어둡게 반전. */
   --que-text: #14151a;

@@ -15,7 +15,7 @@ export function burstConfetti(el: HTMLElement) {
       x: (rect.left + rect.width / 2) / window.innerWidth,
       y: (rect.top + rect.height / 2) / window.innerHeight,
     },
-    colors: ["#16a34a", "#22c55e", "#4ade80", "#86efac", "#3b5bd9"],
+    colors: ["#16a34a", "#22c55e", "#4ade80", "#86efac", "#4e6cde"],
     disableForReducedMotion: true,
   });
 }
