@@ -3,6 +3,7 @@ import { ExternalLink, Terminal, Bot, KeyRound, ShieldCheck, MessageSquareQuote,
 import { emailForUser } from "@que/core";
 import { PageHeader } from "@/components/app/page-header";
 import { CopyBlock } from "@/components/tools/copy-block";
+import { CommandList } from "@/components/tools/command-list";
 import { getCurrentUser } from "@/lib/current-user";
 
 export const dynamic = "force-dynamic";
@@ -100,26 +101,36 @@ export default async function ToolsPage() {
             이미 설치돼 있으면 건너뛰어도 됩니다.
           </p>
           <div className="flex flex-col gap-3">
-            <CopyBlock
+            <CommandList
               label="macOS (터미널)"
-              code={`# 1) Homebrew (이미 있으면 이 줄은 생략)
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-
-# 2) Node·git 설치 + pnpm 활성화
-brew install node git
-corepack enable`}
+              copyAll
+              items={[
+                {
+                  cmd: `/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"`,
+                  note: "Homebrew 설치 (이미 있으면 생략)",
+                },
+                { cmd: "brew install node git", note: "Node·git 설치" },
+                { cmd: "corepack enable", note: "pnpm 활성화" },
+              ]}
             />
-            <CopyBlock
+            <CommandList
               label="Windows (PowerShell)"
-              code={`# winget (Windows 10/11 기본 제공)
-winget install OpenJS.NodeJS Git.Git
-corepack enable`}
+              copyAll
+              items={[
+                {
+                  cmd: "winget install OpenJS.NodeJS Git.Git",
+                  note: "Node·git 설치 (winget은 Windows 10/11 기본 제공)",
+                },
+                { cmd: "corepack enable", note: "pnpm 활성화" },
+              ]}
             />
-            <CopyBlock
+            <CommandList
               label="설치 확인 (버전이 뜨면 성공)"
-              code={`node -v
-pnpm -v
-git --version`}
+              items={[
+                { cmd: "node -v" },
+                { cmd: "pnpm -v" },
+                { cmd: "git --version" },
+              ]}
             />
           </div>
           <p className="mt-2 text-xs text-[var(--que-text-tertiary)]">
@@ -132,25 +143,39 @@ git --version`}
           <p className="mb-2 text-sm text-[var(--que-text-secondary)]">
             저장소를 clone하고 의존성을 설치한 뒤(최초 1회), 토큰을 저장하면 됩니다.
           </p>
-          <CopyBlock
+          <CommandList
             label="설치 · 로그인"
-            code={`git clone https://github.com/sunghyeonhwang/Que.git
-cd Que && pnpm install
-cd packages/cli && pnpm link --global && cd ../..   # que 명령 전역 등록
-export QUE_API_URL=${PROD_URL}
-que login <본인 PAT>
-que me`}
+            copyAll
+            items={[
+              { cmd: "git clone https://github.com/sunghyeonhwang/Que.git" },
+              { cmd: "cd Que && pnpm install" },
+              {
+                cmd: "cd packages/cli && pnpm link --global && cd ../..",
+                note: "que 명령 전역 등록",
+              },
+              { cmd: `export QUE_API_URL=${PROD_URL}` },
+              { cmd: "que login <본인 PAT>" },
+              { cmd: "que me" },
+            ]}
           />
           <p className="mt-3 mb-2 text-sm text-[var(--que-text-secondary)]">자주 쓰는 명령</p>
-          <CopyBlock
+          <CommandList
             label="예시"
-            code={`que today                                   # 오늘 요약
-que tasks --status 진행중                    # 작업 목록
-que task-status <taskId> issue --reason "API 500" --help-from oh-seunghoon
-que move <taskId> 2026-07-05T15:00 2026-07-05T16:00
-que checkin <checkInId> working              # 체크인 응답
-que action confirm <id>                      # 회의록 Action → Task 확정
-que pay list                                 # 결제 요청 목록`}
+            items={[
+              { cmd: "que today", note: "오늘 요약" },
+              { cmd: "que tasks --status 진행중", note: "작업 목록" },
+              {
+                cmd: `que task-status <taskId> issue --reason "API 500" --help-from oh-seunghoon`,
+                note: "문제 상태로 변경 + 도움 요청",
+              },
+              {
+                cmd: "que move <taskId> 2026-07-05T15:00 2026-07-05T16:00",
+                note: "일정 변경",
+              },
+              { cmd: "que checkin <checkInId> working", note: "체크인 응답" },
+              { cmd: "que action confirm <id>", note: "회의록 Action → Task 확정" },
+              { cmd: "que pay list", note: "결제 요청 목록" },
+            ]}
           />
         </Card>
 

@@ -85,7 +85,7 @@
 각 항목 파일:줄 근거는 기획 워크플로 산출(스펙 전문은 세션 기록). 아래는 **착수 가능한 순서·데이터모델·미결 결정**만.
 
 ### E-A/E-B 배치 계획 (빠른 UX + 도움말, 저리스크)
-- **배치 1 (S급, 반나절~1일)**: E-2(완료버튼=`done-circle.tsx` 재사용, 신규 `pm-done-circle.tsx` 래퍼, `task-done-toggle.tsx` 삭제) → E-4(CLI 명령어별 복사, 신규 `command-list.tsx`) → E-3(전체화면, 신규 공용 `fullscreen-button.tsx`, /schedule·/projects·/heatmap 배치) → E-5·E-6(도움말 `help-content.ts` 한 커밋).
+- **배치 1 (S~M, 반나절~1.5일 — E-F 교육 포함 확정)**: E-2(완료버튼=`done-circle.tsx` 재사용, 신규 `pm-done-circle.tsx` 래퍼, `task-done-toggle.tsx` 삭제) → E-4(CLI 명령어별 복사, 신규 `command-list.tsx`) → E-3(전체화면, 신규 공용 `fullscreen-button.tsx`, /schedule·/projects·/heatmap 배치) → **E-F1(도움말 '개념 쉽게' 프라이머 — E-5 일정vs캘린더·E-6 마일스톤/반복 흡수 + 프로젝트-작업-마일스톤 위계, 왜/무엇/어떻게/예시, 매뉴얼 톤)** → **E-F2(교육형 빈 상태 — `/planning` 마일스톤·반복 템플릿 빈 상태를 개념 설명형으로, 현 건조한 문구 대체)**.
 - **배치 2**: E-1(M, `projects-data.ts` 다중 프로젝트 합산 + `ALL_PROJECTS` sentinel, core 무변경) → **E-8**(M, 파스텔 — `globals.css` 브랜드 토큰 4종 `--que-brand/-hover/-subtle/-on-brand` × 라이트/다크만, 상태색 불변. **전역 시각 변경이라 단독 커밋 + 양테마 QA**).
 - **E-7**(L, 마지막 단독): `personal_access_tokens`에 `secret_enc`(nullable, 전용 토큰만)·`scope`('full'|'tasks') 추가 → **Task 스코프 토큰 발급 + /tools 실 토큰 노출**. ⚠️ scope 강제를 **먼저 배포**한 뒤 노출을 켜는 순서.
 

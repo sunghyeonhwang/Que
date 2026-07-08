@@ -23,9 +23,17 @@ export function TemplateList({ templates }: { templates: TemplateListItem[] }) {
   return (
     <div className="flex flex-col gap-2">
       {templates.length === 0 && (
-        <p className="py-6 text-center text-sm text-muted-foreground">
-          등록된 반복 업무 템플릿이 없습니다.
-        </p>
+        // 교육형 빈 상태 — '반복 업무 템플릿'이 무엇인지 개념·예시와 함께 안내한다.
+        <div className="py-6 text-center">
+          <p className="text-sm font-medium text-[var(--que-text)]">
+            아직 등록된 반복 업무 템플릿이 없습니다.
+          </p>
+          <p className="mx-auto mt-1.5 max-w-md text-sm text-[var(--que-text-secondary)]">
+            반복 업무 템플릿이란 정기적으로 되풀이되는 작업을 미리 등록해 두는 틀입니다. 예를 들어
+            매주 월요일 주간 보고처럼, 한 번 등록하면 때가 될 때마다 회차 작업이 자동으로 생성됩니다.
+            매번 직접 만들지 않아도 됩니다.
+          </p>
+        </div>
       )}
       {templates.map((template) => (
         <TemplateRow key={template.id} template={template} />

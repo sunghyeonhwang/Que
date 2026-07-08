@@ -9,6 +9,7 @@ import type {
   ProjectListItem,
   ProjectMeta,
 } from "@/lib/projects-data";
+import { FullscreenButton } from "@/components/app/fullscreen-button";
 import { ProjectHeader } from "./project-header";
 import { ProjectScopeFilters } from "./project-scope-filters";
 import { CreateTaskDialog } from "./create-task-dialog";
@@ -76,6 +77,7 @@ export function ProjectView({
       <div className="mt-4 flex shrink-0 flex-wrap items-end justify-between gap-2 border-b border-[var(--que-border)]">
         <ViewTabs current={view} />
         <div className="flex items-center gap-2 pb-2">
+          <FullscreenButton />
           <CreateTaskDialog projectId={selectedProjectId} meta={meta} />
         </div>
       </div>

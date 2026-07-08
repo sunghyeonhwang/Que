@@ -44,7 +44,7 @@ export default async function PlanningPage() {
           </div>
           <CreateMilestoneForm projects={manageableProjects} />
           <div className="rounded-xl border border-[var(--que-border)] bg-[var(--que-bg)] p-4 shadow-[var(--que-shadow-sm)]">
-            <MilestoneList milestones={milestones} />
+            <MilestoneList milestones={milestones} canCreate={manageableProjects.length > 0} />
           </div>
         </section>
       </div>

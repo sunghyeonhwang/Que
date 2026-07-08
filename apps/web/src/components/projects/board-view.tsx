@@ -12,6 +12,7 @@ import { IconButton } from "@/components/app/icon-button";
 import { StatusBadge } from "@/components/app/status-badge";
 import { PriorityBadge } from "./priority-badge";
 import { MemberAvatars } from "./member-avatars";
+import { PmDoneCircle } from "./pm-done-circle";
 import { TaskCardMenu } from "./task-card-menu";
 import { AddTaskInline } from "./add-task-inline";
 import { BlockedStatusDialog, type BlockedStatus } from "./blocked-status-dialog";
@@ -253,7 +254,18 @@ function BoardCard({
       />
 
       <div className="flex items-start justify-between gap-2">
-        <PriorityBadge priority={card.priority} />
+        <div className="flex items-center gap-2">
+          {/* 완료 버튼 — 카드 클릭 Link(z-10) 위(z-20)에서 전파 차단(DoneCircle 내장). 읽기전용 카드는 미노출. */}
+          {editable && (
+            <PmDoneCircle
+              taskId={card.taskId}
+              taskTitle={card.title}
+              done={card.status === "done"}
+              className="relative z-20 -my-1.5 -ml-1.5"
+            />
+          )}
+          <PriorityBadge priority={card.priority} />
+        </div>
         {editable ? (
           <TaskCardMenu
             taskId={card.taskId}

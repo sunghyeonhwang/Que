@@ -10,7 +10,7 @@ import { IconButton } from "@/components/app/icon-button";
 import { StatusBadge } from "@/components/app/status-badge";
 import { PriorityBadge } from "./priority-badge";
 import { MemberAvatars } from "./member-avatars";
-import { TaskDoneToggle } from "./task-done-toggle";
+import { PmDoneCircle } from "./pm-done-circle";
 import { TaskCardMenu } from "./task-card-menu";
 import { AddTaskInline } from "./add-task-inline";
 import { cn } from "@/lib/utils";
@@ -110,12 +110,35 @@ export function TaskGroupSection({
                   className="absolute inset-0 z-10 rounded-md focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--que-brand)]"
                 />
                 <div className="flex min-w-0 items-center gap-2.5">
-                  <TaskDoneToggle
-                    taskId={card.taskId}
-                    taskTitle={card.title}
-                    done={done}
-                    disabled={!card.canEdit}
-                  />
+                  {card.canEdit ? (
+                    <PmDoneCircle
+                      taskId={card.taskId}
+                      taskTitle={card.title}
+                      done={done}
+                      className="relative z-20 -my-1.5"
+                    />
+                  ) : (
+                    // 읽기 전용 카드: 완료 여부만 표시(토글 불가). 색상 단독 구분을 피해 sr-only 병기.
+                    <span
+                      className="relative z-20 flex size-10 shrink-0 items-center justify-center text-[var(--que-text-tertiary)]"
+                      aria-hidden
+                    >
+                      <span
+                        className={cn(
+                          "flex size-6 items-center justify-center rounded-full border",
+                          done
+                            ? "border-transparent bg-[var(--que-success)] text-white"
+                            : "border-[var(--que-border)]",
+                        )}
+                      >
+                        {done ? (
+                          <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth={2.5}>
+                            <path d="M5 12.5 L10 17.5 L19 7.5" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        ) : null}
+                      </span>
+                    </span>
+                  )}
                   <span
                     className={cn(
                       "min-w-0 truncate text-sm font-medium",

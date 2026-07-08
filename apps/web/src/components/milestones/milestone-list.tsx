@@ -25,12 +25,32 @@ const RISK: Record<Risk, { label: string; tone: BadgeTone }> = {
   late: { label: "지연", tone: "red" },
 };
 
-export function MilestoneList({ milestones }: { milestones: MilestoneRow[] }) {
+export function MilestoneList({
+  milestones,
+  canCreate = false,
+}: {
+  milestones: MilestoneRow[];
+  /** 관리 가능한 프로젝트가 있어 위 등록 폼을 쓸 수 있는지. 빈 상태 안내 문구 분기용. */
+  canCreate?: boolean;
+}) {
   if (milestones.length === 0) {
+    // 교육형 빈 상태 — '마일스톤'이 무엇인지 모르는 팀원에게 개념·예시를 함께 안내한다.
     return (
-      <p className="py-6 text-center text-sm text-[var(--que-text-tertiary)]">
-        등록된 마일스톤이 없습니다.
-      </p>
+      <div className="py-6 text-center">
+        <p className="text-sm font-medium text-[var(--que-text)]">
+          아직 등록된 마일스톤이 없습니다.
+        </p>
+        <p className="mx-auto mt-1.5 max-w-md text-sm text-[var(--que-text-secondary)]">
+          마일스톤이란 프로젝트의 중요한 기한 지점입니다. 예를 들어 1차 오픈, 최종 납품처럼 꼭
+          지켜야 하는 날을 표시합니다. 마일스톤을 등록하면 기한 위험을 미리 확인할 수 있습니다.
+        </p>
+        {canCreate && (
+          <p className="mt-1.5 text-xs text-[var(--que-text-tertiary)]">
+            위 <b className="font-medium text-[var(--que-text-secondary)]">마일스톤 등록</b> 폼에서
+            추가할 수 있습니다.
+          </p>
+        )}
+      </div>
     );
   }
   return (

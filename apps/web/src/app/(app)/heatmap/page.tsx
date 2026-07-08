@@ -11,6 +11,7 @@ import { getCurrentUser } from "@/lib/current-user";
 import { getClientFilter, getClientFilterName } from "@/lib/client-filter";
 import { getPerformanceData, type PerfKpi } from "@/lib/performance-data";
 import { ClientFilterBadge } from "@/components/app/client-filter-badge";
+import { FullscreenButton } from "@/components/app/fullscreen-button";
 import { CompletionBarChart } from "@/components/performance/completion-bar-chart";
 import { OverdueAreaChart } from "@/components/performance/overdue-area-chart";
 import { PerformanceLineChart } from "@/components/performance/performance-line-chart";
@@ -88,7 +89,10 @@ export default async function PerformancePage({
             팀 작업 진척·병목·부하 분포를 한눈에. 개인 평가가 아니라 업무 배분과 병목 조정용입니다.
           </p>
         </div>
-        <ClientFilterBadge clientName={clientName} />
+        <div className="flex items-center gap-2">
+          <ClientFilterBadge clientName={clientName} />
+          <FullscreenButton />
+        </div>
       </header>
 
       {/* KPI 4 */}
