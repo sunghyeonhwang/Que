@@ -40,7 +40,7 @@ mock 인증: 쿠키 `que-user=<id>` / PAT `que_pat_<id>` (예: `hwang-sunghyeon`
 2. **③ 개인 비밀번호 배포** — 현재 전원 공용 `good121930`(`must_change=false`). 개인별 랜덤 + `must_change_password=true`(첫 로그인 강제 변경). 스크립트 있음: `db/supabase/gen-passwords.mts` → `set-passwords.sql`. **전원 강제 변경이라 팀 공지 직전에**. (사용자 확정: 맨 마지막.)
 3. **④ 구글 캘린더 실연동** — `GOOGLE_SERVICE_ACCOUNT_KEY`+도메인위임 대기. **현재 더미 유지**(회사 일정=Mock, Que 일정=실제). **전환 절차: provider 교체 → source=`company` 더미 삭제 → 실 sync**(아래 "그 외 대기 트랙" 참고).
 4. **회의록 액션플랜(항목15)** — 회의록 md 샘플 대기.
-5. **Phase 3 (할일 생성→담당자 DM)** — 계획 기재됨(아래 "Slack Phase 2" 절 하단). Phase 2 인프라 재사용, createTask 훅.
+5. ~~**Phase 3 (할일 생성→담당자 DM)**~~ → **✅ 완료 (2026-07-08)**: 할일 생성 즉시 담당자에게 개인 DM(task_created). Phase 2 Bot DM 인프라 재사용. 아래 "Slack Phase 3" 절.
 6. (후순위) 그리프 3,4Q 프로젝트 임포트([[griff-3-4q-schedule-sheet]], 담당자 부재 블로커) · 홈 정식 디자인(프리뷰 전 착수 금지).
 
 **Vercel env 게이트 현황(GRIFF/que production)**: `SLACK_WEBHOOK_URL`·`SLACK_BOT_TOKEN`·`CRON_SECRET`·`QUE_CRON_ACTIVE=1`·`NEXT_PUBLIC_SENTRY_DSN`·`QUE_DB=supabase`·`SUPABASE_*`·`AUTH_SECRET` 설정됨. 미설정: `QUE_DEADLINE_THRESHOLD_HOURS`(기본24)·`QUE_QUIET_HOURS`(기본22-8)·`QUE_DIGEST_RECIPIENTS`(미설정=전체)·`GOOGLE_SERVICE_ACCOUNT_KEY`·`QUE_ALLOW_MOCK_AUTH`(의도적 미설정).
@@ -202,12 +202,17 @@ mock 인증: 쿠키 `que-user=<id>` / PAT `que_pat_<id>` (예: `hwang-sunghyeon`
 - **비차단 후속(글래도스)**: TONE_COLOR 중복(slack.ts↔slack-bot.ts) export 공유 · personal-digest kstDateKey export 미사용 · dayStart 서버TZ 기준(today-data 패턴, KST 정규화 장기과제) · sendEntry의 `recipient` 분기에 "팀 kind에 recipient 싣지 말 것" 주석.
 - **C-2b(별도)**: Slack 버튼으로 Slack에서 바로 체크인 응답(서명검증·인터랙티브) — 이번 제외.
 
-### 🔜 Phase 3 (계획·미착수, 2026-07-07 사용자 요청) — 할일 생성 시 담당자 DM
-- **목표**: **할일(Task)을 생성하면 그 즉시 담당자(assignee)에게 개인 DM**으로 새 할일을 알린다(스탠드업/브리핑처럼 배치가 아니라 **생성 이벤트 즉시**).
-- **DM 내용 필드**(사용자 지정): **클라이언트 · 프로젝트 · 상태 · 우선순위 · 제목 · 시작일 · 마감일** + Que 딥링크.
-- **재사용**: Phase 2 Bot DM 인프라 그대로 — core intent(신규 kind 예 `task_created`) + `slack-bot.postDmToSlack`(form-encoded 수정본) + outbox(recipient=assigneeId, dedup `task_created:<taskId>`) + `resolveSlackUserId`(8명 매핑 완료·backfill됨). 발송 로직·게이트(personalDigestEnabled=SLACK_BOT_TOKEN)·실패격리 재사용.
-- **이벤트 훅**: `createTask`(또는 자연어등록 확정) **커밋(persist) 성공 직후** — B-1 status 훅(notifyTaskStatusChanged) 패턴 동일. web 서버액션 + `/api/tasks`(MCP/CLI) 생성 경로 전수. 담당자 없거나 본인 생성=본인 담당이면 발송 여부 결정 필요(도메인 규칙: 담당자 없는 Action은 Task 자동생성 안 함 참고).
-- **확인 필요(착수 전)**: 방해금지(22-8) 창 안 생성 시 hold vs 즉시 · 본인이 본인에게 할당한 생성도 DM 보낼지 · 대량 생성(반복템플릿 회차) 시 묶음/억제 여부.
+### ✅ Slack Phase 3 — 할일 생성 시 담당자 DM (2026-07-08)
+
+> **빌드 완료·SLACK_BOT_TOKEN 게이트로 활성**(Phase 2와 동일 크레덴셜). 할일(Task)을 생성하면 그 즉시 담당자에게 개인 DM(task_created).
+
+- **사용자 확정 결정 3건 (2026-07-08)**: ① 방해금지 창(22-8) 생성분은 창 종료 후 발송(outbox `holdUntil` — enqueueAndSend 기존 메커니즘, drainOutbox 크론이 창 이후 발송) · ② **본인이 본인에게 할당한 생성도 DM 발송**(self 필터 없음) · ③ **반복 템플릿 회차 자동 생성분은 DM 억제**(아침 개인 브리핑이 커버 — `source==="recurring_template"`면 no-op).
+- **DM 내용 필드**(사용자 지정): 클라이언트 · 프로젝트 · 상태 · 우선순위 · 제목 · 시작일 · 마감일 + Que 딥링크(`/projects?task=<id>` — projects/page.tsx가 읽는 searchParam). 클라이언트명은 project.clientId→db.clients 유도. 시작·마감은 KST 벽시계 표기.
+- **재사용**: Phase 2 Bot DM 인프라 그대로 — core intent(신규 kind `task_created`) + `slack-bot.postDmToSlack` + outbox(recipient=assigneeId) + `resolveSlackUserId`. 게이트=`personalDigestEnabled()`(SLACK_BOT_TOKEN)·실패격리(훅 try/catch, 절대 throw 안 함).
+- **dedup**: `dedupKeyFor`가 task_created는 **marker 무시 → `task_created:<taskId>`**로 **task당 평생 1회**(재시도·중복 훅 방지). core `notification-outbox.test.ts`에 검증 추가(총 210 통과).
+- **게이트 확장**: `enqueueAndSend`가 팀채널(Webhook)/개인DM(Bot Token)을 배치가 실제 필요로 하는 채널만 요구하도록 채널별 게이트로 변경(기존 team 경로 회귀 없음 — 여전히 webhookEnabled 요구). 단계적 롤아웃: `digestRecipientAllowlist()`(QUE_DIGEST_RECIPIENTS) 존중.
+- **훅 위치(생성 커밋 성공 직후, B-1 패턴 동일)**: `today/actions.ts`(자연어 확정) · `schedule/actions.ts`(manual) · `projects/pm-actions.ts`(manual) · `action/actions.ts`(Action→Task 확정) 각 서버액션 `toResult`에 `afterCommit` 훅 추가 + `/api/tasks`·`/api/action-items/[id]/confirm`(MCP/CLI) persist 직후. **반복 템플릿 스케줄러 경로는 훅 없음**(결정 ③ — 이중으로 훅 자체도 안 검·source 판별도 no-op).
+- **검증**: typecheck·lint·core test(210)·build 통과. 실 Slack 발송은 프로덕션 Bot Token 하에 라이브 검증 예정(로컬은 가짜 토큰으로 파이프라인만).
 
 ## ✅ Slack 알림 B-1 (1단계 · 알림·스탠드업) (2026-07-07)
 

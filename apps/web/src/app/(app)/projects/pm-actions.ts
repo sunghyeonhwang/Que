@@ -9,7 +9,7 @@ import {
 } from "@que/core";
 import { getDb } from "@/lib/db";
 import { getCurrentUser } from "@/lib/current-user";
-import { notifyTaskStatusChanged } from "@/lib/notifications/dispatch";
+import { notifyTaskCreated, notifyTaskStatusChanged } from "@/lib/notifications/dispatch";
 import type { ActionResult } from "@/app/(app)/today/actions";
 
 // /projects PM 도구 서버 액션 — core mutation 경유. 카드 = core Task.
@@ -27,12 +27,16 @@ type Db = Awaited<ReturnType<typeof getDb>>;
  * (today/actions.ts toResult와 동일 규율 — getDb 요청 캐시 정체성에 기대면 persist가 유실된다.)
  * QueRuleError만 { ok:false }로 변환하고, NEXT_REDIRECT(미인증) 등은 전파한다.
  */
-async function toResult(fn: (db: Db) => Promise<unknown> | unknown): Promise<ActionResult> {
+async function toResult<T>(
+  fn: (db: Db) => Promise<T> | T,
+  afterCommit?: (db: Db, result: T) => Promise<void>,
+): Promise<ActionResult> {
   try {
     const db = await getDb();
-    await fn(db);
+    const result = await fn(db);
     await db.persist();
     revalidatePath("/projects");
+    if (afterCommit) await afterCommit(db, result); // 커밋 직후 알림 훅(throw 안 하는 훅만)
     return { ok: true };
   } catch (error) {
     if (isQueRuleError(error)) return { ok: false, error: error.message };
@@ -50,19 +54,21 @@ export async function createTaskAction(input: {
   priority?: Task["priority"];
 }): Promise<ActionResult> {
   const user = await getCurrentUser();
-  return toResult((db) =>
-    db.createTask(
-      { actorId: user.id, via: "web" },
-      {
-        title: input.title,
-        projectId: input.projectId,
-        assigneeId: input.assigneeId,
-        endAt: input.endAt,
-        description: input.description,
-        priority: input.priority,
-        source: "manual",
-      },
-    ),
+  return toResult(
+    (db) =>
+      db.createTask(
+        { actorId: user.id, via: "web" },
+        {
+          title: input.title,
+          projectId: input.projectId,
+          assigneeId: input.assigneeId,
+          endAt: input.endAt,
+          description: input.description,
+          priority: input.priority,
+          source: "manual",
+        },
+      ),
+    (db, task) => notifyTaskCreated(db, task.id), // 생성 즉시 담당자 DM(억제 조건은 훅이 판정)
   );
 }
 

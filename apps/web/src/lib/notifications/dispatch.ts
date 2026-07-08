@@ -5,16 +5,19 @@ import {
   buildStatusChangeIntents,
   dedupKeyFor,
   messageFor,
+  TASK_STATUS_LABELS,
   type MockQueDb,
   type NotificationContext,
   type NotificationIntent,
   type NotificationOutboxEntry,
   type StatusDetail,
+  type Task,
   type TaskStatus,
 } from "@que/core";
 import { getStandupData } from "@/lib/team-data";
 import {
   deadlineThresholdHours,
+  digestRecipientAllowlist,
   notificationsEnabled,
   personalDigestEnabled,
   quietHoursConfig,
@@ -132,8 +135,12 @@ export async function enqueueAndSend(
   now: Date = new Date(),
 ): Promise<DispatchCounts> {
   const counts: DispatchCounts = { enqueued: 0, sent: 0, held: 0 };
-  // enqueueAndSend는 팀채널(status/deadline) 전용 경로 — Webhook 크레덴셜로 게이트한다.
-  if (!webhookEnabled() || intents.length === 0) return counts;
+  if (intents.length === 0) return counts;
+  // 채널별 게이트: 개인 DM(recipient/personal_digest)=Bot Token, 팀채널(status/deadline)=Webhook.
+  // 한쪽만 설정돼도 다른 채널이 헛되이 죽지 않게, 이 배치가 실제로 필요로 하는 채널만 요구한다.
+  const isDm = (i: NotificationIntent) => i.kind === "personal_digest" || i.recipient !== undefined;
+  if (intents.some((i) => !isDm(i)) && !webhookEnabled()) return counts;
+  if (intents.some(isDm) && !personalDigestEnabled()) return counts;
   try {
     const quiet = quietHoursConfig();
     if (quiet && inQuietHours(now, quiet)) {
@@ -176,6 +183,81 @@ export async function notifyTaskStatusChanged(
   const ctx = notificationContext(db, now);
   const intents = buildStatusChangeIntents(ctx, task, fromStatus, task.status, detail);
   await enqueueAndSend(db, intents, now);
+}
+
+/** 우선순위 한글 라벨(DM 표시용). core에 별도 라벨맵이 없어 여기서 정의(상태색 의미와 무관). */
+const PRIORITY_LABELS: Record<Task["priority"], string> = {
+  low: "낮음",
+  normal: "보통",
+  high: "높음",
+};
+
+/** ISO → KST 벽시계 "YYYY-MM-DD HH:mm". 값이 없으면 "-"(DM 필드 폴백). */
+function formatKstDateTime(iso?: string): string {
+  if (!iso) return "-";
+  const ms = Date.parse(iso);
+  if (Number.isNaN(ms)) return "-";
+  const d = new Date(ms + KST_OFFSET_MS);
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())}`;
+}
+
+/**
+ * 할일 생성 DM(task_created) intent. 사용자 지정 필드(클라이언트·프로젝트·상태·우선순위·제목·시작일·마감일)
+ * + Que 딥링크(/projects?task=<id> — projects/page.tsx가 읽는 searchParam). recipient=assigneeId.
+ */
+function buildTaskCreatedIntent(db: MockQueDb, task: Task): NotificationIntent {
+  const project = db.projectOf(task);
+  const client = db.clientOf(project);
+  const lines = [
+    `클라이언트: ${client?.name ?? "-"}`,
+    `프로젝트: ${project?.name ?? "-"}`,
+    `상태: ${TASK_STATUS_LABELS[task.status]}`,
+    `우선순위: ${PRIORITY_LABELS[task.priority]}`,
+    `제목: ${task.title}`,
+    `시작일: ${formatKstDateTime(task.startAt)}`,
+    `마감일: ${formatKstDateTime(task.endAt)}`,
+  ];
+  return {
+    kind: "task_created",
+    entityType: "task",
+    entityId: task.id,
+    marker: task.id, // dedupKeyFor가 task_created는 marker를 무시(taskId만으로 평생 1회)
+    recipient: task.assigneeId, // 발송 직전 Slack member ID로 해석
+    payload: {
+      title: "새 작업 배정",
+      text: lines.join("\n"),
+      deeplinkPath: `/projects?task=${task.id}`,
+      tone: "blue", // 예정/정보
+    },
+  };
+}
+
+/**
+ * 할일 생성 알림 훅. **persist 성공 직후** 담당자에게 개인 DM(task_created)을 보낸다. **절대 throw하지 않는다.**
+ * 게이트: Bot Token(personalDigestEnabled). 억제 조건:
+ *  - 담당자 없음(도메인상 없을 수 없지만 방어) → no-op
+ *  - 반복 템플릿 회차 자동 생성분(source=recurring_template) → no-op(아침 개인 브리핑이 커버 · 결정 ③)
+ *  - digestRecipientAllowlist 밖 수신자 → no-op(personal_digest와 동일한 단계적 롤아웃 게이트)
+ * 본인이 본인에게 할당한 생성도 발송한다(결정 ②). 방해금지(22-8) 창 안이면 enqueueAndSend가 hold(창 종료 후 발송).
+ */
+export async function notifyTaskCreated(
+  db: MockQueDb,
+  taskId: string,
+  now: Date = new Date(),
+): Promise<void> {
+  if (!personalDigestEnabled()) return; // 개인 DM — Bot Token 게이트
+  try {
+    const task = db.tasks.find((t) => t.id === taskId);
+    if (!task || !task.assigneeId) return;
+    if (task.source === "recurring_template") return; // 템플릿 자동 생성분 억제(결정 ③)
+    const allow = digestRecipientAllowlist();
+    if (allow && !allow.includes(task.assigneeId)) return; // 단계적 롤아웃 게이트
+    await enqueueAndSend(db, [buildTaskCreatedIntent(db, task)], now);
+  } catch (error) {
+    // 발송 로직 실패가 작업 생성을 되돌리지 않게 흡수한다(dispatch 기존 원칙).
+    console.error("[que-notify] notifyTaskCreated 실패(무시)", error);
+  }
 }
 
 /**

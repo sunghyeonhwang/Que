@@ -15,8 +15,16 @@ export type NotificationTone = "red" | "amber" | "violet" | "blue";
  *  standup은 팀 데일리 다이제스트(하루 1회) 전용 — status/deadline과 달리 순수 규칙 함수가 아니라
  *  web dispatch가 직접 intent를 만든다(getStandupData가 web 계층). dedup만 아웃박스로 강제한다.
  *  personal_digest는 개인 DM 데일리 브리핑(하루 1회, 아침 9:50 KST) — recipient=Que userId를 담아
- *  발송 직전 Bot Token으로 Slack member ID를 해석한다. dedup_key `personal_digest:<userId>:<date>`. */
-export type NotificationKind = "issue" | "on_hold" | "deadline" | "standup" | "personal_digest";
+ *  발송 직전 Bot Token으로 Slack member ID를 해석한다. dedup_key `personal_digest:<userId>:<date>`.
+ *  task_created는 할일 생성 즉시 담당자에게 보내는 개인 DM(Phase 3) — recipient=assigneeId.
+ *  dedup_key `task_created:<taskId>`로 **task 1건당 평생 1회**(재시도·중복 훅 방지, marker 무시). */
+export type NotificationKind =
+  | "issue"
+  | "on_hold"
+  | "deadline"
+  | "standup"
+  | "personal_digest"
+  | "task_created";
 
 /** 아웃박스 status 컬럼. */
 export type NotificationStatus = "pending" | "held" | "sent" | "skipped" | "failed";
@@ -75,6 +83,8 @@ export interface NotificationContext {
  * DB의 dedup_key UNIQUE와 짝을 이뤄 중복 발송을 차단한다.
  */
 export function dedupKeyFor(intent: NotificationIntent): string {
+  // task_created는 task 1건당 평생 1회 — marker 없이 taskId만으로 유일키(재시도·중복 훅 방지).
+  if (intent.kind === "task_created") return `task_created:${intent.entityId}`;
   return `${intent.kind}:${intent.entityId}:${intent.marker}`;
 }
 

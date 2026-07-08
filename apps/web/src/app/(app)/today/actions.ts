@@ -15,7 +15,7 @@ import {
 } from "@que/core";
 import { getDb } from "@/lib/db";
 import { getCurrentUser } from "@/lib/current-user";
-import { notifyTaskStatusChanged } from "@/lib/notifications/dispatch";
+import { notifyTaskCreated, notifyTaskStatusChanged } from "@/lib/notifications/dispatch";
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
 
@@ -25,12 +25,17 @@ type Db = Awaited<ReturnType<typeof getDb>>;
 // db 인스턴스를 한 번만 획득해 mutation과 persist를 같은 인스턴스에서 수행한다.
 // (getDb의 요청 캐시 정체성에 기대면 서버 액션 경계에서 다른 인스턴스가 잡혀 persist가 유실된다 —
 //  글래도스 반려 회귀. 반드시 콜백에 넘어온 db로만 작업할 것.)
-async function toResult(fn: (db: Db) => Promise<unknown> | unknown): Promise<ActionResult> {
+async function toResult<T>(
+  fn: (db: Db) => Promise<T> | T,
+  afterCommit?: (db: Db, result: T) => Promise<void>,
+): Promise<ActionResult> {
   try {
     const db = await getDb();
-    await fn(db);
+    const result = await fn(db);
     await db.persist();
     revalidatePath("/today");
+    // 커밋 성공 직후 알림 훅(있으면). afterCommit는 절대 throw하지 않는 훅만 전달한다.
+    if (afterCommit) await afterCommit(db, result);
     return { ok: true };
   } catch (error) {
     if (isQueRuleError(error)) return { ok: false, error: error.message };
@@ -167,8 +172,9 @@ export async function createTaskAction(input: {
   priority?: "low" | "normal" | "high";
 }): Promise<ActionResult> {
   const user = await getCurrentUser();
-  return toResult((db) =>
-    db.createTask({ actorId: user.id, via: "web" }, { ...input, source: "natural_language" }),
+  return toResult(
+    (db) => db.createTask({ actorId: user.id, via: "web" }, { ...input, source: "natural_language" }),
+    (db, task) => notifyTaskCreated(db, task.id), // 생성 즉시 담당자 DM(억제 조건은 훅이 판정)
   );
 }
 

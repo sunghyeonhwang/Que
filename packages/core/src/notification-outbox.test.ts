@@ -80,6 +80,25 @@ describe("enqueueNotifications — recipient · personal_digest", () => {
     expect(dup).toHaveLength(0);
     expect(other).toHaveLength(1);
   });
+
+  it("task_created dedup_key는 marker 무시하고 task_created:<taskId> — task당 평생 1회", () => {
+    const db = createMockDb(NOW);
+    const make = (taskId: string, marker: string) =>
+      intent({
+        kind: "task_created",
+        entityType: "task",
+        entityId: taskId,
+        marker, // dedupKeyFor가 task_created는 marker를 무시해야 한다
+        recipient: "lee-yejin",
+        payload: { title: "새 작업 배정", text: "z", deeplinkPath: "/projects?task=task-9", tone: "blue" },
+      });
+    const first = db.enqueueNotifications([make("task-9", "m1")]);
+    const dupOtherMarker = db.enqueueNotifications([make("task-9", "m2")]); // 다른 marker여도 같은 task → dedup
+    const other = db.enqueueNotifications([make("task-10", "m1")]); // 다른 task
+    expect(first[0].dedupKey).toBe("task_created:task-9");
+    expect(dupOtherMarker).toHaveLength(0);
+    expect(other).toHaveLength(1);
+  });
 });
 
 describe("releaseHeldNotifications — 방해금지 창 종료분만 pending으로", () => {

@@ -2,6 +2,7 @@ import { z } from "zod";
 import { formatProjectLabel, taskStatusSchema, taskSourceSchema } from "@que/core";
 import { withApi } from "@/lib/api/respond";
 import { getDb } from "@/lib/db";
+import { notifyTaskCreated } from "@/lib/notifications/dispatch";
 
 /** 작업 목록 조회 — MCP list_tasks 도구의 백엔드. 필터: assignee, status, project, client.
  *  client 필터는 core의 tasksForClient(해당 거래처 소속 프로젝트의 작업만)를 재사용한다.
@@ -57,6 +58,7 @@ export async function POST(request: Request) {
     const db = await getDb();
     const task = db.createTask({ actorId: user.id, via }, body);
     await db.persist();
+    await notifyTaskCreated(db, task.id); // MCP/CLI 생성도 담당자 DM(억제 조건은 훅이 판정)
     return Response.json({ task }, { status: 201 });
   });
 }

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { isQueRuleError, type CalendarEvent, type Task } from "@que/core";
 import { getDb } from "@/lib/db";
 import { getCurrentUser } from "@/lib/current-user";
+import { notifyTaskCreated } from "@/lib/notifications/dispatch";
 import type { ActionResult } from "@/app/(app)/today/actions";
 
 type Db = Awaited<ReturnType<typeof getDb>>;
@@ -11,14 +12,18 @@ type Db = Awaited<ReturnType<typeof getDb>>;
 // 일정(/schedule) "새로 추가" 하이브리드: 작업은 createTask, 미팅은 createCalendarEvent.
 // mutation·persist·revalidate를 한 db 인스턴스에서 처리한다(글래도스 반려 회귀 — 캐시 정체성 의존 금지).
 // 같은 일정 데이터(getCalendarData)를 소비하는 /schedule·/today·/team을 함께 무효화한다.
-async function toResult(fn: (db: Db) => Promise<unknown> | unknown): Promise<ActionResult> {
+async function toResult<T>(
+  fn: (db: Db) => Promise<T> | T,
+  afterCommit?: (db: Db, result: T) => Promise<void>,
+): Promise<ActionResult> {
   try {
     const db = await getDb();
-    await fn(db);
+    const result = await fn(db);
     await db.persist();
     revalidatePath("/schedule");
     revalidatePath("/today");
     revalidatePath("/team");
+    if (afterCommit) await afterCommit(db, result); // 커밋 직후 알림 훅(throw 안 하는 훅만)
     return { ok: true };
   } catch (error) {
     if (isQueRuleError(error)) return { ok: false, error: error.message };
@@ -40,8 +45,9 @@ export async function createScheduleTaskAction(input: {
   description?: string;
 }): Promise<ActionResult> {
   const user = await getCurrentUser();
-  return toResult((db) =>
-    db.createTask({ actorId: user.id, via: "web" }, { ...input, source: "manual" }),
+  return toResult(
+    (db) => db.createTask({ actorId: user.id, via: "web" }, { ...input, source: "manual" }),
+    (db, task) => notifyTaskCreated(db, task.id), // 생성 즉시 담당자 DM(억제 조건은 훅이 판정)
   );
 }
 
