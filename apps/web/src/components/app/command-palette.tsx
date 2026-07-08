@@ -36,7 +36,8 @@ const KIND_ICON: Record<SearchKind, LucideIcon> = {
 };
 
 // 이동 대상 라우트 — menu.ts를 단일 소스로 사용(홈/일정/성과/작업 목록/팀/팀 현황/확인필요/결제요청/설정).
-const NAV_ITEMS = MENU_SECTIONS.flatMap((s) => s.items);
+// `#`으로 시작하는 항목(예: #todo-app)은 라우트가 아니라 모달 액션이라 '이동' 목록에서 제외한다.
+const NAV_ITEMS = MENU_SECTIONS.flatMap((s) => s.items).filter((i) => !i.href.startsWith("#"));
 
 // 빠른 액션 — 자주 쓰는 화면으로 바로 이동(라벨과 목적지가 정확히 일치하는 것만 둔다).
 const QUICK_ACTIONS: { id: string; label: string; href: string; icon: LucideIcon }[] = [

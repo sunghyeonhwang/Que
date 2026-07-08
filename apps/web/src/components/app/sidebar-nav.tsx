@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { MENU_SECTIONS } from "@/lib/menu";
+import { MENU_SECTIONS, OPEN_TODO_APP_EVENT } from "@/lib/menu";
 import { cn } from "@/lib/utils";
 
 /** 사이드바/모바일 시트 공용 메뉴. 섹션(메뉴·기타) + active + 뱃지. 터치 40px 이상.
@@ -32,24 +32,21 @@ export function SidebarNav({
             {section.label}
           </p>
           {items.map((item) => {
+            // `#`으로 시작하는 항목은 라우트가 아니라 모달 액션 — 링크 대신 버튼으로 렌더한다.
+            const isAction = item.href.startsWith("#");
             const matchPaths = item.match ?? [item.href];
-            const active = matchPaths.some((path) => pathname.startsWith(path));
+            const active = !isAction && matchPaths.some((path) => pathname.startsWith(path));
             const Icon = item.icon;
             const badgeCount = badges?.[item.href] ?? item.badge ?? 0;
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={onNavigate}
-                aria-current={active ? "page" : undefined}
-                className={cn(
-                  "flex h-10 items-center gap-3 rounded-lg px-3 text-sm transition-colors",
-                  "focus-visible:outline-2 focus-visible:outline-[var(--que-brand)]",
-                  active
-                    ? "bg-[var(--que-brand-subtle)] font-semibold text-[var(--que-brand)]"
-                    : "font-medium text-[var(--que-text-secondary)] hover:bg-[var(--que-bg-muted)] hover:text-[var(--que-text)]",
-                )}
-              >
+            const itemClass = cn(
+              "flex h-10 items-center gap-3 rounded-lg px-3 text-sm transition-colors",
+              "focus-visible:outline-2 focus-visible:outline-[var(--que-brand)]",
+              active
+                ? "bg-[var(--que-brand-subtle)] font-semibold text-[var(--que-brand)]"
+                : "font-medium text-[var(--que-text-secondary)] hover:bg-[var(--que-bg-muted)] hover:text-[var(--que-text)]",
+            );
+            const inner = (
+              <>
                 <Icon className="size-[18px] shrink-0" aria-hidden />
                 <span className="min-w-0 flex-1 truncate">{item.label}</span>
                 {badgeCount > 0 ? (
@@ -60,6 +57,32 @@ export function SidebarNav({
                     {badgeCount}
                   </span>
                 ) : null}
+              </>
+            );
+            if (isAction) {
+              return (
+                <button
+                  key={item.href}
+                  type="button"
+                  onClick={() => {
+                    window.dispatchEvent(new Event(OPEN_TODO_APP_EVENT));
+                    onNavigate?.();
+                  }}
+                  className={cn(itemClass, "w-full cursor-pointer text-left")}
+                >
+                  {inner}
+                </button>
+              );
+            }
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={onNavigate}
+                aria-current={active ? "page" : undefined}
+                className={itemClass}
+              >
+                {inner}
               </Link>
             );
           })}

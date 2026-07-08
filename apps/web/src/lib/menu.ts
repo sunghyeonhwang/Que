@@ -14,10 +14,19 @@ import {
   Building2,
   FolderKanban,
   Bug,
+  Smartphone,
   type LucideIcon,
 } from "lucide-react";
 
+/** menu.ts의 `#todo-app` 액션 항목을 클릭하면 발생시키는 전역 이벤트.
+ *  TodoAppDialog(앱 셸 전역 마운트)가 수신해 QR 모달을 연다 — 라우팅·URL 변경 없이 열어서
+ *  현재 경로·쿼리 상태(예: /projects?project=all)를 잃지 않는다. */
+export const OPEN_TODO_APP_EVENT = "que:open-todo-app";
+
 export interface MenuItem {
+  /** 이동 경로. 단, `#`으로 시작하면 라우트가 아니라 **모달 액션**이다(예: `#todo-app`).
+   *  네비 컴포넌트는 이런 항목을 링크가 아니라 버튼으로 렌더하고, 클릭 시 전역 이벤트
+   *  (OPEN_TODO_APP_EVENT)를 쏜다. 라우팅을 안 하므로 현재 화면 상태를 보존한다. */
   href: string;
   label: string;
   icon: LucideIcon;
@@ -81,6 +90,10 @@ export const MENU_SECTIONS: MenuSection[] = [
       { href: "/payments", label: "결제요청", icon: Receipt },
       // 수정사항(이슈/피드백) 트래커 — 테스트 중 발견한 수정사항 팀 공용 목록. 전원 접근(adminOnly 아님).
       { href: "/revisions", label: "수정사항", icon: Bug },
+      // TODO 앱(DayBlocks) 접속 QR 모달 — 라우트가 아니라 모달 액션(`#` 규약, 위 MenuItem 주석).
+      // 소비처가 링크 대신 버튼으로 렌더하고 클릭 시 전역 이벤트(OPEN_TODO_APP_EVENT)를 dispatch →
+      // 앱 셸에 전역 마운트된 TodoAppDialog가 수신해 QR 모달을 연다(URL 무변경 → 화면 상태 보존).
+      { href: "#todo-app", label: "TODO 앱", icon: Smartphone },
       { href: "/tools", label: "MCP · CLI", icon: Terminal },
       { href: "/help", label: "도움말", icon: CircleHelp },
       { href: "/settings", label: "설정", icon: Settings },

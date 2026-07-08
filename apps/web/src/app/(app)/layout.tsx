@@ -18,6 +18,7 @@ import { ThemeToggle } from "@/components/app/theme-toggle";
 import { MobileNav } from "@/components/app/mobile-nav";
 import { GlobalSearch } from "@/components/app/global-search";
 import { CommandPalette } from "@/components/app/command-palette";
+import { TodoAppDialog } from "@/components/app/todo-app-dialog";
 import { KeyboardShortcuts } from "@/components/app/keyboard-shortcuts";
 import { NotificationsBell } from "@/components/app/notifications-bell";
 import { AddTaskDialog } from "@/components/app/add-task-dialog";
@@ -60,6 +61,7 @@ export default async function AppLayout({
     <RosterProvider roster={roster}>
     <div className="flex h-dvh w-full overflow-hidden bg-[var(--que-bg)] text-[var(--que-text)]">
       <CommandPalette />
+      <TodoAppDialog />
       <KeyboardShortcuts />
       {/* 태블릿 가로(lg~xl): 아이콘 전용 축소 레일 — 본문 가용폭 확보(보드뷰 컬럼 수 유지) */}
       <aside className="hidden w-[72px] shrink-0 flex-col border-r border-[var(--que-border)] bg-[var(--que-bg)] lg:flex xl:hidden">
