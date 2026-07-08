@@ -97,6 +97,8 @@
 - 미결: 의존성 UI 범위·임계경로 알고리즘 깊이(E-9b 프리뷰 후 재확인 권장).
 
 ### D 트랙 todo_griff (API 경유 확정, 순차)
+
+> **진행(2026-07-08)**: **D-1·D-2·D-3 완료·라이브.** Que-side(모바일 인증 `POST /api/auth/mobile`·CORS·`via='mobile'`) 배포·마이그레이션 적용. DayBlocks 앱(별도 레포 `todo_griff`) D-3 동기화 구현(DESIGN.md §14, queApi/authStore/queSync/LoginScreen/QueInbox, 하이브리드+완료/재일정 write-back) 커밋·**live E2E 검증**(로그인·임포트·write-back+원복). **배포: todo.griff.co.kr**(Vercel GRIFF 팀 `todo_griff` 프로젝트, DNS=Cloudflare, `QUE_CORS_ORIGINS=https://todo.griff.co.kr`). 남음: **D-4 OKR·D-5 오프라인(아웃박스/LWW 일부 반영됨)·D-6 Capacitor 네이티브**, 무시간→인박스 라이브 재현(현재 대표 태스크가 전부 시간有라 미노출), 브라우저 UI 육안.
 - **D-2 (S, 먼저)**: CORS 허용(todo.griff.co.kr) + `via='mobile'` — `change_logs.via` check에 'mobile' 추가(이 트랙 유일 core 스키마 변경, **코드 배포 전 마이그레이션 먼저** 안 그러면 쓰기 API 500).
 - **D-1 (M)**: email+비번→PAT 교환 엔드포인트(권장안 (a) 토큰교환; `personal_access_tokens` 재사용). mustChangePassword 계정은 발급 거부+웹 유도.
 - **D-3 (L)**: `/api/my-day`로 오늘 태스크 임포트(읽기) + 완료 write-back. 1차=읽기+완료만.
