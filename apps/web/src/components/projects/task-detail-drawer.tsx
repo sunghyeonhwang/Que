@@ -78,7 +78,8 @@ export function TaskDetailDrawer({
   meta,
 }: {
   detail: TaskDetail | null;
-  meta: ProjectMeta;
+  /** 열린 태스크의 프로젝트 메타(담당자 재지정 목록). 전체 보기·태스크 없음이면 null. */
+  meta: ProjectMeta | null;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -86,8 +87,11 @@ export function TaskDetailDrawer({
 
   const open = Boolean(detail);
   const [shown, setShown] = useState<TaskDetail | null>(detail);
+  // 닫힘 애니메이션 동안 마지막 detail/meta를 유지한다(전체 보기에선 닫을 때 meta가 null이 됨).
+  const [shownMeta, setShownMeta] = useState<ProjectMeta | null>(meta);
   if (detail && detail !== shown) {
     setShown(detail);
+    setShownMeta(meta);
   }
 
   function close() {
@@ -109,9 +113,9 @@ export function TaskDetailDrawer({
         className="w-full gap-0 p-0 data-[side=right]:w-full data-[side=right]:sm:max-w-[460px]"
       >
         <SheetTitle className="sr-only">작업 세부 정보</SheetTitle>
-        {shown ? (
+        {shown && shownMeta ? (
           // key로 태스크 전환 시 편집 폼 상태를 초기화한다.
-          <DrawerBody key={shown.taskId} detail={shown} meta={meta} onClose={close} />
+          <DrawerBody key={shown.taskId} detail={shown} meta={shownMeta} onClose={close} />
         ) : null}
       </SheetContent>
     </Sheet>

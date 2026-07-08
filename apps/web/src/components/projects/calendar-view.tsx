@@ -49,9 +49,12 @@ function NavIconLink({
 export function ProjectCalendarView({
   data,
   taskHref,
+  showProject = false,
 }: {
   data: ProjectCalendar;
   taskHref: (taskId: string) => string;
+  /** 전체 보기: pill에 소속 프로젝트명 소형 라벨 표시. */
+  showProject?: boolean;
 }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -99,7 +102,7 @@ export function ProjectCalendarView({
             </div>
           ))}
           {data.days.map((day) => (
-            <DayCell key={day.date} day={day} taskHref={taskHref} />
+            <DayCell key={day.date} day={day} taskHref={taskHref} showProject={showProject} />
           ))}
         </div>
       </div>
@@ -110,9 +113,11 @@ export function ProjectCalendarView({
 function DayCell({
   day,
   taskHref,
+  showProject,
 }: {
   day: CalendarDay;
   taskHref: (taskId: string) => string;
+  showProject: boolean;
 }) {
   const hidden = day.cards.length - MAX_PILLS;
   return (
@@ -143,7 +148,12 @@ function DayCell({
 
       <div className="flex flex-col gap-1">
         {day.cards.slice(0, MAX_PILLS).map((card) => (
-          <TaskPill key={card.taskId} card={card} href={taskHref(card.taskId)} />
+          <TaskPill
+            key={card.taskId}
+            card={card}
+            href={taskHref(card.taskId)}
+            showProject={showProject}
+          />
         ))}
         {hidden > 0 && (
           <span className="px-1 text-xs font-medium text-[var(--que-brand)]">+{hidden}개 작업</span>
@@ -153,32 +163,53 @@ function DayCell({
   );
 }
 
-function TaskPill({ card, href }: { card: CalendarCard; href: string }) {
+function TaskPill({
+  card,
+  href,
+  showProject,
+}: {
+  card: CalendarCard;
+  href: string;
+  showProject: boolean;
+}) {
   const tone = TONE_STYLE[STATUS_TONE[card.status]];
   const statusLabel = TASK_STATUS_LABELS[card.status];
-  const tooltip = `${card.title} · ${statusLabel}${card.isOverdue ? " (기한 초과)" : ""}`;
+  const projectSuffix = showProject && card.projectName ? ` · ${card.projectName}` : "";
+  const tooltip = `${card.title} · ${statusLabel}${card.isOverdue ? " (기한 초과)" : ""}${projectSuffix}`;
+  const withProject = showProject && card.projectName;
   return (
     <Link
       href={href}
       scroll={false}
-      aria-label={`${card.title} 상세 열기 · 상태 ${statusLabel}${card.isOverdue ? " (기한 초과)" : ""}`}
+      aria-label={`${card.title} 상세 열기 · 상태 ${statusLabel}${card.isOverdue ? " (기한 초과)" : ""}${projectSuffix}`}
       className={cn(
-        "flex items-center gap-1.5 rounded-md px-1.5 py-1 text-xs text-[var(--que-text)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--que-brand)]",
+        "flex gap-1.5 rounded-md px-1.5 py-1 text-xs text-[var(--que-text)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--que-brand)]",
+        withProject ? "items-start" : "items-center",
         card.isOverdue && "ring-1 ring-[var(--que-error)] ring-inset",
       )}
       style={{ backgroundColor: tone.tint }}
       title={tooltip}
     >
       {card.isOverdue ? (
-        <AlertTriangle className="size-3 shrink-0 text-[var(--que-error)]" aria-hidden />
+        <AlertTriangle
+          className={cn("size-3 shrink-0 text-[var(--que-error)]", withProject && "mt-0.5")}
+          aria-hidden
+        />
       ) : (
         <span
-          className="size-1.5 shrink-0 rounded-full"
+          className={cn("size-1.5 shrink-0 rounded-full", withProject && "mt-1")}
           style={{ backgroundColor: tone.dot }}
           aria-hidden
         />
       )}
-      <span className="truncate">{card.title}</span>
+      <span className="flex min-w-0 flex-col">
+        <span className="truncate">{card.title}</span>
+        {withProject ? (
+          <span className="truncate text-[10px] leading-tight text-[var(--que-text-tertiary)]">
+            {card.projectName}
+          </span>
+        ) : null}
+      </span>
     </Link>
   );
 }

@@ -108,6 +108,8 @@ export interface TaskCard {
   columnKey: BoardColumnKey;
   /** 담당자. Task.assigneeId는 필수지만 로스터에서 못 찾으면 null. */
   assignee: ListViewMember | null;
+  /** 소속 프로젝트명. 전체 보기에서 카드가 어느 프로젝트인지 표시하는 소형 라벨용. 없으면 null. */
+  projectName: string | null;
   priority: TaskPriority;
   /** 마감(종료) ISO datetime. 없으면 null. */
   endAt: string | null;
@@ -149,6 +151,8 @@ export interface CalendarCard {
   title: string;
   status: TaskStatus;
   columnKey: BoardColumnKey;
+  /** 소속 프로젝트명. 전체 보기 pill에 표시. 없으면 null. */
+  projectName: string | null;
   /** 마감이 지났고 아직 완료/취소/병합이 아닌 지연 상태인지. red 신호용. */
   isOverdue: boolean;
 }
@@ -187,6 +191,8 @@ export interface TaskActivityItem {
 
 export interface TaskDetail {
   taskId: string;
+  /** 소속 프로젝트 id. 전체 보기에서 드로어가 해당 프로젝트 메타를 찾을 때 쓴다. */
+  projectId: string;
   title: string;
   description: string | null;
   status: TaskStatus;
@@ -295,11 +301,20 @@ const STATUS_LABEL: Record<TaskStatus, string> = {
   merged: "병합됨",
 };
 
-/** 프로젝트 소속 · 보드 노출(취소/병합 제외) 태스크만. */
-function boardTasksOf(db: Awaited<ReturnType<typeof getDb>>, projectId: string): Task[] {
+/**
+ * 스코프(프로젝트 id 배열) 소속 · 보드 노출(취소/병합 제외) 태스크만.
+ * 전체 보기는 스코프 내 여러 프로젝트를 합산한다(단일 보기는 [id] 1개).
+ */
+function boardTasksOf(db: Awaited<ReturnType<typeof getDb>>, projectIds: string[]): Task[] {
+  const idSet = new Set(projectIds);
   return db.tasks.filter(
-    (t) => t.projectId === projectId && columnForStatus(t.status) !== null,
+    (t) => t.projectId !== undefined && idSet.has(t.projectId) && columnForStatus(t.status) !== null,
   );
+}
+
+/** projectId → Project 조회 맵(카드의 소속 프로젝트명·권한 판단용). */
+function projectByIdMap(db: Awaited<ReturnType<typeof getDb>>): Map<string, Project> {
+  return new Map(db.projects.map((p) => [p.id, p]));
 }
 
 function commentCountMap(db: Awaited<ReturnType<typeof getDb>>): Map<string, number> {
@@ -323,6 +338,7 @@ function toCard(
     status: task.status,
     columnKey,
     assignee: resolveMember(task.assigneeId),
+    projectName: project?.name ?? null,
     priority: task.priority,
     endAt: task.endAt ?? null,
     dueLabel: formatDue(task.endAt),
@@ -401,17 +417,23 @@ export async function getProjectMeta(projectId: string): Promise<ProjectMeta | n
   };
 }
 
-/** 보드 뷰 — 4열 고정. cancelled/merged 제외. */
-export async function getProjectBoard(actor: User, projectId: string): Promise<ProjectBoard> {
+/**
+ * 보드 뷰 — 4열 고정. cancelled/merged 제외.
+ * projectIds가 여러 개면(전체 보기) 스코프 내 프로젝트를 한 보드로 합산한다.
+ */
+export async function getProjectBoard(
+  actor: User,
+  projectIds: string[],
+): Promise<ProjectBoard> {
   const db = await getDb();
-  const project = db.projects.find((p) => p.id === projectId);
+  const projectById = projectByIdMap(db);
   const comments = commentCountMap(db);
-  const tasks = boardTasksOf(db, projectId);
+  const tasks = boardTasksOf(db, projectIds);
 
   const byColumn = new Map<BoardColumnKey, TaskCard[]>();
   for (const key of COLUMN_ORDER) byColumn.set(key, []);
   for (const task of tasks) {
-    const card = toCard(task, actor, project, comments);
+    const card = toCard(task, actor, projectById.get(task.projectId ?? ""), comments);
     byColumn.get(card.columnKey)!.push(card);
   }
 
@@ -423,8 +445,11 @@ export async function getProjectBoard(actor: User, projectId: string): Promise<P
 }
 
 /** 목록 뷰 — 보드와 동일 4열을 섹션으로. */
-export async function getProjectList(actor: User, projectId: string): Promise<ProjectList> {
-  const board = await getProjectBoard(actor, projectId);
+export async function getProjectList(
+  actor: User,
+  projectIds: string[],
+): Promise<ProjectList> {
+  const board = await getProjectBoard(actor, projectIds);
   return { columns: board.columns };
 }
 
@@ -448,13 +473,17 @@ function defaultAnchorMonth(tasks: Task[]): string {
   return best ?? format(new Date(), "yyyy-MM");
 }
 
-/** 캘린더 뷰 — endAt(마감) 기준 배치. cancelled/merged 제외. 읽기 전용. */
+/**
+ * 캘린더 뷰 — endAt(마감) 기준 배치. cancelled/merged 제외. 읽기 전용.
+ * projectIds가 여러 개면(전체 보기) 스코프 내 프로젝트를 합산한다.
+ */
 export async function getProjectCalendar(
-  projectId: string,
+  projectIds: string[],
   anchorMonth: string | null | undefined,
 ): Promise<ProjectCalendar> {
   const db = await getDb();
-  const tasks = boardTasksOf(db, projectId);
+  const projectById = projectByIdMap(db);
+  const tasks = boardTasksOf(db, projectIds);
 
   const month =
     anchorMonth && MONTH_RE.test(anchorMonth) ? anchorMonth : defaultAnchorMonth(tasks);
@@ -472,6 +501,7 @@ export async function getProjectCalendar(
       title: task.title,
       status: task.status,
       columnKey: columnForStatus(task.status)!,
+      projectName: projectById.get(task.projectId ?? "")?.name ?? null,
       isOverdue: isTaskOverdue(task),
     };
     const list = byDate.get(key) ?? [];
@@ -529,6 +559,7 @@ export async function getTaskDetail(
 
   return {
     taskId: task.id,
+    projectId: task.projectId ?? "",
     title: task.title,
     description: task.description ?? null,
     status: task.status,

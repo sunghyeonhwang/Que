@@ -30,10 +30,16 @@ export function BoardView({
   columns,
   projectId,
   taskHref,
+  showProject = false,
+  allowCreate = true,
 }: {
   columns: BoardColumn[];
   projectId: string;
   taskHref: (taskId: string) => string;
+  /** 전체 보기: 각 카드에 소속 프로젝트명 라벨 표시. */
+  showProject?: boolean;
+  /** 태스크 추가(+) 노출 여부. 전체 보기에선 대상 프로젝트가 없어 false. */
+  allowCreate?: boolean;
 }) {
   const { run, pending } = useSafeAction();
   const [drag, setDrag] = useState<DragState>(null);
@@ -68,6 +74,8 @@ export function BoardView({
             column={column}
             projectId={projectId}
             taskHref={taskHref}
+            showProject={showProject}
+            allowCreate={allowCreate}
             drag={drag}
             onDragStart={setDrag}
             onDragEnd={() => setDrag(null)}
@@ -94,6 +102,8 @@ function Column({
   column,
   projectId,
   taskHref,
+  showProject,
+  allowCreate,
   drag,
   onDragStart,
   onDragEnd,
@@ -103,6 +113,8 @@ function Column({
   column: BoardColumn;
   projectId: string;
   taskHref: (taskId: string) => string;
+  showProject: boolean;
+  allowCreate: boolean;
   drag: DragState;
   onDragStart: (state: DragState) => void;
   onDragEnd: () => void;
@@ -130,7 +142,7 @@ function Column({
     onDropTask({ taskId: drag.taskId, taskTitle: drag.taskTitle });
   };
 
-  const showAdd = column.key === "scheduled";
+  const showAdd = allowCreate && column.key === "scheduled";
 
   return (
     <section
@@ -187,6 +199,7 @@ function Column({
               key={card.taskId}
               card={card}
               href={taskHref(card.taskId)}
+              showProject={showProject}
               onDragStart={onDragStart}
               onDragEnd={onDragEnd}
               onBlocked={onBlocked}
@@ -201,12 +214,14 @@ function Column({
 function BoardCard({
   card,
   href,
+  showProject,
   onDragStart,
   onDragEnd,
   onBlocked,
 }: {
   card: TaskCard;
   href: string;
+  showProject: boolean;
   onDragStart: (state: DragState) => void;
   onDragEnd: () => void;
   onBlocked: (card: { taskId: string; taskTitle: string }) => void;
@@ -287,6 +302,13 @@ function BoardCard({
       <h3 className="mt-1.5 text-sm leading-snug font-semibold text-[var(--que-text)]">
         {card.title}
       </h3>
+
+      {/* 전체 보기: 이 카드가 어느 프로젝트 소속인지 소형 라벨로 밝힌다(단일 보기는 중복이라 생략). */}
+      {showProject && card.projectName ? (
+        <span className="mt-1.5 inline-flex max-w-full items-center truncate rounded border border-[var(--que-border)] px-1.5 py-0.5 text-xs text-[var(--que-text-tertiary)]">
+          {card.projectName}
+        </span>
+      ) : null}
 
       {/* 상태: 컬럼이 애매한 경우만 시각 뱃지, 그 외엔 색맹·스크린리더용 sr-only 텍스트. */}
       {columnConveysStatus ? (

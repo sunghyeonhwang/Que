@@ -15,10 +15,16 @@ export function ListView({
   columns,
   projectId,
   taskHref,
+  showProject = false,
+  allowCreate = true,
 }: {
   columns: BoardColumn[];
   projectId: string;
   taskHref: (taskId: string) => string;
+  /** 전체 보기: 각 행에 소속 프로젝트명 라벨 표시. */
+  showProject?: boolean;
+  /** 태스크 추가(+) 노출 여부. 전체 보기에선 대상 프로젝트가 없어 false. */
+  allowCreate?: boolean;
 }) {
   const { run, pending } = useSafeAction();
   const [blocked, setBlocked] = useState<BlockedTarget>(null);
@@ -40,6 +46,8 @@ export function ListView({
           column={column}
           projectId={projectId}
           taskHref={taskHref}
+          showProject={showProject}
+          allowCreate={allowCreate}
           onBlocked={(card) => setBlocked(card)}
         />
       ))}

@@ -11,6 +11,8 @@ import type {
 } from "@/lib/projects-data";
 import { FullscreenButton } from "@/components/app/fullscreen-button";
 import { ProjectHeader } from "./project-header";
+import { ProjectScopeSummary } from "./project-scope-summary";
+import { ALL_CLIENTS } from "@/lib/projects-scope";
 import { ProjectScopeFilters } from "./project-scope-filters";
 import { CreateTaskDialog } from "./create-task-dialog";
 import { ViewTabs, type ProjectView as ProjectViewKey } from "./view-tabs";
@@ -30,6 +32,7 @@ export function ProjectView({
   selectedClient,
   projects,
   selectedProjectId,
+  isAllProjects,
   view: viewRaw,
   board,
   list,
@@ -40,17 +43,30 @@ export function ProjectView({
   clients: { id: string; name: string }[];
   selectedClient: string;
   projects: ProjectListItem[];
-  selectedProjectId: string;
+  /** 단일 보기의 선택 프로젝트 id. 전체 보기면 null. */
+  selectedProjectId: string | null;
+  /** 전체 프로젝트 보기 여부(?project=all). */
+  isAllProjects: boolean;
   view?: string;
   board: ProjectBoard;
   list: ProjectList;
   calendar: ProjectCalendar;
-  meta: ProjectMeta;
+  /** 단일 보기의 프로젝트 메타. 전체 보기면 null(스코프 요약으로 대체). */
+  meta: ProjectMeta | null;
   isAdmin: boolean;
 }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const view = resolveView(viewRaw);
+
+  // 전체 보기 스코프 요약용 집계. 특정 클라이언트 스코프면 클라이언트명을 함께 표시.
+  const totalTaskCount = projects.reduce((sum, p) => sum + p.taskCount, 0);
+  const scopeClientName =
+    selectedClient !== ALL_CLIENTS
+      ? (clients.find((c) => c.id === selectedClient)?.name ?? null)
+      : null;
+  // 뷰에 넘길 projectId(단일 보기는 선택 id, 전체 보기는 생성 비활성이라 미사용).
+  const viewProjectId = selectedProjectId ?? "";
 
   // 현재 URL(view/month 등)을 보존하며 `task=<id>`만 추가한 상세 열기 링크.
   const taskHref = useCallback(
@@ -70,24 +86,48 @@ export function ProjectView({
           selectedClient={selectedClient}
           projects={projects}
           selectedProjectId={selectedProjectId}
+          isAllProjects={isAllProjects}
         />
-        <ProjectHeader meta={meta} isAdmin={isAdmin} />
+        {isAllProjects || !meta ? (
+          <ProjectScopeSummary
+            projectCount={projects.length}
+            taskCount={totalTaskCount}
+            clientName={scopeClientName}
+          />
+        ) : (
+          <ProjectHeader meta={meta} isAdmin={isAdmin} />
+        )}
       </div>
 
       <div className="mt-4 flex shrink-0 flex-wrap items-end justify-between gap-2 border-b border-[var(--que-border)]">
         <ViewTabs current={view} />
         <div className="flex items-center gap-2 pb-2">
           <FullscreenButton />
-          <CreateTaskDialog projectId={selectedProjectId} meta={meta} />
+          {/* 전체 보기에선 생성 버튼을 숨긴다 — 생성은 대상 프로젝트가 필요하다. */}
+          {!isAllProjects && meta ? (
+            <CreateTaskDialog projectId={viewProjectId} meta={meta} />
+          ) : null}
         </div>
       </div>
 
       {view === "board" ? (
-        <BoardView columns={board.columns} projectId={selectedProjectId} taskHref={taskHref} />
+        <BoardView
+          columns={board.columns}
+          projectId={viewProjectId}
+          taskHref={taskHref}
+          showProject={isAllProjects}
+          allowCreate={!isAllProjects}
+        />
       ) : view === "calendar" ? (
-        <ProjectCalendarView data={calendar} taskHref={taskHref} />
+        <ProjectCalendarView data={calendar} taskHref={taskHref} showProject={isAllProjects} />
       ) : (
-        <ListView columns={list.columns} projectId={selectedProjectId} taskHref={taskHref} />
+        <ListView
+          columns={list.columns}
+          projectId={viewProjectId}
+          taskHref={taskHref}
+          showProject={isAllProjects}
+          allowCreate={!isAllProjects}
+        />
       )}
     </div>
   );

@@ -2,16 +2,19 @@
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { ProjectListItem } from "@/lib/projects-data";
+import { ALL_CLIENTS, ALL_PROJECTS } from "@/lib/projects-scope";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
 
-/** 클라이언트 필터에서 "전체 클라이언트"를 나타내는 URL sentinel(?client=all). */
-export const ALL_CLIENTS = "all";
+/** 클라이언트명이 없는(미소속) 프로젝트를 묶는 그룹 키. */
+const NO_CLIENT_KEY = "__none__";
 
 /**
  * /projects 헤더의 2단 스코프 필터 — 클라이언트 → 프로젝트.
@@ -28,12 +31,15 @@ export function ProjectScopeFilters({
   selectedClient,
   projects,
   selectedProjectId,
+  isAllProjects = false,
 }: {
   clients: { id: string; name: string }[];
   /** 표시 값: 특정 clientId 또는 ALL_CLIENTS. */
   selectedClient: string;
   projects: ProjectListItem[];
   selectedProjectId: string | null;
+  /** 전체 프로젝트 보기 여부(?project=all). true면 프로젝트 Select 값이 ALL_PROJECTS. */
+  isAllProjects?: boolean;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -49,8 +55,11 @@ export function ProjectScopeFilters({
     router.push(`${pathname}?${params.toString()}`, { scroll: false });
   };
 
+  // 현재 프로젝트 Select 값: 전체 보기면 sentinel, 아니면 선택 프로젝트 id.
+  const projectValue = isAllProjects ? ALL_PROJECTS : selectedProjectId;
+
   const selectProject = (id: string) => {
-    if (!id || id === selectedProjectId) return;
+    if (!id || id === projectValue) return;
     const params = new URLSearchParams(searchParams.toString());
     params.set("project", id);
     params.delete("task");
@@ -63,7 +72,23 @@ export function ProjectScopeFilters({
     [ALL_CLIENTS]: "전체 클라이언트",
     ...Object.fromEntries(clients.map((c) => [c.id, c.name])),
   };
-  const projectItems = Object.fromEntries(projects.map((p) => [p.id, p.name]));
+  const projectItems: Record<string, string> = {
+    [ALL_PROJECTS]: "전체 프로젝트",
+    ...Object.fromEntries(projects.map((p) => [p.id, p.name])),
+  };
+
+  // "전체 클라이언트" 스코프에선 프로젝트를 클라이언트별 그룹으로 묶는다(정렬은 서버 유지).
+  const grouped = selectedClient === ALL_CLIENTS;
+  const groupOrder: string[] = [];
+  const groupMap = new Map<string, ProjectListItem[]>();
+  for (const p of projects) {
+    const key = p.clientName ?? NO_CLIENT_KEY;
+    if (!groupMap.has(key)) {
+      groupMap.set(key, []);
+      groupOrder.push(key);
+    }
+    groupMap.get(key)!.push(p);
+  }
 
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -91,10 +116,10 @@ export function ProjectScopeFilters({
           </SelectContent>
         </Select>
       )}
-      {projects.length > 1 && selectedProjectId && (
+      {projects.length > 0 && projectValue && (
         <Select
           items={projectItems}
-          value={selectedProjectId}
+          value={projectValue}
           onValueChange={(v) => v && selectProject(v)}
         >
           <SelectTrigger
@@ -104,24 +129,39 @@ export function ProjectScopeFilters({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {projects.map((p) => (
-              <SelectItem key={p.id} value={p.id}>
-                <span className="flex min-w-0 flex-col">
-                  <span className="truncate">{p.name}</span>
-                  {p.clientName ? (
-                    <span className="truncate text-xs text-[var(--que-text-tertiary)]">
-                      {p.clientName}
-                    </span>
-                  ) : null}
-                </span>
-                <span className="ml-auto text-xs text-[var(--que-text-tertiary)]">
-                  {p.taskCount}
-                </span>
-              </SelectItem>
-            ))}
+            <SelectItem value={ALL_PROJECTS}>
+              <span className="truncate">전체 프로젝트</span>
+              <span className="ml-auto text-xs text-[var(--que-text-tertiary)]">
+                {projects.length}
+              </span>
+            </SelectItem>
+            {grouped
+              ? groupOrder.map((key) => (
+                  <SelectGroup key={key}>
+                    <SelectLabel>
+                      {key === NO_CLIENT_KEY ? "미소속" : key}
+                    </SelectLabel>
+                    {groupMap.get(key)!.map((p) => (
+                      <ProjectOption key={p.id} project={p} />
+                    ))}
+                  </SelectGroup>
+                ))
+              : projects.map((p) => <ProjectOption key={p.id} project={p} />)}
           </SelectContent>
         </Select>
       )}
     </div>
+  );
+}
+
+/** 프로젝트 Select 항목 — 이름 + 보드 노출 태스크 수. 클라이언트명은 그룹 헤더가 대신한다. */
+function ProjectOption({ project }: { project: ProjectListItem }) {
+  return (
+    <SelectItem value={project.id}>
+      <span className="truncate">{project.name}</span>
+      <span className="ml-auto text-xs text-[var(--que-text-tertiary)]">
+        {project.taskCount}
+      </span>
+    </SelectItem>
   );
 }

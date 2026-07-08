@@ -24,17 +24,23 @@ export function TaskGroupSection({
   column,
   projectId,
   taskHref,
+  showProject = false,
+  allowCreate = true,
   onBlocked,
 }: {
   column: BoardColumn;
   projectId: string;
   taskHref: (taskId: string) => string;
+  /** 전체 보기: 각 행에 소속 프로젝트명 라벨 표시. */
+  showProject?: boolean;
+  /** 태스크 추가(+) 노출 여부. */
+  allowCreate?: boolean;
   onBlocked: (card: { taskId: string; taskTitle: string }) => void;
 }) {
   const [open, setOpen] = useState(true);
   const [adding, setAdding] = useState(false);
   const tone = TONE_STYLE[COLUMN_TONE[column.key]];
-  const showAdd = column.key === "scheduled";
+  const showAdd = allowCreate && column.key === "scheduled";
 
   const startAdding = () => {
     setOpen(true);
@@ -156,6 +162,11 @@ export function TaskGroupSection({
                       <StatusBadge status={card.status} />
                     </span>
                   )}
+                  {showProject && card.projectName ? (
+                    <span className="hidden max-w-[10rem] shrink-0 truncate rounded border border-[var(--que-border)] px-1.5 py-0.5 text-xs text-[var(--que-text-tertiary)] sm:inline">
+                      {card.projectName}
+                    </span>
+                  ) : null}
                 </div>
                 <span
                   className={cn(
