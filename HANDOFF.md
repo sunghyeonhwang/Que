@@ -213,6 +213,7 @@ mock 인증: 쿠키 `que-user=<id>` / PAT `que_pat_<id>` (예: `hwang-sunghyeon`
 - **게이트 확장**: `enqueueAndSend`가 팀채널(Webhook)/개인DM(Bot Token)을 배치가 실제 필요로 하는 채널만 요구하도록 채널별 게이트로 변경(기존 team 경로 회귀 없음 — 여전히 webhookEnabled 요구). 단계적 롤아웃: `digestRecipientAllowlist()`(QUE_DIGEST_RECIPIENTS) 존중.
 - **훅 위치(생성 커밋 성공 직후, B-1 패턴 동일)**: `today/actions.ts`(자연어 확정) · `schedule/actions.ts`(manual) · `projects/pm-actions.ts`(manual) · `action/actions.ts`(Action→Task 확정) 각 서버액션 `toResult`에 `afterCommit` 훅 추가 + `/api/tasks`·`/api/action-items/[id]/confirm`(MCP/CLI) persist 직후. **반복 템플릿 스케줄러 경로는 훅 없음**(결정 ③ — 이중으로 훅 자체도 안 검·source 판별도 no-op).
 - **검증**: typecheck·lint·core test(210)·build 통과. 실 Slack 발송은 프로덕션 Bot Token 하에 라이브 검증 예정(로컬은 가짜 토큰으로 파이프라인만).
+- **⚠️ 롤아웃 상태(2026-07-08 배포)**: **대표만 먼저** — Vercel production에 `QUE_DIGEST_RECIPIENTS=hwang-sunghyeon` 설정 후 배포. **부작용(사용자 감수 결정)**: 이 allowlist는 Phase 2 아침 브리핑과 공유라 **적용 기간 동안 나머지 7명의 아침 브리핑도 함께 꺼진다**. **전체 확대 절차**: 대표 검증 완료 후 `vercel env rm QUE_DIGEST_RECIPIENTS production` → `vercel --prod` 재배포(env 변경은 재배포로 반영). 확대를 잊으면 팀 브리핑이 계속 죽어 있으니 이 항목을 완료 처리하기 전엔 절대 넘어가지 말 것.
 
 ## ✅ Slack 알림 B-1 (1단계 · 알림·스탠드업) (2026-07-07)
 
