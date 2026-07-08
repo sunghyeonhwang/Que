@@ -9,7 +9,6 @@ import type {
   ProjectListItem,
   ProjectMeta,
 } from "@/lib/projects-data";
-import { FullscreenButton } from "@/components/app/fullscreen-button";
 import { ProjectHeader } from "./project-header";
 import { ProjectScopeSummary } from "./project-scope-summary";
 import { ALL_CLIENTS } from "@/lib/projects-scope";
@@ -102,7 +101,6 @@ export function ProjectView({
       <div className="mt-4 flex shrink-0 flex-wrap items-end justify-between gap-2 border-b border-[var(--que-border)]">
         <ViewTabs current={view} />
         <div className="flex items-center gap-2 pb-2">
-          <FullscreenButton />
           {/* 전체 보기에선 생성 버튼을 숨긴다 — 생성은 대상 프로젝트가 필요하다. */}
           {!isAllProjects && meta ? (
             <CreateTaskDialog projectId={viewProjectId} meta={meta} />

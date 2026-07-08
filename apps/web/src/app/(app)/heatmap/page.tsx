@@ -11,7 +11,6 @@ import { getCurrentUser } from "@/lib/current-user";
 import { getClientFilter, getClientFilterName } from "@/lib/client-filter";
 import { getPerformanceData, type PerfKpi } from "@/lib/performance-data";
 import { ClientFilterBadge } from "@/components/app/client-filter-badge";
-import { FullscreenButton } from "@/components/app/fullscreen-button";
 import { CompletionBarChart } from "@/components/performance/completion-bar-chart";
 import { OverdueAreaChart } from "@/components/performance/overdue-area-chart";
 import { PerformanceLineChart } from "@/components/performance/performance-line-chart";
@@ -91,7 +90,6 @@ export default async function PerformancePage({
         </div>
         <div className="flex items-center gap-2">
           <ClientFilterBadge clientName={clientName} />
-          <FullscreenButton />
         </div>
       </header>
 

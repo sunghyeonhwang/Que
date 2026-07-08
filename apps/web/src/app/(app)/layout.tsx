@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { rankForUser } from "@que/core";
 import { auth } from "@/auth";
 import { getDb } from "@/lib/db";
@@ -12,6 +13,8 @@ import { ClientSwitcher } from "@/components/app/client-switcher";
 import { SidebarNav } from "@/components/app/sidebar-nav";
 import { SidebarRail } from "@/components/app/sidebar-rail";
 import { UserSwitcher } from "@/components/app/user-switcher";
+import { FullscreenButton } from "@/components/app/fullscreen-button";
+import { ThemeToggle } from "@/components/app/theme-toggle";
 import { MobileNav } from "@/components/app/mobile-nav";
 import { GlobalSearch } from "@/components/app/global-search";
 import { CommandPalette } from "@/components/app/command-palette";
@@ -44,6 +47,8 @@ export default async function AppLayout({
   // getClientOptions/getClientFilter는 cache()라 두 번 호출해도 로드는 1회.
   const clientOptions = await getClientOptions();
   const clientFilter = await getClientFilter();
+  // 헤더 다크 토글 초기 아이콘 — 쿠키의 theme으로 SSR 결정(깜빡임 방지).
+  const initialTheme = (await cookies()).get("theme")?.value === "dark" ? "dark" : "light";
 
   // 담당자/참석자 선택 명단 — 현재 재직자(active)만. 클라이언트 폼이 useRoster()로 공유해서 쓴다.
   const db = await getDb();
@@ -103,6 +108,8 @@ export default async function AppLayout({
             <AddTaskDialog currentUserId={user.id} />
             <NotificationsBell alerts={alerts} />
             <UserSwitcher current={user} rank={rank} />
+            <FullscreenButton />
+            <ThemeToggle initialTheme={initialTheme} />
           </div>
         </header>
 

@@ -38,7 +38,7 @@ export default async function ToolsPage() {
       "args": ["-C", "<Que-저장소-경로>", "--filter", "@que/mcp", "start"],
       "env": {
         "QUE_API_URL": "${PROD_URL}",
-        "QUE_TOKEN": "<본인 PAT>"
+        "QUE_TOKEN": "<본인 토큰>"
       }
     }
   }
@@ -84,7 +84,7 @@ export default async function ToolsPage() {
             <dd className="font-mono text-[var(--que-text)]">{user.id}</dd>
           </dl>
           <div className="mt-3 rounded-lg border border-[var(--que-warning)]/30 bg-[var(--que-warning-bg)] px-3 py-2 text-sm text-[var(--que-text-secondary)]">
-            <b className="font-semibold text-[var(--que-text)]">토큰(PAT)</b>은 개인 비밀값입니다.{" "}
+            <b className="font-semibold text-[var(--que-text)]">액세스 토큰</b>은 개인 비밀값입니다.{" "}
             <Link href="/settings" className="font-semibold text-[var(--que-brand)] hover:underline">
               설정 › 액세스 토큰
             </Link>
@@ -154,7 +154,7 @@ export default async function ToolsPage() {
                 note: "que 명령 전역 등록",
               },
               { cmd: `export QUE_API_URL=${PROD_URL}` },
-              { cmd: "que login <본인 PAT>" },
+              { cmd: "que login <본인 토큰>" },
               { cmd: "que me" },
             ]}
           />
@@ -191,7 +191,7 @@ export default async function ToolsPage() {
           <CopyBlock
             code={`claude mcp add que \\
   -e QUE_API_URL=${PROD_URL} \\
-  -e QUE_TOKEN=<본인 PAT> \\
+  -e QUE_TOKEN=<본인 토큰> \\
   -- pnpm -C <Que-저장소-경로> --filter @que/mcp start`}
           />
 

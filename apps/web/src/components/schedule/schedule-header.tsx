@@ -12,7 +12,6 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { FullscreenButton } from "@/components/app/fullscreen-button";
 import { ScheduleFilter } from "./schedule-filter";
 import {
   CreateScheduleDialog,
@@ -210,8 +209,6 @@ export function ScheduleHeader({
       </DropdownMenu>
 
       <ScheduleFilter />
-
-      <FullscreenButton className="border-[var(--que-border)]" />
 
       <CreateScheduleDialog members={members} projects={projects} defaultDate={anchorIso} />
     </div>

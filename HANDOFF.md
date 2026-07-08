@@ -85,12 +85,24 @@ mock 인증: 쿠키 `que-user=<id>` / PAT `que_pat_<id>` (예: `hwang-sunghyeon`
 - **검증**: dev 서버 부재 확인 후 `pnpm lint`(전 패키지)·`pnpm typecheck`(4워크스페이스)·`pnpm build`(Compiled successfully, 정적 15페이지, exit 0) 통과. core 테스트 210/210(CSS 2줄 diff라 도메인 규칙 회귀 불가). WCAG 대비 node 재계산으로 위 수치 확인.
 - **비차단 후속 후보**: `apps/web/src/components/app/confetti.ts:18`에 구 브랜드 `#3b5bd9`가 하드코딩(canvas-confetti라 CSS var 불가). 배치 스코프 밖·시각 영향 미미하나 후속 폴리시 때 정렬 권장.
 
+## ✅ 헤더 전역 컨트롤 — 전체화면·다크 토글 통합 + 토큰 표현 (2026-07-08)
+
+글래도스 게이트 재심사 배치. 화면별로 흩어져 있던 전역 컨트롤을 앱 헤더 1곳으로 모으고 다크 모드 토글을 신설. 표시/설정 전용 — **core·globals.css·mcp·cli 무접촉**, 상태색 5색 의미 고정 유지, 새 mutation 경로·theme token 변경 없음. **diff 범위 = 수정 6 + 신규 2.**
+
+- **헤더 전역 컨트롤 배치 순서 = UserSwitcher → FullscreenButton → ThemeToggle** (`app/(app)/layout.tsx`). 세 컨트롤 모두 `IconButton size-10`(40px) + aria-label + Tooltip.
+- **⚠️ E-3 방침 번복(배치 1 명시적 변경)**: 배치 1의 E-3은 전체화면 버튼을 **화면별 3곳**(schedule-header·project-view·heatmap)에 배치했으나, 이번 배치에서 **3곳 모두 제거하고 헤더 전역 1곳으로 통합**했다. `FullscreenButton` 사용처는 `app/(app)/layout.tsx` 단일. 위 E-3 절에 이관 주석 추가함. (SSR 미렌더 = feature-detect 설계 의도, 하이드레이션 후 출현 — 정상.)
+- **`lib/theme.ts` 공유 모듈 신설**(신규): 헤더 `ThemeToggle`과 설정(FontSettings)의 테마 선택이 **같은 쿠키/클래스를 공유**. 쿠키 규격은 기존 font-settings `setCookie`와 동일(`path=/; max-age=1yr; samesite=lax`), `<html>`에 `dark` 클래스 토글. **font-settings는 공유 `setTheme`에 위임**(동작 불변). SSR 초기 아이콘은 서버 쿠키로 정합(theme=dark → '라이트 모드로', 미설정 → '다크 모드로').
+- **신규 컴포넌트**: `apps/web/src/components/app/theme-toggle.tsx`.
+- **PAT → "토큰" 표현 통일 원칙**: 사용자 향(UI 텍스트)은 **"토큰"**으로 표기(예: `/tools`에 `<본인 토큰>` 5건, 사용자 표시 PAT 0건). **코드 식별자(PAT 변수명·주석·`que_pat_` prefix·`api/auth.ts` PAT 폴백)는 PAT 유지** — 표현만 통일, 식별자 불변.
+- **비차단 관찰 2건(후속 권장, 스펙 밖)**: ① `/settings`에서 헤더 ThemeToggle과 FontSettings 테마 선택 UI가 서로 로컬 state를 동기화하지 않아 동시 노출 시 표시가 어긋날 수 있음(쿠키/클래스는 공유라 실제 테마는 정합). ② FullscreenButton SSR 미렌더(위 참고, 정상).
+- 검증: dev 서버 부재 확인 후 실행 — `pnpm -r lint` 경고 0 · `pnpm -r typecheck` 4워크스페이스 통과 · `pnpm build` Compiled successfully 6.6s·경고 0 · core 테스트 210/210(도메인 가드 무손상, core diff 0건). 격리 포트 :3999 프로덕션 서버 + Auth.js 실로그인 렌더 실측: theme=dark 쿠키 → `<html class="... dark">`+aria '라이트 모드로', 쿠키 제거 → dark 소멸+'다크 모드로'.
+
 ## ✅ E 트랙 배치 1 — 빠른 UX + 교육 레이어 (2026-07-08)
 
 글래도스 게이트 재심사 배치. 로드맵 E 트랙 중 **E-2·E-3·E-4·E-F1·E-F2**(E-5·E-6 흡수) 최소 diff 구현. 표시/상호작용 전용 — mutation 경로는 기존 core 함수 재사용, 상태색 의미 고정 준수(색+아이콘/텍스트 병행), 새 mutation 경로·theme token 변경 없음.
 
 - **E-2 (목록/보드 완료 버튼)**: 프로젝트 목록/보드에서 태스크를 done으로 넘기는 컨페티 done-circle을 배선. 신규 공용 `pm-done-circle.tsx`로 통일하고 **구 `task-done-toggle.tsx`는 삭제**(소스 잔여 참조 0건). `canEdit=false`(타인 작업)면 보드 카드엔 버튼 미노출, 목록 행엔 정적 상태 표시만 — 본인 작업만 수정 도메인 규칙 준수. z-index: 카드 전체 Link `z-10` 위에 done-circle `z-20`로 클릭 우선.
-- **E-3 (전체화면 버튼)**: 캘린더/보드/히트맵 등 내부 스크롤 영역을 전체화면으로 여는 신규 공용 `fullscreen-button.tsx`. `useSyncExternalStore`(서버 스냅샷 false로 SSR 안전) + Fullscreen API feature-detect. 기존 `IconButton`(40px) 재사용, aria-label·Tooltip 병행.
+- **E-3 (전체화면 버튼)**: 캘린더/보드/히트맵 등 내부 스크롤 영역을 전체화면으로 여는 신규 공용 `fullscreen-button.tsx`. `useSyncExternalStore`(서버 스냅샷 false로 SSR 안전) + Fullscreen API feature-detect. 기존 `IconButton`(40px) 재사용, aria-label·Tooltip 병행. **⚠️ 방침 변경(2026-07-08, 아래 "헤더 전역 컨트롤" 배치 참고): 화면별 배치(schedule-header·project-view·heatmap 3곳)를 철회하고 헤더 전역 1곳(`app/(app)/layout.tsx`)으로 통합했다.** 이 절의 "화면별 배치"는 역사 기록이며 현행 아님.
 - **E-4 (CLI 명령어별 복사)**: `/tools` 온보딩의 명령 블록을 신규 공용 `command-list.tsx`로 재구성 — 개별 명령 복사 + 전체 복사(설명 note 라인 제외). 복사 버튼 40px, aria-label 병행.
 - **E-F1 (개념 쉽게 — 도움말)**: 일정vs캘린더·반복마일스톤 등 핵심 개념을 왜/무엇/어떻게/예시 구조로 서술(매뉴얼 톤 '합니다/하세요'). 도메인 모델 정합 확인.
 - **E-F2 (교육형 빈 상태)**: 빈 목록/보드에 "무엇을·어떻게" 안내하는 교육형 empty state. `canCreate` 분기로 생성 권한 없는 사용자에겐 생성 유도 문구 미노출.

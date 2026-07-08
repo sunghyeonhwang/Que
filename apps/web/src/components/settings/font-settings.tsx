@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Check } from "lucide-react";
+import { setTheme, type Theme } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 
 // 폰트 옵션 — value는 html[data-ko]/[data-latin] 및 쿠키 값, css는 미리보기용 font-family.
@@ -54,7 +55,7 @@ export function FontSettings({
 }) {
   const [ko, setKo] = useState(initialKo);
   const [latin, setLatin] = useState(initialLatin);
-  const [theme, setTheme] = useState(initialTheme);
+  const [theme, setThemeState] = useState(initialTheme);
   const [density, setDensity] = useState(initialDensity);
 
   function apply(kind: "ko" | "latin", value: string) {
@@ -67,9 +68,9 @@ export function FontSettings({
   }
 
   function applyTheme(value: string) {
-    document.documentElement.classList.toggle("dark", value === "dark");
-    setCookie("theme", value);
-    setTheme(value);
+    // 즉시 반영 + 쿠키 저장은 공유 모듈(lib/theme)에 위임 — 헤더 토글과 동일 규격.
+    setTheme(value as Theme);
+    setThemeState(value);
   }
 
   function applyDensity(value: string) {
