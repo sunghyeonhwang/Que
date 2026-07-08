@@ -55,6 +55,10 @@ mock 인증: 쿠키 `que-user=<id>` / PAT `que_pat_<id>` (예: `hwang-sunghyeon`
 6. **Sentry 소스맵/트레이싱** — ⏭ 스킵(읽기 힘든 프로덕션 에러 실제 발생 시만).
 7. **그리프 3·4Q 시트 임포트** — ✋ 수동 처리 중, 자동화 불요.
 
+**🆕 D 트랙 — todo_griff(DayBlocks) × Que Task 연동 (2026-07-08 신규, 계획 수립 중)**: 별도 앱 `todo_griff`(Vite+React PWA 데이 플래너 "DayBlocks", `todo.griff.co.kr`+iOS/Android 예정). 현재 **Que 연동 0%(localStorage 섬)**. **아키텍처: DB 직결 지양 → Que REST API 경유**(Que가 이미 Task 전체를 규칙 강제하며 API 노출). 선결(Que쪽): **D-1 모바일 로그인 엔드포인트(email+비번→토큰, 현재 PAT는 로그인 UX 아님) · D-2 CORS 허용+via='mobile'**. 앱쪽: D-3 태스크 동기화·D-4 OKR 모델(Que에 없음, 신규)·D-5 오프라인 충돌·D-6 Capacitor 네이티브. 보안: RLS-off 4테이블은 anon-키 앱 붙기 전 정책 필요. 상세는 로드맵 `que-roadmap-plan.md` "D 트랙" 절 + **사용자 피드백 반영 예정**.
+
+**🆕 E 트랙 — 사용자 피드백 10건 (2026-07-08)**: 로드맵 `que-roadmap-plan.md` "E 트랙" 절 정본. ① **E-A 빠른 UX**(프로젝트 셀렉트+전체보기·목록/보드 완료버튼(컨페티 done-circle 재사용)·전체화면 버튼·CLI 명령어별 복사) ② **E-B 도움말**(일정vs캘린더·반복마일스톤 사용법) ③ **E-C 결정 필요**(E-7 MCP PAT 포함 복사=미노출 정책 충돌·E-8 파스텔 톤=theme token 규칙 충돌) ④ **E-D 신규 대형**(E-9 Gantt=의존성 데이터모델 신규·E-10 분석 AI Gemini/Qwen). **권장: E-A+E-B를 감사 배치처럼 먼저.** E-C 결정 후, E-D 별도 스코핑.
+
 #### env 트랙 (사용자가 "하나씩" 진행 중)
 1. ~~**Vercel 배포**~~ → **완료 (43번)**. <https://que-rouge-eight.vercel.app> (Root=`apps/web`, 리전 `icn1`, 실 DB+실 인증). **주의: Deployment Protection이 현재 꺼진 상태**(대시보드에서 재활성화 필요) — 단 실 인증+mock API 503이라 공개라도 안전. `QUE_ALLOW_MOCK_AUTH`는 **안 켬**(mock PAT 봉인). (`data/docs/deploy-vercel-supabase.md`)
 2. ~~**웹 실 인증**~~ → **완료 (42번, Auth.js 이메일+비밀번호)**. 로그인: `<이름>.<성>@griff.co.kr`. **프로덕션 비번(2026-07-04): 테스트용 공용 비번으로 전 팀원 7명 통일 적용**(평문은 `data/passwords.txt` gitignore 참조, 여기엔 평문 금지). 프로덕션 `users.password_hash`에 bcrypt(rounds10) 직접 UPDATE, E2E 로그인 검증 완료. **테스트+개인 비번 작성 후 개인별 교체 예정**(`gen-passwords.mts` → `set-passwords.sql`). 로컬 dev 상수 `DEV_PASSWORD(que-2026!)`는 mock 전용(프로덕션 무관). **남은 B2**: API/MCP/CLI의 mock PAT를 `personal_access_tokens`(해시)로 교체 + `core/mock/tokens.ts` 폐기 → 그 후 `QUE_ALLOW_MOCK_AUTH` 제거.

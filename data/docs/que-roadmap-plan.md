@@ -28,6 +28,83 @@
 >
 > ~~추천 다음 착수: B-2(Cron)~~ → **완료.** (아래 원본 표·상세는 07-04 참고용)
 
+### D 트랙 — todo_griff(DayBlocks) × Que Task 연동 (2026-07-08 신규, 계획 수립 중)
+
+**배경**: 폰으로 Que 열기는 무리 + 일반 사원은 OKR/할일이 더 요긴 → 별도 앱 `todo_griff`(코드명 **DayBlocks**, `todo.griff.co.kr` + iOS/Android 예정). 현재 상태: **Vite+React PWA, 시간블록 데이 플래너, 완성도 높음 / 단 Que 연동 0%(localStorage 섬)**.
+
+**아키텍처 결정(권장·확인된 근거)**: **"DB 직결" 지양 → "Que REST API 경유" 채택.** Que가 이미 Task 전체를 core mutation+ChangeLog 강제하며 API로 노출(읽기 `/api/tasks·/api/my-day·/api/now`, 쓰기 생성·상태·이동·댓글·재배정·취소). DB 직결은 도메인 규칙 우회 + RLS 정책 0개(anon 차단) + 인증 이중화로 고위험·고비용.
+
+| ID | 항목 | 규모 | 비고 |
+| --- | --- | --- | --- |
+| **D-1** | Que 모바일 인증 엔드포인트(email+비번→토큰) | 중간 | 🔴 **선결 blocker** — 현재 PAT는 웹 수동 발급뿐(로그인 UX 없음). Supabase Auth(auth.users 7명) 재사용 vs 신설 토큰교환 결정 필요 |
+| **D-2** | CORS 허용(todo.griff.co.kr) + `via='mobile'` 태깅 | 작음 | 🔴 PWA(브라우저)면 CORS 없이는 Que API 호출 차단. 감사 출처 'cli' 오기록 해소 |
+| **D-3** | DayBlocks ↔ Que Task 동기화 | 큼 | 읽기(`/api/my-day` 오늘 태스크→블록 임포트) + 쓰기(완료/상태) 방향·범위 결정 |
+| **D-4** | OKR 데이터 모델 | 중간~큼 | ⚠️ **Que에도 앱에도 없음** — DayBlocks 자체 저장으로 신규 정의(Que는 Task만 제공) |
+| **D-5** | 오프라인↔서버 동기화 충돌 정책 | 중간 | 로컬 우선 앱 + 서버 병합 = 충돌 해결 규칙 |
+| **D-6** | 네이티브 전환 | 중간 | 현재 PWA → 최단 경로 Capacitor 래핑(vs RN/Expo/네이티브) |
+| **보안** | RLS-off 4테이블(clients·revision_notes·payment_categories·notification_outbox) | 작음 | anon 키 쓰는 앱 붙기 전 정책 필요(별건 보안) |
+
+> **선결 순서**: D-1(로그인) · D-2(CORS/via)가 Que 쪽 최소 작업이고 나머지의 전제. D-4(OKR)·D-5(오프라인)·D-6(네이티브)는 앱 쪽 범위. **세부는 사용자 피드백 반영해 확정 예정.**
+
+### E 트랙 — 사용자 피드백 (2026-07-08, 10건 접수)
+
+크게 4묶음. **소·낮은 리스크 = 즉시 배치 가능**, **결정 필요 2건**, **신규 대형 기능 2건(별도 스코핑)**.
+
+**E-A · 빠른 UX 개선 (소, 즉시 배치 가능)**
+| ID | 항목 | 근거·비고 |
+| --- | --- | --- |
+| E-1 | 프로젝트 클라이언트/프로젝트 셀렉트 개선 + **전체 보기** | `project-scope-filters.tsx`. 셀렉트 UX + "전체" 옵션(현 ALL_CLIENTS 스코프 노출 개선) |
+| E-2 | 목록/보드 뷰 **완료 버튼**(컨페티) | 기존 `components/app/done-circle.tsx`(+`confetti.ts`) 재사용 — /projects `task-done-toggle`(체크박스)를 DoneCircle로 교체/추가 |
+| E-3 | **전체화면 버튼** | 진짜 fullscreen 없음(신규). 캘린더/보드/성과/Gantt에 `requestFullscreen` 토글 |
+| E-4 | CLI **명령어별 복사 버튼** | `/tools`. 현재 블록 전체 복사(불필요분 포함) → 명령어 단위 복사로 분할 |
+
+**E-B · 도움말/온보딩 (소)**
+| ID | 항목 | 근거·비고 |
+| --- | --- | --- |
+| E-5 | **일정 vs 캘린더 차이 설명** | `/schedule`(일정=회사+개인 일정)와 `/projects` 캘린더 뷰(프로젝트 태스크)가 공존 → 혼동. 도움말 항목 + 라벨 명확화 검토 |
+| E-6 | **반복·마일스톤 사용법/이유** | `/planning` 도움말 섹션 보강(왜·어떻게) |
+
+**E-C · 결정 완료 (2026-07-08 사용자 확정)**
+| ID | 항목 | 결정 |
+| --- | --- | --- |
+| E-7 | MCP 연결 시 **PAT 포함 완전 명령어 복사** | ✅ **실 PAT 항상 노출**(미노출 정책 해제). `/tools`에서 토큰 포함 완전 명령어 복사. ⚠️ 잔여 위험(화면·클립보드 유출) 완화책: 발급 토큰을 **Task 범위로 스코프**해 blast radius 축소 권장 |
+| E-8 | 버튼/키컬러 **파스텔 톤** 변경 | ✅ **상태 5색(green/blue/amber/red/violet) 의미 고정 유지 + 브랜드/primary/강조색만 파스텔화**. DESIGN.md 상태색 규칙과 비충돌 범위 |
+
+**E-D · 신규 대형 기능 (큼, 별도 스코핑 필요)**
+| ID | 항목 | 규모·비고 |
+| --- | --- | --- |
+| E-9 | **Gantt** — 작업 기간 + **의존성** 연결 → 일정 리스크 가시화 | 큼. core Task에 **의존성 필드 없음** → 데이터 모델(선후관계) 신규 + Gantt 뷰 + 임계경로/리스크 계산. `/projects` 새 뷰 또는 `/planning` |
+| E-10 | **분석 AI** (Gemini 또는 Qwen 연결) | 큼. 현재 프로젝트는 Claude MCP 사용 중 — **왜 Gemini/Qwen인지·무엇을 분석할지** 확인 필요. 새 LLM 통합 |
+
+> **권장 착수 순서**: ① **E-A+E-B(빠른 UX+도움말 6건)를 감사 배치처럼 1~2 배치로** — 가장 높은 ROI·낮은 리스크. ② E-C 2건은 결정 받은 뒤. ③ E-9 Gantt·E-10 분석 AI는 각각 별도 스코핑(기획+데이터 모델). D 트랙(todo_griff)·C-1(구글캘린더)과는 독립.
+
+---
+
+## 개발계획 상세 (2026-07-08 기획 산출 — 트랙별 병렬 기획 종합)
+
+각 항목 파일:줄 근거는 기획 워크플로 산출(스펙 전문은 세션 기록). 아래는 **착수 가능한 순서·데이터모델·미결 결정**만.
+
+### E-A/E-B 배치 계획 (빠른 UX + 도움말, 저리스크)
+- **배치 1 (S급, 반나절~1일)**: E-2(완료버튼=`done-circle.tsx` 재사용, 신규 `pm-done-circle.tsx` 래퍼, `task-done-toggle.tsx` 삭제) → E-4(CLI 명령어별 복사, 신규 `command-list.tsx`) → E-3(전체화면, 신규 공용 `fullscreen-button.tsx`, /schedule·/projects·/heatmap 배치) → E-5·E-6(도움말 `help-content.ts` 한 커밋).
+- **배치 2**: E-1(M, `projects-data.ts` 다중 프로젝트 합산 + `ALL_PROJECTS` sentinel, core 무변경) → **E-8**(M, 파스텔 — `globals.css` 브랜드 토큰 4종 `--que-brand/-hover/-subtle/-on-brand` × 라이트/다크만, 상태색 불변. **전역 시각 변경이라 단독 커밋 + 양테마 QA**).
+- **E-7**(L, 마지막 단독): `personal_access_tokens`에 `secret_enc`(nullable, 전용 토큰만)·`scope`('full'|'tasks') 추가 → **Task 스코프 토큰 발급 + /tools 실 토큰 노출**. ⚠️ scope 강제를 **먼저 배포**한 뒤 노출을 켜는 순서.
+
+### E-9 Gantt (신규 대형, ~1.5~2주, 순차)
+- **E-9a (M, 전제)**: core 의존성 모델 — `domain.ts` taskSchema에 `predecessorIds?: string[]`, DB `add-task-predecessors.sql`(`predecessor_ids text[]`), **Finish-to-Start 단일·같은 프로젝트 내만·순환 방지 규칙**(core rules), 신규 mutation `setTaskPredecessors`(ChangeLog via). *마이그레이션 포함이라 가장 먼저 프로덕션 적용.*
+- **E-9b (L)**: `/projects` **4번째 뷰 탭 '간트'** — 작업 막대(startAt~endAt)·의존성 화살표(SVG)·오늘 라인·마일스톤 다이아몬드. 막대 클릭→기존 `?task=` 드로어. 태블릿 가로스크롤+sticky(히트맵 선례).
+- **E-9c (M)**: 드로어 '선행 작업' 섹션(같은 프로젝트 다중선택·순환 후보 제외·canEdit 게이트).
+- **E-9d (M)**: 일정 리스크 — 선행 지연→후행 밀림 전파, at-risk 강조(상태색 규칙 준수).
+- 미결: 의존성 UI 범위·임계경로 알고리즘 깊이(E-9b 프리뷰 후 재확인 권장).
+
+### D 트랙 todo_griff (API 경유 확정, 순차)
+- **D-2 (S, 먼저)**: CORS 허용(todo.griff.co.kr) + `via='mobile'` — `change_logs.via` check에 'mobile' 추가(이 트랙 유일 core 스키마 변경, **코드 배포 전 마이그레이션 먼저** 안 그러면 쓰기 API 500).
+- **D-1 (M)**: email+비번→PAT 교환 엔드포인트(권장안 (a) 토큰교환; `personal_access_tokens` 재사용). mustChangePassword 계정은 발급 거부+웹 유도.
+- **D-3 (L)**: `/api/my-day`로 오늘 태스크 임포트(읽기) + 완료 write-back. 1차=읽기+완료만.
+- **D-5(M) 오프라인 충돌 정책 → D-4(M) OKR(DayBlocks 자체 스키마, Que 무변경) → D-6(M) Capacitor 네이티브(PWA 충분성=iOS 푸시 필요 여부로 판단, 불필요면 연기).**
+
+### E-10 분석 AI — 결정 프레임 (스펙 아님, 같이 정리)
+6축 결정 필요. **MVP 권장안**: `/team` 관리자 리포트에 온디맨드 **'AI 주간 요약' 카드**(구조화 하이라이트, Gemini Flash, 가명화 전송, env 게이트, 관리자 전용) 1건(M). 결정 축·질문은 아래 본문 참조.
+
 | 항목 | 규모 | 지금 착수 가능? | 필요한 사용자 입력 |
 | --- | --- | --- | --- |
 | **A-4 Sentry** | 중간 | ✅ 완료(에러 캡처) · 소스맵/트레이싱은 스킵 | Sentry DSN(+선택 auth token) |
