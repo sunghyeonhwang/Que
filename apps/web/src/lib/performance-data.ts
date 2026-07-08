@@ -56,6 +56,12 @@ export interface LowPerformerRow {
   avatarColor: string;
   overdue: number;
   completed: number;
+  /** 최근 막힌(문제/홀드) 작업 상태 — 없으면 undefined. */
+  blockStatus?: "issue" | "on_hold";
+  /** 최근 막힘 사유(마지막 issue/on_hold 전이 로그). */
+  blockReason?: string;
+  /** 최근 막힘 경과일 라벨("오늘"/"N일째"). */
+  blockSinceLabel?: string;
 }
 
 export type ProjectProgressStatus = "in_progress" | "waiting" | "done";
@@ -321,7 +327,7 @@ export async function getPerformanceData(
     personScope,
   });
 
-  // ── 저성과 팀 표: lm월 내 활동 기준 (초과 많고 완료 적은 순) ──
+  // ── 저성과 팀 표: lm월 내 활동 기준 (db.users 고정 순서, 정렬 없음) ──
   // overdue=lm월에 마감이 걸렸고 아직 열린 작업, completed=lm월에 done 전이가 있었던 작업.
   const lmStart = new Date(anchorYear(lm), lm - 1, 1).getTime();
   const lmEnd = new Date(anchorYear(lm), lm, 1).getTime();
@@ -346,21 +352,51 @@ export async function getPerformanceData(
       : opts.viewer
         ? db.users.filter((u) => u.id === opts.viewer!.id)
         : scopedUsers;
-  const lowPerformers: LowPerformerRow[] = lowPerfUsers
-    .map((u) => {
-      const mine = clientTasks.filter((t) => t.assigneeId === u.id);
-      return {
-        userId: u.id,
-        name: u.name,
-        department: departmentForUser(u),
-        avatarColor: u.avatarColor,
-        overdue: mine.filter(
-          (t) => t.endAt && inLm(new Date(t.endAt).getTime()) && OPEN.has(t.status),
-        ).length,
-        completed: doneInLmByUser.get(u.id) ?? 0,
-      };
-    })
-    .sort((a, b) => b.overdue - a.overdue || a.completed - b.completed);
+  // 경과일은 달력일 차이로 센다(report-data.ts:135-142 선례 — 24시간 미만이 '오늘'로 과소보고되는 것 방지).
+  const calendarDayDiff = (fromIso: string): number => {
+    const f = new Date(fromIso);
+    const a = new Date(f.getFullYear(), f.getMonth(), f.getDate());
+    const b = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    return Math.max(0, Math.round((b.getTime() - a.getTime()) / 864e5));
+  };
+  // 정렬은 내림차순(리더보드)이 아니라 db.users 원 순서를 유지해 순위 인상을 없앤다
+  // (RPT-1, report-data.ts:168-169 loadByMember 선례). lowPerfUsers는 db.users 순서를 보존한다.
+  const lowPerformers: LowPerformerRow[] = lowPerfUsers.map((u) => {
+    const mine = clientTasks.filter((t) => t.assigneeId === u.id);
+    // 최근 막힘(문제/홀드) 작업 사유·경과 — admin-report currentBlockers 표시 패턴 재사용.
+    const blocked = mine
+      .filter((t) => t.status === "issue" || t.status === "on_hold")
+      .sort((a, b) => (b.lastChangedAt ?? "").localeCompare(a.lastChangedAt ?? ""));
+    const top = blocked[0];
+    let blockStatus: "issue" | "on_hold" | undefined;
+    let blockReason: string | undefined;
+    let blockSinceLabel: string | undefined;
+    if (top) {
+      const lastLog = [...db.statusLogs]
+        .filter(
+          (l) => l.taskId === top.id && (l.toStatus === "issue" || l.toStatus === "on_hold"),
+        )
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
+      const since = top.lastChangedAt ?? lastLog?.createdAt;
+      const days = since ? calendarDayDiff(since) : 0;
+      blockStatus = top.status as "issue" | "on_hold";
+      blockReason = lastLog?.reason;
+      blockSinceLabel = days === 0 ? "오늘" : `${days}일째`;
+    }
+    return {
+      userId: u.id,
+      name: u.name,
+      department: departmentForUser(u),
+      avatarColor: u.avatarColor,
+      overdue: mine.filter(
+        (t) => t.endAt && inLm(new Date(t.endAt).getTime()) && OPEN.has(t.status),
+      ).length,
+      completed: doneInLmByUser.get(u.id) ?? 0,
+      blockStatus,
+      blockReason,
+      blockSinceLabel,
+    };
+  });
 
   // ── 프로젝트 진행률: project별 완료/전체 ──
   // 클라이언트 필터 시 그 클라이언트 소속 프로젝트만 나열(무소속·타 클라이언트 프로젝트는 0/0로

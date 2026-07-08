@@ -101,6 +101,10 @@ export interface CeoHomeData extends HomeBase {
   heatmap: HeatmapData;
   pendingPayments: number;
   overduePayments: number;
+  /** 대표 본인에게 온 신호(병목/확인필요/기한초과/결제) — 상단바 벨과 같은 소스(DASH-6). */
+  alerts: AlertsData;
+  /** 확인 필요 Action 등 회의록 요약(RequestInbox 소스). */
+  noteSummary: NoteSummary;
 }
 
 export type GradeHomeData = StaffHomeData | ManagerHomeData | CeoHomeData;
@@ -180,13 +184,16 @@ async function getCeoHomeData(
   now: Date,
   opts: GradeHomeOptions,
 ): Promise<CeoHomeData> {
-  const [home, perf, report, planning, clientOverview] = await Promise.all([
+  const [home, perf, report, planning, clientOverview, alerts, noteSummary] = await Promise.all([
     getHomeData(user, now, { dp: opts.dp, clientId: opts.clientId }),
     // viewer=user(대표) → 사람 스코프 전원, KPI 전체(사원 아님).
     getPerformanceData(now, { hm: opts.hm, clientId: opts.clientId, viewer: user }),
     getAdminReportData(user, "month", now, opts.clientId),
     getPlanningData(user),
     getClientOverview(),
+    // 대표 본인에게 온 요청(DASH-6) — 사원 홈과 동일한 core 조회 재사용.
+    getAlerts(user, now),
+    getNoteSummary(user),
   ]);
 
   const riskMilestones = planning.milestones.filter((m) => m.riskStatus !== "on_track");
@@ -206,6 +213,8 @@ async function getCeoHomeData(
     heatmap: perf.heatmap,
     pendingPayments: report.overall.pendingPayments,
     overduePayments: report.overall.overduePayments,
+    alerts,
+    noteSummary,
   };
 }
 

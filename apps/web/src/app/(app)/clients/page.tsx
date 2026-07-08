@@ -16,7 +16,13 @@ export const dynamic = "force-dynamic";
 // 기타 > 클라이언트 — 거래처(클라이언트)와 소속 프로젝트를 관리하는 관리자 전용 화면.
 // 클라이언트 추가/이름수정/보관, 프로젝트 추가/편집(이름·클라이언트 재배정·상태·담당자).
 // 데이터 접근은 core 진입점(getDb)만 사용하고, 뷰모델은 여기서 서버에서 조립한다.
-export default async function ClientsPage() {
+export default async function ClientsPage({
+  searchParams,
+}: {
+  // 홈 클라이언트별 현황 링크(/clients?client=<id>)가 도착하면 해당 카드를 강조·스크롤한다.
+  searchParams: Promise<{ client?: string }>;
+}) {
+  const { client: highlightClientId } = await searchParams;
   const user = await getCurrentUser();
   // 관리자만 접근 — 비관리자가 URL로 직접 오면 홈으로 되돌린다(메뉴 노출 게이트 + 서버 게이트).
   if (user.role !== "admin") redirect("/home");
@@ -76,6 +82,7 @@ export default async function ClientsPage() {
             unassigned={unassignedProjects}
             clientOptions={clientOptions}
             users={users}
+            highlightId={highlightClientId}
           />
         </section>
 

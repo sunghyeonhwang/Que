@@ -18,6 +18,7 @@ import { HomeCard } from "@/components/home/home-card";
 import { HomeTodoList } from "@/components/home/home-todo-list";
 import { HomeSchedule } from "@/components/home/home-schedule";
 import { LoadBars } from "@/components/home/load-bars";
+import { RequestInbox } from "@/components/home/request-inbox";
 import { BlockerList } from "@/components/home/blocker-list";
 import { ClientOverviewCard } from "@/components/home/client-overview-card";
 import { RiskMilestonesCard } from "@/components/home/risk-milestones-card";
@@ -124,6 +125,11 @@ export function CeoHome({ data, month }: { data: CeoHomeData; month: number }) {
           </span>
         )}
       </Link>
+
+      {/* 내게 온 요청 (본인 신호 — 전사 조망 아래, 본인 것은 하단에) */}
+      <HomeCard title="내게 온 요청" meta={String(data.alerts.count)}>
+        <RequestInbox alerts={data.alerts} noteSummary={data.noteSummary} />
+      </HomeCard>
 
       {/* 본인 오늘 할 일 | 개인 일정 (축소) */}
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">

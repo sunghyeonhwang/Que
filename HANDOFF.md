@@ -1,6 +1,6 @@
 # Que 핸드오프 문서
 
-마지막 업데이트: 2026-07-07
+마지막 업데이트: 2026-07-08
 
 ---
 
@@ -50,6 +50,16 @@ mock 인증: 쿠키 `que-user=<id>` / PAT `que_pat_<id>` (예: `hwang-sunghyeon`
 2. ~~**웹 실 인증**~~ → **완료 (42번, Auth.js 이메일+비밀번호)**. 로그인: `<이름>.<성>@griff.co.kr`. **프로덕션 비번(2026-07-04): 테스트용 공용 비번으로 전 팀원 7명 통일 적용**(평문은 `data/passwords.txt` gitignore 참조, 여기엔 평문 금지). 프로덕션 `users.password_hash`에 bcrypt(rounds10) 직접 UPDATE, E2E 로그인 검증 완료. **테스트+개인 비번 작성 후 개인별 교체 예정**(`gen-passwords.mts` → `set-passwords.sql`). 로컬 dev 상수 `DEV_PASSWORD(que-2026!)`는 mock 전용(프로덕션 무관). **남은 B2**: API/MCP/CLI의 mock PAT를 `personal_access_tokens`(해시)로 교체 + `core/mock/tokens.ts` 폐기 → 그 후 `QUE_ALLOW_MOCK_AUTH` 제거.
 3. ~~Sentry DSN(에러 리포팅)~~ → **✅ 완료 (2026-07-07)**: `@sentry/nextjs` 붙임(에러 캡처만, 트레이싱/리플레이/소스맵은 후속). 아래 "[✅ Sentry 에러 리포팅](#-sentry-에러-리포팅-2026-07-07)" 절. · ~~Slack 앱(알림/스탠드업)~~ → **✅ 활성화·라이브 (2026-07-07)**: **B-1**(팀채널 문제발생·마감임박 알림 + 스탠드업, `SLACK_WEBHOOK_URL` 설정) + **Phase 2**(개인 DM 데일리 브리핑 9:50, `SLACK_BOT_TOKEN`, 8명 매핑) 둘 다 프로덕션 발송 검증 완료. 아래 "[✅ Slack Phase 2](#-slack-phase-2--개인-dm-데일리-브리핑-2026-07-07)"·"[✅ Slack 알림 B-1](#-slack-알림-b-1-1단계--알림스탠드업-2026-07-07)" 절. Phase 3(할일 생성→담당자 DM)은 계획됨. · ~~CLI/MCP 배포(30번)~~ → **✅ 완료 (2026-07-07, 방식 (b) 사내 실행)**: npm 공개 대신 **repo 실행 유지**(`pnpm --filter @que/mcp start`). `/tools` 온보딩에 **"사전 준비" 블록**(Node·pnpm·git 설치 macOS/Windows + 확인, 복사 버튼) 추가로 비개발 팀원도 복사·붙여넣기로 온보딩 완결. 전체 레퍼런스 `que-tools-guide.md`. ~~스케줄러 Vercel Cron 전환~~ → **✅ 활성화 완료 (2026-07-07)**: Pro 이전(4번) 후 `apps/web/vercel.json`에 `crons */10 * * * *`(`/api/cron/sync`) 복구·배포 성공(Pro라 수락). `CRON_SECRET`(랜덤, data/.env 기록)·`QUE_CRON_ACTIVE=1`을 Vercel **production** env에 설정 → lazy sync 꺼지고 cron이 스케줄 권위. 검증: 무인증/오시크릿 401, 올바른 Bearer 200 `{ok:true,checkInsCreated:4}`(실제 체크인 생성). Vercel이 10분마다 자동 호출(대시보드 Crons 탭에서 스케줄·다음 실행 확인 가능). 상세 `deploy-vercel-supabase.md` 4-1.
 4. ~~**Pro 계정으로 프로젝트 이전**~~ → **✅ 완료 (2026-07-07)**. Vercel "Transfer Project"로 `que`를 Hobby 팀 `griff0120s-projects` → **Pro 팀 `griff-fde0dc32`("GRIFF")**로 이전. **env(AUTH_SECRET·SUPABASE_URL·SUPABASE_SECRET_KEY·QUE_DB)·도메인(que.griff.co.kr·view.griff.co.kr)·git 연동이 함께 이동**(Transfer 마법사가 자동 처리 — 재설정 불필요했음). `.vercel/project.json` orgId `team_adk2R8uxbLjr0BeZ9yzjfZxC` → **`team_rSoKnhEmb773JXpYGBdkdQwU`**(projectId `prj_FSGUPN9iXotjqSw5X5btx4dN0At9` 동일). 검증: que/view 도메인 200·icn1·noindex 정상, env 4개 정상. **버려진 `que-web` 프로젝트(GRIFF 팀, 도메인 없음)는 삭제 예정**. ⚠️ [[end-of-work-routine]] 메모의 배포 팀을 GRIFF로 갱신함. **이제 cron `*/10` 활성화 언블록**(위 3번 (A)안): `vercel.json` crons 복구 + `CRON_SECRET` 설정 + `QUE_CRON_ACTIVE=1` → 다음 단계.
+
+## ✅ 마무리 스윕 감사 배치 9 — 대표 홈 요청함·부하표 후속·딥링크·월간 칩 캡 (2026-07-08)
+
+글래도스 게이트 재심사 배치. 감사 원문 DASH-6·RPT-1 후속 + `/clients?client=` 딥링크 소비 + 월간 뷰 칩 캡 마일스톤 산입 최소 diff 구현. 표시/데이터 유도·라우팅 전용 — **core·도메인 파일 diff 0건**(mutation 경로 무접촉), 상태색 의미 고정 준수(색+아이콘/텍스트 병행), 새 mutation 경로 없음. **변경 파일 7개**: `apps/web/src/app/(app)/clients/page.tsx`, `apps/web/src/components/clients/client-groups.tsx`, `apps/web/src/components/home/ceo-home.tsx`, `apps/web/src/components/performance/low-performers-table.tsx`, `apps/web/src/components/schedule/month-view.tsx`, `apps/web/src/lib/home-grade-data.ts`, `apps/web/src/lib/performance-data.ts`.
+
+- **DASH-6 (대표 홈 요청함) — 사용자 결정**: 사용자 확정 "**대표 홈에도 RequestInbox('내게 온 요청')를 넣는다**". `ceo-home.tsx`에 staff 홈과 동일한 요청함을 배선하되 **기존 `getAlerts`/`getNoteSummary`를 그대로 재사용**(새 데이터 경로 없음 — staff 홈과 동일 계약). **배치 위치 = 결제 요약 아래, 내 오늘 할 일 위**(사용자 지정). 검증: ceo 홈 1건 렌더, manager 0건·staff 1건(회귀 없음).
+- **RPT-1 후속 (부하표 순위 인상 제거·조치 신호 추가)**: 배치 1에서 ceo 전용화한 `lowPerformers`를 **순위표 성격에서 운영 표로 전환**. (1) **정렬 제거** — 기존 '초과 많고 완료 적은 순' 내림차순 정렬을 삭제하고 **db.users 원 순서 고정**(개인 순위 인상 방지, RPT-1 취지). (2) **'막힘 사유·경과' 열 추가**(`low-performers-table.tsx`) — issue=red / on_hold=amber / 없으면 '—'(색+텍스트 병행). (3) **ceo 전용 게이트 보존**(배치 1의 `isCeo` 분기·데이터 스코핑 유지, manager는 '내 월간 요약'만). 표 제목은 중립 유지. `performance-data.ts:330` 주석도 '(db.users 고정 순서, 정렬 없음)'으로 갱신(스테일 방지).
+- **`/clients?client=` 딥링크 소비**: 배치 6에서 '알려진 갭'으로 남긴 항목 마감. `clients/page.tsx`가 `client` searchParam을 소비해 `client-groups.tsx`에서 해당 클라이언트 카드를 하이라이트 — **note-list 선례 패턴 재사용**(`ring-2`+`brand-subtle` 배경+`scrollIntoView`). 쿼리 없으면 하이라이트 0건, 비관리자는 기존 307 리다이렉트(/home) 유지. 토큰 라이트/다크 모두 정의.
+- **월간 뷰 칩 캡 마일스톤 산입**: 배치 3의 비차단 메모(월간 `dayItems.slice(0,3)` 상한에 마일스톤 미산입) 마감. `month-view.tsx`에서 이벤트 표시 상한을 **`eventCap = max(0, 3 - 마일스톤수)`**로 계산 — 마일스톤이 칩 예산을 차지하고, `hiddenItems`(N개 더)는 **잘린 이벤트 수만** 정확히 카운트(마일스톤은 항상 렌더되므로 미포함). 마일스톤 0개 셀은 기존과 동일(회귀 없음), `min-h-[6.5rem]`·배치 3 종일 밴드 무접촉. 비차단 관찰: 마일스톤 4개+인 날은 마일스톤 칩 자체는 무제한 렌더(스펙 밖, 기록만).
+- 검증: dev 서버 부재 확인(`pgrep -fl "next dev"` 0건) 후 실행 — `pnpm lint` exit 0 · `pnpm -r typecheck` 4워크스페이스 Done · `pnpm build` exit 0(dev 서버 부재 확인 후). 실 계정 3개(ceo=황성현·manager=오승훈·staff=박승환) 브라우저 렌더로 DASH-6 배치·RPT-1 db.users 순서/막힘 열·딥링크 하이라이트·월간 eventCap 실측 완료. core 테스트 209 통과(이번 배치 mutation 무접촉). `git status` 정확히 위 7개 파일만 M(스코프 크립·임시 파일·죽은 코드 없음).
 
 ## ✅ /projects 감사 P1 수정 — 댓글/도움요청 + overdue 신호 (2026-07-07)
 

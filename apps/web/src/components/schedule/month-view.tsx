@@ -37,6 +37,11 @@ export function MonthView({
                 .sort((a, b) => a.startAt.localeCompare(b.startAt));
               // 마일스톤은 해당 마감일 셀 상단에 읽기 전용 마커로 표시(빈 날은 렌더 안 함).
               const dayMilestones = milestones.filter((m) => isSameDay(new Date(m.dueAt), day));
+              // 칩 캡(3)에 마일스톤을 산입한다 — 마일스톤 n개면 이벤트 칩은 3-n개까지만 노출해
+              // 셀 과밀을 막고, '+N'이 잘린 이벤트 수를 정확히 반영하게 한다.
+              const eventCap = Math.max(0, 3 - dayMilestones.length);
+              const shownItems = dayItems.slice(0, eventCap);
+              const hiddenItems = dayItems.length - shownItems.length;
               const outside = !isSameMonth(day, anchor);
               const today = isToday(day);
               return (
@@ -64,12 +69,12 @@ export function MonthView({
                     {dayMilestones.map((m) => (
                       <MilestoneChip key={`milestone-${m.id}`} milestone={m} />
                     ))}
-                    {dayItems.slice(0, 3).map((it) => (
+                    {shownItems.map((it) => (
                       <MonthChip key={`${it.kind}-${it.id}`} item={it} />
                     ))}
-                    {dayItems.length > 3 && (
+                    {hiddenItems > 0 && (
                       <span className="px-1 text-[10px] text-[var(--que-text-tertiary)]">
-                        +{dayItems.length - 3}개 더
+                        +{hiddenItems}개 더
                       </span>
                     )}
                   </div>

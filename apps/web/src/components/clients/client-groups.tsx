@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type DragEvent } from "react";
+import { useEffect, useRef, useState, type DragEvent } from "react";
 import { ChevronDown, ChevronUp, GripVertical } from "lucide-react";
 import {
   reorderClientsAction,
@@ -61,11 +61,14 @@ export function ClientGroups({
   unassigned,
   clientOptions,
   users,
+  highlightId,
 }: {
   clients: ClientGroup[];
   unassigned: ProjectRowData[];
   clientOptions: { id: string; name: string }[];
   users: UserOption[];
+  // 홈 딥링크(/clients?client=<id>)로 도착한 클라이언트 카드를 강조·스크롤(note-list 선례).
+  highlightId?: string;
 }) {
   const { run, pending } = useSafeAction();
   // 표시 순서의 로컬 상태(id 배열). 서버가 재검증으로 새 목록을 주면 동기화한다.
@@ -132,6 +135,7 @@ export function ClientGroups({
           client={c}
           clientOptions={clientOptions}
           users={users}
+          highlighted={c.id === highlightId}
           reorderable={reorderable}
           reorderPending={pending}
           isFirst={index === 0}
@@ -169,6 +173,7 @@ function ClientCard({
   client: c,
   clientOptions,
   users,
+  highlighted,
   reorderable,
   reorderPending,
   isFirst,
@@ -183,6 +188,7 @@ function ClientCard({
   client: ClientGroup;
   clientOptions: { id: string; name: string }[];
   users: UserOption[];
+  highlighted: boolean;
   reorderable: boolean;
   reorderPending: boolean;
   isFirst: boolean;
@@ -199,6 +205,11 @@ function ClientCard({
   const [name, setName] = useState(c.name);
   // 보관은 전역 클라이언트 필터에 파급되므로 확인 Dialog를 거친다(복구는 즉시).
   const [archiveOpen, setArchiveOpen] = useState(false);
+  const cardRef = useRef<HTMLDivElement | null>(null);
+  // 딥링크로 강조된 카드는 마운트 시 화면 안으로 스크롤한다(note-list 선례).
+  useEffect(() => {
+    if (highlighted) cardRef.current?.scrollIntoView({ block: "center" });
+  }, [highlighted]);
 
   const archived = c.status === "archived";
   const trimmed = name.trim();
@@ -243,13 +254,19 @@ function ClientCard({
 
   return (
     <div
+      ref={cardRef}
       draggable={canDrag}
       onDragStart={canDrag ? handleDragStart : undefined}
       onDragEnd={canDrag ? onDragEnd : undefined}
       onDragOver={reorderable ? handleDragOver : undefined}
       onDrop={reorderable ? handleDrop : undefined}
       data-dragging={isDragging ? "" : undefined}
-      className="rounded-xl border border-[var(--que-border)] bg-[var(--que-bg)] p-4 shadow-[var(--que-shadow-sm)] data-[dragging]:opacity-50"
+      className={
+        "scroll-mt-4 rounded-xl border bg-[var(--que-bg)] p-4 shadow-[var(--que-shadow-sm)] data-[dragging]:opacity-50 " +
+        (highlighted
+          ? "border-[var(--que-brand)] bg-[var(--que-brand-subtle)] ring-2 ring-[var(--que-brand)]"
+          : "border-[var(--que-border)]")
+      }
     >
       <div className="flex flex-wrap items-center gap-2">
         {reorderable && (
