@@ -43,7 +43,17 @@ mock 인증: 쿠키 `que-user=<id>` / PAT `que_pat_<id>` (예: `hwang-sunghyeon`
 5. ~~**Phase 3 (할일 생성→담당자 DM)**~~ → **✅ 완료 (2026-07-08)**: 할일 생성 즉시 담당자에게 개인 DM(task_created). Phase 2 Bot DM 인프라 재사용. 아래 "Slack Phase 3" 절.
 6. (후순위) 그리프 3,4Q 프로젝트 임포트([[griff-3-4q-schedule-sheet]], 담당자 부재 블로커) · 홈 정식 디자인(프리뷰 전 착수 금지).
 
-**Vercel env 게이트 현황(GRIFF/que production)**: `SLACK_WEBHOOK_URL`·`SLACK_BOT_TOKEN`·`CRON_SECRET`·`QUE_CRON_ACTIVE=1`·`NEXT_PUBLIC_SENTRY_DSN`·`QUE_DB=supabase`·`SUPABASE_*`·`AUTH_SECRET` 설정됨. 미설정: `QUE_DEADLINE_THRESHOLD_HOURS`(기본24)·`QUE_QUIET_HOURS`(기본22-8)·`QUE_DIGEST_RECIPIENTS`(미설정=전체)·`GOOGLE_SERVICE_ACCOUNT_KEY`·`QUE_ALLOW_MOCK_AUTH`(의도적 미설정).
+**Vercel env 게이트 현황(GRIFF/que production)**: `SLACK_WEBHOOK_URL`·`SLACK_BOT_TOKEN`·`CRON_SECRET`·`QUE_CRON_ACTIVE=1`·`NEXT_PUBLIC_SENTRY_DSN`·`QUE_DB=supabase`·`SUPABASE_*`·`AUTH_SECRET`·**`QUE_DIGEST_RECIPIENTS=hwang-sunghyeon`(대표만 — Slack Phase 3/브리핑 단계 롤아웃, 전원확대는 C-1 후. 위 롤아웃 절 참고)** 설정됨. 미설정: `QUE_DEADLINE_THRESHOLD_HOURS`(기본24)·`QUE_QUIET_HOURS`(기본22-8)·`GOOGLE_SERVICE_ACCOUNT_KEY`·`QUE_ALLOW_MOCK_AUTH`(의도적 미설정).
+
+#### 🗺 남은 일정 정리 (2026-07-08, 정본=`que-roadmap-plan.md` "현황" 표)
+지금 착수할 **자립 개발 작업은 없다** — 전부 대기/후순위/디자인대기/스킵/수동. **C-1(구글캘린더)이 열쇠**로, 전원확대·알림 비차단이 여기 묶여 함께 멈춰 있다.
+1. **C-1 구글캘린더 실연결 전환** — ⏸ 대기(사용자). 더미 청소 먼저. 이게 풀려야 아래 2·3도 언블록.
+2. **Slack 전원확대** — 🔒 C-1 후. `vercel env rm QUE_DIGEST_RECIPIENTS production` + `vercel --prod` → 7명 브리핑 복구 + Phase 3/브리핑 전원.
+3. **알림 파이프라인 비차단**(outbox 동시크론 race·private task 필터 가드) — 🔒 C-1 후(MCP/CLI 확장 전 권장).
+4. **C-2 Slack 인터랙티브**(Slack 체크인 응답) — 📥 후순위(언제든 가능, 우선순위 낮음).
+5. **C-3 홈·알림·설정 정식 디자인** — ⏸ 디자인 시안 대기(코딩 아님).
+6. **Sentry 소스맵/트레이싱** — ⏭ 스킵(읽기 힘든 프로덕션 에러 실제 발생 시만).
+7. **그리프 3·4Q 시트 임포트** — ✋ 수동 처리 중, 자동화 불요.
 
 #### env 트랙 (사용자가 "하나씩" 진행 중)
 1. ~~**Vercel 배포**~~ → **완료 (43번)**. <https://que-rouge-eight.vercel.app> (Root=`apps/web`, 리전 `icn1`, 실 DB+실 인증). **주의: Deployment Protection이 현재 꺼진 상태**(대시보드에서 재활성화 필요) — 단 실 인증+mock API 503이라 공개라도 안전. `QUE_ALLOW_MOCK_AUTH`는 **안 켬**(mock PAT 봉인). (`data/docs/deploy-vercel-supabase.md`)
