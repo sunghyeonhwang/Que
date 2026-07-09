@@ -1,0 +1,5 @@
+clientName,projectName,title,dueAt,riskStatus
+# 클라이언트명(선택·동명 프로젝트 구분용),프로젝트명(필수),마일스톤명(필수),마감 ISO(+09:00),on_track(정상)/at_risk(주의)/late(지연) 기본 on_track
+멘딕스,여름 프로모션,프로모션 오픈,2026-07-20T10:00:00+09:00,on_track
+에픽게임즈,결제 개선,결제 QA 완료,2026-07-18T18:00:00+09:00,at_risk
+그리프,CS 운영,FAQ 개편 배포,2026-07-25T12:00:00+09:00,on_track
