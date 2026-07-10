@@ -45,6 +45,24 @@ type _OrderCoversAllTables = AssertNever<
   Exclude<TableName, (typeof TABLE_INSERT_ORDER)[number]>
 >;
 
+// ── 스냅샷 TTL 캐시 (2026-07-11 성능) ─────────────────────────────────────────
+// 서버리스 인스턴스(모듈 스코프)별 캐시. 같은 인스턴스에 연속 요청이 떨어지면 TTL 안에서는
+// 실 DB 왕복(~110ms) 없이 스냅샷을 재사용한다. persist가 실제로 뭔가 쓰면 즉시 무효화해
+// "방금 저장했는데 다음 화면이 옛날 데이터"가 되는 UX를 막는다(다른 인스턴스는 최대 TTL 지연 — 수용).
+// QUE_SNAPSHOT_TTL_MS=0 으로 끌 수 있다(기본 5000ms).
+const SNAPSHOT_TTL_MS = (() => {
+  const raw = Number(process.env.QUE_SNAPSHOT_TTL_MS);
+  return Number.isFinite(raw) && raw >= 0 ? raw : 5000;
+})();
+
+interface SnapshotCacheEntry {
+  at: number;
+  /** TABLE_TO_FIELD 필드별 rows — 저장·배포 모두 깊은 복사로 인스턴스 간 오염을 차단한다. */
+  fields: Record<string, unknown[]>;
+  outbox: NotificationOutboxEntry[];
+}
+let snapshotCache: SnapshotCacheEntry | null = null;
+
 export class SupabaseQueDb extends MockQueDb {
   private readonly client: SupabaseClient;
   /** 로드 시점의 엔티티별 직렬화 스냅샷(테이블→id→JSON). persist가 이 기준으로 diff한다. */
@@ -64,8 +82,19 @@ export class SupabaseQueDb extends MockQueDb {
 
   /** 실 DB 전체를 읽어 부모의 public 배열을 채운다.
    *  17개 테이블을 순차로 돌면 요청마다 왕복 지연이 테이블 수만큼 누적된다(실측 ~600ms)
-   *  — 전 테이블을 병렬 SELECT해 가장 느린 한 번의 왕복 시간으로 줄인다(2026-07-11). */
+   *  — 전 테이블을 병렬 SELECT해 가장 느린 한 번의 왕복 시간으로 줄인다(2026-07-11).
+   *  TTL 안이면 인스턴스 캐시 스냅샷을 깊은 복사로 재사용한다(위 SNAPSHOT_TTL_MS 참조). */
   async load(): Promise<void> {
+    if (SNAPSHOT_TTL_MS > 0 && snapshotCache && Date.now() - snapshotCache.at < SNAPSHOT_TTL_MS) {
+      for (const [field, rows] of Object.entries(snapshotCache.fields)) {
+        (this as unknown as Record<string, unknown[]>)[field] = structuredClone(rows);
+      }
+      this.notificationOutbox = structuredClone(snapshotCache.outbox);
+      this.outboxBaseline = new Map(this.notificationOutbox.map((e) => [e.id, JSON.stringify(e)]));
+      this.snapshotBaseline();
+      return;
+    }
+
     await Promise.all(
       (Object.entries(TABLE_TO_FIELD) as [TableName, string][]).map(async ([table, field]) => {
         // select("*")는 순서를 보장하지 않는다. 로그류는 createdAt 오름차순으로 로드해 두어
@@ -103,6 +132,22 @@ export class SupabaseQueDb extends MockQueDb {
     // dedup_key ON CONFLICT DO NOTHING으로 써야 서버리스 동시 삽입에서 중복이 안 생긴다. 별도로 로드.
     await this.loadOutbox();
     this.snapshotBaseline();
+
+    // 캐시 저장 — milestoneIds 재구성·users 민감 컬럼 제거가 끝난 최종 상태를 깊은 복사로 보관한다
+    // (이 인스턴스가 이후 mutate해도 캐시가 오염되지 않게).
+    if (SNAPSHOT_TTL_MS > 0) {
+      const fields: Record<string, unknown[]> = {};
+      for (const field of Object.values(TABLE_TO_FIELD)) {
+        fields[field] = structuredClone(
+          (this as unknown as Record<string, unknown[]>)[field] ?? [],
+        );
+      }
+      snapshotCache = {
+        at: Date.now(),
+        fields,
+        outbox: structuredClone(this.notificationOutbox),
+      };
+    }
   }
 
   /** notification_outbox 스냅샷 로드 + 전용 baseline 기록. */
@@ -127,6 +172,7 @@ export class SupabaseQueDb extends MockQueDb {
 
   /** 변경분 write-through: 신규/변경은 upsert(FK 순서), 삭제는 역순. 변경 없으면 네트워크 호출 없음. */
   async persist(): Promise<void> {
+    let didWrite = false;
     // upsert: FK 안전 순서 (users → ... → 로그류)
     for (const table of TABLE_INSERT_ORDER) {
       // ⚠️ users는 절대 write-back하지 않는다. load()에서 password_hash·email을 제거했으므로
@@ -141,6 +187,7 @@ export class SupabaseQueDb extends MockQueDb {
         const rows = changed.map((e) => rowForTable(table, e as unknown as Record<string, unknown>));
         const { error } = await this.client.from(table).upsert(rows);
         if (error) throw new Error(`Supabase upsert ${table} 실패: ${error.message}`);
+        didWrite = true;
       }
     }
     // delete: 역순 (자식 먼저)
@@ -154,10 +201,14 @@ export class SupabaseQueDb extends MockQueDb {
       if (removed.length > 0) {
         const { error } = await this.client.from(table).delete().in("id", removed);
         if (error) throw new Error(`Supabase delete ${table} 실패: ${error.message}`);
+        didWrite = true;
       }
     }
-    await this.persistOutbox();
+    if (await this.persistOutbox()) didWrite = true;
     this.snapshotBaseline(); // 같은 요청에서 persist가 여러 번 불릴 때를 대비해 기준 갱신
+    // 실제 쓰기가 있었으면 이 인스턴스의 스냅샷 캐시를 버린다 — 같은 컨테이너의 다음 요청이
+    // 방금 저장한 내용을 5초 묵은 캐시로 가리는 UX를 막는 핵심 안전장치.
+    if (didWrite) snapshotCache = null;
   }
 
   /**
@@ -166,7 +217,7 @@ export class SupabaseQueDb extends MockQueDb {
    *    UNIQUE 위반으로 persist가 throw하지 않고 조용히 흡수(중복 발송 방지의 핵심). 삭제는 없음(원장 보존).
    *  - 변경: 이미 DB에 있는 행(id)의 status/sent_at/attempts 등 → id(PK) upsert.
    */
-  private async persistOutbox(): Promise<void> {
+  private async persistOutbox(): Promise<boolean> {
     const arr = this.notificationOutbox;
     const newRows = arr.filter((e) => !this.outboxBaseline.has(e.id));
     const changed = arr.filter(
@@ -189,5 +240,6 @@ export class SupabaseQueDb extends MockQueDb {
       if (error) throw new Error(`Supabase upsert notification_outbox 실패: ${error.message}`);
     }
     this.outboxBaseline = new Map(arr.map((e) => [e.id, JSON.stringify(e)]));
+    return newRows.length > 0 || changed.length > 0;
   }
 }
