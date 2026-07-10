@@ -53,7 +53,9 @@ export function buildCheckinPromptIntents(db: MockQueDb, now: Date): Notificatio
       marker: dateKey,
       recipient: checkIn.assigneeId,
       payload: {
-        title: "작업 체크인",
+        // 명칭은 홈 명세의 용어 계약을 따른다: 사용자 노출 문구는 "작업 상태 확인"
+        // ("작업 체크인"·"상태 체크" 혼용 금지 — que-home-spec.md §1).
+        title: "작업 상태 확인",
         text: `오늘 시작한 '${task.title}' 작업, 어떻게 되고 있나요? 아래 버튼으로 바로 응답할 수 있습니다.`,
         deeplinkPath: "/today",
         tone: "blue",
