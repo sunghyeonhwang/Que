@@ -57,7 +57,7 @@ export default async function TeamPage({
     { value: data.summary.issues, label: "문제발생" },
     { value: data.summary.onHold, label: "홀드" },
     { value: data.summary.dueSoon, label: "마감 임박" },
-    { value: data.summary.awaiting, label: "응답 대기" },
+    { value: data.summary.awaiting, label: "상태 응답 대기" },
   ];
 
   return (
@@ -275,7 +275,7 @@ export default async function TeamPage({
 }
 
 function AttentionRow({ entry }: { entry: AttentionEntry }) {
-  // 색·아이콘·라벨은 홈(AttentionList)과 공유하는 단일 소스에서 가져온다(DASH-2).
+  // 색·아이콘·라벨은 단일 소스(attention-config)에서 가져온다(DASH-2 — 구 홈 AttentionList는 C-3b에서 은퇴).
   const config = ATTENTION_CONFIG[entry.type];
   const Icon = config.icon;
 

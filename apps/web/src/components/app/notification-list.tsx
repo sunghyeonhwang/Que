@@ -14,6 +14,8 @@ const TONE_DOT: Record<AlertTone, string> = {
   red: "bg-[var(--que-error)]",
   amber: "bg-[var(--que-warning)]",
   violet: "bg-[var(--que-violet)]",
+  blue: "bg-[var(--que-brand)]",
+  green: "bg-[var(--que-success)]",
 };
 
 export function NotificationList({

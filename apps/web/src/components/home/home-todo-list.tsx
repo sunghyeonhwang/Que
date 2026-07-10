@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Clock, Folder } from "lucide-react";
 import type { HomeTodoItem } from "@/lib/home-data";
 import { MemberAvatars } from "@/components/projects/member-avatars";
+import { HomeTodoToggle } from "@/components/home/home-todo-toggle";
 
 /** 오늘 할 일 — 내 오늘/기한초과 작업. 내부 세로 스크롤. 행 클릭은 작업 목록으로. */
 export function HomeTodoList({ todos }: { todos: HomeTodoItem[] }) {
@@ -20,8 +21,11 @@ export function HomeTodoList({ todos }: { todos: HomeTodoItem[] }) {
           key={todo.id}
           className="rounded-lg border border-[var(--que-border)] p-3"
         >
-          <div className="flex items-start justify-between gap-2">
-            <p className="text-sm font-medium text-[var(--que-text)]">{todo.title}</p>
+          <div className="flex items-start gap-2">
+            <HomeTodoToggle taskId={todo.id} title={todo.title} />
+            <p className="flex-1 pt-1.5 text-sm font-medium text-[var(--que-text)]">
+              {todo.title}
+            </p>
             {todo.overdue ? (
               <span className="shrink-0 rounded-full bg-[var(--que-error-bg)] px-2 py-0.5 text-xs font-medium text-[var(--que-error)]">
                 기한 초과

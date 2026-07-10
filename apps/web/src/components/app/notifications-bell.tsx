@@ -11,6 +11,8 @@ const TONE_DOT: Record<AlertTone, string> = {
   red: "bg-[var(--que-error)]",
   amber: "bg-[var(--que-warning)]",
   violet: "bg-[var(--que-violet)]",
+  blue: "bg-[var(--que-brand)]",
+  green: "bg-[var(--que-success)]",
 };
 
 /** 상단바 알림 — 운영 신호(문제/기한초과/확인필요/결제)를 목록으로 보여주고 각 화면으로 이동.

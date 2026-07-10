@@ -1,4 +1,14 @@
-import { gradeForRank, gradeForUser, type User } from "@que/core";
+import { format } from "date-fns";
+import { ko } from "date-fns/locale";
+import {
+  canViewPrivateEventDetail,
+  formatProjectLabel,
+  gradeForRank,
+  gradeForUser,
+  type CalendarEvent,
+  type Task,
+  type User,
+} from "@que/core";
 import { getDb } from "./db";
 import type { ListViewMember } from "./pm-types";
 import {
@@ -11,15 +21,26 @@ import {
   getPerformanceData,
   type MonthlyCompletion,
   type PerfKpi,
-  type PerformancePoint,
   type ProjectProgressRow,
 } from "./performance-data";
 import type { HeatmapData } from "./heatmap-data";
-import { getTeamData, type AttentionEntry, type ConflictEntry, type TeamData } from "./team-data";
+import {
+  getStandupData,
+  getTeamData,
+  type AttentionEntry,
+  type ConflictEntry,
+  type TeamData,
+} from "./team-data";
 import { getAdminReportData, type AdminReportData, type ReportBlocker } from "./report-data";
 import { getPlanningData, type MilestoneRow } from "./planning-data";
 import { getClientOverview, type ClientOverviewRow } from "./client-overview";
-import { getAlerts, type AlertsData } from "./alerts-data";
+import {
+  getTeamPriorityItems,
+  getViewerAlerts,
+  type AlertsData,
+  type TeamPriorityData,
+} from "./alerts-data";
+import { isAwaitingAnswer } from "./notifications/checkin-prompt";
 import { getNoteSummary, type NoteSummary } from "./notes-summary";
 
 // 직급별(대표/관리자/사원) 홈 데이터 조립 계층. 기존 조회 계층(getHomeData·performance·team·
@@ -37,6 +58,137 @@ export interface GradeHomeOptions {
   dp?: "week" | "month";
   /** 클라이언트 필터. */
   clientId?: string;
+  /** 업무 흐름(WorkflowTrend) 창 — 최근 몇 주. 4|8|12. 기본 8. */
+  wf?: 4 | 8 | 12;
+}
+
+// ── 홈 공통 파생 타입(홈 명세 §1 네이밍 계약) ─────────────────────────────────
+// 화면(Home/*)이 이 타입들을 소비한다. 기존 필드(kpis·heatmap·loadByMember 등)는 화면 교체
+// 전까지 유지하고, 아래 신규 필드로 §3~§5 섹션 계약을 채운다.
+
+/** Home/KPICard 한 칸. 숫자만 두지 않고 관련 필터 화면으로 연결(href). */
+export interface HomeKpi {
+  key: string;
+  label: string;
+  value: number;
+  /** 클릭 시 이동할 상세/필터 화면. 없으면 비링크. */
+  href?: string;
+  /** 강조 tone. danger=위험(문제·기한초과), warning=주의, success=완료, info/기본. */
+  tone?: "default" | "info" | "warning" | "danger" | "success";
+}
+
+export interface HomeAwayEntry {
+  name: string;
+  /** "오전"·"오후"·"종일"(자리비움) 또는 "HH:mm"(외부 일정). */
+  when: string;
+}
+
+/** 오늘 일정 카드 하단 부재 칩(전 역할 공통, §2). 비공개는 사유 없이 이름만. */
+export interface HomeAwayChip {
+  /** 오늘 자리비움(비공개 포함 — 사유 없이 이름·시간대만). */
+  away: HomeAwayEntry[];
+  /** 오늘 외부 회사 일정(source=company). */
+  external: HomeAwayEntry[];
+}
+
+/** 사원 오늘 요약(규칙 기반, AI 폴백 겸 기본). */
+export interface StaffTodaySummary {
+  todoCount: number;
+  /** 24시간 내 마감 임박(본인). */
+  dueSoonCount: number;
+  /** 응답할 자동 체크인 수. */
+  checkInCount: number;
+  /** 어제 못 끝나 이월된 작업 수(getStandupData 재사용). */
+  carryoverCount: number;
+  /** "오늘 할 일 3건, 어제 못 끝낸 2건이 이월됐습니다" 같은 규칙 기반 문장. */
+  lines: string[];
+}
+
+/** 사원 '작업 상태 확인'(Home/CheckIn) 리스트 행. */
+export interface HomeCheckInItem {
+  checkInId: string;
+  taskId: string;
+  taskTitle: string;
+  projectLabel: string | null;
+  question: string;
+}
+
+/** 관리자 오늘 요약(팀관리 AI 브리핑 폴백 겸 기본). */
+export interface ManagerTodaySummary {
+  /** 문제·홀드(막힘). */
+  issueCount: number;
+  /** 일정 충돌. */
+  conflictCount: number;
+  /** 과부하 인원(예상 시간 임계 초과). */
+  overloadCount: number;
+  /** 상태 응답 대기(자동 체크인). */
+  awaitingCount: number;
+  lines: string[];
+}
+
+/** 대표 오늘 요약(경영 AI 브리핑 폴백 겸 기본). */
+export interface CeoTodaySummary {
+  /** 위험/지연 프로젝트. */
+  riskProjectCount: number;
+  /** 기한초과 열린 작업(전사). */
+  overdueCount: number;
+  /** 과부하 인원. */
+  overloadCount: number;
+  /** 결정·확인 대기(확인 필요 Action + 결제 대기). */
+  decisionCount: number;
+  lines: string[];
+}
+
+/** Home/ProjectOverview 한 행(위험도 높은 활성 프로젝트). */
+export interface HomeProjectRow {
+  projectId: string;
+  name: string;
+  /** 진행률 = done/전체(merged·cancelled 제외), 0~100. */
+  progress: number;
+  /** 임박 마일스톤 또는 임박 작업 마감 "M월 d일". 없으면 null. */
+  dueLabel: string | null;
+  /** 기한초과 열린 작업 수. */
+  overdueTasks: number;
+  /** 문제·홀드로 막힌 작업 수. */
+  blockedTasks: number;
+  /** 열린(집계 대상, done 제외) 작업 수. */
+  openTasks: number;
+  /** 지연/주의/정상. */
+  status: "delayed" | "at_risk" | "on_track";
+}
+
+/** Home/WorkflowTrend 주별 한 점. */
+export interface WorkflowWeek {
+  /** 날짜 구간 "MM.DD-MM.DD". */
+  label: string;
+  /** 신규(해당 주 최초 상태로그 = 생성 시각). */
+  created: number;
+  /** 완료(해당 주 done 전이). */
+  completed: number;
+  /** 기한초과(해당 주 마감인데 기한 내 완료 못 한 작업). */
+  overdue: number;
+}
+
+export interface WorkflowTrend {
+  weeks: WorkflowWeek[];
+  /** 창 크기(주). 4|8|12. */
+  weeksBack: number;
+  /** 이번 주 순증 = 이번 주 신규 - 완료. 음수 가능(적체 감소). */
+  netChange: number;
+  /** "이번 주 순증 -2 (적체 감소)" 배지 문구. */
+  netLabel: string;
+}
+
+/** Home/Pending 요약(보조 대기 신호). */
+export interface HomePending {
+  /** 대기(waiting) 결제 수. */
+  pendingPayments: number;
+  /** 마감 초과 결제 수. */
+  overduePayments: number;
+  /** 확인 필요 Action 수. */
+  needsReviewActions: number;
+  /** 7일 이상 응답 없는 자동 체크인 수(장기 상태 응답 대기). */
+  longAwaitingCheckins: number;
 }
 
 interface HomeBase {
@@ -49,27 +201,44 @@ interface HomeBase {
   /** 본인 오늘 일정. */
   schedule: HomeScheduleItem[];
   scheduleDateLabel: string;
+  /** 오늘 일정 카드 하단 부재 칩(전 역할 공통). */
+  awayChip: HomeAwayChip;
 }
 
-/** 사원 홈: 본인 중심(내 KPI·할 일·일정·요청·기여·성과 라인). */
+/** 사원 홈: 본인 중심(내 오늘 요약·KPI·할 일·일정·체크인·우선 확인). 팀 지표·업무 흐름 없음(§3). */
 export interface StaffHomeData extends HomeBase {
   grade: "staff";
-  /** 본인 스코프 KPI(사원은 KPI도 self). */
-  kpis: PerfKpi[];
-  rangeLabel: string;
-  /** 내 기여 히트맵(본인 1행). */
-  contributionHeatmap: HeatmapData;
-  /** 내 작업 성과 라인(self). */
-  performanceTrend: PerformancePoint[];
-  /** 내게 온 신호(병목/확인필요/기한초과/결제) — 상단바 벨과 같은 소스. */
+  // ── 신규(§3 섹션 계약) ──
+  /** Home/KPIGroup — 오늘 할 일·진행 중·이번 주 완료·기한 초과(전부 본인). */
+  homeKpis: HomeKpi[];
+  /** Home/TodaySummary — 규칙 기반 오늘 요약(어제 이월 포함). AI 브리핑 폴백. */
+  todaySummary: StaffTodaySummary;
+  /** Home/CheckIn — 응답 대기 자동 체크인 리스트(있을 때만 카드 표시). */
+  checkIns: HomeCheckInItem[];
+  /** Home/Priority + 상단바 벨과 같은 viewer-scoped 소스(체크인 포함). 화면은 kind!=="checkin"만 우선 확인에. */
   alerts: AlertsData;
   /** 확인 필요 Action 등 회의록 요약. */
   noteSummary: NoteSummary;
 }
 
-/** 관리자 홈: 팀 운영(요약·병목·충돌·부하·확인필요·결제) + 본인 축소. */
+/** 관리자 홈: 팀 운영(요약·병목·충돌·부하·프로젝트·업무 흐름·처리 대기) + 본인 실행 축소. */
 export interface ManagerHomeData extends HomeBase {
   grade: "manager";
+  // ── 신규(§4 섹션 계약) ──
+  /** Home/KPIGroup — 활성 프로젝트·열린 작업·현재 막힘·마감 임박·일정 충돌·상태 응답 대기. */
+  homeKpis: HomeKpi[];
+  /** Home/TodaySummary — 규칙 기반 요약. 팀관리 AI 브리핑 폴백. */
+  todaySummary: ManagerTodaySummary;
+  /** Home/Priority — 팀 우선 확인(문제→홀드→도움요청→충돌→응답대기→선행지연, 최대 5 + 총수). */
+  teamPriority: TeamPriorityData;
+  /** Home/ProjectOverview — 위험도 높은 활성 프로젝트 최대 5. */
+  projectOverview: HomeProjectRow[];
+  /** Home/WorkflowTrend — 주별 신규·완료·기한초과 + 순증(전사 스코프, 클라이언트 필터 존중). */
+  workflowTrend: WorkflowTrend;
+  /** Home/Pending — 결제 대기·확인 필요 Action·장기 상태 응답 대기. */
+  pending: HomePending;
+
+  // ── 기존(유지) ──
   teamSummary: TeamData["summary"];
   /** 주의 필요 병목(대표 담당 작업의 문제/홀드 포함 — 병목 공유). */
   attention: AttentionEntry[];
@@ -81,9 +250,26 @@ export interface ManagerHomeData extends HomeBase {
   overduePayments: number;
 }
 
-/** 대표 홈: 전사 관점(KPI·완료 추이·프로젝트/위험 마일스톤·막힘·클라이언트별·전원 부하) + 본인. */
+/** 대표 홈: 전사 관점(2줄 KPI·우선 확인·프로젝트/클라이언트·업무 흐름·전원 부하·처리 대기) + 본인. */
 export interface CeoHomeData extends HomeBase {
   grade: "ceo";
+  // ── 신규(§5 섹션 계약) ──
+  /** Home/KPIGroup 위험 줄 — 위험/지연 프로젝트·기한초과·위험 마일스톤·과부하·확인 대기·결제 대기. */
+  riskKpis: HomeKpi[];
+  /** Home/KPIGroup 운영 줄 — 관리자와 동일 6종(활성 프로젝트·열린 작업·막힘·마감 임박·충돌·응답 대기). */
+  opsKpis: HomeKpi[];
+  /** Home/TodaySummary — 규칙 기반 요약. 경영 AI 브리핑 폴백. */
+  todaySummary: CeoTodaySummary;
+  /** Home/Priority — 결정·확인 관점 우선 확인(getTeamPriorityItems 재사용). */
+  teamPriority: TeamPriorityData;
+  /** Home/ProjectOverview — 위험도 높은 활성 프로젝트 최대 5(+ clientOverview 병행). */
+  projectOverview: HomeProjectRow[];
+  /** Home/WorkflowTrend — 전사 주별 흐름 + 순증. */
+  workflowTrend: WorkflowTrend;
+  /** Home/Pending — 결제·확인 필요 Action·장기 상태 응답 대기. */
+  pending: HomePending;
+
+  // ── 기존(유지) ──
   kpis: PerfKpi[];
   rangeLabel: string;
   completionByMonth: MonthlyCompletion[];
@@ -101,15 +287,17 @@ export interface CeoHomeData extends HomeBase {
   heatmap: HeatmapData;
   pendingPayments: number;
   overduePayments: number;
-  /** 대표 본인에게 온 신호(병목/확인필요/기한초과/결제) — 상단바 벨과 같은 소스(DASH-6). */
+  /** 대표 본인에게 온 viewer-scoped 신호 — 상단바 벨과 같은 소스(DASH-6). */
   alerts: AlertsData;
-  /** 확인 필요 Action 등 회의록 요약(RequestInbox 소스). */
+  /** 확인 필요 Action 등 회의록 요약(처리 대기 카드 소스). */
   noteSummary: NoteSummary;
 }
 
 export type GradeHomeData = StaffHomeData | ManagerHomeData | CeoHomeData;
 
-function base(home: HomeData): HomeBase {
+type Db = Awaited<ReturnType<typeof getDb>>;
+
+function base(home: HomeData, awayChip: HomeAwayChip): HomeBase {
   return {
     givenName: home.givenName,
     headerMembers: home.headerMembers,
@@ -118,7 +306,198 @@ function base(home: HomeData): HomeBase {
     todoCount: home.todoCount,
     schedule: home.schedule,
     scheduleDateLabel: home.scheduleDateLabel,
+    awayChip,
   };
+}
+
+const OPEN = new Set(["scheduled", "in_progress", "needs_reschedule", "on_hold", "issue"]);
+/** 과부하 판정 임계(예상 열린 작업 시간). 주 40시간 가용을 가정한 배분 기준(평가 아님). */
+const OVERLOAD_HOURS = 40;
+
+const isOverdue = (t: Task, nowMs: number): boolean =>
+  !!t.endAt && OPEN.has(t.status) && new Date(t.endAt).getTime() < nowMs;
+
+/** 오늘 팀 부재 칩(자리비움·외부 일정). 비공개는 사유 없이 이름·시간대만(§2·기존 규칙). */
+function computeAwayChip(db: Db, viewer: User, now: Date): HomeAwayChip {
+  const dayStart = new Date(now);
+  dayStart.setHours(0, 0, 0, 0);
+  const dayEnd = new Date(now);
+  dayEnd.setHours(23, 59, 59, 999);
+  const userById = new Map(db.users.map((u) => [u.id, u]));
+  const overlaps = (e: CalendarEvent): boolean =>
+    new Date(e.startAt) <= dayEnd && new Date(e.endAt) >= dayStart;
+  const whenOf = (e: CalendarEvent): string => {
+    const s = new Date(e.startAt);
+    const spanH = (new Date(e.endAt).getTime() - s.getTime()) / 3.6e6;
+    if (spanH >= 8) return "종일";
+    return s.getHours() < 12 ? "오전" : "오후";
+  };
+
+  const away: HomeAwayEntry[] = [];
+  const external: HomeAwayEntry[] = [];
+  const seenAway = new Set<string>();
+  const seenExt = new Set<string>();
+  for (const e of db.calendarEvents.filter(overlaps)) {
+    const name = userById.get(e.ownerId)?.name ?? e.ownerId;
+    // 비공개 자리비움(뷰어에게 상세 비노출) → 사유 없이 이름·시간대만.
+    if (e.visibility === "private" && !canViewPrivateEventDetail(e, viewer)) {
+      if (seenAway.has(name)) continue;
+      seenAway.add(name);
+      away.push({ name, when: whenOf(e) });
+    } else if (e.source === "company") {
+      if (seenExt.has(name)) continue;
+      seenExt.add(name);
+      external.push({ name, when: format(new Date(e.startAt), "HH:mm") });
+    }
+  }
+  return { away, external };
+}
+
+/** 위험도 높은 활성 프로젝트 최대 5(Home/ProjectOverview). 클라이언트 필터 존중. */
+function computeProjectOverview(db: Db, viewer: User, now: Date, clientId?: string): HomeProjectRow[] {
+  const nowMs = now.getTime();
+  const clientTasks = db.tasksForClient(clientId);
+  const clientById = new Map(db.clients.map((c) => [c.id, c]));
+  const rows: HomeProjectRow[] = db.projects
+    .filter((p) => p.status === "active" && (!clientId || p.clientId === clientId))
+    .map((p) => {
+      const counted = clientTasks.filter(
+        (t) => t.projectId === p.id && t.status !== "merged" && t.status !== "cancelled",
+      );
+      const total = counted.length;
+      const done = counted.filter((t) => t.status === "done").length;
+      const open = counted.filter((t) => t.status !== "done");
+      const overdueTasks = open.filter((t) => isOverdue(t, nowMs)).length;
+      const blockedTasks = open.filter((t) => t.status === "issue" || t.status === "on_hold").length;
+
+      const ms = db.milestones.filter((m) => m.projectId === p.id);
+      const lateMs = ms.some((m) => m.riskStatus === "late");
+      const atRiskMs = ms.some((m) => m.riskStatus === "at_risk");
+      // 임박 마감: 미래 마일스톤 중 가장 가까운 것, 없으면 임박 열린 작업 마감.
+      const futureMsDue = ms
+        .map((m) => m.dueAt)
+        .filter((d) => new Date(d).getTime() >= nowMs)
+        .sort()[0];
+      const futureTaskDue = open
+        .map((t) => t.endAt)
+        .filter((d): d is string => !!d && new Date(d).getTime() >= nowMs)
+        .sort()[0];
+      const due = futureMsDue ?? futureTaskDue;
+
+      const status: HomeProjectRow["status"] =
+        overdueTasks > 0 || lateMs ? "delayed" : blockedTasks > 0 || atRiskMs ? "at_risk" : "on_track";
+
+      return {
+        projectId: p.id,
+        name: formatProjectLabel(p, p.clientId ? clientById.get(p.clientId) : undefined),
+        progress: total === 0 ? 0 : Math.round((done / total) * 100),
+        dueLabel: due ? format(new Date(due), "M월 d일", { locale: ko }) : null,
+        overdueTasks,
+        blockedTasks,
+        openTasks: open.length,
+        status,
+      };
+    });
+
+  const rank = { delayed: 0, at_risk: 1, on_track: 2 } as const;
+  return rows
+    .sort(
+      (a, b) =>
+        rank[a.status] - rank[b.status] ||
+        b.overdueTasks + b.blockedTasks - (a.overdueTasks + a.blockedTasks),
+    )
+    .slice(0, 5);
+}
+
+/** 주별 업무 흐름(신규·완료·기한초과) + 순증(Home/WorkflowTrend). 클라이언트 필터 존중. */
+function computeWorkflowTrend(db: Db, now: Date, weeksBack: number, clientId?: string): WorkflowTrend {
+  const clientTasks = db.tasksForClient(clientId);
+  const clientTaskIds = new Set(clientTasks.map((t) => t.id));
+  const inClient = (taskId: string): boolean => !clientId || clientTaskIds.has(taskId);
+
+  // 작업 생성 시각 프록시 = 그 작업의 최초 상태로그 createdAt(Task에 createdAt 컬럼 없음).
+  const firstLogAt = new Map<string, number>();
+  for (const l of db.statusLogs) {
+    const t = new Date(l.createdAt).getTime();
+    const prev = firstLogAt.get(l.taskId);
+    if (prev === undefined || t < prev) firstLogAt.set(l.taskId, t);
+  }
+  // 작업별 기한 내 완료 여부(마감 이전에 done 전이가 있었나).
+  const onTimeDone = new Set<string>();
+  for (const l of db.statusLogs.filter((l) => l.toStatus === "done")) {
+    const t = clientTaskIds.has(l.taskId) || !clientId ? true : false;
+    if (!t) continue;
+    const task = db.tasks.find((x) => x.id === l.taskId);
+    if (task?.endAt && new Date(l.createdAt).getTime() <= new Date(task.endAt).getTime()) {
+      onTimeDone.add(l.taskId);
+    }
+  }
+
+  const weeks: WorkflowWeek[] = [];
+  for (let w = weeksBack - 1; w >= 0; w -= 1) {
+    const wEnd = new Date(now);
+    wEnd.setDate(wEnd.getDate() - w * 7);
+    wEnd.setHours(23, 59, 59, 999);
+    const wStart = new Date(wEnd);
+    wStart.setDate(wStart.getDate() - 6);
+    wStart.setHours(0, 0, 0, 0);
+    const sMs = wStart.getTime();
+    const eMs = wEnd.getTime();
+    const inWeek = (ms: number): boolean => ms >= sMs && ms <= eMs;
+
+    const created = [...firstLogAt.entries()].filter(
+      ([id, ms]) => inClient(id) && inWeek(ms),
+    ).length;
+    const completed = db.statusLogs.filter(
+      (l) => l.toStatus === "done" && inClient(l.taskId) && inWeek(new Date(l.createdAt).getTime()),
+    ).length;
+    const overdue = clientTasks.filter(
+      (t) => t.endAt && inWeek(new Date(t.endAt).getTime()) && !onTimeDone.has(t.id),
+    ).length;
+
+    weeks.push({
+      label: `${format(wStart, "MM.dd")}-${format(wEnd, "MM.dd")}`,
+      created,
+      completed,
+      overdue,
+    });
+  }
+
+  const last = weeks[weeks.length - 1];
+  const netChange = last ? last.created - last.completed : 0;
+  const netLabel =
+    netChange > 0
+      ? `이번 주 순증 +${netChange} (적체 증가)`
+      : netChange < 0
+        ? `이번 주 순증 ${netChange} (적체 감소)`
+        : "이번 주 순증 0 (변화 없음)";
+  return { weeks, weeksBack, netChange, netLabel };
+}
+
+/** 처리 대기(Home/Pending). 장기 응답 대기 = 7일 이상 미응답 체크인. */
+function computePending(db: Db, viewer: User, now: Date): HomePending {
+  const nowMs = now.getTime();
+  const sevenDaysMs = 7 * 864e5;
+  const taskById = new Map(db.tasks.map((t) => [t.id, t]));
+  const longAwaiting = db.checkIns.filter((c) => {
+    if (!isAwaitingAnswer(c, now)) return false;
+    const task = taskById.get(c.taskId);
+    if (!task || !OPEN.has(task.status)) return false;
+    return nowMs - new Date(c.scheduledAt).getTime() >= sevenDaysMs;
+  }).length;
+  return {
+    pendingPayments: db.paymentRequests.filter((p) => p.status === "waiting").length,
+    overduePayments: db.paymentRequests.filter(
+      (p) => p.status === "waiting" && p.dueAt && new Date(p.dueAt).getTime() < nowMs,
+    ).length,
+    needsReviewActions: db.actionItems.filter((a) => a.status === "needs_review").length,
+    longAwaitingCheckins: longAwaiting,
+  };
+}
+
+/** 과부하 인원 수(예상 시간 임계 초과). */
+function overloadCountOf(loadByMember: AdminReportData["loadByMember"]): number {
+  return loadByMember.filter((m) => m.openHours > OVERLOAD_HOURS).length;
 }
 
 async function getStaffHomeData(
@@ -126,21 +505,93 @@ async function getStaffHomeData(
   now: Date,
   opts: GradeHomeOptions,
 ): Promise<StaffHomeData> {
-  const [home, perf, alerts, noteSummary] = await Promise.all([
+  const [db, home, alerts, noteSummary, standup] = await Promise.all([
+    getDb(),
     getHomeData(user, now, { dp: opts.dp, clientId: opts.clientId }),
-    // viewer=user(사원) → KPI·히트맵 rows·작업 성과 라인이 본인 스코프로 좁혀진다.
-    getPerformanceData(now, { hm: opts.hm, clientId: opts.clientId, viewer: user }),
-    getAlerts(user, now),
+    // viewer-scoped 신호(본인 관련만) — 상단바 벨·알림 센터와 같은 소스(수치 일치).
+    getViewerAlerts(user, now, { all: true }), // 우선 확인용 — 벨 캡(8)·읽음순에 종속되지 않게 전체
     getNoteSummary(user),
+    getStandupData(now, opts.clientId),
   ]);
+
+  const nowMs = now.getTime();
+  const soonMs = nowMs + 24 * 60 * 60 * 1000;
+  const clientTasks = db.tasksForClient(opts.clientId);
+  const mine = clientTasks.filter((t) => t.assigneeId === user.id);
+  const projectById = new Map(db.projects.map((p) => [p.id, p]));
+  const clientById = new Map(db.clients.map((c) => [c.id, c]));
+  const projectLabelOf = (projectId?: string): string | null => {
+    if (!projectId) return null;
+    const p = projectById.get(projectId);
+    return p ? formatProjectLabel(p, p.clientId ? clientById.get(p.clientId) : undefined) : null;
+  };
+
+  // ── KPI(전부 본인) ──
+  const inProgress = mine.filter((t) => t.status === "in_progress").length;
+  const overdueCount = mine.filter((t) => isOverdue(t, nowMs)).length;
+  // 이번 주 완료 = 최근 7일 내 done 전이 중 담당이 본인인 작업.
+  const weekAgoMs = nowMs - 7 * 864e5;
+  const myTaskIds = new Set(mine.map((t) => t.id));
+  const doneThisWeek = db.statusLogs.filter(
+    (l) =>
+      l.toStatus === "done" &&
+      myTaskIds.has(l.taskId) &&
+      new Date(l.createdAt).getTime() >= weekAgoMs,
+  ).length;
+  const homeKpis: HomeKpi[] = [
+    { key: "todo", label: "오늘 할 일", value: home.todoCount, href: "/today" },
+    { key: "in_progress", label: "진행 중", value: inProgress, href: "/today", tone: "info" },
+    { key: "done_week", label: "이번 주 완료", value: doneThisWeek, tone: "success" },
+    {
+      key: "overdue",
+      label: "기한 초과",
+      value: overdueCount,
+      href: "/today",
+      tone: overdueCount > 0 ? "danger" : "default",
+    },
+  ];
+
+  // ── 응답 대기 자동 체크인(리스트형 카드용) ──
+  const checkIns: HomeCheckInItem[] = db.checkIns
+    .filter((c) => c.assigneeId === user.id && isAwaitingAnswer(c, now))
+    .map((c) => {
+      const t = db.tasks.find((x) => x.id === c.taskId);
+      if (!t || t.status === "done" || t.status === "cancelled" || t.status === "merged") return null;
+      return {
+        checkInId: c.id,
+        taskId: t.id,
+        taskTitle: t.title,
+        projectLabel: projectLabelOf(t.projectId),
+        question: `‘${t.title}’ 작업은 어떻게 진행되고 있나요?`,
+      };
+    })
+    .filter((x): x is HomeCheckInItem => x !== null);
+
+  // ── 오늘 요약(어제 이월 = getStandupData 재사용) ──
+  const myStandup = standup.find((r) => r.user.id === user.id);
+  const carryoverCount = myStandup?.yesterdayUnfinished.length ?? 0;
+  const dueSoonCount = mine.filter(
+    (t) => OPEN.has(t.status) && t.endAt && new Date(t.endAt).getTime() <= soonMs && new Date(t.endAt).getTime() >= nowMs,
+  ).length;
+  const lines: string[] = [];
+  lines.push(home.todoCount > 0 ? `오늘 할 일이 ${home.todoCount}건 있습니다.` : "오늘 마감이거나 기한이 지난 작업이 없습니다.");
+  if (carryoverCount > 0) lines.push(`어제 못 끝낸 ${carryoverCount}건이 이월됐습니다.`);
+  if (checkIns.length > 0) lines.push(`응답할 작업 상태 확인이 ${checkIns.length}건 있습니다.`);
+  if (overdueCount > 0) lines.push(`기한이 지난 작업이 ${overdueCount}건 있습니다.`);
+  const todaySummary: StaffTodaySummary = {
+    todoCount: home.todoCount,
+    dueSoonCount,
+    checkInCount: checkIns.length,
+    carryoverCount,
+    lines,
+  };
 
   return {
     grade: "staff",
-    ...base(home),
-    kpis: perf.kpis,
-    rangeLabel: perf.rangeLabel,
-    contributionHeatmap: perf.heatmap,
-    performanceTrend: perf.performanceTrend,
+    ...base(home, computeAwayChip(db, user, now)),
+    homeKpis,
+    todaySummary,
+    checkIns,
     alerts,
     noteSummary,
   };
@@ -151,12 +602,13 @@ async function getManagerHomeData(
   now: Date,
   opts: GradeHomeOptions,
 ): Promise<ManagerHomeData> {
-  const [db, home, team, report, noteSummary] = await Promise.all([
+  const [db, home, team, report, noteSummary, teamPriority] = await Promise.all([
     getDb(),
     getHomeData(user, now, { dp: opts.dp, clientId: opts.clientId }),
     getTeamData(user, now, opts.clientId),
     getAdminReportData(user, "week", now, opts.clientId),
     getNoteSummary(user),
+    getTeamPriorityItems(user, now, opts.clientId),
   ]);
 
   // 관리자 부하표는 대표(ceo) 제외 — 대표 부하는 관리자에게 노출하지 않는다(관리자끼리는 상호 노출).
@@ -166,9 +618,52 @@ async function getManagerHomeData(
     (row) => gradeForRank(rankById.get(row.userId)) !== "ceo",
   );
 
+  const overloadCount = overloadCountOf(report.loadByMember);
+  const homeKpis: HomeKpi[] = [
+    { key: "active_projects", label: "활성 프로젝트", value: report.overall.activeProjects, href: "/projects" },
+    { key: "open_tasks", label: "열린 작업", value: report.overall.openTasks, href: "/now" },
+    {
+      key: "blocked",
+      label: "현재 막힘",
+      value: report.overall.blockedNow,
+      href: "/team",
+      tone: report.overall.blockedNow > 0 ? "danger" : "default",
+    },
+    { key: "due_soon", label: "마감 임박", value: team.summary.dueSoon, href: "/now", tone: "warning" },
+    {
+      key: "conflicts",
+      label: "일정 충돌",
+      value: team.conflicts.length,
+      href: "/team",
+      tone: team.conflicts.length > 0 ? "warning" : "default",
+    },
+    { key: "awaiting", label: "상태 응답 대기", value: team.summary.awaiting, href: "/team", tone: "info" },
+  ];
+
+  const issueCount = team.summary.issues + team.summary.onHold;
+  const summaryLines: string[] = [];
+  if (issueCount > 0) summaryLines.push(`막힌 작업이 ${issueCount}건 있습니다(문제 ${team.summary.issues}·홀드 ${team.summary.onHold}).`);
+  if (team.conflicts.length > 0) summaryLines.push(`일정 충돌이 ${team.conflicts.length}건 있습니다.`);
+  if (overloadCount > 0) summaryLines.push(`업무가 몰린 팀원이 ${overloadCount}명입니다.`);
+  if (team.summary.awaiting > 0) summaryLines.push(`상태 응답 대기가 ${team.summary.awaiting}건 있습니다.`);
+  if (summaryLines.length === 0) summaryLines.push("오늘 조정할 병목·충돌이 없습니다.");
+  const todaySummary: ManagerTodaySummary = {
+    issueCount,
+    conflictCount: team.conflicts.length,
+    overloadCount,
+    awaitingCount: team.summary.awaiting,
+    lines: summaryLines,
+  };
+
   return {
     grade: "manager",
-    ...base(home),
+    ...base(home, computeAwayChip(db, user, now)),
+    homeKpis,
+    todaySummary,
+    teamPriority,
+    projectOverview: computeProjectOverview(db, user, now, opts.clientId),
+    workflowTrend: computeWorkflowTrend(db, now, opts.wf ?? 8, opts.clientId),
+    pending: computePending(db, user, now),
     teamSummary: team.summary,
     attention: team.attention,
     conflicts: team.conflicts,
@@ -184,23 +679,109 @@ async function getCeoHomeData(
   now: Date,
   opts: GradeHomeOptions,
 ): Promise<CeoHomeData> {
-  const [home, perf, report, planning, clientOverview, alerts, noteSummary] = await Promise.all([
-    getHomeData(user, now, { dp: opts.dp, clientId: opts.clientId }),
-    // viewer=user(대표) → 사람 스코프 전원, KPI 전체(사원 아님).
-    getPerformanceData(now, { hm: opts.hm, clientId: opts.clientId, viewer: user }),
-    getAdminReportData(user, "month", now, opts.clientId),
-    getPlanningData(user),
-    getClientOverview(),
-    // 대표 본인에게 온 요청(DASH-6) — 사원 홈과 동일한 core 조회 재사용.
-    getAlerts(user, now),
-    getNoteSummary(user),
-  ]);
+  const [db, home, perf, report, planning, clientOverview, alerts, noteSummary, team, teamPriority] =
+    await Promise.all([
+      getDb(),
+      getHomeData(user, now, { dp: opts.dp, clientId: opts.clientId }),
+      // viewer=user(대표) → 사람 스코프 전원, KPI 전체(사원 아님).
+      getPerformanceData(now, { hm: opts.hm, clientId: opts.clientId, viewer: user }),
+      getAdminReportData(user, "month", now, opts.clientId),
+      getPlanningData(user),
+      getClientOverview(),
+      // 대표 본인에게 온 요청(DASH-6) — viewer-scoped 신호(벨과 같은 소스).
+      getViewerAlerts(user, now),
+      getNoteSummary(user),
+      getTeamData(user, now, opts.clientId),
+      getTeamPriorityItems(user, now, opts.clientId),
+    ]);
 
   const riskMilestones = planning.milestones.filter((m) => m.riskStatus !== "on_track");
+  const nowMs = now.getTime();
+  const clientTasks = db.tasksForClient(opts.clientId);
+  const overdueCount = clientTasks.filter((t) => isOverdue(t, nowMs)).length;
+  const projectOverview = computeProjectOverview(db, user, now, opts.clientId);
+  const riskProjectCount = projectOverview.filter((p) => p.status !== "on_track").length;
+  const overloadCount = overloadCountOf(report.loadByMember);
+  const decisionCount = noteSummary.needsReview + report.overall.pendingPayments;
+
+  // 위험 줄: 조망(전사 위험). 운영 줄: 관리자와 동일 6종.
+  const riskKpis: HomeKpi[] = [
+    {
+      key: "risk_projects",
+      label: "위험/지연 프로젝트",
+      value: riskProjectCount,
+      href: "/projects",
+      tone: riskProjectCount > 0 ? "danger" : "default",
+    },
+    {
+      key: "overdue",
+      label: "기한 초과",
+      value: overdueCount,
+      href: "/now",
+      tone: overdueCount > 0 ? "danger" : "default",
+    },
+    {
+      key: "risk_milestones",
+      label: "위험 마일스톤",
+      value: report.overall.atRiskMilestones,
+      href: "/planning",
+      tone: report.overall.atRiskMilestones > 0 ? "warning" : "default",
+    },
+    { key: "overload", label: "과부하 인원", value: overloadCount, tone: overloadCount > 0 ? "warning" : "default" },
+    { key: "needs_review", label: "확인 대기", value: noteSummary.needsReview, href: "/action", tone: "info" },
+    {
+      key: "pending_payments",
+      label: "결제 대기",
+      value: report.overall.pendingPayments,
+      href: "/payments",
+      tone: "warning",
+    },
+  ];
+  const opsKpis: HomeKpi[] = [
+    { key: "active_projects", label: "활성 프로젝트", value: report.overall.activeProjects, href: "/projects" },
+    { key: "open_tasks", label: "열린 작업", value: report.overall.openTasks, href: "/now" },
+    {
+      key: "blocked",
+      label: "현재 막힘",
+      value: report.overall.blockedNow,
+      href: "/team",
+      tone: report.overall.blockedNow > 0 ? "danger" : "default",
+    },
+    { key: "due_soon", label: "마감 임박", value: team.summary.dueSoon, href: "/now", tone: "warning" },
+    {
+      key: "conflicts",
+      label: "일정 충돌",
+      value: team.conflicts.length,
+      href: "/team",
+      tone: team.conflicts.length > 0 ? "warning" : "default",
+    },
+    { key: "awaiting", label: "상태 응답 대기", value: team.summary.awaiting, href: "/team", tone: "info" },
+  ];
+
+  const ceoLines: string[] = [];
+  if (riskProjectCount > 0) ceoLines.push(`위험·지연 프로젝트가 ${riskProjectCount}건입니다.`);
+  if (overdueCount > 0) ceoLines.push(`기한이 지난 작업이 ${overdueCount}건 있습니다.`);
+  if (overloadCount > 0) ceoLines.push(`업무가 몰린 인원이 ${overloadCount}명입니다.`);
+  if (decisionCount > 0) ceoLines.push(`결정·확인 대기가 ${decisionCount}건 있습니다(확인 필요 Action·결제 대기).`);
+  if (ceoLines.length === 0) ceoLines.push("전사 위험 신호가 없습니다.");
+  const todaySummary: CeoTodaySummary = {
+    riskProjectCount,
+    overdueCount,
+    overloadCount,
+    decisionCount,
+    lines: ceoLines,
+  };
 
   return {
     grade: "ceo",
-    ...base(home),
+    ...base(home, computeAwayChip(db, user, now)),
+    riskKpis,
+    opsKpis,
+    todaySummary,
+    teamPriority,
+    projectOverview,
+    workflowTrend: computeWorkflowTrend(db, now, opts.wf ?? 8, opts.clientId),
+    pending: computePending(db, user, now),
     kpis: perf.kpis,
     rangeLabel: perf.rangeLabel,
     completionByMonth: perf.completionByMonth,

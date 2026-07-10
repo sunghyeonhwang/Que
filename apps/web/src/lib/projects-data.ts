@@ -686,8 +686,11 @@ const toDay = (iso: string): string => format(new Date(iso), "yyyy-MM-dd");
  * E-9d 일정 주의 판정 — "선행이 안 끝났는데 내 시작이 다가온다"를 사람이 읽는 문장으로.
  * 우선순위: ①선행 마감 지남·미완료(확실한 지연) ②선행 마감이 내 시작보다 늦음(계획 겹침)
  * ③선행 자체가 주의 상태(연쇄 전파). 완료/취소·병합 작업은 주의를 달지 않는다.
+ *
+ * export: 홈의 viewer-scoped 알림(getViewerAlerts)·팀 우선 확인(getTeamPriorityItems)이
+ * 같은 문장을 재사용한다 — 간트·홈에서 "일정 주의" 문구가 어긋나지 않게 한 출처로 둔다.
  */
-function computeGanttRisk(
+export function computeGanttRisk(
   tasks: Task[],
   taskById: Map<string, Task>,
   todayIso: string,

@@ -6,7 +6,7 @@ import { getDb } from "@/lib/db";
 import { getCurrentUser } from "@/lib/current-user";
 import { RosterProvider, type RosterUser } from "@/components/app/roster-provider";
 import { getNoteSummary } from "@/lib/notes-summary";
-import { getAlerts } from "@/lib/alerts-data";
+import { getViewerAlerts } from "@/lib/alerts-data";
 import { getClientFilter, getClientOptions } from "@/lib/client-filter";
 import { Brand } from "@/components/app/brand";
 import { ClientSwitcher } from "@/components/app/client-switcher";
@@ -41,8 +41,8 @@ export default async function AppLayout({
   // 사이드바 뱃지 실데이터 — 확인필요 = 열람 권한 스코프의 '확인 필요' Action 수(getNoteSummary).
   const noteSummary = await getNoteSummary(user);
   const menuBadges: Record<string, number> = { "/meeting-notes": noteSummary.needsReview };
-  // 상단바 알림 — 운영 신호(문제/기한초과/확인필요/결제) 실데이터.
-  const alerts = await getAlerts(user);
+  // 상단바 알림 — viewer-scoped 신호(본인 관련만). 벨·알림 센터·사원 홈 우선 확인이 같은 소스(§3).
+  const alerts = await getViewerAlerts(user);
   const isAdmin = user.role === "admin";
   // 클라이언트 스위처 데이터 — 데스크톱은 사이드바 상단, 모바일(사이드바 숨김)은 상단바에 렌더.
   // getClientOptions/getClientFilter는 cache()라 두 번 호출해도 로드는 1회.

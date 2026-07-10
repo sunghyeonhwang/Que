@@ -9,12 +9,22 @@ import { ManagerHome } from "@/components/home/manager-home";
 import { CeoHome } from "@/components/home/ceo-home";
 
 export const dynamic = "force-dynamic";
+// AI 브리핑(generateHomeBriefingAction)이 Gemini를 호출하므로 팀 리포트와 같은 상한을 둔다
+// (기본 서버리스 함수 타임아웃보다 넉넉히 — 팀 AI 분석 시간초과 사고 선례).
+export const maxDuration = 60;
 
 /** 1~12 정수만 통과, 아니면 현재월 폴백 */
 function parseMonth(raw: string | string[] | undefined, fallback: number): number {
   const v = Array.isArray(raw) ? raw[0] : raw;
   const n = Number(v);
   return Number.isInteger(n) && n >= 1 && n <= 12 ? n : fallback;
+}
+
+/** 업무 흐름 창(주). 4|8|12만 통과, 아니면 8 폴백. */
+function parseWorkflowWeeks(raw: string | string[] | undefined): 4 | 8 | 12 {
+  const v = Array.isArray(raw) ? raw[0] : raw;
+  const n = Number(v);
+  return n === 4 || n === 12 ? n : 8;
 }
 
 // 홈(개인 대시보드) — 직급별 3분기. 스코프는 세션 사용자(user.id)의 grade에서만 유도한다.
@@ -29,23 +39,25 @@ export default async function HomePage({
   const sp = await searchParams;
 
   const hm = parseMonth(sp.hm, now.getMonth() + 1);
+  const wf = parseWorkflowWeeks(sp.wf);
 
   const [clientId, clientName] = await Promise.all([
     getClientFilter(),
     getClientFilterName(),
   ]);
 
-  const data = await getGradeHomeData(user, now, { hm, clientId });
+  const data = await getGradeHomeData(user, now, { hm, wf, clientId });
 
+  // 화면 제목·helper text는 명세 §0 표를 정본으로 한다.
   const heading =
     data.grade === "manager"
-      ? { title: "어디가 막혔나", subtitle: "오늘 팀의 병목·충돌·부하를 먼저 봅니다." }
+      ? { title: "팀 운영", subtitle: "오늘 조정하거나 확인해야 할 병목·충돌·부하를 봅니다." }
       : data.grade === "ceo"
-        ? { title: "전사 조망", subtitle: "전사 진척·프로젝트·클라이언트 현황을 한눈에." }
-        : {
-            title: `어서오세요, ${data.givenName}님!`,
-            subtitle: "오늘 내 일과 내게 온 요청을 확인하세요.",
-          };
+        ? { title: "전사 현황", subtitle: "전사 진척과 위험, 결정이 필요한 항목을 확인합니다." }
+        : { title: "내 하루", subtitle: "오늘 내 작업과 일정, 확인할 요청을 봅니다." };
+
+  // 아바타 스택은 팀 맥락을 조망하는 관리자·대표만 노출한다(명세 §2 — 사원은 개인 맥락만).
+  const showAvatars = data.grade === "manager" || data.grade === "ceo";
 
   return (
     <div className="flex flex-col gap-4">
@@ -60,12 +72,14 @@ export default async function HomePage({
           <p className="mt-1 text-sm text-[var(--que-text-secondary)]">{heading.subtitle}</p>
         </div>
         <div className="flex items-center gap-3">
-          <MemberAvatars members={data.headerMembers} overflow={data.memberOverflow} size={32} />
+          {showAvatars && (
+            <MemberAvatars members={data.headerMembers} overflow={data.memberOverflow} size={32} />
+          )}
           <AddTaskDialog currentUserId={user.id} />
         </div>
       </header>
 
-      {data.grade === "staff" && <StaffHome data={data} month={hm} />}
+      {data.grade === "staff" && <StaffHome data={data} />}
       {data.grade === "manager" && <ManagerHome data={data} />}
       {data.grade === "ceo" && <CeoHome data={data} month={hm} />}
 
