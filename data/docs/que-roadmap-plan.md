@@ -98,7 +98,9 @@
 
 ### D 트랙 todo_griff (API 경유 확정, 순차)
 
-> **진행(2026-07-08)**: **D-1·D-2·D-3 완료·라이브.** Que-side(모바일 인증 `POST /api/auth/mobile`·CORS·`via='mobile'`) 배포·마이그레이션 적용. DayBlocks 앱(별도 레포 `todo_griff`) D-3 동기화 구현(DESIGN.md §14, queApi/authStore/queSync/LoginScreen/QueInbox, 하이브리드+완료/재일정 write-back) 커밋·**live E2E 검증**(로그인·임포트·write-back+원복). **배포: todo.griff.co.kr**(Vercel GRIFF 팀 `todo_griff` 프로젝트, DNS=Cloudflare, `QUE_CORS_ORIGINS=https://todo.griff.co.kr`). 남음: **D-6 Capacitor 네이티브**, 무시간→인박스 라이브 재현(현재 대표 태스크가 전부 시간有라 미노출), 브라우저 UI 육안.
+> **진행(2026-07-08)**: **D-1·D-2·D-3 완료·라이브.** Que-side(모바일 인증 `POST /api/auth/mobile`·CORS·`via='mobile'`) 배포·마이그레이션 적용. DayBlocks 앱(별도 레포 `todo_griff`) D-3 동기화 구현(DESIGN.md §14, queApi/authStore/queSync/LoginScreen/QueInbox, 하이브리드+완료/재일정 write-back) 커밋·**live E2E 검증**(로그인·임포트·write-back+원복). **배포: todo.griff.co.kr**(Vercel GRIFF 팀 `todo_griff` 프로젝트, DNS=Cloudflare, `QUE_CORS_ORIGINS=https://todo.griff.co.kr`). 남음: 무시간→인박스 라이브 재현(현재 대표 태스크가 전부 시간有라 미노출), 브라우저 UI 육안.
+>
+> **D-6 스킵(사용자 결정 2026-07-10)**: Capacitor는 웹뷰 래핑이라 "네이티브 앱이 아니어서 의미 없음" — PWA 유지. 푸시 알림·앱스토어 배포가 실제로 필요해지면 그때 재검토(진짜 네이티브 포함). **→ D 트랙(D-1~D-6) 전 항목 종결.**
 >
 > **D-4 완료(2026-07-10)**: OKR 분기 목표 트래커 — 하단 탭(오늘|목표) 신설, 목표·핵심결과(진행률 바·−/+ 진척)·교육형 첫 사용 가이드. 앱 로컬 전용(Que 무변경), 사용자 결정=탭 2개+MVP 트래커만(블록↔목표 연결 2차). 정본: todo_griff `DESIGN.md §15`.
 >
