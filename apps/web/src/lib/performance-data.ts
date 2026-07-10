@@ -8,6 +8,7 @@ import {
 } from "@que/core";
 import { getDb } from "./db";
 import { getHeatmapData, type HeatmapData } from "./heatmap-data";
+import { computeHomeLoad, type HomeLoad } from "./home-load";
 
 // 성과(퍼포먼스) 대시보드용 집계 셀렉터 — 전부 서버에서 계산한다.
 // 원칙(기획서·CLAUDE.md): 개인 평가/순위가 아니라 진척·병목·부하 분포를 드러낸다.
@@ -84,6 +85,9 @@ export interface PerformanceData {
   performanceTrend: PerformancePoint[];
   heatmap: HeatmapData;
   lowPerformers: LowPerformerRow[];
+  /** 업무 부하 표(홈·리포트와 동일 산출). personScope 스코프(대표=전원/관리=대표 제외/사원=본인).
+   *  배분 조정용(개인 평가 아님). '내 성과'(scope=me)에서는 프론트가 숨긴다. */
+  load: HomeLoad;
   overallProgress: number;
   projects: ProjectProgressRow[];
 }
@@ -445,6 +449,15 @@ export async function getPerformanceData(
   const firstMonth = months[0].start;
   const rangeLabel = `${format(firstMonth, "yyyy년 M월 d일")} - ${format(now, "M월 d일")}`;
 
+  // 업무 부하 표 — 홈·리포트와 동일 산출(computeHomeLoad)을 성과 스코프(personScope)로 호출.
+  // 뷰어가 없으면 전원. '내 성과'(forceSelf)에서는 프론트가 표를 숨기므로 여기선 그대로 둔다.
+  const load = computeHomeLoad(
+    db,
+    personScope ?? db.users.map((u) => u.id),
+    now,
+    opts.clientId,
+  );
+
   return {
     rangeLabel,
     kpis,
@@ -453,6 +466,7 @@ export async function getPerformanceData(
     performanceTrend,
     heatmap,
     lowPerformers,
+    load,
     overallProgress,
     projects: projectRows,
   };

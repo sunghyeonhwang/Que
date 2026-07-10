@@ -18,6 +18,7 @@ import { PerformanceHeatmap } from "@/components/performance/performance-heatmap
 import { KpiCard } from "@/components/performance/kpi-card";
 import { PeriodSelect } from "@/components/performance/period-select";
 import { LinkTabs } from "@/components/app/link-tabs";
+import { WorkloadTable } from "@/components/app/workload-table";
 import { LowPerformersTable } from "@/components/performance/low-performers-table";
 import { ProjectProgressList } from "@/components/performance/project-progress-list";
 
@@ -93,6 +94,9 @@ export default async function PerformancePage({
   // '내 성과'(scope=me)면 대표여도 표 대신 본인 월간 요약을 본다. 관리자/사원도 본인 요약.
   const isCeo = viewerGrade === "ceo";
   const showTeamLoadTable = isCeo && scope !== "me";
+  // 업무 부하 표(홈·리포트와 동일) — 팀 스코프에서만. '내 성과'(scope=me)에서는 숨긴다.
+  const showLoadTable = scope !== "me";
+  const loadScopeLabel = isCeo ? "전 인원 부하" : "업무 부하";
   const selfRow = data.lowPerformers[0];
 
   return (
@@ -185,7 +189,10 @@ export default async function PerformancePage({
         </SectionCard>
       </div>
 
-      {/* 4행: (대표) 팀 부하 순위표 · (관리자/사원) 내 월간 요약 | 프로젝트 진행률 */}
+      {/* 업무 부하 표 — 홈·리포트와 동일(WorkloadTable). 팀 스코프에서만 노출('내 성과'는 숨김). */}
+      {showLoadTable && <WorkloadTable load={data.load} scopeLabel={loadScopeLabel} />}
+
+      {/* 4행: (대표) 기한 초과·완료 현황 · (관리자/사원) 내 월간 요약 | 프로젝트 진행률 */}
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         {!showTeamLoadTable ? (
           <SectionCard
@@ -223,16 +230,20 @@ export default async function PerformancePage({
           </SectionCard>
         ) : (
           <SectionCard
-            title="팀 부하 현황"
+            title="기한 초과·완료 현황"
             action={
               <PeriodSelect
                 param="lm"
-                ariaLabel="팀 부하 현황 기준 월 선택"
+                ariaLabel="기한 초과·완료 현황 기준 월 선택"
                 options={MONTH_OPTIONS}
                 value={String(lm)}
               />
             }
           >
+            <p className="text-xs text-[var(--que-text-tertiary)]">
+              선택한 달의 기한 초과·완료 작업 현황입니다. 업무량(부하)이 아니라 마감 이행 관점이며,
+              막힘 사유·경과로 병목을 함께 확인합니다. 개인 평가가 아닙니다.
+            </p>
             <LowPerformersTable rows={data.lowPerformers} />
           </SectionCard>
         )}

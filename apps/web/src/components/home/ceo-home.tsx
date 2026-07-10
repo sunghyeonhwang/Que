@@ -4,7 +4,7 @@ import { PeriodSelect } from "@/components/performance/period-select";
 import { HomeCard } from "@/components/home/home-card";
 import { HomeTodoList } from "@/components/home/home-todo-list";
 import { HomeSchedule } from "@/components/home/home-schedule";
-import { WorkloadTable } from "@/components/home/workload-table";
+import { WorkloadTable } from "@/components/app/workload-table";
 import { ClientOverviewCard } from "@/components/home/client-overview-card";
 import { TodaySummaryCard } from "@/components/home/today-summary-card";
 import { KpiStrip } from "@/components/home/kpi-strip";
@@ -100,7 +100,7 @@ export function CeoHome({ data, month }: { data: CeoHomeData; month: number }) {
             />
           }
         >
-          <PerformanceHeatmap data={data.heatmap} gridOnly />
+          <PerformanceHeatmap data={data.heatmap} />
         </HomeCard>
       </div>
 

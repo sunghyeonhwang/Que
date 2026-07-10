@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Info, Shuffle } from "lucide-react";
-import type { HomeLoad, HomeLoadRow } from "@/lib/home-grade-data";
+import type { HomeLoad, HomeLoadRow } from "@/lib/home-load";
 import { cn } from "@/lib/utils";
 
 // Home/Workload — 업무 부하(§A). 개인 평가가 아니라 배분 조정용. 색 단독 금지(칩=색+텍스트, 비율=색+수치).
@@ -157,13 +157,21 @@ export function WorkloadTable({
 
       {/* 하단: 팀 현황 이동(재배분은 전용 기능이 없어 정직한 문구로 — 2026-07-11 결정) · 캡션 · 과부하만 보기 */}
       <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-4">
-        <Link
-          href="/team"
-          className="inline-flex min-h-10 items-center gap-1.5 rounded-lg border border-[var(--que-brand)] bg-[var(--que-brand-subtle)] px-3 text-sm font-medium text-[var(--que-brand)] transition-colors hover:bg-[var(--que-brand-subtle)]/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <Shuffle className="size-4" aria-hidden />
-          팀 현황에서 조정 →
-        </Link>
+        <span className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <Link
+            href="/team"
+            className="inline-flex min-h-10 items-center gap-1.5 rounded-lg border border-[var(--que-brand)] bg-[var(--que-brand-subtle)] px-3 text-sm font-medium text-[var(--que-brand)] transition-colors hover:bg-[var(--que-brand-subtle)]/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <Shuffle className="size-4" aria-hidden />
+            팀 현황에서 조정 →
+          </Link>
+          <Link
+            href="/help#s10"
+            className="inline-flex min-h-10 items-center text-sm font-medium text-[var(--que-text-secondary)] underline-offset-2 transition-colors hover:text-[var(--que-text)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            조정 방법 보기
+          </Link>
+        </span>
         <span className="hidden text-xs text-[var(--que-text-tertiary)] sm:inline">{CAPTION}</span>
         <button
           type="button"

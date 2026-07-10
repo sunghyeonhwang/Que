@@ -17,17 +17,11 @@ export interface HeatCell {
 export interface HeatRow {
   user: User;
   cells: HeatCell[];
-  totalScore: number;
-  totalHours: number;
-  issueOrHold: number;
 }
 
 export interface HeatmapData {
   days: string[];
   rows: HeatRow[];
-  maxTotal: number;
-  overloaded: string[];
-  relaxed: string[];
 }
 
 function toIntensity(score: number): number {
@@ -110,28 +104,8 @@ export async function getHeatmapData(
       return { date, hours, taskCount: dayTasks.length, score, intensity: toIntensity(score) };
     });
 
-    return {
-      user,
-      cells,
-      totalScore: cells.reduce((sum, c) => sum + c.score, 0),
-      totalHours: cells.reduce((sum, c) => sum + c.hours, 0),
-      issueOrHold: clientTasks.filter(
-        (t) => t.assigneeId === user.id && (t.status === "issue" || t.status === "on_hold"),
-      ).length,
-    };
+    return { user, cells };
   });
 
-  const totals = rows.map((r) => r.totalScore);
-  const maxTotal = Math.max(...totals, 1);
-  const avg = rows.length > 0 ? totals.reduce((a, b) => a + b, 0) / rows.length : 0;
-
-  return {
-    days,
-    rows,
-    maxTotal,
-    overloaded: rows
-      .filter((r) => r.totalScore >= Math.max(avg * 1.5, 6))
-      .map((r) => r.user.name),
-    relaxed: rows.filter((r) => r.totalScore <= avg * 0.4).map((r) => r.user.name),
-  };
+  return { days, rows };
 }

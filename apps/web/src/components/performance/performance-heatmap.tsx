@@ -15,21 +15,10 @@ const GREEN = [
   { bg: "bg-[var(--heat-4-bg)]", fg: "text-[var(--heat-4-fg)]", label: "높음" },
 ];
 
-/** 히트맵(멤버×일) — 초록 강도 그리드 + 멤버별 부하 막대. heatmap-data 재사용.
- *  히트맵(어디 몰렸나) 아래에 부하 막대(누가 많나)를 붙여 한 화면에서 보완한다.
- *  셀 클릭 시 그 날짜의 일정(일 뷰)으로 이동한다. */
-export function PerformanceHeatmap({
-  data,
-  gridOnly = false,
-}: {
-  data: HeatmapData;
-  /** true=그리드(+범례)만 렌더 — 홈 '날짜별 업무 집중도'처럼 부하 표가 따로 있는 화면에서
-   *  멤버별 부하 막대 중복을 피한다. 성과 화면은 기본(false)으로 막대 포함. */
-  gridOnly?: boolean;
-}) {
-  const overloaded = new Set(data.overloaded);
-  const relaxed = new Set(data.relaxed);
-
+/** 히트맵(멤버×일) — 초록 강도 그리드 + 범례. heatmap-data 재사용.
+ *  "누가 얼마나 몰렸나"는 별도 업무 부하 표(WorkloadTable)가 담당한다 — 여기선 "언제/어디에
+ *  몰렸나"만 보여준다. 셀 클릭 시 그 날짜의 일정(일 뷰)으로 이동한다. */
+export function PerformanceHeatmap({ data }: { data: HeatmapData }) {
   return (
     <div className="flex flex-col gap-4">
       <ScrollAffordance>
@@ -104,56 +93,6 @@ export function PerformanceHeatmap({
         <span>많음</span>
         <span className="ml-1">셀 = 예상 시간(h) · 클릭 시 그날 일정</span>
       </div>
-
-      {gridOnly ? null : (
-      <>
-      {/* 멤버별 부하 막대 — 누가 얼마나 몰렸나(정렬 아님, 배분 조정용).
-          막대 길이 = totalScore(예상 시간 + 문제/홀드/마감 임박 가중), 라벨 = 실제 예상 시간. */}
-      <div className="flex flex-col gap-2 border-t border-[var(--que-border)] pt-3">
-        <p className="text-xs text-[var(--que-text-tertiary)]">
-          멤버별 부하 — 막대 길이는 예상 시간에 문제·홀드·마감 임박 가중을 더한 값입니다. 개인 평가가
-          아니라 업무 배분 조정용입니다.
-        </p>
-        {data.rows.map(({ user, totalScore, totalHours, issueOrHold }) => {
-          const isOver = overloaded.has(user.name);
-          const isRelaxed = relaxed.has(user.name);
-          return (
-            <div key={user.id} className="flex items-center gap-2">
-              <span className="flex w-20 shrink-0 items-center gap-1.5 text-sm text-[var(--que-text)]">
-                <span
-                  className="size-2 shrink-0 rounded-full"
-                  style={{ backgroundColor: user.avatarColor }}
-                  aria-hidden
-                />
-                <span className="truncate">{user.name}</span>
-              </span>
-              <span
-                className="h-4 rounded-sm"
-                style={{
-                  width: `${(totalScore / data.maxTotal) * 100}%`,
-                  minWidth: totalScore ? "0.5rem" : "0",
-                  backgroundColor: isOver
-                    ? "var(--que-warning)"
-                    : "var(--que-text-tertiary)",
-                }}
-                aria-hidden
-              />
-              <span className="whitespace-nowrap text-xs tabular-nums text-[var(--que-text-secondary)]">
-                {totalHours}h
-                {issueOrHold > 0 && (
-                  <span className="text-[var(--que-error)]"> · 막힘 {issueOrHold}</span>
-                )}
-                {isOver && <span className="text-[var(--que-warning)]"> · 과부하</span>}
-                {isRelaxed && !isOver && (
-                  <span className="text-[var(--que-text-tertiary)]"> · 여유</span>
-                )}
-              </span>
-            </div>
-          );
-        })}
-      </div>
-      </>
-      )}
     </div>
   );
 }
