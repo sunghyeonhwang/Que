@@ -6,7 +6,9 @@ import "server-only";
 
 // 기본은 Flash(빠름·무료 할당). 리포트 분석처럼 깊은 해석이 필요한 곳만 Pro를 옵션으로 쓴다
 // (사용자 결정 2026-07-11 — Pro는 느리고 유료 과금이라 온디맨드 버튼 경로 한정).
-const MODEL_ID = { flash: "gemini-2.5-flash", pro: "gemini-2.5-pro" } as const;
+// pro는 버전 고정이 아니라 최신 안정판 별칭(gemini-pro-latest) — 2.5-pro가 신규 키에 404로
+// 은퇴("no longer available to new users", 2026-07-11 프로덕션 장애)한 교훈. 별칭이면 은퇴에 안전.
+const MODEL_ID = { flash: "gemini-2.5-flash", pro: "gemini-pro-latest" } as const;
 const urlFor = (model: keyof typeof MODEL_ID) =>
   `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_ID[model]}:generateContent`;
 // Pro는 내부 thinking이 길어 응답이 수십 초 — maxDuration 60 안에서 최대한(재시도 없이 1회).
