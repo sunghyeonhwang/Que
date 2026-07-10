@@ -50,6 +50,7 @@ export async function createTaskAction(input: {
   title: string;
   description?: string;
   assigneeId?: string;
+  startAt?: string;
   endAt?: string;
   priority?: Task["priority"];
 }): Promise<ActionResult> {
@@ -62,6 +63,7 @@ export async function createTaskAction(input: {
           title: input.title,
           projectId: input.projectId,
           assigneeId: input.assigneeId,
+          startAt: input.startAt,
           endAt: input.endAt,
           description: input.description,
           priority: input.priority,

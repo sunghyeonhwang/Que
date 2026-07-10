@@ -170,6 +170,7 @@ export async function createTaskAction(input: {
   startAt?: string;
   endAt?: string;
   priority?: "low" | "normal" | "high";
+  description?: string;
 }): Promise<ActionResult> {
   const user = await getCurrentUser();
   return toResult(

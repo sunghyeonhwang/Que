@@ -23,10 +23,26 @@ export interface PredecessorSuggestion {
   /** 후행(이 작업이 선행을 기다린다). */
   taskId: string;
   taskTitle: string;
+  /** 후행 기간 라벨("7/15~7/17" · "~7/13" · "7/15" · null=날짜 없음) — 날짜가 판단 근거라 카드에 표기. */
+  taskPeriod: string | null;
   predecessorId: string;
   predecessorTitle: string;
+  predecessorPeriod: string | null;
   /** AI가 붙인 근거 한 문장. */
   reason: string;
+}
+
+/** 작업의 기간 라벨. 시작~마감이 다르면 "M/d~M/d", 한쪽만 있으면 그 날짜(마감만이면 "~M/d"). */
+function periodLabel(task: Task): string | null {
+  const fmt = (iso: string) => {
+    const d = new Date(iso);
+    return `${d.getMonth() + 1}/${d.getDate()}`;
+  };
+  const start = task.startAt ? fmt(task.startAt) : null;
+  const end = task.endAt ? fmt(task.endAt) : null;
+  if (start && end) return start === end ? start : `${start}~${end}`;
+  if (end) return `~${end}`;
+  return start;
 }
 
 export type SuggestPredecessorsResult =
@@ -151,8 +167,10 @@ function sanitizeSuggestions(
     out.push({
       taskId,
       taskTitle: task.title,
+      taskPeriod: periodLabel(task),
       predecessorId,
       predecessorTitle: pred.title,
+      predecessorPeriod: periodLabel(pred),
       reason: typeof reason === "string" ? reason.slice(0, 100) : "작업 흐름상 앞뒤로 이어져 보입니다",
     });
   }

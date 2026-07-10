@@ -2,12 +2,21 @@
 
 import { useMemo, useState } from "react";
 import { Plus, X } from "lucide-react";
-import type { CalendarEvent, Task } from "@que/core";
+import type { CalendarEvent } from "@que/core";
 import {
   createCalendarEventAction,
   createScheduleTaskAction,
 } from "@/app/(app)/schedule/actions";
 import { useSafeAction } from "@/components/app/use-safe-action";
+import {
+  ASSIGNEE_ME,
+  NO_PROJECT,
+  TaskFormFields,
+  emptyTaskFormValue,
+  taskFormErrors,
+  taskFormToIso,
+  type TaskFormValue,
+} from "@/components/app/task-form-fields";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -20,7 +29,6 @@ import {
 } from "@/components/ui/dialog";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -40,16 +48,6 @@ export interface ScheduleProject {
   name: string;
 }
 
-const UNASSIGNED = "__unassigned__";
-const NO_PROJECT = "__no_project__";
-
-const PRIORITY_ITEMS: Record<Task["priority"], string> = {
-  high: "높음",
-  normal: "보통",
-  low: "낮음",
-};
-const PRIORITY_ORDER: Task["priority"][] = ["high", "normal", "low"];
-
 const VISIBILITY_ITEMS: Record<CalendarEvent["visibility"], string> = {
   team: "팀 공개",
   private: "비공개",
@@ -57,7 +55,7 @@ const VISIBILITY_ITEMS: Record<CalendarEvent["visibility"], string> = {
 
 type Mode = "task" | "event";
 
-/** date("yyyy-MM-dd") + time("HH:mm") → 로컬 타임존(KST) 기준 ISO. dueDateToIso와 동일 규약. */
+/** date("yyyy-MM-dd") + time("HH:mm") → 로컬 타임존(KST) 기준 ISO. 일정(미팅) 모드 전용. */
 function toIso(date: string, time: string): string {
   return new Date(`${date}T${time}:00`).toISOString();
 }
@@ -70,9 +68,10 @@ function todayStr(): string {
 
 /**
  * 일정 화면 "새로 추가" 하이브리드 Dialog. 상단 유형 토글로 [작업]/[일정(미팅)]을 전환한다.
- * - 작업: 제목·담당자·프로젝트·우선순위·날짜·시간·설명 → createScheduleTaskAction
- * - 일정: 제목·날짜·시간·참여자(다중)·공개범위 → createCalendarEventAction
- * 시각은 날짜+From/To 시간을 KST ISO로 조합해 전송한다. 성공 시 토스트+닫기+refresh.
+ * - 작업: 공통 필드(task-form-fields — 다른 화면과 같은 폼) → createScheduleTaskAction.
+ *   일정 화면 진입이라 시작·마감 날짜를 보고 있는 날짜로, 시간을 14~15시로 프리필한다.
+ * - 일정(미팅): 제목·날짜·시간·참여자(다중)·공개범위 → createCalendarEventAction.
+ *   미팅은 "하루 안의 시간대"가 본질이라 작업과 폼을 합치지 않는다(공개범위·참여자도 미팅 전용).
  */
 export function CreateScheduleDialog({
   members,
@@ -89,87 +88,74 @@ export function CreateScheduleDialog({
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<Mode>("task");
 
-  // 공통 필드
+  // 작업 모드 — 공통 폼 값(일정 화면 프리필: 보고 있는 날짜 + 14~15시).
+  const initialTask = () =>
+    emptyTaskFormValue({
+      startDate: initialDate,
+      startTime: "14:00",
+      dueDate: initialDate,
+      dueTime: "15:00",
+    });
+  const [task, setTask] = useState<TaskFormValue>(initialTask);
+
+  // 일정(미팅) 전용
   const [title, setTitle] = useState("");
   const [date, setDate] = useState(initialDate);
   const [startTime, setStartTime] = useState("14:00");
   const [endTime, setEndTime] = useState("15:00");
-
-  // 작업 전용
-  const [assigneeId, setAssigneeId] = useState(UNASSIGNED);
-  const [projectId, setProjectId] = useState(NO_PROJECT);
-  const [priority, setPriority] = useState<Task["priority"]>("normal");
-  const [description, setDescription] = useState("");
-
-  // 일정 전용
   const [attendeeIds, setAttendeeIds] = useState<string[]>([]);
   const [visibility, setVisibility] = useState<CalendarEvent["visibility"]>("team");
 
   const memberById = useMemo(() => new Map(members.map((m) => [m.id, m])), [members]);
-  const assigneeItems = useMemo(
-    () => ({
-      [UNASSIGNED]: "나에게 배정",
-      ...Object.fromEntries(members.map((m) => [m.id, m.name])),
-    }),
-    [members],
-  );
-  const projectItems = useMemo(
-    () => ({
-      [NO_PROJECT]: "프로젝트 없음",
-      ...Object.fromEntries(projects.map((p) => [p.id, p.name])),
-    }),
-    [projects],
-  );
   // 아직 추가되지 않은 참여자만 드롭다운에 노출한다.
   const remaining = members.filter((m) => !attendeeIds.includes(m.id));
 
-  const titleError = title.length > 0 && !title.trim() ? "제목을 입력하세요." : null;
-  const timeError = endTime <= startTime ? "종료 시간은 시작 시간보다 늦어야 합니다." : null;
-  const canSubmit = title.trim().length > 0 && !!date && !timeError && !pending;
+  const taskErrors = taskFormErrors(task);
+  const eventTitleError = title.length > 0 && !title.trim() ? "제목을 입력하세요." : null;
+  const eventTimeError = endTime <= startTime ? "종료 시간은 시작 시간보다 늦어야 합니다." : null;
+  const canSubmit =
+    mode === "task"
+      ? !taskErrors.title && !taskErrors.range && !pending
+      : title.trim().length > 0 && !!date && !eventTimeError && !pending;
 
   const reset = () => {
     setMode("task");
+    setTask(initialTask());
     setTitle("");
     setDate(initialDate);
     setStartTime("14:00");
     setEndTime("15:00");
-    setAssigneeId(UNASSIGNED);
-    setProjectId(NO_PROJECT);
-    setPriority("normal");
-    setDescription("");
     setAttendeeIds([]);
     setVisibility("team");
   };
 
   const submit = () => {
     if (!canSubmit) return;
-    const startAt = toIso(date, startTime);
-    const endAt = toIso(date, endTime);
+    const submitTitle = (mode === "task" ? task.title : title).trim();
     const label = mode === "task" ? "작업" : "일정";
 
     const action =
       mode === "task"
         ? () =>
             createScheduleTaskAction({
-              title: title.trim(),
-              assigneeId: assigneeId === UNASSIGNED ? undefined : assigneeId,
-              projectId: projectId === NO_PROJECT ? undefined : projectId,
-              priority,
-              startAt,
-              endAt,
-              description: description.trim() || undefined,
+              title: submitTitle,
+              assigneeId: task.assigneeId === ASSIGNEE_ME ? undefined : task.assigneeId,
+              projectId: task.projectId === NO_PROJECT ? undefined : task.projectId,
+              priority: task.priority,
+              ...taskFormToIso(task),
+              description: task.description.trim() || undefined,
             })
         : () =>
             createCalendarEventAction({
-              title: title.trim(),
-              startAt,
-              endAt,
+              title: submitTitle,
+              startAt: toIso(date, startTime),
+              endAt: toIso(date, endTime),
               attendeeIds: attendeeIds.length > 0 ? attendeeIds : undefined,
               visibility,
             });
 
     run(action, {
-      success: `"${title.trim()}" ${label}을(를) 추가했습니다.`,
+      success: `"${submitTitle}" ${label}을(를) 추가했습니다.`,
       onSuccess: () => {
         reset();
         setOpen(false);
@@ -226,220 +212,141 @@ export function CreateScheduleDialog({
           ))}
         </div>
 
-        <div className="flex flex-col gap-3">
-          <Field>
-            <FieldLabel htmlFor="cs-title">제목</FieldLabel>
-            <Input
-              id="cs-title"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder={mode === "task" ? "예: 상세페이지 QA" : "예: 디자인 스프린트 미팅"}
-              className="h-10"
-              aria-invalid={titleError ? true : undefined}
-              autoFocus
-            />
-            {titleError && <p className="text-sm text-destructive">{titleError}</p>}
-          </Field>
+        {mode === "task" ? (
+          <TaskFormFields
+            value={task}
+            onChange={setTask}
+            members={members}
+            projects={projects}
+            idPrefix="cs"
+            autoFocusTitle
+            onSubmit={submit}
+          />
+        ) : (
+          <div className="flex flex-col gap-3">
+            <Field>
+              <FieldLabel htmlFor="cs-ev-title">제목</FieldLabel>
+              <Input
+                id="cs-ev-title"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="예: 디자인 스프린트 미팅"
+                className="h-10"
+                aria-invalid={eventTitleError ? true : undefined}
+                autoFocus
+              />
+              {eventTitleError && <p className="text-sm text-destructive">{eventTitleError}</p>}
+            </Field>
 
-          {mode === "task" && (
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-3">
               <Field>
-                <FieldLabel>담당자</FieldLabel>
-                <Select
-                  items={assigneeItems}
-                  value={assigneeId}
-                  onValueChange={(v) => setAssigneeId((v as string) ?? UNASSIGNED)}
-                >
-                  <SelectTrigger aria-label="담당자 선택" className="h-10 min-h-10 w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={UNASSIGNED}>나에게 배정</SelectItem>
-                    {members.map((m) => (
-                      <SelectItem key={m.id} value={m.id}>
-                        {m.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <FieldLabel htmlFor="cs-ev-date">날짜</FieldLabel>
+                <Input
+                  id="cs-ev-date"
+                  type="date"
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                  className="h-10"
+                />
               </Field>
-
               <Field>
-                <FieldLabel>프로젝트</FieldLabel>
-                <Select
-                  items={projectItems}
-                  value={projectId}
-                  onValueChange={(v) => setProjectId((v as string) ?? NO_PROJECT)}
-                >
-                  <SelectTrigger aria-label="프로젝트 선택" className="h-10 min-h-10 w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={NO_PROJECT}>프로젝트 없음</SelectItem>
-                    {projects.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        {p.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <FieldLabel htmlFor="cs-ev-start">시작</FieldLabel>
+                <Input
+                  id="cs-ev-start"
+                  type="time"
+                  value={startTime}
+                  onChange={(e) => setStartTime(e.target.value)}
+                  className="h-10"
+                />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="cs-ev-end">종료</FieldLabel>
+                <Input
+                  id="cs-ev-end"
+                  type="time"
+                  value={endTime}
+                  onChange={(e) => setEndTime(e.target.value)}
+                  className="h-10"
+                  aria-invalid={eventTimeError ? true : undefined}
+                />
               </Field>
             </div>
-          )}
+            {eventTimeError && <p className="-mt-1 text-sm text-destructive">{eventTimeError}</p>}
 
-          <div className="grid grid-cols-3 gap-3">
             <Field>
-              <FieldLabel htmlFor="cs-date">날짜</FieldLabel>
-              <Input
-                id="cs-date"
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                className="h-10"
-              />
+              <FieldLabel>참여자</FieldLabel>
+              {attendeeIds.length > 0 && (
+                <div className="mb-1.5 flex flex-wrap gap-1.5">
+                  {attendeeIds.map((id) => {
+                    const m = memberById.get(id);
+                    if (!m) return null;
+                    return (
+                      <span
+                        key={id}
+                        className="flex items-center gap-1.5 rounded-full bg-[var(--que-bg-muted)] py-1 pr-1 pl-1.5 text-sm"
+                      >
+                        <span
+                          className="flex size-5 items-center justify-center rounded-full text-[9px] font-semibold text-white"
+                          style={{ backgroundColor: m.avatarColor }}
+                          aria-hidden
+                        >
+                          {m.name.slice(1, 3) || m.name.slice(0, 2)}
+                        </span>
+                        {m.name}
+                        <button
+                          type="button"
+                          aria-label={`${m.name} 참여자 제거`}
+                          onClick={() => setAttendeeIds((prev) => prev.filter((x) => x !== id))}
+                          className="grid size-5 place-items-center rounded-full hover:bg-[var(--que-border)]"
+                        >
+                          <X className="size-3.5" aria-hidden />
+                        </button>
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
+              <Select
+                items={Object.fromEntries(remaining.map((m) => [m.id, m.name]))}
+                value=""
+                onValueChange={(v) => {
+                  if (v) setAttendeeIds((prev) => [...prev, v as string]);
+                }}
+                disabled={remaining.length === 0}
+              >
+                <SelectTrigger aria-label="참여자 추가" className="h-10 min-h-10 w-full">
+                  <SelectValue
+                    placeholder={remaining.length === 0 ? "모든 팀원 추가됨" : "참여자 추가"}
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  {remaining.map((m) => (
+                    <SelectItem key={m.id} value={m.id}>
+                      {m.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </Field>
+
             <Field>
-              <FieldLabel htmlFor="cs-start">시작</FieldLabel>
-              <Input
-                id="cs-start"
-                type="time"
-                value={startTime}
-                onChange={(e) => setStartTime(e.target.value)}
-                className="h-10"
-              />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="cs-end">종료</FieldLabel>
-              <Input
-                id="cs-end"
-                type="time"
-                value={endTime}
-                onChange={(e) => setEndTime(e.target.value)}
-                className="h-10"
-                aria-invalid={timeError ? true : undefined}
-              />
+              <FieldLabel>공개 범위</FieldLabel>
+              <Select
+                items={VISIBILITY_ITEMS}
+                value={visibility}
+                onValueChange={(v) => setVisibility((v as CalendarEvent["visibility"]) ?? "team")}
+              >
+                <SelectTrigger aria-label="공개 범위 선택" className="h-10 min-h-10 w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="team">팀 공개</SelectItem>
+                  <SelectItem value="private">비공개</SelectItem>
+                </SelectContent>
+              </Select>
             </Field>
           </div>
-          {timeError && <p className="-mt-1 text-sm text-destructive">{timeError}</p>}
-
-          {mode === "task" && (
-            <div className="grid grid-cols-2 gap-3">
-              <Field>
-                <FieldLabel>우선순위</FieldLabel>
-                <Select
-                  items={PRIORITY_ITEMS}
-                  value={priority}
-                  onValueChange={(v) => setPriority((v as Task["priority"]) ?? "normal")}
-                >
-                  <SelectTrigger aria-label="우선순위 선택" className="h-10 min-h-10 w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {PRIORITY_ORDER.map((p) => (
-                      <SelectItem key={p} value={p}>
-                        {PRIORITY_ITEMS[p]}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </Field>
-            </div>
-          )}
-
-          {mode === "task" && (
-            <Field>
-              <FieldLabel htmlFor="cs-desc">설명</FieldLabel>
-              <Textarea
-                id="cs-desc"
-                rows={2}
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="간단한 설명 입력…"
-              />
-            </Field>
-          )}
-
-          {mode === "event" && (
-            <>
-              <Field>
-                <FieldLabel>참여자</FieldLabel>
-                {attendeeIds.length > 0 && (
-                  <div className="mb-1.5 flex flex-wrap gap-1.5">
-                    {attendeeIds.map((id) => {
-                      const m = memberById.get(id);
-                      if (!m) return null;
-                      return (
-                        <span
-                          key={id}
-                          className="flex items-center gap-1.5 rounded-full bg-[var(--que-bg-muted)] py-1 pr-1 pl-1.5 text-sm"
-                        >
-                          <span
-                            className="flex size-5 items-center justify-center rounded-full text-[9px] font-semibold text-white"
-                            style={{ backgroundColor: m.avatarColor }}
-                            aria-hidden
-                          >
-                            {m.name.slice(1, 3) || m.name.slice(0, 2)}
-                          </span>
-                          {m.name}
-                          <button
-                            type="button"
-                            aria-label={`${m.name} 참여자 제거`}
-                            onClick={() =>
-                              setAttendeeIds((prev) => prev.filter((x) => x !== id))
-                            }
-                            className="grid size-5 place-items-center rounded-full hover:bg-[var(--que-border)]"
-                          >
-                            <X className="size-3.5" aria-hidden />
-                          </button>
-                        </span>
-                      );
-                    })}
-                  </div>
-                )}
-                <Select
-                  items={Object.fromEntries(remaining.map((m) => [m.id, m.name]))}
-                  value=""
-                  onValueChange={(v) => {
-                    if (v) setAttendeeIds((prev) => [...prev, v as string]);
-                  }}
-                  disabled={remaining.length === 0}
-                >
-                  <SelectTrigger aria-label="참여자 추가" className="h-10 min-h-10 w-full">
-                    <SelectValue
-                      placeholder={remaining.length === 0 ? "모든 팀원 추가됨" : "참여자 추가"}
-                    />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {remaining.map((m) => (
-                      <SelectItem key={m.id} value={m.id}>
-                        {m.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </Field>
-
-              <Field>
-                <FieldLabel>공개 범위</FieldLabel>
-                <Select
-                  items={VISIBILITY_ITEMS}
-                  value={visibility}
-                  onValueChange={(v) =>
-                    setVisibility((v as CalendarEvent["visibility"]) ?? "team")
-                  }
-                >
-                  <SelectTrigger aria-label="공개 범위 선택" className="h-10 min-h-10 w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="team">팀 공개</SelectItem>
-                    <SelectItem value="private">비공개</SelectItem>
-                  </SelectContent>
-                </Select>
-              </Field>
-            </>
-          )}
-        </div>
+        )}
 
         <DialogFooter>
           <Button variant="outline" className="h-10" onClick={() => setOpen(false)}>

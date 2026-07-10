@@ -129,10 +129,21 @@ export function GanttSuggestDialog({ projectId }: { projectId: string }) {
                   key={key}
                   className="flex flex-col gap-2 rounded-xl border border-[var(--que-border)] bg-[var(--que-bg)] px-3.5 py-3"
                 >
-                  <p className="flex min-w-0 flex-wrap items-center gap-1.5 text-sm font-medium text-[var(--que-text)]">
+                  {/* 날짜가 연결 타당성의 판단 근거 — 제목 옆에 기간을 함께 표기한다. */}
+                  <p className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-sm font-medium text-[var(--que-text)]">
                     <span className="truncate">{s.predecessorTitle}</span>
+                    {s.predecessorPeriod && (
+                      <span className="shrink-0 text-xs font-normal text-[var(--que-text-tertiary)] tabular-nums">
+                        {s.predecessorPeriod}
+                      </span>
+                    )}
                     <ArrowRight className="size-3.5 shrink-0 text-[var(--que-text-tertiary)]" aria-hidden />
                     <span className="truncate">{s.taskTitle}</span>
+                    {s.taskPeriod && (
+                      <span className="shrink-0 text-xs font-normal text-[var(--que-text-tertiary)] tabular-nums">
+                        {s.taskPeriod}
+                      </span>
+                    )}
                   </p>
                   <p className="text-[13px] leading-relaxed text-[var(--que-text-secondary)]">{s.reason}</p>
                   <div className="flex items-center gap-2">
