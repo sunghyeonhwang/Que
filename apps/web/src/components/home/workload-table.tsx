@@ -66,7 +66,7 @@ function RatioCell({ ratio }: { ratio: number | null }) {
   );
 }
 
-/** 업무 부하 카드(§A) — 요약칩 + 표 + 재배분 검토/과부하만 보기. */
+/** 업무 부하 카드(§A) — 요약칩 + 표 + 팀 현황 이동/과부하만 보기. */
 export function WorkloadTable({
   load,
   scopeLabel = "업무 부하",
@@ -155,14 +155,14 @@ export function WorkloadTable({
         </table>
       </div>
 
-      {/* 하단: 재배분 검토 · 캡션 · 과부하만 보기 */}
+      {/* 하단: 팀 현황 이동(재배분은 전용 기능이 없어 정직한 문구로 — 2026-07-11 결정) · 캡션 · 과부하만 보기 */}
       <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-4">
         <Link
           href="/team"
           className="inline-flex min-h-10 items-center gap-1.5 rounded-lg border border-[var(--que-brand)] bg-[var(--que-brand-subtle)] px-3 text-sm font-medium text-[var(--que-brand)] transition-colors hover:bg-[var(--que-brand-subtle)]/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <Shuffle className="size-4" aria-hidden />
-          재배분 검토
+          팀 현황에서 조정 →
         </Link>
         <span className="hidden text-xs text-[var(--que-text-tertiary)] sm:inline">{CAPTION}</span>
         <button
