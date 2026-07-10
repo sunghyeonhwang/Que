@@ -1,5 +1,6 @@
 import { AlertTriangle, Pause } from "lucide-react";
 import type { AdminReportData } from "@/lib/report-data";
+import { AiAnalysisCard } from "./ai-analysis-card";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -190,6 +191,9 @@ export function AdminReport({ data }: { data: AdminReportData }) {
           ))}
         </CardContent>
       </Card>
+
+      {/* E-10 분석 AI — 온디맨드(버튼식). 리포트 집계를 근거로 병목·조치를 코치 톤으로. */}
+      <AiAnalysisCard period={data.period} />
     </div>
   );
 }
