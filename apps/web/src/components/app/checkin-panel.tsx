@@ -39,7 +39,7 @@ export function CheckInPanel({
 
   const respond = (response: CheckInResponse, detail?: StatusDetail) => {
     run(() => answerCheckInAction({ checkInId, response, detail }), {
-      success: `체크인 응답 완료: ${CHECK_IN_RESPONSE_LABELS[response]}`,
+      success: `상태 응답 완료: ${CHECK_IN_RESPONSE_LABELS[response]}`,
       onSuccess: () => setIssueOpen(false),
     });
   };
@@ -90,7 +90,7 @@ export function CheckInPanel({
       className="flex flex-col gap-3 rounded-md focus-within:outline-2 focus-within:outline-offset-4 focus-within:outline-ring"
       tabIndex={0}
       onKeyDown={onKeyDown}
-      aria-label="체크인 응답 (숫자키 1–7로 빠르게 응답)"
+      aria-label="작업 상태 확인 응답 (숫자키 1–7로 빠르게 응답)"
     >
       {/* row: 질문(좌)과 버튼(우)을 한 줄에 — 홈 리스트형(Figma). 좁은 화면에선 wrap. */}
       <div className={row ? "flex flex-wrap items-center gap-x-4 gap-y-2" : "contents"}>
@@ -105,7 +105,7 @@ export function CheckInPanel({
         <div
           className={row ? "flex shrink-0 flex-wrap gap-1.5" : "flex flex-wrap gap-2"}
           role="group"
-          aria-label="체크인 응답 선택"
+          aria-label="작업 상태 응답 선택"
         >
           {CHOICES.map((choice, i) => (
             <Button

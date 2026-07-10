@@ -17,7 +17,7 @@ const SHORTCUTS: { keys: string[]; label: string }[] = [
   { keys: ["Enter"], label: "검색/자연어 입력에서 첫 결과·해석 실행" },
   { keys: ["⌘", "↵"], label: "작업 확인 카드에서 바로 등록" },
   { keys: ["Esc"], label: "열린 카드·팔레트·검색 닫기" },
-  { keys: ["1–7"], label: "체크인 패널에서 숫자키로 빠르게 응답" },
+  { keys: ["1–7"], label: "작업 상태 확인에서 숫자키로 빠르게 응답" },
   { keys: ["←", "→"], label: "일정: 이전·다음 기간으로 이동" },
   { keys: ["T"], label: "일정: 오늘로" },
   { keys: ["D", "3", "W", "M"], label: "일정: 일간·3일·주간·월간 뷰 전환" },

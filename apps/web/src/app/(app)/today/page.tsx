@@ -52,7 +52,7 @@ export default async function TodayPage({
 
   const metrics = [
     { value: data.myTasks.length, label: "오늘 내 작업" },
-    { value: data.pendingCheckIns.length, label: "체크인 응답 필요" },
+    { value: data.pendingCheckIns.length, label: "상태 응답 대기" },
     { value: data.dueSoon.length, label: "마감 임박" },
     { value: data.attention.length, label: "문제/홀드" },
     { value: data.conflictCount, label: "일정 충돌" },
@@ -134,7 +134,7 @@ export default async function TodayPage({
           {/* 보조 현황 — 한 번에 접고 펼치는 상세. 기본 펼침(권장), 목록 공간이 필요하면 접는다. */}
           <CollapsibleDetails
             title="현황 상세"
-            summary="타임라인 · 체크인 · 하루 마감 · 주의 필요"
+            summary="타임라인 · 작업 상태 확인 · 하루 마감 · 주의 필요"
             defaultOpen
           >
             <Card>
@@ -159,11 +159,11 @@ export default async function TodayPage({
 
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">자동 체크인</CardTitle>
+                <CardTitle className="text-base">작업 상태 확인</CardTitle>
               </CardHeader>
               <CardContent className="flex flex-col gap-4">
                 {data.pendingCheckIns.length === 0 && (
-                  <p className="text-sm text-muted-foreground">응답할 체크인이 없습니다.</p>
+                  <p className="text-sm text-muted-foreground">응답 대기 중인 작업 상태 확인이 없습니다.</p>
                 )}
                 {data.pendingCheckIns.map(({ checkIn, task }) => (
                   <CheckInPanel
