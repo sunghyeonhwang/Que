@@ -1,5 +1,6 @@
 "use client";
 
+import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -96,6 +97,9 @@ export function ViewSettings() {
     setOpen(false);
   };
 
+  const searchParams = useSearchParams();
+  const playing = searchParams.get("play") === "1";
+
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger
@@ -106,8 +110,10 @@ export function ViewSettings() {
             title="현황판 설정 (슬라이드쇼 타이밍·뷰)"
             // 재생 버튼(bottom-8 left-8, size-16) 바로 위. 겹치지 않게 코너 고정.
             className={cn(
-              "absolute bottom-28 left-8 flex size-14 items-center justify-center rounded-full text-white shadow-lg transition-colors",
+              "absolute bottom-28 left-8 flex size-14 items-center justify-center rounded-full text-white shadow-lg transition-[background-color,opacity]",
               "bg-neutral-900 hover:bg-neutral-700",
+              // 재생 중엔 숨김(opacity 0 + 클릭 차단) — 정지하면 복원(2026-07-11).
+              playing && "pointer-events-none opacity-0",
             )}
           />
         }

@@ -1,8 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import { RECURRENCE_FREQUENCY_LABELS, WEEKDAY_LABELS } from "@que/core";
 import { setRecurringTemplateActiveAction } from "@/app/(app)/projects/actions";
-import { useSafeAction } from "@/components/app/use-safe-action";
+import { useOptimisticAction } from "@/components/app/use-optimistic-action";
 
 export interface TemplateListItem {
   id: string;
@@ -41,11 +42,17 @@ export function TemplateList({ templates }: { templates: TemplateListItem[] }) {
 }
 
 function TemplateRow({ template }: { template: TemplateListItem }) {
-  const { run, pending } = useSafeAction();
+  // 스위치는 즉시 전환하고 서버는 백그라운드로 커밋 — 실패 시에만 롤백.
+  const [active, setActive] = useState(template.active);
+  const { run } = useOptimisticAction();
 
   const toggle = () => {
-    run(() => setRecurringTemplateActiveAction(template.id, !template.active), {
-      success: template.active ? "템플릿을 껐습니다." : "템플릿을 켰습니다.",
+    const next = !active;
+    run(() => setRecurringTemplateActiveAction(template.id, next), {
+      apply: () => setActive(next),
+      rollback: () => setActive(!next),
+      success: next ? "템플릿을 켰습니다." : "템플릿을 껐습니다.",
+      source: "template-active-toggle",
     });
   };
 
@@ -65,28 +72,25 @@ function TemplateRow({ template }: { template: TemplateListItem }) {
         </p>
       </div>
       {/* 토글 스위치(사용자 요청 2026-07-11) — 켜짐/끄기 버튼 대신 스위치 + 상태 라벨. */}
-      <span className="text-xs text-[var(--que-text-secondary)]">
-        {template.active ? "켜짐" : "꺼짐"}
-      </span>
+      <span className="text-xs text-[var(--que-text-secondary)]">{active ? "켜짐" : "꺼짐"}</span>
       {template.canManage && (
         <button
           type="button"
           role="switch"
-          aria-checked={template.active}
-          aria-label={`${template.title} 반복 ${template.active ? "끄기" : "켜기"}`}
-          disabled={pending}
+          aria-checked={active}
+          aria-label={`${template.title} 반복 ${active ? "끄기" : "켜기"}`}
           onClick={toggle}
           className={
             "relative h-6 w-11 shrink-0 rounded-full transition-colors disabled:opacity-50 " +
             "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--que-brand)] " +
-            (template.active ? "bg-[var(--que-success)]" : "bg-[var(--que-border)]")
+            (active ? "bg-[var(--que-success)]" : "bg-[var(--que-border)]")
           }
         >
           <span
             aria-hidden
             className={
               "absolute top-0.5 size-5 rounded-full bg-white shadow transition-[left] " +
-              (template.active ? "left-[22px]" : "left-0.5")
+              (active ? "left-[22px]" : "left-0.5")
             }
           />
         </button>

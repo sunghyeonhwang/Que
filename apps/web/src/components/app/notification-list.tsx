@@ -1,14 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { useTransition } from "react";
+import { useState } from "react";
 import { CheckCheck } from "lucide-react";
 import type { AlertItem, AlertTone } from "@/lib/alerts-data";
 import { markAlertsReadAction, markAllAlertsReadAction } from "@/app/(app)/notifications/actions";
+import { useOptimisticAction } from "@/components/app/use-optimistic-action";
 import { Button } from "@/components/ui/button";
 
 // 알림 센터 목록 — C-3a. 안읽음은 점·배경으로 강조(색상 단독 아님 — '새 알림' 라벨 병행).
-// 항목 클릭 = 읽음 처리 + 해당 화면 이동. '모두 읽음'은 현재 목록 전체를 읽음으로.
+// 항목 클릭 = 읽음 처리(즉시 강조 제거·뱃지 감소) + 해당 화면 이동. 서버 커밋은 백그라운드.
+// '모두 읽음'은 현재 목록 전체를 즉시 읽음으로. (뱃지 수는 로컬로만 줄이고 서버 정합은 다음 갱신에.)
 
 const TONE_DOT: Record<AlertTone, string> = {
   red: "bg-[var(--que-error)]",
@@ -25,17 +27,44 @@ export function NotificationList({
   items: AlertItem[];
   unreadCount: number;
 }) {
-  const [pending, startTransition] = useTransition();
+  const { run } = useOptimisticAction();
+  // 로컬 읽음 집합·안읽음 수 — 클릭 즉시 강조 제거·뱃지 감소. 서버 정합은 다음 갱신에.
+  const [readIds, setReadIds] = useState<Set<string>>(new Set());
+  const [localUnread, setLocalUnread] = useState(unreadCount);
+
+  const isRead = (alert: AlertItem) => alert.read || readIds.has(alert.id);
 
   const readOne = (id: string) => {
     // 이동을 막지 않는다 — 읽음 마크는 백그라운드로(Link 내비게이션과 병행).
-    startTransition(async () => {
-      await markAlertsReadAction([id]);
+    run(() => markAlertsReadAction([id]), {
+      apply: () => {
+        setReadIds((prev) => new Set(prev).add(id));
+        setLocalUnread((n) => Math.max(0, n - 1));
+      },
+      rollback: () => {
+        setReadIds((prev) => {
+          const next = new Set(prev);
+          next.delete(id);
+          return next;
+        });
+        setLocalUnread((n) => n + 1);
+      },
+      source: "alert-read-one",
     });
   };
   const readAll = () => {
-    startTransition(async () => {
-      await markAllAlertsReadAction();
+    const beforeIds = readIds;
+    const beforeUnread = localUnread;
+    run(() => markAllAlertsReadAction(), {
+      apply: () => {
+        setReadIds(new Set(items.map((i) => i.id)));
+        setLocalUnread(0);
+      },
+      rollback: () => {
+        setReadIds(beforeIds);
+        setLocalUnread(beforeUnread);
+      },
+      source: "alert-read-all",
     });
   };
 
@@ -55,12 +84,12 @@ export function NotificationList({
       <div className="flex items-center justify-between px-1">
         <span className="text-sm text-[var(--que-text-secondary)] tabular-nums">
           전체 {items.length}건
-          {unreadCount > 0 && (
-            <b className="font-medium text-[var(--que-text)]"> · 새 알림 {unreadCount}건</b>
+          {localUnread > 0 && (
+            <b className="font-medium text-[var(--que-text)]"> · 새 알림 {localUnread}건</b>
           )}
         </span>
-        {unreadCount > 0 && (
-          <Button variant="outline" className="h-10" onClick={readAll} disabled={pending}>
+        {localUnread > 0 && (
+          <Button variant="outline" className="h-10" onClick={readAll}>
             <CheckCheck className="size-4" aria-hidden />
             모두 읽음
           </Button>
@@ -68,41 +97,44 @@ export function NotificationList({
       </div>
 
       <ul className="overflow-hidden rounded-xl border border-[var(--que-border)] bg-[var(--que-bg)]">
-        {items.map((alert) => (
-          <li key={alert.id} className="border-b border-[var(--que-border)] last:border-b-0">
-            <Link
-              href={alert.href}
-              onClick={() => {
-                if (!alert.read) readOne(alert.id);
-              }}
-              className={`flex min-h-[52px] items-center gap-3 px-4 py-3 hover:bg-[var(--que-bg-muted)] focus-visible:bg-[var(--que-bg-muted)] focus-visible:outline-none ${
-                alert.read ? "" : "bg-[var(--que-brand-subtle)]/40"
-              }`}
-            >
-              <span
-                className={`size-2 shrink-0 rounded-full ${TONE_DOT[alert.tone]}`}
-                aria-hidden
-              />
-              <span className="min-w-0 flex-1">
-                <span className="flex items-center gap-2">
-                  <span
-                    className={`text-sm text-[var(--que-text)] ${alert.read ? "font-normal" : "font-semibold"}`}
-                  >
-                    {alert.title}
-                  </span>
-                  {!alert.read && (
-                    <span className="rounded-full bg-[var(--que-brand)] px-1.5 py-px text-[10px] font-semibold text-white">
-                      새 알림
+        {items.map((alert) => {
+          const read = isRead(alert);
+          return (
+            <li key={alert.id} className="border-b border-[var(--que-border)] last:border-b-0">
+              <Link
+                href={alert.href}
+                onClick={() => {
+                  if (!read) readOne(alert.id);
+                }}
+                className={`flex min-h-[52px] items-center gap-3 px-4 py-3 hover:bg-[var(--que-bg-muted)] focus-visible:bg-[var(--que-bg-muted)] focus-visible:outline-none ${
+                  read ? "" : "bg-[var(--que-brand-subtle)]/40"
+                }`}
+              >
+                <span
+                  className={`size-2 shrink-0 rounded-full ${TONE_DOT[alert.tone]}`}
+                  aria-hidden
+                />
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-center gap-2">
+                    <span
+                      className={`text-sm text-[var(--que-text)] ${read ? "font-normal" : "font-semibold"}`}
+                    >
+                      {alert.title}
                     </span>
-                  )}
+                    {!read && (
+                      <span className="rounded-full bg-[var(--que-brand)] px-1.5 py-px text-[10px] font-semibold text-white">
+                        새 알림
+                      </span>
+                    )}
+                  </span>
+                  <span className="block truncate text-sm text-[var(--que-text-secondary)]">
+                    {alert.description}
+                  </span>
                 </span>
-                <span className="block truncate text-sm text-[var(--que-text-secondary)]">
-                  {alert.description}
-                </span>
-              </span>
-            </Link>
-          </li>
-        ))}
+              </Link>
+            </li>
+          );
+        })}
       </ul>
     </div>
   );

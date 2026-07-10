@@ -31,6 +31,7 @@ import {
   updateTaskDetailsAction,
 } from "@/app/(app)/projects/pm-actions";
 import { useSafeAction } from "@/components/app/use-safe-action";
+import { useOptimisticAction } from "@/components/app/use-optimistic-action";
 import { Sheet, SheetClose, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -141,11 +142,14 @@ function DrawerBody({
   onClose: () => void;
 }) {
   const { run, pending } = useSafeAction();
+  // 선행 작업 토글은 체크 즉시 반영(낙관적) — 실패 시에만 롤백. 다른 편집(저장·이동)과 분리.
+  const { run: runToggle } = useOptimisticAction();
 
   const [title, setTitle] = useState(detail.title);
   const [description, setDescription] = useState(detail.description ?? "");
   const [priority, setPriority] = useState<TaskPriority>(detail.priority);
   const [dueDate, setDueDate] = useState(detail.dueDate ?? "");
+  const [predecessorIds, setPredecessorIds] = useState(detail.predecessorIds);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [blockedOpen, setBlockedOpen] = useState(false);
 
@@ -416,12 +420,12 @@ function DrawerBody({
 
           {/* 선행 작업(E-9) — "앞의 일이 끝나야 시작". 후보는 같은 프로젝트·순환 불가 항목만
               서버가 걸러 내려준다(predecessorOptions). 토글 즉시 커밋(담당자 변경과 동일 패턴). */}
-          {(detail.predecessorIds.length > 0 || (canEdit && detail.predecessorOptions.length > 0)) && (
+          {(predecessorIds.length > 0 || (canEdit && detail.predecessorOptions.length > 0)) && (
             <FieldRow icon={<GitBranch className="size-4" aria-hidden />} label="선행 작업">
               <div className="flex flex-col gap-1.5">
-                {detail.predecessorIds.length > 0 ? (
+                {predecessorIds.length > 0 ? (
                   <div className="flex flex-wrap gap-1.5">
-                    {detail.predecessorIds.map((id) => {
+                    {predecessorIds.map((id) => {
                       const opt = detail.predecessorOptions.find((o) => o.id === id);
                       return (
                         <span
@@ -449,25 +453,30 @@ function DrawerBody({
                       <CommandList className="max-h-44">
                         <CommandEmpty>일치하는 작업이 없습니다.</CommandEmpty>
                         {detail.predecessorOptions.map((o) => {
-                          const checked = detail.predecessorIds.includes(o.id);
+                          const checked = predecessorIds.includes(o.id);
                           return (
                             <CommandItem
                               key={o.id}
                               // 제목이 겹칠 수 있어 id를 붙여 유일하게(검색은 제목으로 걸린다).
                               value={`${o.title} ${o.id}`}
                               data-checked={checked}
-                              disabled={pending}
                               onSelect={() => {
+                                const prev = predecessorIds;
                                 const next = checked
-                                  ? detail.predecessorIds.filter((id) => id !== o.id)
-                                  : [...detail.predecessorIds, o.id];
-                                run(
+                                  ? prev.filter((id) => id !== o.id)
+                                  : [...prev, o.id];
+                                runToggle(
                                   () =>
                                     setTaskPredecessorsAction({
                                       taskId: detail.taskId,
                                       predecessorIds: next,
                                     }),
-                                  { success: "선행 작업을 저장했습니다" },
+                                  {
+                                    apply: () => setPredecessorIds(next),
+                                    rollback: () => setPredecessorIds(prev),
+                                    success: "선행 작업을 저장했습니다",
+                                    source: "task-predecessor-toggle",
+                                  },
                                 );
                               }}
                               className="min-h-10 cursor-pointer"

@@ -195,9 +195,10 @@ export function SlideshowController({ boardPages }: { boardPages: number }) {
       title={playing ? "슬라이드쇼 정지" : "슬라이드쇼 재생 (벽 디스플레이 자동 순회)"}
       className={cn(
         // 좌하단 플로팅. FAB(우하단)와 겹치지 않는다. 데이터/카드를 가리지 않게 코너 고정.
-        "absolute bottom-8 left-8 flex size-16 items-center justify-center rounded-full text-white shadow-lg transition-colors",
+        // 재생 중엔 반투명(0.5)으로 물러난다 — TV 상시 표시에서 화면을 가리지 않게(2026-07-11).
+        "absolute bottom-8 left-8 flex size-16 items-center justify-center rounded-full text-white shadow-lg transition-[background-color,opacity]",
         playing
-          ? "bg-green-600 hover:bg-green-500"
+          ? "bg-green-600 opacity-50 hover:bg-green-500 hover:opacity-100"
           : "bg-neutral-900 hover:bg-neutral-700",
       )}
     >

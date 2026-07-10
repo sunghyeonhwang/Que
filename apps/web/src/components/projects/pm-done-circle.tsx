@@ -1,8 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import { toggleTaskDoneAction } from "@/app/(app)/projects/pm-actions";
 import { DoneCircle } from "@/components/app/done-circle";
-import { useSafeAction } from "@/components/app/use-safe-action";
+import { useOptimisticAction } from "@/components/app/use-optimistic-action";
 
 /** /projects 목록·보드 행/카드의 원형 완료 버튼.
  *  공용 DoneCircle(빈 원 → green 채움 + 체크마크 + 폭죽)을 PM 완료 토글(pm-actions)에 연결한다.
@@ -22,18 +23,23 @@ export function PmDoneCircle({
   disabled?: boolean;
   className?: string;
 }) {
-  const { run, pending } = useSafeAction();
+  // 클릭 즉시 완료 표시(컨페티) 후 서버 백그라운드 커밋 — 실패 시 롤백.
+  const [localDone, setLocalDone] = useState(done);
+  const { run } = useOptimisticAction();
 
   const onToggle = (nextDone: boolean) => {
     run(() => toggleTaskDoneAction({ taskId, done: nextDone }), {
+      apply: () => setLocalDone(nextDone),
+      rollback: () => setLocalDone(!nextDone),
       success: nextDone ? `"${taskTitle}" 완료` : `"${taskTitle}" 완료 해제`,
+      source: "pm-done-toggle",
     });
   };
 
   return (
     <DoneCircle
-      done={done}
-      pending={pending || disabled}
+      done={localDone}
+      pending={disabled}
       markLabel={`${taskTitle} 완료로 표시`}
       unmarkLabel={`${taskTitle} 완료 해제`}
       onToggle={onToggle}

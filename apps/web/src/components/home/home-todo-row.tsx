@@ -1,13 +1,11 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import Link from "next/link";
-import { toast } from "sonner";
 import type { HomeTodoItem } from "@/lib/home-data";
 import { toggleHomeTaskDoneAction } from "@/app/(app)/home/task-actions";
 import { DoneCircle } from "@/components/app/done-circle";
-import { reportError } from "@/lib/report-error";
-import { UNEXPECTED_ERROR_MESSAGE } from "@/components/app/use-safe-action";
+import { useOptimisticAction } from "@/components/app/use-optimistic-action";
 import { cn } from "@/lib/utils";
 
 // 홈 '오늘 할 일' 행 — /today와 같은 DoneCircle(컨페티) 재사용 + **낙관적 즉시 반영**.
@@ -16,22 +14,13 @@ import { cn } from "@/lib/utils";
 
 export function HomeTodoRow({ todo }: { todo: HomeTodoItem }) {
   const [done, setDone] = useState(todo.done);
-  const [, startTransition] = useTransition();
+  const { run } = useOptimisticAction();
 
   const toggle = (nextDone: boolean) => {
-    setDone(nextDone); // 낙관적 — 컨페티는 DoneCircle이 즉시 발사
-    startTransition(async () => {
-      try {
-        const result = await toggleHomeTaskDoneAction({ taskId: todo.id, done: nextDone });
-        if (!result.ok) {
-          setDone(!nextDone); // 도메인 규칙 거부 — 롤백
-          toast.error(result.error);
-        }
-      } catch (error) {
-        setDone(!nextDone);
-        reportError(error, { source: "home-todo-toggle" });
-        toast.error(UNEXPECTED_ERROR_MESSAGE);
-      }
+    run(() => toggleHomeTaskDoneAction({ taskId: todo.id, done: nextDone }), {
+      apply: () => setDone(nextDone), // 낙관적 — 컨페티는 DoneCircle이 즉시 발사
+      rollback: () => setDone(!nextDone),
+      source: "home-todo-toggle",
     });
   };
 

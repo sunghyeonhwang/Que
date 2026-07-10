@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { CheckCircle2 } from "lucide-react";
 import {
   CHECK_IN_RESPONSE_LABELS,
   type CheckInResponse,
@@ -10,7 +11,7 @@ import {
 import { answerCheckInAction } from "@/app/(app)/today/actions";
 import { Button } from "@/components/ui/button";
 import { StatusDetailForm } from "./status-detail-form";
-import { useSafeAction } from "./use-safe-action";
+import { useOptimisticAction } from "./use-optimistic-action";
 
 const CHOICES: CheckInResponse[] = [
   "working",
@@ -33,27 +34,41 @@ export function CheckInPanel({
   /** stack=/today 기본(질문·안내·버튼 세로). row=홈 리스트형(질문+버튼 한 줄 — Figma 계약). */
   variant?: "stack" | "row";
 }) {
-  const { run, pending } = useSafeAction();
+  const { run, pending } = useOptimisticAction();
   const [issueOpen, setIssueOpen] = useState(false);
   const [laterOpen, setLaterOpen] = useState(false);
+  // 응답 즉시 버튼 영역을 확정 표기로 교체한다(로컬). 서버 커밋은 백그라운드, 실패 시 복원.
+  // 홈 체크인 카드도 같은 컴포넌트 — 응답한 행이 즉시 완료 표기되고 목록엔 남아도 된다.
+  const [answered, setAnswered] = useState<string | null>(null);
 
   const respond = (response: CheckInResponse, detail?: StatusDetail) => {
+    const confirmation = `응답 완료: ${CHECK_IN_RESPONSE_LABELS[response]}`;
     run(() => answerCheckInAction({ checkInId, response, detail }), {
-      success: `상태 응답 완료: ${CHECK_IN_RESPONSE_LABELS[response]}`,
-      onSuccess: () => setIssueOpen(false),
+      apply: () => {
+        setAnswered(confirmation);
+        setIssueOpen(false);
+        setLaterOpen(false);
+      },
+      rollback: () => setAnswered(null),
+      source: "checkin-respond",
     });
   };
 
   // '나중에' 스누즈 — 계산한 시각을 UTC ISO로 보낸다(서버가 new Date로 파싱, tz 모호성 없음).
   const snooze = (at: Date, message: string) => {
     run(() => answerCheckInAction({ checkInId, response: "later", snoozeUntil: at.toISOString() }), {
-      success: message,
-      onSuccess: () => setLaterOpen(false),
+      apply: () => {
+        setAnswered(message);
+        setLaterOpen(false);
+        setIssueOpen(false);
+      },
+      rollback: () => setAnswered(null),
+      source: "checkin-snooze",
     });
   };
 
   const choose = (choice: CheckInResponse) => {
-    if (pending) return;
+    if (answered) return;
     if (choice === "issue") {
       setIssueOpen((open) => !open);
     } else if (choice === "later") {
@@ -70,6 +85,7 @@ export function CheckInPanel({
   // 숫자키 1~7 = 응답 버튼. 패널에 포커스가 있을 때만 동작(오늘 화면에 패널이 여럿일 수 있어
   // 전역 키는 어느 패널인지 모호). 사유 입력 중(input/textarea)엔 무시한다.
   const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (answered) return; // 이미 응답한 패널 — 숫자키 무시
     if (e.metaKey || e.ctrlKey || e.altKey) return;
     // 사유 폼·스누즈 프리셋이 열려 있으면 숫자키 무시 — 폼의 버튼/Select에 포커스가 있을 때
     // 숫자를 누르면 작성 중이던 사유가 유실되고 오응답이 나간다(입력칸 밖 포커스도 가드).
@@ -97,38 +113,50 @@ export function CheckInPanel({
         <p className={row ? "min-w-0 flex-1 text-sm font-medium" : "text-sm font-medium"}>
           {question}
         </p>
-        {!row && (
+        {!row && !answered && (
           <p className="text-xs text-muted-foreground">
             응답하면 팀 현황판과 프로젝트 화면에 즉시 반영됩니다. 숫자키 1–7로도 응답할 수 있어요.
           </p>
         )}
-        <div
-          className={row ? "flex shrink-0 flex-wrap gap-1.5" : "flex flex-wrap gap-2"}
-          role="group"
-          aria-label="작업 상태 응답 선택"
-        >
-          {CHOICES.map((choice, i) => (
-            <Button
-              key={choice}
-              variant={choice === "issue" ? "destructive" : "outline"}
-              size="sm"
-              className="h-10 gap-1.5"
-              disabled={pending}
-              aria-expanded={choice === "later" ? laterOpen : undefined}
-              onClick={() => choose(choice)}
-            >
-              <span
-                aria-hidden
-                className="grid size-4 place-items-center rounded bg-black/5 text-[10px] font-semibold tabular-nums text-muted-foreground dark:bg-white/10"
+        {answered ? (
+          <p
+            className={
+              (row ? "flex shrink-0 " : "flex ") +
+              "min-h-10 items-center gap-1.5 text-sm font-medium text-[var(--que-success)]"
+            }
+            role="status"
+          >
+            <CheckCircle2 className="size-4 shrink-0" aria-hidden />
+            {answered}
+          </p>
+        ) : (
+          <div
+            className={row ? "flex shrink-0 flex-wrap gap-1.5" : "flex flex-wrap gap-2"}
+            role="group"
+            aria-label="작업 상태 응답 선택"
+          >
+            {CHOICES.map((choice, i) => (
+              <Button
+                key={choice}
+                variant={choice === "issue" ? "destructive" : "outline"}
+                size="sm"
+                className="h-10 gap-1.5"
+                aria-expanded={choice === "later" ? laterOpen : undefined}
+                onClick={() => choose(choice)}
               >
-                {i + 1}
-              </span>
-              {CHECK_IN_RESPONSE_LABELS[choice]}
-            </Button>
-          ))}
-        </div>
+                <span
+                  aria-hidden
+                  className="grid size-4 place-items-center rounded bg-black/5 text-[10px] font-semibold tabular-nums text-muted-foreground dark:bg-white/10"
+                >
+                  {i + 1}
+                </span>
+                {CHECK_IN_RESPONSE_LABELS[choice]}
+              </Button>
+            ))}
+          </div>
+        )}
       </div>
-      {issueOpen && (
+      {!answered && issueOpen && (
         <div className="rounded-md border p-3">
           <StatusDetailForm
             submitLabel="문제발생으로 응답"
@@ -137,9 +165,7 @@ export function CheckInPanel({
           />
         </div>
       )}
-      {laterOpen && (
-        <SnoozePresets pending={pending} onPick={snooze} />
-      )}
+      {!answered && laterOpen && <SnoozePresets pending={pending} onPick={snooze} />}
     </div>
   );
 }

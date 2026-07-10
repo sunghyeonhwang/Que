@@ -3,7 +3,9 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Bell } from "lucide-react";
-import type { AlertsData, AlertTone } from "@/lib/alerts-data";
+import type { AlertsData, AlertItem, AlertTone } from "@/lib/alerts-data";
+import { markAlertsReadAction } from "@/app/(app)/notifications/actions";
+import { useOptimisticAction } from "@/components/app/use-optimistic-action";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
@@ -20,6 +22,32 @@ const TONE_DOT: Record<AlertTone, string> = {
 export function NotificationsBell({ alerts }: { alerts: AlertsData }) {
   const [open, setOpen] = useState(false);
   const { items, count, unreadCount } = alerts;
+  const { run } = useOptimisticAction();
+  // 항목 클릭 즉시 강조 제거·뱃지 감소(로컬). 서버 읽음 커밋은 백그라운드, 실패 시 롤백.
+  const [readIds, setReadIds] = useState<Set<string>>(new Set());
+  const [localUnread, setLocalUnread] = useState(unreadCount);
+
+  const isRead = (alert: AlertItem) => alert.read || readIds.has(alert.id);
+
+  const openAndRead = (alert: AlertItem) => {
+    setOpen(false);
+    if (isRead(alert)) return;
+    run(() => markAlertsReadAction([alert.id]), {
+      apply: () => {
+        setReadIds((prev) => new Set(prev).add(alert.id));
+        setLocalUnread((n) => Math.max(0, n - 1));
+      },
+      rollback: () => {
+        setReadIds((prev) => {
+          const next = new Set(prev);
+          next.delete(alert.id);
+          return next;
+        });
+        setLocalUnread((n) => n + 1);
+      },
+      source: "alert-bell-read",
+    });
+  };
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -27,15 +55,15 @@ export function NotificationsBell({ alerts }: { alerts: AlertsData }) {
         render={
           <Button
             variant="ghost"
-            aria-label={unreadCount > 0 ? `알림 — 새 알림 ${unreadCount}건` : "알림"}
+            aria-label={localUnread > 0 ? `알림 — 새 알림 ${localUnread}건` : "알림"}
             className="relative size-11 rounded-full text-[var(--que-text-secondary)] hover:bg-[var(--que-bg-muted)]"
           />
         }
       >
         <Bell className="size-5" aria-hidden />
-        {unreadCount > 0 && (
+        {localUnread > 0 && (
           <span className="absolute top-1.5 right-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--que-error)] px-1 text-[10px] font-semibold text-white tabular-nums">
-            {unreadCount > 9 ? "9+" : unreadCount}
+            {localUnread > 9 ? "9+" : localUnread}
           </span>
         )}
       </PopoverTrigger>
@@ -51,32 +79,35 @@ export function NotificationsBell({ alerts }: { alerts: AlertsData }) {
           </p>
         ) : (
           <ul className="max-h-[60vh] overflow-y-auto py-1">
-            {items.map((alert) => (
-              <li key={alert.id}>
-                <Link
-                  href={alert.href}
-                  onClick={() => setOpen(false)}
-                  className={`flex gap-2.5 px-3.5 py-2.5 hover:bg-[var(--que-bg-muted)] focus-visible:bg-[var(--que-bg-muted)] focus-visible:outline-none ${
-                    alert.read ? "" : "bg-[var(--que-brand-subtle)]/40"
-                  }`}
-                >
-                  <span
-                    className={`mt-1.5 size-2 shrink-0 rounded-full ${TONE_DOT[alert.tone]}`}
-                    aria-hidden
-                  />
-                  <span className="min-w-0 flex-1">
+            {items.map((alert) => {
+              const read = isRead(alert);
+              return (
+                <li key={alert.id}>
+                  <Link
+                    href={alert.href}
+                    onClick={() => openAndRead(alert)}
+                    className={`flex gap-2.5 px-3.5 py-2.5 hover:bg-[var(--que-bg-muted)] focus-visible:bg-[var(--que-bg-muted)] focus-visible:outline-none ${
+                      read ? "" : "bg-[var(--que-brand-subtle)]/40"
+                    }`}
+                  >
                     <span
-                      className={`block text-sm text-[var(--que-text)] ${alert.read ? "font-normal" : "font-semibold"}`}
-                    >
-                      {alert.title}
+                      className={`mt-1.5 size-2 shrink-0 rounded-full ${TONE_DOT[alert.tone]}`}
+                      aria-hidden
+                    />
+                    <span className="min-w-0 flex-1">
+                      <span
+                        className={`block text-sm text-[var(--que-text)] ${read ? "font-normal" : "font-semibold"}`}
+                      >
+                        {alert.title}
+                      </span>
+                      <span className="block truncate text-xs text-[var(--que-text-secondary)]">
+                        {alert.description}
+                      </span>
                     </span>
-                    <span className="block truncate text-xs text-[var(--que-text-secondary)]">
-                      {alert.description}
-                    </span>
-                  </span>
-                </Link>
-              </li>
-            ))}
+                  </Link>
+                </li>
+              );
+            })}
           </ul>
         )}
 
