@@ -57,6 +57,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Command,
+  CommandEmpty,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 import { TaskComments } from "@/components/app/task-comments";
 import { StatusBadge } from "@/components/app/status-badge";
 import { MemberAvatars } from "./member-avatars";
@@ -435,19 +442,22 @@ function DrawerBody({
                       연결 편집 <span className="group-open:hidden">▾</span>
                       <span className="hidden group-open:inline">▴</span>
                     </summary>
-                    <div className="mt-1.5 flex max-h-44 flex-col gap-0.5 overflow-y-auto rounded-lg border border-[var(--que-border)] p-1.5">
-                      {detail.predecessorOptions.map((o) => {
-                        const checked = detail.predecessorIds.includes(o.id);
-                        return (
-                          <label
-                            key={o.id}
-                            className="flex min-h-10 cursor-pointer items-center gap-2 rounded-md px-2 text-sm hover:bg-[var(--que-bg-muted)]"
-                          >
-                            <input
-                              type="checkbox"
-                              checked={checked}
+                    {/* 검색형 선택 — 후보가 수십 개면 스크롤로 못 찾는다. 검색은 제목 기준,
+                        목록 기본 순서는 마감일 최신순(서버 정렬). 선택 즉시 커밋(기존 패턴 유지). */}
+                    <Command className="mt-1.5 rounded-lg border border-[var(--que-border)] bg-transparent">
+                      <CommandInput placeholder="작업 이름으로 검색" aria-label="선행 작업 검색" />
+                      <CommandList className="max-h-44">
+                        <CommandEmpty>일치하는 작업이 없습니다.</CommandEmpty>
+                        {detail.predecessorOptions.map((o) => {
+                          const checked = detail.predecessorIds.includes(o.id);
+                          return (
+                            <CommandItem
+                              key={o.id}
+                              // 제목이 겹칠 수 있어 id를 붙여 유일하게(검색은 제목으로 걸린다).
+                              value={`${o.title} ${o.id}`}
+                              data-checked={checked}
                               disabled={pending}
-                              onChange={() => {
+                              onSelect={() => {
                                 const next = checked
                                   ? detail.predecessorIds.filter((id) => id !== o.id)
                                   : [...detail.predecessorIds, o.id];
@@ -460,14 +470,18 @@ function DrawerBody({
                                   { success: "선행 작업을 저장했습니다" },
                                 );
                               }}
-                              className="size-4 accent-[var(--que-brand)]"
-                            />
-                            <span className="min-w-0 flex-1 truncate text-[var(--que-text)]">{o.title}</span>
-                            <span className="shrink-0 text-[11px] text-[var(--que-text-tertiary)]">{o.statusLabel}</span>
-                          </label>
-                        );
-                      })}
-                    </div>
+                              className="min-h-10 cursor-pointer"
+                            >
+                              <span className="min-w-0 flex-1 truncate text-[var(--que-text)]">{o.title}</span>
+                              <span className="shrink-0 text-[11px] text-[var(--que-text-tertiary)]">
+                                {o.dueLabel ? `${o.dueLabel} · ` : ""}
+                                {o.statusLabel}
+                              </span>
+                            </CommandItem>
+                          );
+                        })}
+                      </CommandList>
+                    </Command>
                   </details>
                 )}
                 <p className="text-[11px] leading-relaxed text-[var(--que-text-tertiary)]">

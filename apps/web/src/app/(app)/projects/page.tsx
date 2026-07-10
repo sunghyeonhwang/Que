@@ -18,6 +18,9 @@ import { ProjectScopeFilters } from "@/components/projects/project-scope-filters
 import { TaskDetailDrawer } from "@/components/projects/task-detail-drawer";
 
 export const dynamic = "force-dynamic";
+// AI 연결 제안(suggest-actions)이 이 라우트에서 Gemini를 호출한다 — 기본 함수 시간(10초대)이면
+// thinking 지연 시 간헐 실패(/team AI 분석과 같은 사고 패턴). 넉넉히 60초.
+export const maxDuration = 60;
 
 // 프로젝트(/projects) — 보드(4열 고정)/목록/캘린더 뷰 + 태스크 상세 드로어.
 // 카드 = core Task. 헤더의 2단 필터(클라이언트 → 프로젝트)로 스코프를 좁힌다.

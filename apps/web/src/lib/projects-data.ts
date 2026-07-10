@@ -216,8 +216,9 @@ export interface TaskDetail {
   activity: TaskActivityItem[];
   /** 선행 작업(E-9) — 이 작업들이 끝나야 시작. */
   predecessorIds: string[];
-  /** 선행으로 연결 가능한 후보(같은 프로젝트·취소/병합 제외·자기 제외·순환 유발 제외). */
-  predecessorOptions: { id: string; title: string; statusLabel: string }[];
+  /** 선행으로 연결 가능한 후보(같은 프로젝트·취소/병합 제외·자기 제외·순환 유발 제외).
+      마감일 최신순(없으면 뒤) — 선행은 보통 시간상 직전 작업이라 최근 것이 위에 온다. */
+  predecessorOptions: { id: string; title: string; statusLabel: string; dueLabel: string | null }[];
   canEdit: boolean;
 }
 
@@ -593,8 +594,21 @@ export async function getTaskDetail(
                 t.status !== "merged" &&
                 !chainsInto(t.id))),
         )
-        .sort((a, b) => a.title.localeCompare(b.title, "ko"))
-        .map((t) => ({ id: t.id, title: t.title, statusLabel: STATUS_LABEL[t.status] }));
+        .sort((a, b) => {
+          // 마감일 최신순, 마감 없는 작업은 뒤로, 동률이면 제목 가나다.
+          if (a.endAt !== b.endAt) {
+            if (!a.endAt) return 1;
+            if (!b.endAt) return -1;
+            return b.endAt.localeCompare(a.endAt);
+          }
+          return a.title.localeCompare(b.title, "ko");
+        })
+        .map((t) => ({
+          id: t.id,
+          title: t.title,
+          statusLabel: STATUS_LABEL[t.status],
+          dueLabel: t.endAt ? format(new Date(t.endAt), "M/d", { locale: ko }) : null,
+        }));
 
   return {
     taskId: task.id,

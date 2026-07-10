@@ -20,6 +20,7 @@ import { ListView } from "./list-view";
 import { BoardView } from "./board-view";
 import { ProjectCalendarView } from "./calendar-view";
 import { GanttView } from "./gantt-view";
+import { GanttSuggestDialog } from "./gantt-suggest-dialog";
 
 const VIEW_KEYS: ProjectViewKey[] = ["list", "board", "calendar", "gantt"];
 
@@ -105,6 +106,10 @@ export function ProjectView({
       <div className="mt-4 flex shrink-0 flex-wrap items-end justify-between gap-2 border-b border-[var(--que-border)]">
         <ViewTabs current={view} />
         <div className="flex items-center gap-2 pb-2">
+          {/* AI 연결 제안은 간트 + 단일 프로젝트에서만 — 선행 연결은 같은 프로젝트 안에서만 가능하다. */}
+          {view === "gantt" && !isAllProjects && meta ? (
+            <GanttSuggestDialog projectId={viewProjectId} />
+          ) : null}
           {/* 전체 보기에선 생성 버튼을 숨긴다 — 생성은 대상 프로젝트가 필요하다. */}
           {!isAllProjects && meta ? (
             <CreateTaskDialog projectId={viewProjectId} meta={meta} />
