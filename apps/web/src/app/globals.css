@@ -370,3 +370,40 @@
     transition: none;
   }
 }
+/* AI 브리핑 생성 버튼 shimmer — 그라데이션 위를 하이라이트가 주기적으로 쓸고 지나간다.
+   (홈 오늘 요약 카드 전용. 모션 최소화 설정에서는 정지.) */
+@keyframes que-shimmer {
+  0% {
+    transform: translateX(-150%) skewX(-20deg);
+  }
+  60%,
+  100% {
+    transform: translateX(350%) skewX(-20deg);
+  }
+}
+.que-shimmer-btn {
+  position: relative;
+  overflow: hidden;
+}
+.que-shimmer-btn::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 40%;
+  background: linear-gradient(
+    105deg,
+    transparent,
+    rgba(255, 255, 255, 0.55),
+    transparent
+  );
+  animation: que-shimmer 2.8s ease-in-out infinite;
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .que-shimmer-btn::after {
+    animation: none;
+    display: none;
+  }
+}

@@ -8,7 +8,6 @@ import {
 } from "@/app/(app)/home/briefing-actions";
 import { mdToHtml } from "@/app/(app)/help/help-markdown";
 import { Button } from "@/components/ui/button";
-import { HomeCard } from "@/components/home/home-card";
 
 // Home/TodaySummary — 규칙 기반 오늘 요약 + 온디맨드 AI 브리핑(전 역할, E-10 Gemini 재사용).
 // 규칙 문장(lines)은 항상 표시하고, AI 브리핑은 버튼을 눌렀을 때만 생성한다(자동 실행·비용 없음).
@@ -34,17 +33,20 @@ export function TodaySummaryCard({ title, lines }: { title: string; lines: strin
   };
 
   return (
-    <HomeCard title={title}>
+    <section className="flex min-w-0 flex-col rounded-xl border border-[var(--que-border)] bg-[var(--que-bg)] p-4 shadow-[var(--que-shadow-sm)]">
       <div className="flex flex-col gap-3">
-        {/* Figma 계약: 좌 = 규칙 기반 요약 한 줄(항상 표시 · AI 폴백), 우 = primary 생성 버튼(수직 중앙). */}
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-          <p className="min-w-0 flex-1 text-sm leading-relaxed text-[var(--que-text-secondary)]">
-            {lines.join(" ")}
-          </p>
-          {/* Figma 확정 스타일: 인디고→시안 그라데이션 + 남색 텍스트, 아이콘 없음(잔재 Sparkles 제거).
-              그라데이션은 글로벌 토큰이 아니라 AI 기능 시그니처 버튼 한정. */}
+        {/* Figma 계약: 좌 = 제목+규칙 기반 요약(항상 표시 · AI 폴백), 우 = 그라데이션 생성 버튼(카드 세로 중앙). */}
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+          <div className="min-w-0 flex-1">
+            <h2 className="text-base font-semibold text-[var(--que-text)]">{title}</h2>
+            <p className="mt-1.5 text-sm leading-relaxed text-[var(--que-text-secondary)]">
+              {lines.join(" ")}
+            </p>
+          </div>
+          {/* Figma 확정 스타일: 인디고→시안 그라데이션 + 남색 텍스트 + shimmer, 아이콘 없음.
+              그라데이션·애니메이션은 글로벌 토큰이 아니라 AI 기능 시그니처 버튼 한정. */}
           <Button
-            className="h-10 shrink-0 rounded-lg border-0 bg-[linear-gradient(90deg,#7488EA,#00B3FF)] font-medium text-[#001043] hover:opacity-90"
+            className="que-shimmer-btn h-11 min-w-[16.5rem] shrink-0 self-center rounded-lg border-0 bg-[linear-gradient(90deg,#7488EA,#00B3FF)] font-medium text-[#001043] hover:opacity-90"
             onClick={generate}
             disabled={pending}
           >
@@ -91,6 +93,6 @@ export function TodaySummaryCard({ title, lines }: { title: string; lines: strin
           </div>
         )}
       </div>
-    </HomeCard>
+    </section>
   );
 }
