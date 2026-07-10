@@ -4,9 +4,13 @@ import "server-only";
 // 온디맨드 버튼식(관리자·대표)이라 호출량이 작다 — Flash 무료 할당으로 충분.
 // 실패는 QueRuleError처럼 던지지 않고 한글 메시지 Error로 — 호출부(서버 액션)가 {ok:false}로 변환.
 
-const GEMINI_MODEL = "gemini-2.5-flash";
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
-const TIMEOUT_MS = 45_000; // 리포트 분석은 수 초 — 여유 있게
+// 기본은 Flash(빠름·무료 할당). 리포트 분석처럼 깊은 해석이 필요한 곳만 Pro를 옵션으로 쓴다
+// (사용자 결정 2026-07-11 — Pro는 느리고 유료 과금이라 온디맨드 버튼 경로 한정).
+const MODEL_ID = { flash: "gemini-2.5-flash", pro: "gemini-2.5-pro" } as const;
+const urlFor = (model: keyof typeof MODEL_ID) =>
+  `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_ID[model]}:generateContent`;
+// Pro는 내부 thinking이 길어 응답이 수십 초 — maxDuration 60 안에서 최대한(재시도 없이 1회).
+const TIMEOUT_MS = { flash: 45_000, pro: 52_000 } as const;
 
 interface GeminiResponse {
   candidates?: { content?: { parts?: { text?: string }[] } }[];
@@ -14,6 +18,8 @@ interface GeminiResponse {
 
 /** generateAnalysis 옵션. maxOutputTokens는 공용 기본 2048 — 더 긴 브리핑(대표 경영 브리핑 등)만 상향. */
 export interface GenerateAnalysisOptions {
+  /** 모델 선택. 기본 flash. pro=깊은 해석(리포트 분석) — 느리고 유료라 온디맨드 한정. */
+  model?: "flash" | "pro";
   /** 최대 출력 토큰. 기본 2048. 분량이 긴 브리핑(대표)만 3072 등으로 올린다. */
   maxOutputTokens?: number;
 }
@@ -31,13 +37,14 @@ export async function generateAnalysis(
     throw new Error("AI 분석이 설정되지 않았습니다 (GEMINI_API_KEY 미설정) — 관리자에게 문의하세요.");
   }
   const maxOutputTokens = options.maxOutputTokens ?? 2048;
+  const model = options.model ?? "flash";
 
   // 일시 오류(503 과부하·네트워크)는 1회만 짧게 재시도 — 사용자가 버튼을 다시 누르게 하지 않는다.
   let lastError: Error | null = null;
   for (let attempt = 0; attempt < 2; attempt++) {
     if (attempt > 0) await new Promise((r) => setTimeout(r, 1500));
     try {
-      return await callOnce(key, systemInstruction, userContent, maxOutputTokens);
+      return await callOnce(key, systemInstruction, userContent, maxOutputTokens, model);
     } catch (e) {
       lastError = e instanceof Error ? e : new Error(String(e));
       // 429(한도)·타임아웃은 재시도해도 소용없거나 역효과 — 즉시 반환.
@@ -52,11 +59,12 @@ async function callOnce(
   systemInstruction: string,
   userContent: string,
   maxOutputTokens: number,
+  model: "flash" | "pro",
 ): Promise<string> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS[model]);
   try {
-    const res = await fetch(GEMINI_URL, {
+    const res = await fetch(urlFor(model), {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-goog-api-key": key },
       signal: controller.signal,
@@ -68,7 +76,9 @@ async function callOnce(
           maxOutputTokens,
           // 2.5-flash의 '생각' 시간을 제한 — 요약·조언 태스크라 품질 손실 없이 응답을 수 초로
           // 단축한다(무제한이면 10~30초로 들쭉날쭉 → 서버리스 함수 시간 초과의 주원인).
-          thinkingConfig: { thinkingBudget: 512 },
+          // Flash: thinking 제한(512)으로 응답을 수 초로. Pro: thinking을 끄거나 너무 줄이면
+          // 해석 품질이 떨어지므로 넉넉히(2048) — Pro 경로는 온디맨드라 지연 감수.
+          thinkingConfig: { thinkingBudget: model === "pro" ? 2048 : 512 },
         },
       }),
     });

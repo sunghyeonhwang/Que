@@ -3,8 +3,6 @@
 import { RECURRENCE_FREQUENCY_LABELS, WEEKDAY_LABELS } from "@que/core";
 import { setRecurringTemplateActiveAction } from "@/app/(app)/projects/actions";
 import { useSafeAction } from "@/components/app/use-safe-action";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 
 export interface TemplateListItem {
   id: string;
@@ -66,19 +64,32 @@ function TemplateRow({ template }: { template: TemplateListItem }) {
           {template.projectName ? ` · ${template.projectName}` : ""}
         </p>
       </div>
-      <Badge variant={template.active ? "secondary" : "outline"}>
+      {/* 토글 스위치(사용자 요청 2026-07-11) — 켜짐/끄기 버튼 대신 스위치 + 상태 라벨. */}
+      <span className="text-xs text-[var(--que-text-secondary)]">
         {template.active ? "켜짐" : "꺼짐"}
-      </Badge>
+      </span>
       {template.canManage && (
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-10"
+        <button
+          type="button"
+          role="switch"
+          aria-checked={template.active}
+          aria-label={`${template.title} 반복 ${template.active ? "끄기" : "켜기"}`}
           disabled={pending}
           onClick={toggle}
+          className={
+            "relative h-6 w-11 shrink-0 rounded-full transition-colors disabled:opacity-50 " +
+            "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--que-brand)] " +
+            (template.active ? "bg-[var(--que-success)]" : "bg-[var(--que-border)]")
+          }
         >
-          {template.active ? "끄기" : "켜기"}
-        </Button>
+          <span
+            aria-hidden
+            className={
+              "absolute top-0.5 size-5 rounded-full bg-white shadow transition-[left] " +
+              (template.active ? "left-[22px]" : "left-0.5")
+            }
+          />
+        </button>
       )}
       {!template.canManage && (
         <p className="w-full text-xs text-muted-foreground">

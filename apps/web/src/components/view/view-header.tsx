@@ -1,5 +1,6 @@
 import { addDays, format, parseISO } from "date-fns";
 import { cn } from "@/lib/utils";
+import { FullscreenButton } from "@/components/view/fullscreen-button";
 import { ViewClock } from "./view-clock";
 import { BoardHeaderControls } from "./board-header-controls";
 import { SegLink, DateNav, rangeLabel, type WeekRange } from "./view-nav";
@@ -93,6 +94,9 @@ export function ViewHeader({
           todayISO={todayISO}
         />
       ) : null}
+
+      {/* 전체화면 토글 — 사무실 상시 디스플레이용(사용자 요청 2026-07-11). */}
+      <FullscreenButton />
     </header>
   );
 }
