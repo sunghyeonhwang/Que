@@ -34,44 +34,26 @@ export function TodaySummaryCard({ title, lines }: { title: string; lines: strin
   };
 
   return (
-    <HomeCard
-      title={title}
-      action={
-        <Button
-          variant={result?.ok ? "ghost" : "outline"}
-          size="sm"
-          className="h-9"
-          onClick={generate}
-          disabled={pending}
-        >
-          {result?.ok ? (
-            <RefreshCw
-              className={pending ? "size-3.5 animate-spin" : "size-3.5"}
-              aria-hidden
-            />
-          ) : (
-            <Sparkles className="size-3.5" aria-hidden />
-          )}
-          {result?.ok ? "다시 생성" : "AI 브리핑 생성"}
-        </Button>
-      }
-    >
+    <HomeCard title={title}>
       <div className="flex flex-col gap-3">
-        {/* 규칙 기반 요약(항상 표시 · AI 폴백) */}
-        <ul className="flex flex-col gap-1.5">
-          {lines.map((line, i) => (
-            <li
-              key={i}
-              className="flex items-start gap-2 text-sm text-[var(--que-text-secondary)]"
-            >
-              <span
-                className="mt-1.5 size-1.5 shrink-0 rounded-full bg-[var(--que-text-tertiary)]"
-                aria-hidden
-              />
-              <span>{line}</span>
-            </li>
-          ))}
-        </ul>
+        {/* Figma 계약: 좌 = 규칙 기반 요약 한 줄(항상 표시 · AI 폴백), 우 = primary 생성 버튼(수직 중앙). */}
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <p className="min-w-0 flex-1 text-sm leading-relaxed text-[var(--que-text-secondary)]">
+            {lines.join(" ")}
+          </p>
+          <Button
+            className="h-10 shrink-0 bg-[var(--que-brand)] text-[var(--que-on-brand)] hover:bg-[var(--que-brand-hover)]"
+            onClick={generate}
+            disabled={pending}
+          >
+            {result?.ok ? (
+              <RefreshCw className={pending ? "size-4 animate-spin" : "size-4"} aria-hidden />
+            ) : (
+              <Sparkles className="size-4" aria-hidden />
+            )}
+            {result?.ok ? "다시 생성" : "AI 브리핑 생성"}
+          </Button>
+        </div>
 
         {pending && !result && (
           <p className="flex items-center gap-2 text-sm text-[var(--que-text-secondary)]">

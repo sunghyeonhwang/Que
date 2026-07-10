@@ -26,9 +26,12 @@ const CHOICES: CheckInResponse[] = [
 export function CheckInPanel({
   checkInId,
   question,
+  variant = "stack",
 }: {
   checkInId: string;
   question: string;
+  /** stack=/today 기본(질문·안내·버튼 세로). row=홈 리스트형(질문+버튼 한 줄 — Figma 계약). */
+  variant?: "stack" | "row";
 }) {
   const { run, pending } = useSafeAction();
   const [issueOpen, setIssueOpen] = useState(false);
@@ -81,6 +84,7 @@ export function CheckInPanel({
     choose(CHOICES[idx]);
   };
 
+  const row = variant === "row";
   return (
     <div
       className="flex flex-col gap-3 rounded-md focus-within:outline-2 focus-within:outline-offset-4 focus-within:outline-ring"
@@ -88,30 +92,41 @@ export function CheckInPanel({
       onKeyDown={onKeyDown}
       aria-label="체크인 응답 (숫자키 1–7로 빠르게 응답)"
     >
-      <p className="text-sm font-medium">{question}</p>
-      <p className="text-xs text-muted-foreground">
-        응답하면 팀 현황판과 프로젝트 화면에 즉시 반영됩니다. 숫자키 1–7로도 응답할 수 있어요.
-      </p>
-      <div className="flex flex-wrap gap-2" role="group" aria-label="체크인 응답 선택">
-        {CHOICES.map((choice, i) => (
-          <Button
-            key={choice}
-            variant={choice === "issue" ? "destructive" : "outline"}
-            size="sm"
-            className="h-10 gap-1.5"
-            disabled={pending}
-            aria-expanded={choice === "later" ? laterOpen : undefined}
-            onClick={() => choose(choice)}
-          >
-            <span
-              aria-hidden
-              className="grid size-4 place-items-center rounded bg-black/5 text-[10px] font-semibold tabular-nums text-muted-foreground dark:bg-white/10"
+      {/* row: 질문(좌)과 버튼(우)을 한 줄에 — 홈 리스트형(Figma). 좁은 화면에선 wrap. */}
+      <div className={row ? "flex flex-wrap items-center gap-x-4 gap-y-2" : "contents"}>
+        <p className={row ? "min-w-0 flex-1 text-sm font-medium" : "text-sm font-medium"}>
+          {question}
+        </p>
+        {!row && (
+          <p className="text-xs text-muted-foreground">
+            응답하면 팀 현황판과 프로젝트 화면에 즉시 반영됩니다. 숫자키 1–7로도 응답할 수 있어요.
+          </p>
+        )}
+        <div
+          className={row ? "flex shrink-0 flex-wrap gap-1.5" : "flex flex-wrap gap-2"}
+          role="group"
+          aria-label="체크인 응답 선택"
+        >
+          {CHOICES.map((choice, i) => (
+            <Button
+              key={choice}
+              variant={choice === "issue" ? "destructive" : "outline"}
+              size="sm"
+              className="h-10 gap-1.5"
+              disabled={pending}
+              aria-expanded={choice === "later" ? laterOpen : undefined}
+              onClick={() => choose(choice)}
             >
-              {i + 1}
-            </span>
-            {CHECK_IN_RESPONSE_LABELS[choice]}
-          </Button>
-        ))}
+              <span
+                aria-hidden
+                className="grid size-4 place-items-center rounded bg-black/5 text-[10px] font-semibold tabular-nums text-muted-foreground dark:bg-white/10"
+              >
+                {i + 1}
+              </span>
+              {CHECK_IN_RESPONSE_LABELS[choice]}
+            </Button>
+          ))}
+        </div>
       </div>
       {issueOpen && (
         <div className="rounded-md border p-3">

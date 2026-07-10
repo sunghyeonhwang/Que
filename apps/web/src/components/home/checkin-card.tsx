@@ -14,12 +14,13 @@ export function CheckInCard({ items }: { items: HomeCheckInItem[] }) {
         {items.map((item) => (
           <li
             key={item.checkInId}
-            className="rounded-lg border border-[var(--que-border)] p-3"
+            className="rounded-lg border border-[var(--que-border)] px-3 py-2.5"
           >
+            {/* 질문+버튼 한 줄(row variant — Figma 계약). */}
             {item.projectLabel && (
-              <p className="mb-2 text-xs text-[var(--que-text-tertiary)]">{item.projectLabel}</p>
+              <p className="mb-1 text-xs text-[var(--que-text-tertiary)]">{item.projectLabel}</p>
             )}
-            <CheckInPanel checkInId={item.checkInId} question={item.question} />
+            <CheckInPanel checkInId={item.checkInId} question={item.question} variant="row" />
           </li>
         ))}
       </ul>
