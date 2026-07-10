@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { RefreshCw, Sparkles } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 import {
   generateHomeBriefingAction,
   type HomeBriefingResult,
@@ -41,16 +41,14 @@ export function TodaySummaryCard({ title, lines }: { title: string; lines: strin
           <p className="min-w-0 flex-1 text-sm leading-relaxed text-[var(--que-text-secondary)]">
             {lines.join(" ")}
           </p>
+          {/* Figma 확정 스타일: 인디고→시안 그라데이션 + 남색 텍스트, 아이콘 없음(잔재 Sparkles 제거).
+              그라데이션은 글로벌 토큰이 아니라 AI 기능 시그니처 버튼 한정. */}
           <Button
-            className="h-10 shrink-0 bg-[var(--que-brand)] text-[var(--que-on-brand)] hover:bg-[var(--que-brand-hover)]"
+            className="h-10 shrink-0 rounded-lg border-0 bg-[linear-gradient(90deg,#7488EA,#00B3FF)] font-medium text-[#001043] hover:opacity-90"
             onClick={generate}
             disabled={pending}
           >
-            {result?.ok ? (
-              <RefreshCw className={pending ? "size-4 animate-spin" : "size-4"} aria-hidden />
-            ) : (
-              <Sparkles className="size-4" aria-hidden />
-            )}
+            {pending && <RefreshCw className="size-4 animate-spin" aria-hidden />}
             {result?.ok ? "다시 생성" : "AI 브리핑 생성"}
           </Button>
         </div>
