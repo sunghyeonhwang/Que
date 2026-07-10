@@ -415,13 +415,19 @@ input[type="date"],
 input[type="time"],
 input[type="datetime-local"] {
   position: relative;
-  padding-left: 2.25rem;
+  /* 아이콘 폭+간격만 확보 — 여유가 크면 좁은 3컬럼 폼에서 값이 잘린다(2026-07-11 피드백). */
+  padding-left: 1.875rem;
 }
 input[type="date"]::-webkit-calendar-picker-indicator,
 input[type="time"]::-webkit-calendar-picker-indicator,
 input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   position: absolute;
-  left: 0.625rem;
+  left: 0.5rem;
+  /* 시계/달력 아이콘의 기본 크기·마진이 서로 달라 텍스트 간격이 어긋난다 — 크기·마진을 통일. */
+  width: 1rem;
+  height: 1rem;
+  margin: 0;
+  padding: 0;
   opacity: 0.75;
   cursor: pointer;
 }
