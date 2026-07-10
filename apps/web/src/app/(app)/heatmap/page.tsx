@@ -17,6 +17,7 @@ import { PerformanceLineChart } from "@/components/performance/performance-line-
 import { PerformanceHeatmap } from "@/components/performance/performance-heatmap";
 import { KpiCard } from "@/components/performance/kpi-card";
 import { PeriodSelect } from "@/components/performance/period-select";
+import { LinkTabs } from "@/components/app/link-tabs";
 import { LowPerformersTable } from "@/components/performance/low-performers-table";
 import { ProjectProgressList } from "@/components/performance/project-progress-list";
 
@@ -69,29 +70,60 @@ export default async function PerformancePage({
     getClientFilterName(),
   ]);
 
+  // 내 성과 | 팀 성과 탭 — 관리자·대표(비-사원)만 노출한다. 사원은 어차피 본인 스코프라 탭이 무의미.
+  // scope=me면 대표·관리자도 본인 스코프로 좁혀 '내 성과'를 본다(데이터 계층 forceSelf). 기본 team.
+  const viewerGrade = gradeForUser(user);
+  const canScopeTeam = viewerGrade !== "staff" || user.role === "admin";
+  const scope: "me" | "team" = sp.scope === "me" ? "me" : "team";
+
   // 사람-위젯(히트맵 rows·부하표) 스코프와 사원 KPI 스코프는 세션 사용자 grade에서만 유도한다.
   // viewer를 넘기면 데이터 계층이 viewer.id로 스코프를 재유도한다 — URL 파라미터로 넓힐 수 없다.
-  const data = await getPerformanceData(now, { hm, cm, ot, lm, clientId, viewer: user });
+  // scope는 좁히기 전용(me) — 사원이 ?scope=team을 넣어도 grade 재유도로 본인만 산출된다.
+  const data = await getPerformanceData(now, {
+    hm,
+    cm,
+    ot,
+    lm,
+    clientId,
+    viewer: user,
+    scope,
+  });
 
   // 부하 순위표는 대표(ceo) 전용이다(RPT-1, 2026-07-07 UX 감사 — 관리자 레벨 줄세우기 노출 제거).
-  // 관리자/사원은 표 대신 본인 월간 요약만 본다. 데이터 계층도 비대표에게는 lowPerformers를 본인
-  // 1행으로만 계산한다(순위 데이터가 아예 안 내려감). 관리자의 부하 히트맵·KPI는 재배분용으로 유지.
-  const isCeo = gradeForUser(user) === "ceo";
+  // '내 성과'(scope=me)면 대표여도 표 대신 본인 월간 요약을 본다. 관리자/사원도 본인 요약.
+  const isCeo = viewerGrade === "ceo";
+  const showTeamLoadTable = isCeo && scope !== "me";
   const selfRow = data.lowPerformers[0];
 
   return (
     <div className="flex flex-col gap-4">
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-[var(--que-text)]">성과</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-[var(--que-text)]">
+            {scope === "me" || !canScopeTeam ? "내 성과" : "성과"}
+          </h1>
           <p className="mt-1 text-sm text-[var(--que-text-secondary)]">
-            팀 작업 진척·병목·부하 분포를 한눈에. 개인 평가가 아니라 업무 배분과 병목 조정용입니다.
+            {scope === "me" || !canScopeTeam
+              ? "내 작업 진척·완료·기한 초과를 한눈에. 개인 평가가 아니라 스스로 흐름을 점검하는 용도입니다."
+              : "팀 작업 진척·병목·부하 분포를 한눈에. 개인 평가가 아니라 업무 배분과 병목 조정용입니다."}
           </p>
         </div>
         <div className="flex items-center gap-2">
           <ClientFilterBadge clientName={clientName} />
         </div>
       </header>
+
+      {/* 내 성과 | 팀 성과 탭 — 관리자·대표만. 사원은 본인 스코프 고정이라 탭 없음. */}
+      {canScopeTeam && (
+        <LinkTabs
+          label="성과 스코프 전환"
+          active={scope}
+          tabs={[
+            { key: "me", label: "내 성과", href: "/heatmap?scope=me" },
+            { key: "team", label: "팀 성과", href: "/heatmap" },
+          ]}
+        />
+      )}
 
       {/* KPI 4 */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -155,7 +187,7 @@ export default async function PerformancePage({
 
       {/* 4행: (대표) 팀 부하 순위표 · (관리자/사원) 내 월간 요약 | 프로젝트 진행률 */}
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-        {!isCeo ? (
+        {!showTeamLoadTable ? (
           <SectionCard
             title="내 월간 요약"
             action={

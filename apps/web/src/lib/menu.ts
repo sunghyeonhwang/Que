@@ -37,6 +37,11 @@ export interface MenuItem {
   badge?: number;
   /** 관리자에게만 노출하는 메뉴(예: 클라이언트 관리). 페이지·서버 액션에서도 별도로 강제한다(UI만 믿지 않음). */
   adminOnly?: boolean;
+  /** 화면 내부 URL 탭을 사이드바 트리에서도 펼쳐 접근하기 위한 하위 항목.
+   *  풀 사이드바(SidebarNav)만 chevron 토글로 노출한다(축소 레일은 미노출 — 기존 동작 유지).
+   *  화면 내부 탭은 그대로 유지해 양쪽 접근이 공존한다. href는 탭 파라미터를 포함할 수 있다
+   *  (예: `/team?view=report`). adminOnly 하위는 비관리자에게 숨긴다(role은 서버가 재판정). */
+  children?: { label: string; href: string; adminOnly?: boolean }[];
 }
 
 export interface MenuSection {
@@ -58,7 +63,16 @@ export const MENU_SECTIONS: MenuSection[] = [
       // 매일 쓰는 화면을 상단으로. (2026-07-07 UX 감사 IA 재정렬)
       { href: "/home", label: "홈", icon: Home },
       // 작업 목록(/today) — 오늘 개인 진입점(팀원). 2026-07-11 Now를 독립 메뉴로 분리(탭 병합 폐기).
-      { href: "/today", label: "작업 목록", icon: ListChecks },
+      // 하위: 상단 패널 스위처(현황=기본 / 입력=?panel=input)를 사이드바에서도 펼침.
+      {
+        href: "/today",
+        label: "작업 목록",
+        icon: ListChecks,
+        children: [
+          { label: "현황", href: "/today" },
+          { label: "입력", href: "/today?panel=input" },
+        ],
+      },
       // 프로젝트 PM 도구 — 보드(status 4열)/목록/캘린더. 카드=core Task. 전원 노출(쓰기는 카드별 권한).
       { href: "/projects", label: "프로젝트", icon: FolderKanban },
       { href: "/schedule", label: "일정", icon: Calendar },
@@ -66,15 +80,39 @@ export const MENU_SECTIONS: MenuSection[] = [
       // 2026-07-11 '작업 목록'과의 탭 병합에서 독립 메뉴로 승격(현행 접근 유지 — adminOnly 아님).
       { href: "/now", label: "Now", icon: Activity },
       // 팀 현황(/team) — 스탠드업·[관리자]리포트·운영보드. 관리자·팀장 상시 사용 핵심 운영 화면.
-      { href: "/team", label: "팀 현황", icon: LayoutDashboard },
+      // 하위: 뷰 스위처(운영 보드/스탠드업/리포트)를 사이드바에서도 펼침. 리포트는 관리자 전용.
+      {
+        href: "/team",
+        label: "팀 현황",
+        icon: LayoutDashboard,
+        children: [
+          { label: "운영 보드", href: "/team" },
+          { label: "스탠드업", href: "/team?view=standup" },
+          { label: "리포트", href: "/team?view=report", adminOnly: true },
+        ],
+      },
+      // 회의록·확인필요(/action) 탭 병합 — 사이드바 하위로도 두 라우트를 펼침.
       {
         href: "/meeting-notes",
         label: "회의록",
         icon: FileText,
         match: ["/meeting-notes", "/action"],
+        children: [
+          { label: "회의록", href: "/meeting-notes" },
+          { label: "확인필요", href: "/action" },
+        ],
       },
       // 반복 업무 템플릿(Task 자동 생성) + 프로젝트 마일스톤 관리. 백엔드는 기존 완성분 재연결.
-      { href: "/planning", label: "반복·마일스톤", icon: Milestone },
+      // 하위: 반복 업무(기본) / 마일스톤(?tab=milestones) 탭을 사이드바에서도 펼침.
+      {
+        href: "/planning",
+        label: "반복·마일스톤",
+        icon: Milestone,
+        children: [
+          { label: "반복 업무", href: "/planning" },
+          { label: "마일스톤", href: "/planning?tab=milestones" },
+        ],
+      },
       // 성과(/heatmap) — 분석 화면(비-daily)이라 실행 화면들 아래로.
       { href: "/heatmap", label: "성과", icon: ChartColumn },
       // 멤버(/members) — 조회 전용, 분석/참조 성격이라 하단. (2026-07-11 라벨 '팀'→'멤버' — '팀 현황'과 혼동 방지)

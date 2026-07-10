@@ -10,8 +10,8 @@ import { AdminReport } from "@/components/team/admin-report";
 // AI 분석(report-actions)은 Gemini 응답까지 수십 초 걸릴 수 있다 — 함수 시간 명시(기본값 의존 금지).
 export const maxDuration = 60;
 import { StandupGrid } from "@/components/team/standup-grid";
+import { HomeCard } from "@/components/home/home-card";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getClientFilter } from "@/lib/client-filter";
 import { getCurrentUser } from "@/lib/current-user";
 import { getCommentViewsByTask } from "@/lib/comments";
@@ -52,12 +52,34 @@ export default async function TeamPage({
   const commentsByTask = await getCommentViewsByTask();
   const standupRows = view === "standup" ? await getStandupData(now, clientId) : [];
 
-  const metrics = [
-    { value: data.summary.inProgress, label: "진행중" },
-    { value: data.summary.issues, label: "문제발생" },
-    { value: data.summary.onHold, label: "홀드" },
-    { value: data.summary.dueSoon, label: "마감 임박" },
-    { value: data.summary.awaiting, label: "상태 응답 대기" },
+  // 요약칩 — 상태색 의미 고정(green=진행, red=문제, amber=주의/대기, violet=응답대기).
+  // 0이면 중립으로 강등해 과한 색 노출을 막는다.
+  const metrics: { value: number; label: string; tone: string }[] = [
+    {
+      value: data.summary.inProgress,
+      label: "진행중",
+      tone: data.summary.inProgress > 0 ? "text-[var(--que-success)]" : "text-[var(--que-text)]",
+    },
+    {
+      value: data.summary.issues,
+      label: "문제발생",
+      tone: data.summary.issues > 0 ? "text-[var(--que-error)]" : "text-[var(--que-text)]",
+    },
+    {
+      value: data.summary.onHold,
+      label: "홀드",
+      tone: data.summary.onHold > 0 ? "text-[var(--que-warning)]" : "text-[var(--que-text)]",
+    },
+    {
+      value: data.summary.dueSoon,
+      label: "마감 임박",
+      tone: data.summary.dueSoon > 0 ? "text-[var(--que-warning)]" : "text-[var(--que-text)]",
+    },
+    {
+      value: data.summary.awaiting,
+      label: "상태 응답 대기",
+      tone: data.summary.awaiting > 0 ? "text-[var(--que-violet)]" : "text-[var(--que-text)]",
+    },
   ];
 
   return (
@@ -69,15 +91,18 @@ export default async function TeamPage({
 
       <section
         aria-label="팀 요약"
-        className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-5"
+        className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5"
       >
         {metrics.map((metric) => (
-          <Card key={metric.label} className="py-3">
-            <CardContent className="px-4">
-              <p className="text-2xl font-semibold tabular-nums">{metric.value}</p>
-              <p className="text-xs text-muted-foreground">{metric.label}</p>
-            </CardContent>
-          </Card>
+          <div
+            key={metric.label}
+            className="flex min-h-[76px] flex-col justify-center rounded-xl border border-[var(--que-border)] bg-[var(--que-bg)] p-3 shadow-[var(--que-shadow-sm)]"
+          >
+            <p className={cn("text-2xl font-semibold tabular-nums", metric.tone)}>
+              {metric.value}
+            </p>
+            <p className="mt-1 text-xs text-[var(--que-text-secondary)]">{metric.label}</p>
+          </div>
         ))}
       </section>
 
@@ -139,12 +164,9 @@ export default async function TeamPage({
       )}
 
       {view === "board" && (
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,26rem)]">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">사람별 오늘 시간표</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col">
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,24rem)]">
+        <HomeCard title="사람별 오늘 시간표" bodyClassName="p-0">
+          <div className="flex max-h-[62vh] flex-col overflow-y-auto px-4 py-2">
             {data.members.map(({ user: member, items, conflictCount }) => (
               <div
                 key={member.id}
@@ -171,8 +193,9 @@ export default async function TeamPage({
                     const chip = (
                       <span
                         className={
+                          // 미팅(읽기전용)·작업 칩의 크기를 통일(min-h-10) — 점선·회색은 수정 불가 의미로 유지.
                           item.readonly
-                            ? "flex items-center gap-1 rounded-md border border-dashed border-[var(--que-border)] px-2 py-1 text-xs text-[var(--que-text-tertiary)]"
+                            ? "flex min-h-10 items-center gap-1 rounded-md border border-dashed border-[var(--que-border)] px-2 py-1 text-xs text-[var(--que-text-tertiary)]"
                             : "flex min-h-10 items-center gap-1 rounded-md border border-[var(--que-border)] px-2 py-1 text-xs transition-colors hover:bg-[var(--que-bg-muted)]"
                         }
                       >
@@ -213,60 +236,56 @@ export default async function TeamPage({
                 </span>
               </div>
             ))}
-          </CardContent>
-        </Card>
+          </div>
+        </HomeCard>
 
         <div className="flex flex-col gap-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">지금 봐야 할 일</CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-3">
-              {data.attention.length === 0 && (
-                <p className="text-sm text-muted-foreground">지금 봐야 할 항목이 없습니다.</p>
-              )}
-              {data.attention.map((entry) => (
-                <AttentionRow key={`${entry.type}-${entry.taskId}`} entry={entry} />
-              ))}
-            </CardContent>
-          </Card>
+          <HomeCard title="지금 봐야 할 일" meta={`${data.attention.length}건`}>
+            {data.attention.length === 0 ? (
+              <p className="text-sm text-[var(--que-text-tertiary)]">
+                지금 봐야 할 항목이 없습니다.
+              </p>
+            ) : (
+              <ul className="flex max-h-[380px] flex-col gap-2 overflow-y-auto pr-0.5">
+                {data.attention.map((entry) => (
+                  <AttentionRow key={`${entry.type}-${entry.taskId}`} entry={entry} />
+                ))}
+              </ul>
+            )}
+          </HomeCard>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">일정 충돌</CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-2">
+          <HomeCard title="일정 충돌" meta={`${data.conflicts.length}건`}>
+            <div className="flex flex-col gap-2">
               {data.conflicts.length === 0 && (
-                <p className="text-sm text-muted-foreground">오늘 일정 충돌이 없습니다.</p>
+                <p className="text-sm text-[var(--que-text-tertiary)]">
+                  오늘 일정 충돌이 없습니다.
+                </p>
               )}
               {data.conflicts.map((conflict, index) => (
-                <p key={index} className="text-sm">
-                  <span className="font-medium">{conflict.userName}</span> ·{" "}
+                <p key={index} className="text-sm text-[var(--que-text-secondary)]">
+                  <span className="font-medium text-[var(--que-text)]">{conflict.userName}</span> ·{" "}
                   {format(new Date(conflict.overlapStartAt), "HH:mm")}부터{" "}
-                  <span className="font-medium">{conflict.aTitle}</span>
+                  <span className="font-medium text-[var(--que-warning)]">{conflict.aTitle}</span>
                   {josa(conflict.aTitle, "과", "와")}{" "}
-                  <span className="font-medium">{conflict.bTitle}</span>
+                  <span className="font-medium text-[var(--que-warning)]">{conflict.bTitle}</span>
                   {josa(conflict.bTitle, "이", "가")} 겹칩니다
                 </p>
               ))}
-            </CardContent>
-          </Card>
+            </div>
+          </HomeCard>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">최근 변경 내역</CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-3">
+          <HomeCard title="최근 변경 내역">
+            <div className="flex max-h-[320px] flex-col gap-3 overflow-y-auto pr-0.5">
               {logs.map((log) => (
                 <div key={log.id} className="text-sm">
-                  <p className="font-medium">{log.text}</p>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="font-medium text-[var(--que-text)]">{log.text}</p>
+                  <p className="text-xs text-[var(--que-text-tertiary)]">
                     {log.actorName} · {format(new Date(log.createdAt), "M/d HH:mm")}
                   </p>
                 </div>
               ))}
-            </CardContent>
-          </Card>
+            </div>
+          </HomeCard>
         </div>
       </div>
       )}
@@ -276,29 +295,37 @@ export default async function TeamPage({
 
 function AttentionRow({ entry }: { entry: AttentionEntry }) {
   // 색·아이콘·라벨은 단일 소스(attention-config)에서 가져온다(DASH-2 — 구 홈 AttentionList는 C-3b에서 은퇴).
+  // 홈 PriorityList 룩(색 뱃지 칩 + 제목 + 메타) — 유형은 아이콘+텍스트로 표기(색 단독 금지).
   const config = ATTENTION_CONFIG[entry.type];
   const Icon = config.icon;
 
   return (
-    <div className="rounded-md border p-3">
+    <li className="rounded-lg border border-[var(--que-border)] p-3">
       <div className="flex items-center gap-2">
-        <Badge variant="outline" className={"gap-1 " + config.className}>
-          <Icon className="size-3" aria-hidden />
+        <span
+          className={cn(
+            "inline-flex shrink-0 items-center gap-1 rounded-md border px-1.5 py-0.5 text-xs font-medium",
+            config.className,
+          )}
+        >
+          <Icon className="size-3.5" aria-hidden />
           {config.label}
-        </Badge>
-        <p className="min-w-0 flex-1 truncate text-sm font-medium">{entry.title}</p>
+        </span>
+        <p className="min-w-0 flex-1 truncate text-sm font-medium text-[var(--que-text)]">
+          {entry.title}
+        </p>
       </div>
-      <p className="mt-1 text-xs text-muted-foreground">
+      <p className="mt-1 text-xs text-[var(--que-text-secondary)]">
         담당 {entry.assigneeName}
         {entry.detail ? ` · ${entry.detail}` : ""}
       </p>
       {(entry.helpUserName || entry.nextCheckAt) && (
-        <p className="mt-0.5 text-xs text-muted-foreground">
+        <p className="mt-0.5 text-xs text-[var(--que-text-tertiary)]">
           {entry.helpUserName ? `도움 필요: ${entry.helpUserName}` : ""}
           {entry.helpUserName && entry.nextCheckAt ? " · " : ""}
           {entry.nextCheckAt ? `다음 확인 ${format(new Date(entry.nextCheckAt), "HH:mm")}` : ""}
         </p>
       )}
-    </div>
+    </li>
   );
 }

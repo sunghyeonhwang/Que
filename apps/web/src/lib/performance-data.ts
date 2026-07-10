@@ -114,6 +114,10 @@ export interface PerformanceOptions {
    *  사원이면 KPI·작업 성과 라인도 본인 스코프로 좁힌다(완료율·기한초과 추이·프로젝트 진행률은
    *  grade와 무관하게 전원). 데이터 계층이 viewer.id에서 스코프를 재유도해 재검증한다. */
   viewer?: User;
+  /** 성과 스코프 탭. "me"면 grade와 무관하게 뷰어 본인만(관리자·대표의 '내 성과' 탭). 기본 "team".
+   *  파라미터는 화면 배치용일 뿐 — 사원은 이 값과 무관하게 어차피 본인만 계산된다(grade 재유도).
+   *  좁히기만 하고 넓히지 않으므로, 뷰어가 없거나 team이면 기존 grade 기반 스코프를 그대로 쓴다. */
+  scope?: "me" | "team";
 }
 
 export async function getPerformanceData(
@@ -140,10 +144,17 @@ export async function getPerformanceData(
   //   제외/사원=본인). KPI·완료율·추이·프로젝트 진행률에는 적용하지 않는다(전원 동일).
   // kpiSelfId: 사원이면 KPI·작업 성과 라인을 본인 작업으로 좁힌다(요구). 관리/대표는 전체.
   // 스코프는 viewer.id에서 재유도하므로 호출부가 URL로 넓혀도 무의미하다(데이터 계층 재검증).
+  // forceSelf: '내 성과' 탭(scope=me). 뷰어가 있을 때만 유효하며, grade와 무관하게 본인만으로
+  // 좁힌다(대표·관리자도 본인 스코프). URL로 넓힐 수 없다 — scope=team이거나 뷰어가 없으면 무시.
   const viewerGrade = opts.viewer ? gradeForUser(opts.viewer) : undefined;
-  const personScope = opts.viewer ? personScopeForGrade(opts.viewer, db.users) : undefined;
+  const forceSelf = opts.scope === "me" && !!opts.viewer;
+  const personScope = forceSelf
+    ? [opts.viewer!.id]
+    : opts.viewer
+      ? personScopeForGrade(opts.viewer, db.users)
+      : undefined;
   const personSet = personScope ? new Set(personScope) : undefined;
-  const kpiSelfId = viewerGrade === "staff" ? opts.viewer!.id : undefined;
+  const kpiSelfId = forceSelf || viewerGrade === "staff" ? opts.viewer?.id : undefined;
   const kpiTasks = kpiSelfId
     ? clientTasks.filter((t) => t.assigneeId === kpiSelfId)
     : clientTasks;
@@ -346,8 +357,9 @@ export async function getPerformanceData(
   // "내 월간 요약" 카드에만 쓴다(순위표 자체는 프론트가 대표에게만 렌더). 히트맵 rows는
   // personScope 그대로라 관리자도 팀 부하 히트맵(재배분용)은 계속 본다.
   const scopedUsers = personSet ? db.users.filter((u) => personSet.has(u.id)) : db.users;
+  // '내 성과'(forceSelf)면 대표여도 본인 1행만 — 팀 순위표 대신 개인 요약 카드로 렌더된다.
   const lowPerfUsers =
-    viewerGrade === "ceo"
+    viewerGrade === "ceo" && !forceSelf
       ? scopedUsers
       : opts.viewer
         ? db.users.filter((u) => u.id === opts.viewer!.id)
