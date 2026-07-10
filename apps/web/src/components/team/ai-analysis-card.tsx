@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { RefreshCw, Sparkles } from "lucide-react";
+import { Download, RefreshCw, Sparkles } from "lucide-react";
+import { format } from "date-fns";
 import { analyzeTeamReportAction } from "@/app/(app)/team/report-actions";
 import { mdToHtml } from "@/app/(app)/help/help-markdown";
 import type { ReportPeriod } from "@/lib/report-data";
@@ -28,6 +29,20 @@ export function AiAnalysisCard({ period }: { period: ReportPeriod }) {
     });
   };
 
+  // 생성된 분석을 .md 파일로 저장한다(BOM으로 엑셀·에디터 한글 안전). 앵커는 DOM에 붙여 download 속성이 무시되지 않게 한다.
+  const downloadMd = () => {
+    if (!result?.ok) return;
+    const blob = new Blob(["﻿" + result.text], { type: "text/markdown;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `que-리포트분석-${format(new Date(), "yyyy-MM-dd")}.md`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
@@ -36,16 +51,27 @@ export function AiAnalysisCard({ period }: { period: ReportPeriod }) {
           AI 분석
         </CardTitle>
         {result?.ok && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-9 text-[var(--que-text-secondary)]"
-            onClick={generate}
-            disabled={pending}
-          >
-            <RefreshCw className={pending ? "size-3.5 animate-spin" : "size-3.5"} aria-hidden />
-            다시 생성
-          </Button>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-9 text-[var(--que-text-secondary)]"
+              onClick={downloadMd}
+            >
+              <Download className="size-3.5" aria-hidden />
+              MD 저장
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-9 text-[var(--que-text-secondary)]"
+              onClick={generate}
+              disabled={pending}
+            >
+              <RefreshCw className={pending ? "size-3.5 animate-spin" : "size-3.5"} aria-hidden />
+              다시 생성
+            </Button>
+          </div>
         )}
       </CardHeader>
       <CardContent className="flex flex-col gap-3">

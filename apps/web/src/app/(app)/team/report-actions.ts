@@ -1,5 +1,6 @@
 "use server";
 
+import { gradeForUser } from "@que/core";
 import { getCurrentUser } from "@/lib/current-user";
 import { getClientFilter } from "@/lib/client-filter";
 import { getAdminReportData, type ReportPeriod } from "@/lib/report-data";
@@ -10,15 +11,34 @@ import { generateAnalysis } from "@/lib/ai/gemini";
 // 결정 사항(로드맵 E-10): 온디맨드 버튼식(자동 크론 후순위), 외부 LLM 전송은 사용자 승인 완료,
 // 개인 성과 평가가 아니라 흐름·구조 관점 코치(지식 얕은 팀에 해석·설명·방향 제시 — E-F 상보).
 
-const SYSTEM_PROMPT = [
-  "너는 8명 규모 한국 회사의 팀 운영 코치다. 팀 작업 현황 데이터(JSON)를 근거로 관리자에게 조언한다.",
-  "규칙:",
-  "- 반드시 한국어 존댓말. 마크다운(### 소제목, - 불릿, **강조**)으로 간결하게. 전체 500자 내외.",
-  "- 구성: ### 지금 가장 큰 병목 (2~3개, 각각 원인 추정과 근거 수치) → ### 이번 주 권장 조치 (3개, 실행 가능한 행동) → ### 좋아진 점 (1개).",
-  "- 개인 성과 평가·비난 금지. 문제는 사람이 아니라 일의 흐름·구조로 서술한다(예: '홀드가 오래 머무는 흐름' O, '아무개가 느림' X). 사람 이름은 도움/재배정 제안처럼 행동이 필요한 곳에만 중립적으로.",
-  "- 데이터에 없는 사실을 지어내지 않는다. 수치를 인용할 때는 데이터의 값을 그대로 쓴다.",
-  "- PM 전문용어(임계경로, 번다운 등) 대신 쉬운 우리말을 쓴다.",
-].join("\n");
+// 세션 사용자의 grade로 호칭·관점을 분기한다(대표=경영 관점 심화, 관리자=실행 관점). user.name으로 자연스러운 호칭.
+function buildSystemPrompt(grade: "ceo" | "manager" | "staff", name: string): string {
+  const isCeo = grade === "ceo";
+  const title = isCeo ? "대표님" : "팀장님";
+  const commonRules = [
+    "- 반드시 한국어 존댓말. 마크다운(### 소제목, - 불릿, **강조**)으로 정리한다.",
+    "- 개인 성과 평가·비난 금지. 문제는 사람이 아니라 일의 흐름·구조로 서술한다(예: '홀드가 오래 머무는 흐름' O, '아무개가 느림' X). 사람 이름은 도움/재배정 제안처럼 행동이 필요한 곳에만 중립적으로.",
+    "- 데이터에 없는 사실을 지어내지 않는다. 수치를 인용할 때는 데이터의 값을 그대로 쓴다.",
+    "- PM 전문용어(임계경로, 번다운 등) 대신 쉬운 우리말을 쓴다.",
+  ];
+  if (isCeo) {
+    return [
+      `너는 8명 규모 한국 회사의 경영 참모다. 팀 작업 현황 데이터(JSON)를 근거로 ${name} ${title}께 경영 관점의 리포트 분석을 드린다.`,
+      `대화 상대는 ${title}이므로 실행 실무보다 경영 판단(리소스 배분·우선순위·위험 대응)에 초점을 둔다.`,
+      "규칙:",
+      "- 전체 600~800자로 충분히 서술한다.",
+      "- 구성: ### 지금 가장 큰 병목 (2~3개, 각각 원인 추정과 근거 수치) → ### 경영 판단이 필요한 것 (2~3개, 리소스·우선순위 관점) → ### 흐름과 좋아진 점 (완료 추이·개선점 1~2개).",
+      ...commonRules,
+    ].join("\n");
+  }
+  return [
+    `너는 8명 규모 한국 회사의 팀 운영 코치다. 팀 작업 현황 데이터(JSON)를 근거로 ${name} ${title}께 실행 관점의 조언을 드린다.`,
+    "규칙:",
+    "- 전체 500자 내외로 간결하게.",
+    "- 구성: ### 지금 가장 큰 병목 (2~3개, 각각 원인 추정과 근거 수치) → ### 이번 주 권장 조치 (3개, 실행 가능한 행동) → ### 좋아진 점 (1개).",
+    ...commonRules,
+  ].join("\n");
+}
 
 export interface AiAnalysisResult {
   ok: boolean;
@@ -67,8 +87,15 @@ export async function analyzeTeamReportAction(period: ReportPeriod): Promise<AiA
     "주간 완료 추이": data.weeklyTrend,
   };
 
+  const grade = gradeForUser(user);
+  const systemPrompt = buildSystemPrompt(grade, user.name);
+
   try {
-    const text = await generateAnalysis(SYSTEM_PROMPT, JSON.stringify(payload, null, 1));
+    const text = await generateAnalysis(
+      systemPrompt,
+      JSON.stringify(payload, null, 1),
+      grade === "ceo" ? { maxOutputTokens: 3072 } : {},
+    );
     return { ok: true, text };
   } catch (e) {
     return { ok: false, text: e instanceof Error ? e.message : "AI 분석 생성에 실패했습니다." };

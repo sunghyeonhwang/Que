@@ -2,7 +2,6 @@ import Link from "next/link";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 import { PageHeader } from "@/components/app/page-header";
-import { TaskTabs } from "@/components/app/task-tabs";
 import { ActionStatusBadge, StatusBadge } from "@/components/app/status-badge";
 import { TaskStatusSheet, type TaskRowData } from "@/components/app/task-status-sheet";
 import { Badge } from "@/components/ui/badge";
@@ -79,8 +78,6 @@ export default async function NowPage({
           </Link>
         }
       />
-
-      <TaskTabs active="now" />
 
       <section
         aria-label="Now 요약"

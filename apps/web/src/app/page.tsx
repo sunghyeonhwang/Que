@@ -1,10 +1,8 @@
 import { redirect } from "next/navigation";
-import { getCurrentUser } from "@/lib/current-user";
 
 export const dynamic = "force-dynamic";
 
-// 역할별 기본 진입점: 팀원 → 오늘, 관리자/프로젝트 담당자 → Now.
-export default async function RootPage() {
-  const user = await getCurrentUser();
-  redirect(user.role === "admin" ? "/now" : "/today");
+// 로그인 후 랜딩은 전 역할 공통 /home(2026-07-11 사용자 결정 — 기존 역할별 진입 폐기).
+export default function RootPage() {
+  redirect("/home");
 }

@@ -18,6 +18,15 @@ const BASE_RULES = [
   "- PM 전문용어(임계경로, 번다운 등) 대신 쉬운 우리말을 쓴다.",
 ].join("\n");
 
+// 대표 브리핑은 분량·상세도를 사원·관리자보다 높인다(상세도: 대표>관리자>사원). 400자 규칙 대신 자체 분량 지시를 둔다.
+const CEO_RULES = [
+  "규칙:",
+  "- 반드시 한국어 존댓말. 마크다운(### 소제목, - 불릿, **강조**)으로 구성한다. 전체 700~900자로, 경영자가 오늘의 판단을 내릴 수 있을 만큼 충분히 서술한다.",
+  "- 개인 성과 평가·비난 금지. 문제는 사람이 아니라 일의 흐름·구조로 서술한다. 사람 이름은 도움/재배정 제안처럼 행동이 필요한 곳에만 중립적으로.",
+  "- 데이터에 없는 사실을 지어내지 않는다. 수치를 인용할 때는 데이터의 값을 그대로 쓰고, 위험·결정 항목은 반드시 근거 수치를 함께 제시한다.",
+  "- PM 전문용어(임계경로, 번다운 등) 대신 쉬운 우리말을 쓴다.",
+].join("\n");
+
 const SYSTEM_BY_GRADE: Record<"staff" | "manager" | "ceo", string> = {
   staff: [
     "너는 8명 규모 한국 회사의 개인 업무 비서다. 로그인한 사원 '본인'의 오늘 데이터만 근거로 브리핑한다.",
@@ -31,11 +40,19 @@ const SYSTEM_BY_GRADE: Record<"staff" | "manager" | "ceo", string> = {
     "- 구성: ### 지금 가장 큰 병목 (2~3개, 원인 추정과 근거 수치) → ### 오늘 조정 (도움·재배정·일정 제안 2~3개) → ### 좋아진 점 (1개).",
   ].join("\n"),
   ceo: [
-    "너는 8명 규모 한국 회사의 경영 참모다. 전사 현황 데이터(JSON)를 근거로 대표에게 결정 관점 브리핑을 한다.",
-    BASE_RULES,
-    "- 구성: ### 전사 위험 (2~3개, 근거 수치) → ### 결정·확인 필요 (2~3개) → ### 흐름 (적체 증감·완료 추이 한 줄).",
+    "너는 8명 규모 한국 회사의 경영 참모다. 전사 현황 데이터(JSON)를 근거로 대표에게 경영 관점의 상세 브리핑을 한다. 단순 요약이 아니라 원인 추정과 의사결정 근거까지 제시한다.",
+    CEO_RULES,
+    "- 구성(모든 소제목을 반드시 포함):",
+    "  ### 한 줄 총평 — 오늘 전사 상태를 한 문장으로.",
+    "  ### 위험 진단 — 프로젝트·마일스톤·기한초과에서 위험 신호를 짚고, 각 항목마다 데이터를 근거로 원인을 추정한다(예: 특정 흐름에 막힘이 몰린 이유).",
+    "  ### 오늘 결정할 것 — 대표가 오늘 판단·승인해야 할 항목을 우선순위 순으로 나열한다.",
+    "  ### 리소스 제안 — 과부하·여유 인원을 근거로 업무 재배분·도움을 제안한다.",
+    "  ### 클라이언트 관점 — 거래처 현황에서 주의할 점을 한 줄로.",
   ].join("\n"),
 };
+
+// 대표 브리핑만 출력 토큰을 상향(공용 2048 → 3072). 사원·관리자는 기본값 유지.
+const CEO_MAX_OUTPUT_TOKENS = 3072;
 
 export interface HomeBriefingResult {
   ok: boolean;
@@ -96,7 +113,11 @@ export async function generateHomeBriefingAction(): Promise<HomeBriefingResult> 
   }
 
   try {
-    const text = await generateAnalysis(SYSTEM_BY_GRADE[data.grade], JSON.stringify(payload, null, 1));
+    const text = await generateAnalysis(
+      SYSTEM_BY_GRADE[data.grade],
+      JSON.stringify(payload, null, 1),
+      data.grade === "ceo" ? { maxOutputTokens: CEO_MAX_OUTPUT_TOKENS } : {},
+    );
     return { ok: true, text, scope, grade: data.grade };
   } catch (e) {
     return { ok: false, text: e instanceof Error ? e.message : "AI 브리핑 생성에 실패했습니다.", scope, grade: data.grade };

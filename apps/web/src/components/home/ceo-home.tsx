@@ -8,6 +8,7 @@ import { WorkloadTable } from "@/components/home/workload-table";
 import { ClientOverviewCard } from "@/components/home/client-overview-card";
 import { TodaySummaryCard } from "@/components/home/today-summary-card";
 import { KpiStrip } from "@/components/home/kpi-strip";
+import { CheckInCard } from "@/components/home/checkin-card";
 import { PriorityList, type PriorityRow } from "@/components/home/priority-list";
 import { ProjectOverviewCard } from "@/components/home/project-overview-card";
 import { WorkflowTrendCard } from "@/components/home/workflow-trend-card";
@@ -47,6 +48,9 @@ export function CeoHome({ data, month }: { data: CeoHomeData; month: number }) {
           <KpiStrip items={data.opsKpis} cols={6} ariaLabel="핵심 현황 — 운영" />
         </div>
       </div>
+
+      {/* 2-2. 작업 상태 확인(본인 응답 대기 있을 때만) */}
+      {data.checkIns.length > 0 && <CheckInCard items={data.checkIns} />}
 
       {/* 3. 우선 확인 */}
       <HomeCard title="우선 확인" meta={String(data.teamPriority.count)}>

@@ -12,21 +12,32 @@ interface GeminiResponse {
   candidates?: { content?: { parts?: { text?: string }[] } }[];
 }
 
+/** generateAnalysis 옵션. maxOutputTokens는 공용 기본 2048 — 더 긴 브리핑(대표 경영 브리핑 등)만 상향. */
+export interface GenerateAnalysisOptions {
+  /** 최대 출력 토큰. 기본 2048. 분량이 긴 브리핑(대표)만 3072 등으로 올린다. */
+  maxOutputTokens?: number;
+}
+
 /**
  * 시스템 지시 + 사용자 콘텐츠로 텍스트 생성. GEMINI_API_KEY 미설정이면 기능 비활성 안내를 던진다.
  */
-export async function generateAnalysis(systemInstruction: string, userContent: string): Promise<string> {
+export async function generateAnalysis(
+  systemInstruction: string,
+  userContent: string,
+  options: GenerateAnalysisOptions = {},
+): Promise<string> {
   const key = process.env.GEMINI_API_KEY;
   if (!key) {
     throw new Error("AI 분석이 설정되지 않았습니다 (GEMINI_API_KEY 미설정) — 관리자에게 문의하세요.");
   }
+  const maxOutputTokens = options.maxOutputTokens ?? 2048;
 
   // 일시 오류(503 과부하·네트워크)는 1회만 짧게 재시도 — 사용자가 버튼을 다시 누르게 하지 않는다.
   let lastError: Error | null = null;
   for (let attempt = 0; attempt < 2; attempt++) {
     if (attempt > 0) await new Promise((r) => setTimeout(r, 1500));
     try {
-      return await callOnce(key, systemInstruction, userContent);
+      return await callOnce(key, systemInstruction, userContent, maxOutputTokens);
     } catch (e) {
       lastError = e instanceof Error ? e : new Error(String(e));
       // 429(한도)·타임아웃은 재시도해도 소용없거나 역효과 — 즉시 반환.
@@ -36,7 +47,12 @@ export async function generateAnalysis(systemInstruction: string, userContent: s
   throw lastError ?? new Error("AI 분석 생성에 실패했습니다.");
 }
 
-async function callOnce(key: string, systemInstruction: string, userContent: string): Promise<string> {
+async function callOnce(
+  key: string,
+  systemInstruction: string,
+  userContent: string,
+  maxOutputTokens: number,
+): Promise<string> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {
@@ -49,7 +65,7 @@ async function callOnce(key: string, systemInstruction: string, userContent: str
         contents: [{ role: "user", parts: [{ text: userContent }] }],
         generationConfig: {
           temperature: 0.3,
-          maxOutputTokens: 2048,
+          maxOutputTokens,
           // 2.5-flash의 '생각' 시간을 제한 — 요약·조언 태스크라 품질 손실 없이 응답을 수 초로
           // 단축한다(무제한이면 10~30초로 들쭉날쭉 → 서버리스 함수 시간 초과의 주원인).
           thinkingConfig: { thinkingBudget: 512 },

@@ -2,6 +2,7 @@ import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 import Link from "next/link";
 import type { HeatmapData } from "@/lib/heatmap-data";
+import { ScrollAffordance } from "@/components/performance/scroll-affordance";
 import { cn } from "@/lib/utils";
 
 // 초록 강도 5단계(0~4) + 수치 병기 — 색 단독 구분을 피한다(접근성).
@@ -31,7 +32,7 @@ export function PerformanceHeatmap({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="overflow-x-auto">
+      <ScrollAffordance>
         <div
           role="grid"
           aria-label="멤버별 일자별 작업량 히트맵"
@@ -89,7 +90,7 @@ export function PerformanceHeatmap({
             </div>
           ))}
         </div>
-      </div>
+      </ScrollAffordance>
 
       <div className="flex items-center gap-2 text-xs text-[var(--que-text-tertiary)]">
         <span>적음</span>

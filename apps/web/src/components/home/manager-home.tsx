@@ -7,6 +7,7 @@ import { HomeSchedule } from "@/components/home/home-schedule";
 import { WorkloadTable } from "@/components/home/workload-table";
 import { TodaySummaryCard } from "@/components/home/today-summary-card";
 import { KpiStrip } from "@/components/home/kpi-strip";
+import { CheckInCard } from "@/components/home/checkin-card";
 import { PriorityList, type PriorityRow } from "@/components/home/priority-list";
 import { ProjectOverviewCard } from "@/components/home/project-overview-card";
 import { WorkflowTrendCard } from "@/components/home/workflow-trend-card";
@@ -37,6 +38,9 @@ export function ManagerHome({ data, month }: { data: ManagerHomeData; month: num
 
       {/* 2. 핵심 현황(KPI 6) */}
       <KpiStrip items={data.homeKpis} cols={6} />
+
+      {/* 2-2. 작업 상태 확인(본인 응답 대기 있을 때만) */}
+      {data.checkIns.length > 0 && <CheckInCard items={data.checkIns} />}
 
       {/* 3. 우선 확인 */}
       <HomeCard title="우선 확인" meta={String(data.teamPriority.count)}>

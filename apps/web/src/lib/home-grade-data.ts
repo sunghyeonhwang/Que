@@ -270,6 +270,8 @@ export interface StaffHomeData extends HomeBase {
 export interface ManagerHomeData extends HomeBase {
   grade: "manager";
   // ── 신규(§4 섹션 계약) ──
+  /** Home/CheckIn — 본인 응답 대기 자동 체크인(있을 때만 카드 표시, 사원과 동일 산출). */
+  checkIns: HomeCheckInItem[];
   /** Home/KPIGroup — 활성 프로젝트·열린 작업·현재 막힘·마감 임박·일정 충돌·상태 응답 대기. */
   homeKpis: HomeKpi[];
   /** Home/TodaySummary — 규칙 기반 요약. 팀관리 AI 브리핑 폴백. */
@@ -301,6 +303,8 @@ export interface ManagerHomeData extends HomeBase {
 export interface CeoHomeData extends HomeBase {
   grade: "ceo";
   // ── 신규(§5 섹션 계약) ──
+  /** Home/CheckIn — 본인 응답 대기 자동 체크인(있을 때만 카드 표시, 사원과 동일 산출). */
+  checkIns: HomeCheckInItem[];
   /** Home/KPIGroup 위험 줄 — 위험/지연 프로젝트·기한초과·위험 마일스톤·과부하·확인 대기·결제 대기. */
   riskKpis: HomeKpi[];
   /** Home/KPIGroup 운영 줄 — 관리자와 동일 6종(활성 프로젝트·열린 작업·막힘·마감 임박·충돌·응답 대기). */
@@ -398,6 +402,32 @@ function computeAwayChip(db: Db, viewer: User, now: Date): HomeAwayChip {
     }
   }
   return { away, external };
+}
+
+/** 본인 응답 대기 자동 체크인 → '작업 상태 확인'(Home/CheckIn) 리스트 행.
+ *  전 역할 공통(사원·관리자·대표 모두 본인 스코프로 산출). done/cancelled/merged 작업은 제외. */
+function computeCheckIns(db: Db, user: User, now: Date): HomeCheckInItem[] {
+  const projectById = new Map(db.projects.map((p) => [p.id, p]));
+  const clientById = new Map(db.clients.map((c) => [c.id, c]));
+  const projectLabelOf = (projectId?: string): string | null => {
+    if (!projectId) return null;
+    const p = projectById.get(projectId);
+    return p ? formatProjectLabel(p, p.clientId ? clientById.get(p.clientId) : undefined) : null;
+  };
+  return db.checkIns
+    .filter((c) => c.assigneeId === user.id && isAwaitingAnswer(c, now))
+    .map((c) => {
+      const t = db.tasks.find((x) => x.id === c.taskId);
+      if (!t || t.status === "done" || t.status === "cancelled" || t.status === "merged") return null;
+      return {
+        checkInId: c.id,
+        taskId: t.id,
+        taskTitle: t.title,
+        projectLabel: projectLabelOf(t.projectId),
+        question: `‘${t.title}’ 작업은 어떻게 진행되고 있나요?`,
+      };
+    })
+    .filter((x): x is HomeCheckInItem => x !== null);
 }
 
 /** 위험도 높은 활성 프로젝트 최대 5(Home/ProjectOverview). 클라이언트 필터 존중. */
@@ -669,13 +699,6 @@ async function getStaffHomeData(
   const soonMs = nowMs + 24 * 60 * 60 * 1000;
   const clientTasks = db.tasksForClient(opts.clientId);
   const mine = clientTasks.filter((t) => t.assigneeId === user.id);
-  const projectById = new Map(db.projects.map((p) => [p.id, p]));
-  const clientById = new Map(db.clients.map((c) => [c.id, c]));
-  const projectLabelOf = (projectId?: string): string | null => {
-    if (!projectId) return null;
-    const p = projectById.get(projectId);
-    return p ? formatProjectLabel(p, p.clientId ? clientById.get(p.clientId) : undefined) : null;
-  };
 
   // ── KPI(전부 본인) ──
   const inProgress = mine.filter((t) => t.status === "in_progress").length;
@@ -703,20 +726,7 @@ async function getStaffHomeData(
   ];
 
   // ── 응답 대기 자동 체크인(리스트형 카드용) ──
-  const checkIns: HomeCheckInItem[] = db.checkIns
-    .filter((c) => c.assigneeId === user.id && isAwaitingAnswer(c, now))
-    .map((c) => {
-      const t = db.tasks.find((x) => x.id === c.taskId);
-      if (!t || t.status === "done" || t.status === "cancelled" || t.status === "merged") return null;
-      return {
-        checkInId: c.id,
-        taskId: t.id,
-        taskTitle: t.title,
-        projectLabel: projectLabelOf(t.projectId),
-        question: `‘${t.title}’ 작업은 어떻게 진행되고 있나요?`,
-      };
-    })
-    .filter((x): x is HomeCheckInItem => x !== null);
+  const checkIns = computeCheckIns(db, user, now);
 
   // ── 오늘 요약(어제 이월 = getStandupData 재사용) ──
   const myStandup = standup.find((r) => r.user.id === user.id);
@@ -813,6 +823,7 @@ async function getManagerHomeData(
   return {
     grade: "manager",
     ...base(home, computeAwayChip(db, user, now)),
+    checkIns: computeCheckIns(db, user, now),
     homeKpis,
     todaySummary,
     teamPriority,
@@ -931,6 +942,7 @@ async function getCeoHomeData(
   return {
     grade: "ceo",
     ...base(home, computeAwayChip(db, user, now)),
+    checkIns: computeCheckIns(db, user, now),
     riskKpis,
     opsKpis,
     todaySummary,

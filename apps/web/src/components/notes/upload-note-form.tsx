@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { X } from "lucide-react";
+import { Paperclip, X } from "lucide-react";
 import { extractMeetingDateTime } from "@que/core";
 import { uploadMeetingNoteAction } from "@/app/(app)/meeting-notes/actions";
 import { useRoster } from "@/components/app/roster-provider";
@@ -104,14 +104,24 @@ export function UploadNoteForm({ projects }: { projects: UploadNoteProjectOption
           <FieldLabel htmlFor="note-file">
             Markdown 파일 (Plaud Note 내보내기) <span className="text-[var(--que-error)]">*</span>
           </FieldLabel>
-          <Input
+          {/* 네이티브 file input은 숨기고, 아이콘·텍스트가 수직 정렬된 버튼으로 여닫는다(정렬 어긋남 수정). */}
+          <input
             id="note-file"
             ref={fileRef}
             type="file"
             accept=".md,.markdown,.txt"
-            className="h-11 cursor-pointer text-sm file:mr-3 file:cursor-pointer file:rounded-md file:border-0 file:bg-[var(--que-brand)] file:px-3 file:py-1.5 file:text-xs file:text-[var(--que-on-brand)] hover:file:bg-[var(--que-brand-hover)]"
+            className="sr-only"
             onChange={(e) => onFileChange(e.target.files?.[0])}
           />
+          <Button
+            type="button"
+            variant="outline"
+            className="h-11 w-full justify-start gap-2 font-normal"
+            onClick={() => fileRef.current?.click()}
+          >
+            <Paperclip className="size-4 shrink-0" aria-hidden />
+            <span className="truncate">{fileName || "Markdown 파일 선택"}</span>
+          </Button>
           {fileName ? (
             <p className="text-xs text-[var(--que-success)]">
               {fileName} · {markdownBody.length.toLocaleString()}자 읽음
@@ -132,6 +142,8 @@ export function UploadNoteForm({ projects }: { projects: UploadNoteProjectOption
             <Input
               id="note-date"
               type="datetime-local"
+              // 다크모드에서 네이티브 달력 아이콘이 검정으로 안 보이는 문제 — color-scheme:dark로 밝게 렌더.
+              className="dark:[color-scheme:dark]"
               value={meetingDateTime}
               onChange={(e) => setMeetingDateTime(e.target.value)}
             />

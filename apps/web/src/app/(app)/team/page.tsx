@@ -219,7 +219,7 @@ export default async function TeamPage({
         <div className="flex flex-col gap-4">
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Attention Queue</CardTitle>
+              <CardTitle className="text-base">지금 봐야 할 일</CardTitle>
             </CardHeader>
             <CardContent className="flex flex-col gap-3">
               {data.attention.length === 0 && (

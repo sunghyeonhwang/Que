@@ -1,5 +1,6 @@
 import {
   Home,
+  Activity,
   Calendar,
   ChartColumn,
   ListChecks,
@@ -45,7 +46,8 @@ export interface MenuSection {
 }
 
 // 새 IA (Figma 사이드바 기준). URL은 기존 화면을 유지하고 label만 새 IA로 재정의한다.
-// 작업 목록(/today·/now)·확인필요(/meeting-notes·/action)는 탭 병합이라 match로 active를 잡는다.
+// 작업 목록(/today)·Now(/now)는 2026-07-11 독립 메뉴로 분리(탭 병합 폐기).
+// 확인필요(/meeting-notes·/action)는 탭 병합이라 match로 active를 잡는다.
 // 프로젝트(/projects)는 core Task DB화 완료로 전원 노출한다(카드=core Task, 컬럼=status 4열).
 // 쓰기 권한은 core canEditTask가 카드 단위로 강제한다(adminOnly 아님).
 export const MENU_SECTIONS: MenuSection[] = [
@@ -55,16 +57,14 @@ export const MENU_SECTIONS: MenuSection[] = [
       // 순서: 실행(할 일·프로젝트·일정) → 운영(팀 현황·회의록·반복) → 분석/참조(성과·팀).
       // 매일 쓰는 화면을 상단으로. (2026-07-07 UX 감사 IA 재정렬)
       { href: "/home", label: "홈", icon: Home },
-      // 작업 목록(/today·/now) — 팀원·관리자 공통 daily 진입점이라 홈 다음 최상단.
-      {
-        href: "/today",
-        label: "작업 목록",
-        icon: ListChecks,
-        match: ["/today", "/now"],
-      },
+      // 작업 목록(/today) — 오늘 개인 진입점(팀원). 2026-07-11 Now를 독립 메뉴로 분리(탭 병합 폐기).
+      { href: "/today", label: "작업 목록", icon: ListChecks },
       // 프로젝트 PM 도구 — 보드(status 4열)/목록/캘린더. 카드=core Task. 전원 노출(쓰기는 카드별 권한).
       { href: "/projects", label: "프로젝트", icon: FolderKanban },
       { href: "/schedule", label: "일정", icon: Calendar },
+      // Now 운영표(/now) — 회의 Action·캘린더 일정 연결 확인 팀 운영표. 운영 성격이라 팀 현황 옆에 둔다.
+      // 2026-07-11 '작업 목록'과의 탭 병합에서 독립 메뉴로 승격(현행 접근 유지 — adminOnly 아님).
+      { href: "/now", label: "Now", icon: Activity },
       // 팀 현황(/team) — 스탠드업·[관리자]리포트·운영보드. 관리자·팀장 상시 사용 핵심 운영 화면.
       { href: "/team", label: "팀 현황", icon: LayoutDashboard },
       {
@@ -77,8 +77,8 @@ export const MENU_SECTIONS: MenuSection[] = [
       { href: "/planning", label: "반복·마일스톤", icon: Milestone },
       // 성과(/heatmap) — 분석 화면(비-daily)이라 실행 화면들 아래로.
       { href: "/heatmap", label: "성과", icon: ChartColumn },
-      // 팀(/members) — 조회 전용, 분석/참조 성격이라 하단.
-      { href: "/members", label: "팀", icon: Users },
+      // 멤버(/members) — 조회 전용, 분석/참조 성격이라 하단. (2026-07-11 라벨 '팀'→'멤버' — '팀 현황'과 혼동 방지)
+      { href: "/members", label: "멤버", icon: Users },
     ],
   },
   {

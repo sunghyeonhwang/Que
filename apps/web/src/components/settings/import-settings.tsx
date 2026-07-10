@@ -47,7 +47,11 @@ function downloadSample(kind: ImportKind) {
   const a = document.createElement("a");
   a.href = url;
   a.download = meta.sampleName;
+  // 앵커를 DOM에 붙여야 일부 브라우저(Firefox 등)가 download 파일명을 무시하지 않는다
+  // — 미부착 시 blob URL의 확장자 없는 임시 이름으로 저장되던 문제.
+  document.body.appendChild(a);
   a.click();
+  a.remove();
   URL.revokeObjectURL(url);
 }
 
