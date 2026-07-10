@@ -80,8 +80,10 @@ export default async function HomePage({
       </header>
 
       {data.grade === "staff" && <StaffHome data={data} />}
-      {data.grade === "manager" && <ManagerHome data={data} month={hm} />}
-      {data.grade === "ceo" && <CeoHome data={data} month={hm} />}
+      {data.grade === "manager" && (
+        <ManagerHome data={data} month={hm} canManage={user.role === "admin"} />
+      )}
+      {data.grade === "ceo" && <CeoHome data={data} month={hm} canManage={user.role === "admin"} />}
 
       {/* 우하단 플로팅 작업 추가(FAB) — 상단바 버튼과 같은 자연어 모달을 연다. */}
       <div className="pointer-events-none fixed right-5 bottom-5 z-30 md:right-8 md:bottom-8">

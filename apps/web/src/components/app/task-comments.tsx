@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { X } from "lucide-react";
 import { useRoster } from "@/components/app/roster-provider";
 import { addTaskCommentAction } from "@/app/(app)/today/actions";
 import { Badge } from "@/components/ui/badge";
@@ -19,7 +20,8 @@ export interface TaskCommentView {
   id: string;
   authorName: string;
   body: string;
-  helpUserName?: string;
+  /** 도움 요청 대상 전체(다중). 비어 있으면 일반 댓글. */
+  helpUserNames?: string[];
   timeText: string;
 }
 
@@ -32,10 +34,12 @@ export function TaskComments({
   comments: TaskCommentView[];
 }) {
   const roster = useRoster();
-  const userItems = Object.fromEntries(roster.map((u) => [u.id, u.name]));
+  const userById = new Map(roster.map((u) => [u.id, u]));
   const { run, pending } = useSafeAction();
   const [body, setBody] = useState("");
-  const [helpUserId, setHelpUserId] = useState("");
+  // 도움 요청 대상 — 다중(최대 10). 드롭다운에서 골라 칩으로 쌓고 X로 제거한다(status-detail-form과 동일 패턴).
+  const [helpUserIds, setHelpUserIds] = useState<string[]>([]);
+  const remaining = roster.filter((u) => !helpUserIds.includes(u.id));
 
   const submit = () => {
     run(
@@ -43,13 +47,13 @@ export function TaskComments({
         addTaskCommentAction({
           taskId,
           body,
-          helpUserId: helpUserId || undefined,
+          helpUserIds: helpUserIds.length > 0 ? helpUserIds : undefined,
         }),
       {
-        success: helpUserId ? "도움 요청을 남겼습니다." : "댓글을 남겼습니다.",
+        success: helpUserIds.length > 0 ? "도움 요청을 남겼습니다." : "댓글을 남겼습니다.",
         onSuccess: () => {
           setBody("");
-          setHelpUserId("");
+          setHelpUserIds([]);
         },
       },
     );
@@ -68,9 +72,9 @@ export function TaskComments({
           <div key={comment.id} className="rounded-md border p-2">
             <p className="text-xs text-muted-foreground">
               {comment.authorName} · {comment.timeText}
-              {comment.helpUserName && (
+              {comment.helpUserNames && comment.helpUserNames.length > 0 && (
                 <Badge variant="outline" className="ml-2">
-                  도움 요청 → {comment.helpUserName}
+                  도움 요청 → {comment.helpUserNames.join(", ")}
                 </Badge>
               )}
             </p>
@@ -87,17 +91,46 @@ export function TaskComments({
           placeholder="댓글을 입력하세요"
           aria-label="댓글 입력"
         />
+        {helpUserIds.length > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            {helpUserIds.map((id) => {
+              const user = userById.get(id);
+              if (!user) return null;
+              return (
+                <span
+                  key={id}
+                  className="flex items-center gap-1 rounded-full bg-muted py-1 pr-1 pl-2.5 text-sm"
+                >
+                  {user.name}
+                  <button
+                    type="button"
+                    aria-label={`${user.name} 제거`}
+                    onClick={() => setHelpUserIds((prev) => prev.filter((x) => x !== id))}
+                    className="grid size-5 place-items-center rounded-full hover:bg-border"
+                  >
+                    <X className="size-3.5" aria-hidden />
+                  </button>
+                </span>
+              );
+            })}
+          </div>
+        )}
         <div className="flex items-center gap-2">
           <Select
-            items={userItems}
-            value={helpUserId}
-            onValueChange={(v) => setHelpUserId(v ?? "")}
+            items={Object.fromEntries(remaining.map((u) => [u.id, u.name]))}
+            value=""
+            onValueChange={(v) => {
+              if (v) setHelpUserIds((prev) => (prev.length >= 10 ? prev : [...prev, v as string]));
+            }}
+            disabled={remaining.length === 0}
           >
-            <SelectTrigger aria-label="도움 요청 대상 선택" className="h-10 flex-1">
-              <SelectValue placeholder="도움 요청 안 함" />
+            <SelectTrigger aria-label="도움 요청 대상 추가" className="h-10 flex-1">
+              <SelectValue
+                placeholder={remaining.length === 0 ? "모두 추가됨" : "도움 요청 추가"}
+              />
             </SelectTrigger>
             <SelectContent>
-              {roster.map((user) => (
+              {remaining.map((user) => (
                 <SelectItem key={user.id} value={user.id}>
                   {user.name}
                 </SelectItem>

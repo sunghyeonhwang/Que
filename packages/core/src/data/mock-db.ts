@@ -1058,32 +1058,36 @@ export class MockQueDb implements QueDb {
    *  helpUserId 지정 시 "도움 요청"이 되어 대상자 오늘 화면과 팀 현황 Attention에 노출된다. */
   addTaskComment(
     ctx: ActorContext,
-    input: { taskId: string; body: string; helpUserId?: string },
+    input: { taskId: string; body: string; helpUserId?: string; helpUserIds?: string[] },
   ): TaskComment {
     const actor = this.requireUser(ctx.actorId);
     const task = this.requireTask(input.taskId);
     const body = input.body.trim();
     if (!body) throw new QueRuleError("INVALID_INPUT", "댓글 내용은 필수다");
     if (body.length > 1000) throw new QueRuleError("INVALID_INPUT", "댓글은 1000자 이내다");
-    if (input.helpUserId) this.requireUser(input.helpUserId);
+    // 단일/다중 입력을 정규화(statusLog와 동일 규약) — 전원 실재 검증, 최대 10명.
+    const helpIds = helpUserIdsOf(input);
+    if (helpIds.length > 10) throw new QueRuleError("INVALID_INPUT", "도움 대상은 최대 10명이다");
+    for (const id of helpIds) this.requireUser(id);
 
     const comment: TaskComment = {
       id: this.nextId("cmt"),
       taskId: task.id,
       authorId: actor.id,
       body,
-      helpUserId: input.helpUserId,
+      helpUserId: helpIds[0], // FK·하위호환 — 첫 대상을 복제
+      helpUserIds: helpIds.length > 0 ? helpIds : undefined,
       createdAt: this.now(),
     };
     this.taskComments.push(comment);
 
     // 도움 요청은 업무에 영향을 주는 변경 — ChangeLog로 팀에 보인다. 일반 댓글은 조용히 기록.
-    if (input.helpUserId) {
+    if (helpIds.length > 0) {
       this.logChange(ctx, {
         entityType: "task",
         entityId: task.id,
         changeType: "update",
-        afterValue: `도움 요청 → ${this.requireUser(input.helpUserId).name}`,
+        afterValue: `도움 요청 → ${helpIds.map((id) => this.requireUser(id).name).join(", ")}`,
         reason: body.slice(0, 100),
       });
     }

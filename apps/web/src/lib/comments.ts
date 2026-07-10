@@ -1,5 +1,5 @@
 import { format } from "date-fns";
-import type { TaskComment } from "@que/core";
+import { helpUserIdsOf, type TaskComment } from "@que/core";
 import type { TaskCommentView } from "@/components/app/task-comments";
 import { getDb } from "./db";
 
@@ -14,9 +14,7 @@ export async function getCommentViewsByTask(): Promise<Map<string, TaskCommentVi
       id: comment.id,
       authorName: userById.get(comment.authorId)?.name ?? comment.authorId,
       body: comment.body,
-      helpUserName: comment.helpUserId
-        ? userById.get(comment.helpUserId)?.name
-        : undefined,
+      helpUserNames: helpUserIdsOf(comment).map((id) => userById.get(id)?.name ?? id),
       timeText: format(new Date(comment.createdAt), "M/d HH:mm"),
     });
     map.set(comment.taskId, list);

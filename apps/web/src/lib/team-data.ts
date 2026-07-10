@@ -204,9 +204,14 @@ export async function getTeamData(
     });
   }
   // 도움 요청 댓글 — 요청받은 사람이 팀 전체에 보이게 (기획: Attention Queue에 도움 요청 포함)
-  for (const comment of db.taskComments.filter((c) => c.helpUserId)) {
+  for (const comment of db.taskComments) {
+    const commentHelpIds = helpUserIdsOf(comment);
+    if (commentHelpIds.length === 0) continue;
     const task = taskById.get(comment.taskId);
     if (!task || !clientTaskIds.has(task.id)) continue;
+    const commentHelpNames = commentHelpIds
+      .map((id) => userById.get(id)?.name)
+      .filter((n): n is string => Boolean(n));
     attention.push({
       type: "help_request",
       taskId: `${task.id}-${comment.id}`,
@@ -214,7 +219,8 @@ export async function getTeamData(
       // "담당"은 다른 항목들과 동일하게 작업 담당자 — 작성자는 detail에 표시
       assigneeName: userById.get(task.assigneeId)?.name ?? task.assigneeId,
       detail: `${userById.get(comment.authorId)?.name ?? comment.authorId}: “${comment.body}”`,
-      helpUserName: userById.get(comment.helpUserId!)?.name,
+      helpUserName: commentHelpNames[0],
+      helpUserNames: commentHelpNames.length > 0 ? commentHelpNames : undefined,
     });
   }
 

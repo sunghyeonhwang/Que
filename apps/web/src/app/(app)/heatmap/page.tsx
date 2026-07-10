@@ -190,7 +190,13 @@ export default async function PerformancePage({
       </div>
 
       {/* 업무 부하 표 — 홈·리포트와 동일(WorkloadTable). 팀 스코프에서만 노출('내 성과'는 숨김). */}
-      {showLoadTable && <WorkloadTable load={data.load} scopeLabel={loadScopeLabel} />}
+      {showLoadTable && (
+        <WorkloadTable
+          load={data.load}
+          scopeLabel={loadScopeLabel}
+          canManage={user.role === "admin"}
+        />
+      )}
 
       {/* 4행: (대표) 기한 초과·완료 현황 · (관리자/사원) 내 월간 요약 | 프로젝트 진행률 */}
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">

@@ -1,4 +1,4 @@
-import { canViewMeetingNote, latestStatusLog, type User } from "@que/core";
+import { canViewMeetingNote, helpUserIdsOf, latestStatusLog, type User } from "@que/core";
 import { getDb } from "./db";
 import { computeGanttRisk } from "./projects-data";
 import { getTeamData } from "./team-data";
@@ -94,7 +94,7 @@ export async function getViewerAlerts(
   }
 
   // 2) 나에게 온 도움 요청 (도움 대상=나)
-  for (const c of db.taskComments.filter((c) => c.helpUserId === user.id)) {
+  for (const c of db.taskComments.filter((c) => helpUserIdsOf(c).includes(user.id))) {
     const t = taskById.get(c.taskId);
     if (!t) continue;
     items.push({

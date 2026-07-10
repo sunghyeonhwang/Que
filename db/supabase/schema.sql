@@ -195,6 +195,7 @@ create table if not exists task_comments (
   author_id    text not null references users(id),
   body         text not null check (char_length(body) <= 1000),
   help_user_id text references users(id),
+  help_user_ids text[],
   created_at   timestamptz not null default now()
 );
 

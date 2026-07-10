@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Info, Shuffle } from "lucide-react";
+import { Info, Shuffle, SlidersHorizontal } from "lucide-react";
 import type { HomeLoad, HomeLoadRow } from "@/lib/home-load";
+import { WorkloadReassignSheet } from "@/components/app/workload-reassign-sheet";
 import { cn } from "@/lib/utils";
 
 // Home/Workload — 업무 부하(§A). 개인 평가가 아니라 배분 조정용. 색 단독 금지(칩=색+텍스트, 비율=색+수치).
@@ -70,12 +71,16 @@ function RatioCell({ ratio }: { ratio: number | null }) {
 export function WorkloadTable({
   load,
   scopeLabel = "업무 부하",
+  canManage = false,
 }: {
   load: HomeLoad;
   /** 카드 제목(관리자=업무 부하 / 대표=전 인원 부하). */
   scopeLabel?: string;
+  /** 관리자(role==="admin")면 행별 '조정' 버튼으로 재배분 시트를 연다. */
+  canManage?: boolean;
 }) {
   const [overloadOnly, setOverloadOnly] = useState(false);
+  const [adjustRow, setAdjustRow] = useState<HomeLoadRow | null>(null);
   const { summary } = load;
   const rows = overloadOnly
     ? load.rows.filter((r) => r.ratio != null && r.ratio >= 100)
@@ -136,20 +141,32 @@ export function WorkloadTable({
               <th className={head} scope="col">
                 영향 프로젝트
               </th>
+              {canManage && (
+                <th className={cn(head, "text-right")} scope="col">
+                  조정
+                </th>
+              )}
             </tr>
           </thead>
           <tbody>
             {rows.length === 0 ? (
               <tr>
                 <td
-                  colSpan={7}
+                  colSpan={canManage ? 8 : 7}
                   className="px-3 py-6 text-center text-sm text-[var(--que-text-tertiary)]"
                 >
                   {overloadOnly ? "과부하 인원이 없습니다." : "표시할 업무 부하가 없습니다."}
                 </td>
               </tr>
             ) : (
-              rows.map((row) => <LoadRow key={row.userId} row={row} />)
+              rows.map((row) => (
+                <LoadRow
+                  key={row.userId}
+                  row={row}
+                  canManage={canManage}
+                  onAdjust={() => setAdjustRow(row)}
+                />
+              ))
             )}
           </tbody>
         </table>
@@ -187,11 +204,30 @@ export function WorkloadTable({
           {overloadOnly ? "전체 보기" : "과부하만 보기"}
         </button>
       </div>
+
+      {canManage && (
+        <WorkloadReassignSheet
+          row={adjustRow}
+          allRows={load.rows}
+          open={adjustRow != null}
+          onOpenChange={(o) => {
+            if (!o) setAdjustRow(null);
+          }}
+        />
+      )}
     </section>
   );
 }
 
-function LoadRow({ row }: { row: HomeLoadRow }) {
+function LoadRow({
+  row,
+  canManage,
+  onAdjust,
+}: {
+  row: HomeLoadRow;
+  canManage: boolean;
+  onAdjust: () => void;
+}) {
   const cell = "px-3 py-2 align-middle";
   return (
     <tr className="border-b border-[var(--que-border)] last:border-0">
@@ -230,6 +266,19 @@ function LoadRow({ row }: { row: HomeLoadRow }) {
       <td className={cn(cell, "max-w-[12rem] truncate text-[var(--que-text-secondary)]")}>
         {row.impactProjects.length > 0 ? row.impactProjects.join(", ") : "-"}
       </td>
+      {canManage && (
+        <td className={cn(cell, "whitespace-nowrap text-right")}>
+          <button
+            type="button"
+            onClick={onAdjust}
+            aria-label={`${row.name} 업무 조정`}
+            className="inline-flex min-h-10 items-center gap-1.5 rounded-lg border border-[var(--que-border)] bg-[var(--que-bg)] px-3 text-sm font-medium text-[var(--que-text-secondary)] transition-colors hover:border-[var(--que-border-strong)] hover:text-[var(--que-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <SlidersHorizontal className="size-4" aria-hidden />
+            조정
+          </button>
+        </td>
+      )}
     </tr>
   );
 }

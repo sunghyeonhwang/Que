@@ -18,7 +18,9 @@ export async function GET(
 
 const bodySchema = z.object({
   body: z.string(),
+  /** @deprecated 단일 — 하위호환. 신규는 helpUserIds. */
   helpUserId: z.string().optional(),
+  helpUserIds: z.array(z.string()).max(10).optional(),
 });
 
 /** 작업 댓글/도움 요청 — 팀 누구나 타인 작업에도 가능 (MCP add_task_comment 백엔드). */

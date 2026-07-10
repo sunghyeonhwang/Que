@@ -225,7 +225,7 @@ export async function getTodayData(
 
   // 나에게 온 도움 요청 + 작업별 댓글 뷰
   const helpRequests = db.taskComments
-    .filter((c) => c.helpUserId === user.id)
+    .filter((c) => helpUserIdsOf(c).includes(user.id))
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
     .map((c) => ({
       ...c,

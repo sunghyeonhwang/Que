@@ -183,7 +183,9 @@ export async function createTaskAction(input: {
 export async function addTaskCommentAction(input: {
   taskId: string;
   body: string;
+  /** @deprecated 단일 — 하위호환. 신규는 helpUserIds. */
   helpUserId?: string;
+  helpUserIds?: string[];
 }): Promise<ActionResult> {
   const user = await getCurrentUser();
   return toResult((db) => db.addTaskComment({ actorId: user.id, via: "web" }, input));

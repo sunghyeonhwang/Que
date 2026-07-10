@@ -384,13 +384,16 @@ export type PaymentCategory = z.infer<typeof paymentCategorySchema>;
 // ---------- 댓글 ----------
 
 /** 작업 댓글 — 타인의 작업을 수정할 수 없는 팀원이 의사를 전달하는 통로.
- *  helpUserId를 지정하면 "도움 요청"이 되어 대상자의 오늘 화면과 팀 현황에 노출된다. */
+ *  도움 대상을 지정하면 "도움 요청"이 되어 대상자의 오늘 화면과 팀 현황에 노출된다. */
 export const taskCommentSchema = z.object({
   id: z.string().min(1),
   taskId: z.string().min(1),
   authorId: z.string().min(1),
   body: z.string().trim().min(1).max(1000),
+  /** @deprecated 단일 도움 대상 — 하위호환 읽기용. 신규는 helpUserIds(배열). 읽기는 helpUserIdsOf로 통일. */
   helpUserId: z.string().optional(),
+  /** 도움 대상 다중(2026-07-11 — statusLog 선례와 동일 패턴). 새 댓글은 [0]을 helpUserId에도 복제(FK·하위호환). */
+  helpUserIds: z.array(z.string()).max(10).optional(),
   createdAt: isoDateTime,
 });
 export type TaskComment = z.infer<typeof taskCommentSchema>;

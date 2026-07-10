@@ -208,7 +208,7 @@ export default async function TodayPage({
                     </p>
                   </div>
                 ))}
-                {data.attention.map(({ task, reason, helpUserName, nextCheckAt }) => (
+                {data.attention.map(({ task, reason, helpUserNames, nextCheckAt }) => (
                   <div key={task.id} className="rounded-md border p-3">
                     <div className="flex items-center gap-2">
                       <StatusBadge status={task.status} />
@@ -216,8 +216,8 @@ export default async function TodayPage({
                     </div>
                     {reason && <p className="mt-1 text-sm text-muted-foreground">{reason}</p>}
                     <p className="mt-1 text-xs text-muted-foreground">
-                      {helpUserName ? `도움 필요: ${helpUserName}` : null}
-                      {helpUserName && nextCheckAt ? " · " : null}
+                      {helpUserNames?.length ? `도움 필요: ${helpUserNames.join(", ")}` : null}
+                      {helpUserNames?.length && nextCheckAt ? " · " : null}
                       {nextCheckAt
                         ? `다음 확인 ${format(new Date(nextCheckAt), "HH:mm")}`
                         : null}

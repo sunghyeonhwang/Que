@@ -22,7 +22,15 @@ const MONTH_OPTIONS = Array.from({ length: 12 }, (_, i) => ({
 
 /** 대표 홈 "전사 현황" — 오늘 요약 → KPI 2줄(위험/운영) → 우선 확인 → 본인 할 일·일정(+부재 칩)
  *  → 프로젝트+클라이언트별 현황 → 업무 흐름 → 전 인원 부하·히트맵 → 처리 대기(명세 §5). */
-export function CeoHome({ data, month }: { data: CeoHomeData; month: number }) {
+export function CeoHome({
+  data,
+  month,
+  canManage = false,
+}: {
+  data: CeoHomeData;
+  month: number;
+  canManage?: boolean;
+}) {
   const priorityItems: PriorityRow[] = data.teamPriority.items.map((i) => ({
     id: i.id,
     kind: i.kind,
@@ -88,7 +96,7 @@ export function CeoHome({ data, month }: { data: CeoHomeData; month: number }) {
 
       {/* 7. 전 인원 부하 | 날짜별 업무 집중도 — 태블릿에선 1열 적층 */}
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-        <WorkloadTable load={data.load} scopeLabel="전 인원 부하" />
+        <WorkloadTable load={data.load} scopeLabel="전 인원 부하" canManage={canManage} />
         <HomeCard
           title={`날짜별 업무 집중도 - ${month}월`}
           action={

@@ -319,10 +319,10 @@ function AttentionRow({ entry }: { entry: AttentionEntry }) {
         담당 {entry.assigneeName}
         {entry.detail ? ` · ${entry.detail}` : ""}
       </p>
-      {(entry.helpUserName || entry.nextCheckAt) && (
+      {((entry.helpUserNames?.length ?? 0) > 0 || entry.nextCheckAt) && (
         <p className="mt-0.5 text-xs text-[var(--que-text-tertiary)]">
-          {entry.helpUserName ? `도움 필요: ${entry.helpUserName}` : ""}
-          {entry.helpUserName && entry.nextCheckAt ? " · " : ""}
+          {entry.helpUserNames?.length ? `도움 필요: ${entry.helpUserNames.join(", ")}` : ""}
+          {entry.helpUserNames?.length && entry.nextCheckAt ? " · " : ""}
           {entry.nextCheckAt ? `다음 확인 ${format(new Date(entry.nextCheckAt), "HH:mm")}` : ""}
         </p>
       )}

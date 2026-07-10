@@ -106,7 +106,11 @@ export function CreateMilestoneForm({
             onChange={(e) => setDueAt(e.target.value)}
           />
         </Field>
-        <Button className="h-10" disabled={!canSubmit} onClick={submit}>
+        <Button
+          className="h-10 bg-[var(--que-brand)] text-[var(--que-on-brand)] hover:bg-[var(--que-brand-hover)]"
+          disabled={!canSubmit}
+          onClick={submit}
+        >
           {pending ? "등록 중…" : "마일스톤 등록"}
         </Button>
       </CardContent>

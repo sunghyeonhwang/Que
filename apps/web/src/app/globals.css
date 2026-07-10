@@ -407,3 +407,26 @@
     display: none;
   }
 }
+
+/* 날짜·시간 입력의 네이티브 피커 아이콘(시계·달력) — 값 앞(왼쪽)에 배치하고,
+ * 다크 모드에선 퓨어블랙 기본 아이콘이 배경에 묻혀 안 보이므로 흰색으로 반전한다.
+ * (::-webkit-calendar-picker-indicator는 Chrome/Edge/Safari 계열 전용 — 팀 표준 브라우저 기준) */
+input[type="date"],
+input[type="time"],
+input[type="datetime-local"] {
+  position: relative;
+  padding-left: 2.25rem;
+}
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="time"]::-webkit-calendar-picker-indicator,
+input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  position: absolute;
+  left: 0.625rem;
+  opacity: 0.75;
+  cursor: pointer;
+}
+.dark input[type="date"]::-webkit-calendar-picker-indicator,
+.dark input[type="time"]::-webkit-calendar-picker-indicator,
+.dark input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+}

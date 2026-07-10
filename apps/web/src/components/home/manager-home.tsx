@@ -21,7 +21,15 @@ const MONTH_OPTIONS = Array.from({ length: 12 }, (_, i) => ({
 
 /** 관리자 홈 "팀 운영" — 오늘 요약 → KPI 6 → 우선 확인 → 본인 할 일·일정(+부재 칩)
  *  → 프로젝트 현황 → 업무 흐름 → 업무 부하 | 날짜별 집중도 → 처리 대기(명세 §4·§A~C). */
-export function ManagerHome({ data, month }: { data: ManagerHomeData; month: number }) {
+export function ManagerHome({
+  data,
+  month,
+  canManage = false,
+}: {
+  data: ManagerHomeData;
+  month: number;
+  canManage?: boolean;
+}) {
   const priorityItems: PriorityRow[] = data.teamPriority.items.map((i) => ({
     id: i.id,
     kind: i.kind,
@@ -73,7 +81,7 @@ export function ManagerHome({ data, month }: { data: ManagerHomeData; month: num
 
       {/* 7. 업무 부하(대표 제외) | 날짜별 업무 집중도 — 태블릿에선 1열 적층 */}
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-        <WorkloadTable load={data.load} scopeLabel="업무 부하" />
+        <WorkloadTable load={data.load} scopeLabel="업무 부하" canManage={canManage} />
         <HomeCard
           title={`날짜별 업무 집중도 - ${month}월`}
           action={
