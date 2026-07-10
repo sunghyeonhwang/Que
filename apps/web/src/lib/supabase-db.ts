@@ -62,33 +62,37 @@ export class SupabaseQueDb extends MockQueDb {
     return `${prefix}-${crypto.randomUUID()}`;
   }
 
-  /** 실 DB 전체를 읽어 부모의 public 배열을 채운다. */
+  /** 실 DB 전체를 읽어 부모의 public 배열을 채운다.
+   *  17개 테이블을 순차로 돌면 요청마다 왕복 지연이 테이블 수만큼 누적된다(실측 ~600ms)
+   *  — 전 테이블을 병렬 SELECT해 가장 느린 한 번의 왕복 시간으로 줄인다(2026-07-11). */
   async load(): Promise<void> {
-    for (const [table, field] of Object.entries(TABLE_TO_FIELD) as [TableName, string][]) {
-      // select("*")는 순서를 보장하지 않는다. 로그류는 createdAt 오름차순으로 로드해 두어
-      // 조회 지점(latestStatusLog)과 별개로 배열 순서 자체도 시간순이 되게 방어한다.
-      const query = this.client.from(table).select("*");
-      if (table === "status_logs" || table === "change_logs") {
-        query.order("created_at", { ascending: true });
-      }
-      // 클라이언트·결제 분류는 관리자가 정한 표시 순서(sort_order)로 로드해 배열 순서 자체를 정렬해 둔다.
-      if (table === "clients" || table === "payment_categories") {
-        query.order("sort_order", { ascending: true });
-      }
-      const { data, error } = await query;
-      if (error) throw new Error(`Supabase load ${table} 실패: ${error.message}`);
-      const rows = (data ?? []).map((r) => fromRow(r as Record<string, unknown>));
-      if (table === "users") {
-        // 인증·연동 전용 컬럼은 도메인 User가 아니다 — 메모리 객체/직렬화(팀 API 등)에서 완전히 제거해
-        // password_hash·email·slack_user_id가 클라이언트로 새지 않게 한다.
-        for (const u of rows as Record<string, unknown>[]) {
-          delete u.passwordHash;
-          delete u.email;
-          delete u.slackUserId;
+    await Promise.all(
+      (Object.entries(TABLE_TO_FIELD) as [TableName, string][]).map(async ([table, field]) => {
+        // select("*")는 순서를 보장하지 않는다. 로그류는 createdAt 오름차순으로 로드해 두어
+        // 조회 지점(latestStatusLog)과 별개로 배열 순서 자체도 시간순이 되게 방어한다.
+        const query = this.client.from(table).select("*");
+        if (table === "status_logs" || table === "change_logs") {
+          query.order("created_at", { ascending: true });
         }
-      }
-      (this as unknown as Record<string, unknown[]>)[field] = rows;
-    }
+        // 클라이언트·결제 분류는 관리자가 정한 표시 순서(sort_order)로 로드해 배열 순서 자체를 정렬해 둔다.
+        if (table === "clients" || table === "payment_categories") {
+          query.order("sort_order", { ascending: true });
+        }
+        const { data, error } = await query;
+        if (error) throw new Error(`Supabase load ${table} 실패: ${error.message}`);
+        const rows = (data ?? []).map((r) => fromRow(r as Record<string, unknown>));
+        if (table === "users") {
+          // 인증·연동 전용 컬럼은 도메인 User가 아니다 — 메모리 객체/직렬화(팀 API 등)에서 완전히 제거해
+          // password_hash·email·slack_user_id가 클라이언트로 새지 않게 한다.
+          for (const u of rows as Record<string, unknown>[]) {
+            delete u.passwordHash;
+            delete u.email;
+            delete u.slackUserId;
+          }
+        }
+        (this as unknown as Record<string, unknown[]>)[field] = rows;
+      }),
+    );
     // 정규화로 사라진 Project.milestoneIds를 milestones에서 재구성(도메인 객체 충실성 유지).
     for (const p of this.projects as Project[]) {
       p.milestoneIds = (this.milestones as Milestone[])
