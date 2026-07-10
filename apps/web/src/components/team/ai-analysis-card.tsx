@@ -19,7 +19,12 @@ export function AiAnalysisCard({ period }: { period: ReportPeriod }) {
 
   const generate = () => {
     startTransition(async () => {
-      setResult(await analyzeTeamReportAction(period));
+      try {
+        setResult(await analyzeTeamReportAction(period));
+      } catch {
+        // 서버 함수 시간 초과·네트워크 단절 등 액션 자체가 실패한 경우 — 재시도 UI로.
+        setResult({ ok: false, text: "분석 요청이 중단되었습니다. 잠시 후 다시 시도하세요." });
+      }
     });
   };
 

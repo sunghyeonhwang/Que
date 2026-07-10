@@ -6,6 +6,9 @@ import { StatusBadge } from "@/components/app/status-badge";
 import { ATTENTION_CONFIG } from "@/components/app/attention-config";
 import { TaskStatusSheet, type TaskRowData } from "@/components/app/task-status-sheet";
 import { AdminReport } from "@/components/team/admin-report";
+
+// AI 분석(report-actions)은 Gemini 응답까지 수십 초 걸릴 수 있다 — 함수 시간 명시(기본값 의존 금지).
+export const maxDuration = 60;
 import { StandupGrid } from "@/components/team/standup-grid";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
