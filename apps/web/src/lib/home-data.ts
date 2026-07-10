@@ -35,6 +35,8 @@ export interface HomeTodoItem {
   assignees: ListViewMember[];
   /** 마감이 지났고 아직 미완료 */
   overdue: boolean;
+  /** 완료됨 — 목록에서 빼지 않고 절취선으로 유지한다(오늘 끝낸 일이 보이게). */
+  done: boolean;
 }
 
 export interface HomeScheduleItem {
@@ -126,11 +128,12 @@ export async function getHomeData(
   const headerMembers = allMembers.slice(0, 4);
   const memberOverflow = Math.max(0, allMembers.length - 4);
 
-  // ── 오늘 할 일: 내 미완료 작업 중 마감이 오늘 이내(오늘/기한초과) ──
+  // ── 오늘 할 일: 내 작업 중 마감이 오늘 이내(오늘/기한초과). 완료(done)도 포함해
+  //    목록에서 사라지지 않고 절취선으로 남는다(오늘 끝낸 일 = 성취 확인). 취소/병합만 제외.
   const todosRaw = clientTasks.filter(
     (t) =>
       t.assigneeId === user.id &&
-      ACTIVE.has(t.status) &&
+      (ACTIVE.has(t.status) || t.status === "done") &&
       t.endAt !== undefined &&
       new Date(t.endAt).getTime() <= dayEnd.getTime(),
   );
@@ -151,10 +154,12 @@ export async function getHomeData(
           ? format(new Date(t.endAt), "M월 d일 EEEE", { locale: ko })
           : null,
         assignees,
-        overdue: endMs !== undefined && endMs < nowMs,
+        overdue: endMs !== undefined && endMs < nowMs && t.status !== "done",
+        done: t.status === "done",
       };
     })
-    .sort((a, b) => Number(b.overdue) - Number(a.overdue));
+    // 미완료(기한초과 우선) 먼저, 완료는 아래로.
+    .sort((a, b) => Number(a.done) - Number(b.done) || Number(b.overdue) - Number(a.overdue));
 
   // ── 오늘 내 일정(작업+이벤트) ──
   const dayStart = new Date(now);
@@ -230,7 +235,8 @@ export async function getHomeData(
     headerMembers,
     memberOverflow,
     todos,
-    todoCount: todos.length,
+    // 카운트는 미완료만 — 목록은 완료를 절취선으로 유지하지만 '오늘 할 일 N'은 남은 일 수다.
+    todoCount: todos.filter((t) => !t.done).length,
     schedule,
     scheduleDateLabel: format(now, "M월 d일 EEEE", { locale: ko }),
     distribution,

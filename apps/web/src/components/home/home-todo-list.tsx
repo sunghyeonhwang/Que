@@ -1,9 +1,7 @@
-import Link from "next/link";
 import type { HomeTodoItem } from "@/lib/home-data";
-import { HomeTodoToggle } from "@/components/home/home-todo-toggle";
+import { HomeTodoRow } from "@/components/home/home-todo-row";
 
-/** 오늘 할 일 — 내 오늘/기한초과 작업. Figma 계약: 행 = [완료 토글] 제목 … (우측) 마감/기한초과 라벨
- *  **한 줄**. 프로젝트 칩·담당 아바타는 홈에서 뺀다(줄바꿈 원인 — 상세는 /today에서). */
+/** 오늘 할 일 — 내 오늘/기한초과 작업(완료 포함 — 절취선 유지). 행 = [완료 토글] 제목 … 우측 라벨 한 줄. */
 export function HomeTodoList({ todos }: { todos: HomeTodoItem[] }) {
   if (todos.length === 0) {
     return (
@@ -16,25 +14,7 @@ export function HomeTodoList({ todos }: { todos: HomeTodoItem[] }) {
   return (
     <ul className="flex max-h-[420px] flex-col gap-1.5 overflow-y-auto pr-0.5">
       {todos.map((todo) => (
-        <li
-          key={todo.id}
-          className="flex min-h-11 items-center gap-2.5 rounded-lg border border-[var(--que-border)] px-3 py-2"
-        >
-          <HomeTodoToggle taskId={todo.id} title={todo.title} />
-          <Link
-            href="/today"
-            className="min-w-0 flex-1 truncate text-sm font-medium text-[var(--que-text)] hover:underline"
-          >
-            {todo.title}
-          </Link>
-          {todo.overdue ? (
-            <span className="shrink-0 text-xs font-medium text-[var(--que-error)]">기한 초과</span>
-          ) : (
-            todo.dueLabel && (
-              <span className="shrink-0 text-xs text-[var(--que-text-tertiary)]">{todo.dueLabel}</span>
-            )
-          )}
-        </li>
+        <HomeTodoRow key={todo.id} todo={todo} />
       ))}
     </ul>
   );
