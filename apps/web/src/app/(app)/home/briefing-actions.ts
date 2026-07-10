@@ -75,7 +75,7 @@ export async function generateHomeBriefingAction(): Promise<HomeBriefingResult> 
       "우선 확인": data.teamPriority.items.map((p) => ({ 종류: p.title, 내용: p.description })),
       "프로젝트 현황": data.projectOverview.map((p) => ({ 프로젝트: p.name, 진행률: p.progress, 상태: p.status, 기한초과: p.overdueTasks, 막힘: p.blockedTasks })),
       "업무 흐름": { 순증: data.workflowTrend.netLabel, 주별: data.workflowTrend.weeks },
-      "팀원별 부하": data.loadByMember.map((m) => ({ 이름: m.name, "열린 작업": m.openTasks, "예상 시간": m.openHours, 막힘: m.blocked })),
+      "팀원별 부하": data.load.rows.map((m) => ({ 이름: m.name, "열린 작업": m.openTasks, "예상 시간": m.estimatedHours, "가용 대비": m.ratio == null ? "판단 불가" : `${m.ratio}%`, "마감 임박": m.dueSoonCount, 홀드: m.holdCount })),
       "처리 대기": data.pending,
     };
     scope = ["팀 작업·병목", "프로젝트 현황", "업무 흐름", "팀원 부하(대표 제외)", "처리 대기 현황(집계 수)"];
@@ -89,7 +89,7 @@ export async function generateHomeBriefingAction(): Promise<HomeBriefingResult> 
       "프로젝트 현황": data.projectOverview.map((p) => ({ 프로젝트: p.name, 진행률: p.progress, 상태: p.status })),
       "클라이언트별 현황": data.clientOverview.map((c) => ({ 거래처: c.clientName, "활성 프로젝트": c.activeProjects, "평균 진행률": c.avgProgress, 막힘: c.blockedTasks })),
       "업무 흐름": { 순증: data.workflowTrend.netLabel, 주별: data.workflowTrend.weeks },
-      "전 인원 부하": data.loadByMember.map((m) => ({ 이름: m.name, "열린 작업": m.openTasks, "예상 시간": m.openHours, 막힘: m.blocked })),
+      "전 인원 부하": data.load.rows.map((m) => ({ 이름: m.name, "열린 작업": m.openTasks, "예상 시간": m.estimatedHours, "가용 대비": m.ratio == null ? "판단 불가" : `${m.ratio}%`, "마감 임박": m.dueSoonCount, 홀드: m.holdCount })),
       "처리 대기": data.pending,
     };
     scope = ["전사 위험·운영 지표", "프로젝트·클라이언트 현황", "업무 흐름", "전 인원 부하"];

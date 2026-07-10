@@ -4,7 +4,7 @@ import { PeriodSelect } from "@/components/performance/period-select";
 import { HomeCard } from "@/components/home/home-card";
 import { HomeTodoList } from "@/components/home/home-todo-list";
 import { HomeSchedule } from "@/components/home/home-schedule";
-import { LoadBars } from "@/components/home/load-bars";
+import { WorkloadTable } from "@/components/home/workload-table";
 import { ClientOverviewCard } from "@/components/home/client-overview-card";
 import { TodaySummaryCard } from "@/components/home/today-summary-card";
 import { KpiStrip } from "@/components/home/kpi-strip";
@@ -82,23 +82,21 @@ export function CeoHome({ data, month }: { data: CeoHomeData; month: number }) {
       {/* 6. 업무 흐름 */}
       <WorkflowTrendCard trend={data.workflowTrend} />
 
-      {/* 7. 전 인원 부하 | 전 인원 히트맵 */}
+      {/* 7. 전 인원 부하 | 날짜별 업무 집중도 — 태블릿에선 1열 적층 */}
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-        <HomeCard title="전 인원 부하 — 배분 조정용">
-          <LoadBars rows={data.loadByMember} />
-        </HomeCard>
+        <WorkloadTable load={data.load} scopeLabel="전 인원 부하" />
         <HomeCard
-          title="전 인원 히트맵"
+          title={`날짜별 업무 집중도 - ${month}월`}
           action={
             <PeriodSelect
               param="hm"
-              ariaLabel="히트맵 기준 월 선택"
+              ariaLabel="집중도 기준 월 선택"
               options={MONTH_OPTIONS}
               value={String(month)}
             />
           }
         >
-          <PerformanceHeatmap data={data.heatmap} />
+          <PerformanceHeatmap data={data.heatmap} gridOnly />
         </HomeCard>
       </div>
 

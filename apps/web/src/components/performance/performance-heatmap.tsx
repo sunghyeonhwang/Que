@@ -17,7 +17,15 @@ const GREEN = [
 /** 히트맵(멤버×일) — 초록 강도 그리드 + 멤버별 부하 막대. heatmap-data 재사용.
  *  히트맵(어디 몰렸나) 아래에 부하 막대(누가 많나)를 붙여 한 화면에서 보완한다.
  *  셀 클릭 시 그 날짜의 일정(일 뷰)으로 이동한다. */
-export function PerformanceHeatmap({ data }: { data: HeatmapData }) {
+export function PerformanceHeatmap({
+  data,
+  gridOnly = false,
+}: {
+  data: HeatmapData;
+  /** true=그리드(+범례)만 렌더 — 홈 '날짜별 업무 집중도'처럼 부하 표가 따로 있는 화면에서
+   *  멤버별 부하 막대 중복을 피한다. 성과 화면은 기본(false)으로 막대 포함. */
+  gridOnly?: boolean;
+}) {
   const overloaded = new Set(data.overloaded);
   const relaxed = new Set(data.relaxed);
 
@@ -96,6 +104,8 @@ export function PerformanceHeatmap({ data }: { data: HeatmapData }) {
         <span className="ml-1">셀 = 예상 시간(h) · 클릭 시 그날 일정</span>
       </div>
 
+      {gridOnly ? null : (
+      <>
       {/* 멤버별 부하 막대 — 누가 얼마나 몰렸나(정렬 아님, 배분 조정용).
           막대 길이 = totalScore(예상 시간 + 문제/홀드/마감 임박 가중), 라벨 = 실제 예상 시간. */}
       <div className="flex flex-col gap-2 border-t border-[var(--que-border)] pt-3">
@@ -141,6 +151,8 @@ export function PerformanceHeatmap({ data }: { data: HeatmapData }) {
           );
         })}
       </div>
+      </>
+      )}
     </div>
   );
 }

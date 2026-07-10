@@ -3,8 +3,8 @@ import { ko } from "date-fns/locale";
 import {
   canViewPrivateEventDetail,
   formatProjectLabel,
-  gradeForRank,
   gradeForUser,
+  personScopeForGrade,
   type CalendarEvent,
   type Task,
   type User,
@@ -23,7 +23,7 @@ import {
   type PerfKpi,
   type ProjectProgressRow,
 } from "./performance-data";
-import type { HeatmapData } from "./heatmap-data";
+import { getHeatmapData, type HeatmapData } from "./heatmap-data";
 import {
   getStandupData,
   getTeamData,
@@ -185,10 +185,55 @@ export interface HomePending {
   pendingPayments: number;
   /** 마감 초과 결제 수. */
   overduePayments: number;
+  /** 대기 결제 중 최장 대기 일수(생성 이후 경과일). 없으면 0. */
+  paymentOldestWaitDays: number;
   /** 확인 필요 Action 수. */
   needsReviewActions: number;
+  /** 확인 필요 Action의 출처 회의록 수(distinct meetingNoteId). */
+  actionSourceNoteCount: number;
   /** 7일 이상 응답 없는 자동 체크인 수(장기 상태 응답 대기). */
   longAwaitingCheckins: number;
+  /** 장기 응답 대기 중 최장 대기 일수. 없으면 0. */
+  checkinOldestWaitDays: number;
+}
+
+/** Home/Workload 한 행 — 업무 배분 조정용(개인 평가 아님, §A). */
+export interface HomeLoadRow {
+  userId: string;
+  name: string;
+  /** 예상 소요 시간 합(열린 작업 estimatedHours 합, 미입력은 0). */
+  estimatedHours: number;
+  /** 주간 가용(상수 40h). */
+  capacityHours: number;
+  /** 예상/가용 % — 예상 미입력(estimatedHours===0)이면 null(판단 불가). */
+  ratio: number | null;
+  /** 열린(집계 대상) 작업 수. */
+  openTasks: number;
+  /** 마감 임박(오늘~7일 내 마감인 열린 작업). */
+  dueSoonCount: number;
+  /** 홀드(on_hold) 작업 수. */
+  holdCount: number;
+  /** 영향 프로젝트명 상위 2(열린 작업이 걸린 프로젝트). */
+  impactProjects: string[];
+}
+
+/** Home/Workload 요약칩(§A). */
+export interface HomeLoadSummary {
+  /** ratio>=100%. */
+  overloadCount: number;
+  /** ratio 90~99%. */
+  cautionCount: number;
+  /** Σ max(0, 40 - 예상) — 이번 주 남은 가용. */
+  remainingCapacityHours: number;
+  /** 예상시간 미입력 열린 작업 수. */
+  noEstimateCount: number;
+  /** 열린 작업이 단일 담당자에게만 걸린 활성 프로젝트 수(단일 담당자 의존). */
+  soloDependencyCount: number;
+}
+
+export interface HomeLoad {
+  rows: HomeLoadRow[];
+  summary: HomeLoadSummary;
 }
 
 interface HomeBase {
@@ -243,8 +288,10 @@ export interface ManagerHomeData extends HomeBase {
   /** 주의 필요 병목(대표 담당 작업의 문제/홀드 포함 — 병목 공유). */
   attention: AttentionEntry[];
   conflicts: ConflictEntry[];
-  /** 팀 부하 — 대표(ceo) 제외. */
-  loadByMember: AdminReportData["loadByMember"];
+  /** 업무 부하 — 대표(ceo) 제외. 배분 조정용(§A). */
+  load: HomeLoad;
+  /** 날짜별 업무 집중도 히트맵 — 대표 제외 스코프(§B). */
+  heatmap: HeatmapData;
   noteSummary: NoteSummary;
   pendingPayments: number;
   overduePayments: number;
@@ -281,9 +328,9 @@ export interface CeoHomeData extends HomeBase {
   currentBlockers: ReportBlocker[];
   /** 클라이언트별 현황(신규 집계). */
   clientOverview: ClientOverviewRow[];
-  /** 전 인원 부하. */
-  loadByMember: AdminReportData["loadByMember"];
-  /** 전 인원 히트맵. */
+  /** 전 인원 부하 — 배분 조정용(§A). */
+  load: HomeLoad;
+  /** 전 인원 날짜별 업무 집중도 히트맵(§B). */
   heatmap: HeatmapData;
   pendingPayments: number;
   overduePayments: number;
@@ -478,20 +525,124 @@ function computeWorkflowTrend(db: Db, now: Date, weeksBack: number, clientId?: s
 function computePending(db: Db, viewer: User, now: Date): HomePending {
   const nowMs = now.getTime();
   const sevenDaysMs = 7 * 864e5;
+  const dayMs = 864e5;
   const taskById = new Map(db.tasks.map((t) => [t.id, t]));
   const longAwaiting = db.checkIns.filter((c) => {
     if (!isAwaitingAnswer(c, now)) return false;
     const task = taskById.get(c.taskId);
     if (!task || !OPEN.has(task.status)) return false;
     return nowMs - new Date(c.scheduledAt).getTime() >= sevenDaysMs;
-  }).length;
+  });
+  const checkinOldestWaitDays = longAwaiting.reduce(
+    (max, c) => Math.max(max, Math.floor((nowMs - new Date(c.scheduledAt).getTime()) / dayMs)),
+    0,
+  );
+
+  const waitingPayments = db.paymentRequests.filter((p) => p.status === "waiting");
+  const paymentOldestWaitDays = waitingPayments.reduce(
+    (max, p) => Math.max(max, Math.floor((nowMs - new Date(p.createdAt).getTime()) / dayMs)),
+    0,
+  );
+
+  const needsReview = db.actionItems.filter((a) => a.status === "needs_review");
+  const actionSourceNoteCount = new Set(needsReview.map((a) => a.meetingNoteId)).size;
+
   return {
-    pendingPayments: db.paymentRequests.filter((p) => p.status === "waiting").length,
-    overduePayments: db.paymentRequests.filter(
-      (p) => p.status === "waiting" && p.dueAt && new Date(p.dueAt).getTime() < nowMs,
+    pendingPayments: waitingPayments.length,
+    overduePayments: waitingPayments.filter(
+      (p) => p.dueAt && new Date(p.dueAt).getTime() < nowMs,
     ).length,
-    needsReviewActions: db.actionItems.filter((a) => a.status === "needs_review").length,
-    longAwaitingCheckins: longAwaiting,
+    paymentOldestWaitDays,
+    needsReviewActions: needsReview.length,
+    actionSourceNoteCount,
+    longAwaitingCheckins: longAwaiting.length,
+    checkinOldestWaitDays,
+  };
+}
+
+/** 앵커 연도: 선택 월이 현재월보다 크면 작년으로 간주(미래 월 방지). performance-data와 동일 규칙. */
+function anchorYear(month: number, now: Date): number {
+  return month > now.getMonth() + 1 ? now.getFullYear() - 1 : now.getFullYear();
+}
+
+/** 업무 부하(Home/Workload, §A). personScope로 스코프(대표=전원/관리=대표 제외). 배분 조정용(평가 아님). */
+function computeHomeLoad(db: Db, personIds: string[], now: Date, clientId?: string): HomeLoad {
+  const dayStart = new Date(now);
+  dayStart.setHours(0, 0, 0, 0);
+  const dayStartMs = dayStart.getTime();
+  const soon7Ms = dayStartMs + 7 * 864e5;
+  const clientTasks = db.tasksForClient(clientId);
+  const projectById = new Map(db.projects.map((p) => [p.id, p]));
+  const clientById = new Map(db.clients.map((c) => [c.id, c]));
+  const projectLabelOf = (projectId?: string): string | null => {
+    if (!projectId) return null;
+    const p = projectById.get(projectId);
+    return p ? formatProjectLabel(p, p.clientId ? clientById.get(p.clientId) : undefined) : null;
+  };
+
+  const personSet = new Set(personIds);
+  const scopedUsers = db.users.filter((u) => personSet.has(u.id));
+
+  let noEstimateCount = 0;
+  const rows: HomeLoadRow[] = scopedUsers.map((u) => {
+    const open = clientTasks.filter((t) => t.assigneeId === u.id && OPEN.has(t.status));
+    const estimatedHours = open.reduce((sum, t) => sum + (t.estimatedHours ?? 0), 0);
+    noEstimateCount += open.filter((t) => t.estimatedHours == null).length;
+    const ratio =
+      estimatedHours > 0 ? Math.round((estimatedHours / OVERLOAD_HOURS) * 100) : null;
+    const dueSoonCount = open.filter((t) => {
+      if (!t.endAt) return false;
+      const e = new Date(t.endAt).getTime();
+      return e >= dayStartMs && e <= soon7Ms;
+    }).length;
+    const holdCount = open.filter((t) => t.status === "on_hold").length;
+
+    const projCount = new Map<string, number>();
+    for (const t of open) {
+      const label = projectLabelOf(t.projectId);
+      if (label) projCount.set(label, (projCount.get(label) ?? 0) + 1);
+    }
+    const impactProjects = [...projCount.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 2)
+      .map(([name]) => name);
+
+    return {
+      userId: u.id,
+      name: u.name,
+      estimatedHours,
+      capacityHours: OVERLOAD_HOURS,
+      ratio,
+      openTasks: open.length,
+      dueSoonCount,
+      holdCount,
+      impactProjects,
+    };
+  });
+
+  // 단일 담당자 의존: 열린 작업이 존재하고 그 담당자가 정확히 1명뿐인 활성 프로젝트.
+  const activeProjects = db.projects.filter(
+    (p) => p.status === "active" && (!clientId || p.clientId === clientId),
+  );
+  let soloDependencyCount = 0;
+  for (const p of activeProjects) {
+    const openInProject = clientTasks.filter((t) => t.projectId === p.id && OPEN.has(t.status));
+    if (openInProject.length === 0) continue;
+    if (new Set(openInProject.map((t) => t.assigneeId)).size === 1) soloDependencyCount += 1;
+  }
+
+  return {
+    rows,
+    summary: {
+      overloadCount: rows.filter((r) => r.ratio != null && r.ratio >= 100).length,
+      cautionCount: rows.filter((r) => r.ratio != null && r.ratio >= 90 && r.ratio < 100).length,
+      remainingCapacityHours: rows.reduce(
+        (sum, r) => sum + Math.max(0, OVERLOAD_HOURS - r.estimatedHours),
+        0,
+      ),
+      noEstimateCount,
+      soloDependencyCount,
+    },
   };
 }
 
@@ -611,12 +762,16 @@ async function getManagerHomeData(
     getTeamPriorityItems(user, now, opts.clientId),
   ]);
 
-  // 관리자 부하표는 대표(ceo) 제외 — 대표 부하는 관리자에게 노출하지 않는다(관리자끼리는 상호 노출).
-  // grade는 정적 맵이 아니라 db.users의 rank에서 유도한다(신규/직급변경 반영).
-  const rankById = new Map(db.users.map((u) => [u.id, u.rank]));
-  const loadByMember = report.loadByMember.filter(
-    (row) => gradeForRank(rankById.get(row.userId)) !== "ceo",
-  );
+  // 관리자 부하표·집중도는 대표(ceo) 제외 — 대표 부하는 관리자에게 노출하지 않는다(관리자끼리 상호 노출).
+  // personScope는 세션 사용자 grade에서만 유도한다(URL로 확대 불가). manager → 대표 제외 userId.
+  const personScope = personScopeForGrade(user, db.users);
+  const load = computeHomeLoad(db, personScope, now, opts.clientId);
+  const hmMonth = opts.hm ?? now.getMonth() + 1;
+  const heatmap = await getHeatmapData(now, {
+    monthAnchor: new Date(anchorYear(hmMonth, now), hmMonth - 1, 1),
+    clientId: opts.clientId,
+    personScope,
+  });
 
   const overloadCount = overloadCountOf(report.loadByMember);
   const homeKpis: HomeKpi[] = [
@@ -667,7 +822,8 @@ async function getManagerHomeData(
     teamSummary: team.summary,
     attention: team.attention,
     conflicts: team.conflicts,
-    loadByMember,
+    load,
+    heatmap,
     noteSummary,
     pendingPayments: report.overall.pendingPayments,
     overduePayments: report.overall.overduePayments,
@@ -790,7 +946,7 @@ async function getCeoHomeData(
     riskMilestones,
     currentBlockers: report.currentBlockers,
     clientOverview,
-    loadByMember: report.loadByMember,
+    load: computeHomeLoad(db, personScopeForGrade(user, db.users), now, opts.clientId),
     heatmap: perf.heatmap,
     pendingPayments: report.overall.pendingPayments,
     overduePayments: report.overall.overduePayments,
