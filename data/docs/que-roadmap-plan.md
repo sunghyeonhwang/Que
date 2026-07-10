@@ -98,7 +98,9 @@
 
 ### D 트랙 todo_griff (API 경유 확정, 순차)
 
-> **진행(2026-07-08)**: **D-1·D-2·D-3 완료·라이브.** Que-side(모바일 인증 `POST /api/auth/mobile`·CORS·`via='mobile'`) 배포·마이그레이션 적용. DayBlocks 앱(별도 레포 `todo_griff`) D-3 동기화 구현(DESIGN.md §14, queApi/authStore/queSync/LoginScreen/QueInbox, 하이브리드+완료/재일정 write-back) 커밋·**live E2E 검증**(로그인·임포트·write-back+원복). **배포: todo.griff.co.kr**(Vercel GRIFF 팀 `todo_griff` 프로젝트, DNS=Cloudflare, `QUE_CORS_ORIGINS=https://todo.griff.co.kr`). 남음: **D-4 OKR·D-6 Capacitor 네이티브**, 무시간→인박스 라이브 재현(현재 대표 태스크가 전부 시간有라 미노출), 브라우저 UI 육안.
+> **진행(2026-07-08)**: **D-1·D-2·D-3 완료·라이브.** Que-side(모바일 인증 `POST /api/auth/mobile`·CORS·`via='mobile'`) 배포·마이그레이션 적용. DayBlocks 앱(별도 레포 `todo_griff`) D-3 동기화 구현(DESIGN.md §14, queApi/authStore/queSync/LoginScreen/QueInbox, 하이브리드+완료/재일정 write-back) 커밋·**live E2E 검증**(로그인·임포트·write-back+원복). **배포: todo.griff.co.kr**(Vercel GRIFF 팀 `todo_griff` 프로젝트, DNS=Cloudflare, `QUE_CORS_ORIGINS=https://todo.griff.co.kr`). 남음: **D-6 Capacitor 네이티브**, 무시간→인박스 라이브 재현(현재 대표 태스크가 전부 시간有라 미노출), 브라우저 UI 육안.
+>
+> **D-4 완료(2026-07-10)**: OKR 분기 목표 트래커 — 하단 탭(오늘|목표) 신설, 목표·핵심결과(진행률 바·−/+ 진척)·교육형 첫 사용 가이드. 앱 로컬 전용(Que 무변경), 사용자 결정=탭 2개+MVP 트래커만(블록↔목표 연결 2차). 정본: todo_griff `DESIGN.md §15`.
 >
 > **D-5 완료(2026-07-10)**: 오프라인↔서버 충돌 정책 마감 — §14.7 갭 3종 구현·라이브 시뮬레이션 검증·배포. ①지수 백오프(30s→10분 상한, 명시 행동 리셋) ②원격 소실(삭제·취소·병합·재배정) 시 연동 블록 **비파괴 링크 해제**+잔여 op 폐기+토스트 ③로컬 삭제 시 잔여 op 폐기+flush 이중 안전 ④기형 200 응답 방어(빈 목록 강등 금지 — 일괄 해제 사고 차단). 정본: todo_griff `DESIGN.md §14.7`.
 - **D-2 (S, 먼저)**: CORS 허용(todo.griff.co.kr) + `via='mobile'` — `change_logs.via` check에 'mobile' 추가(이 트랙 유일 core 스키마 변경, **코드 배포 전 마이그레이션 먼저** 안 그러면 쓰기 API 500).
