@@ -1,5 +1,6 @@
 import { formatProjectLabel, type User } from "@que/core";
 import { getDb } from "./db";
+import { computeWorkflowTrend, type WorkflowTrend } from "./workflow-trend";
 
 // 관리자 리포트 (기획서 "관리자 리포트", 2026-07-03 확정, 대표/관리자 전용).
 // 원칙: 개인 점수화·순위화 없음. "누가 많이 했나"가 아니라 "무엇이 얼마나 나아갔고(진척),
@@ -19,6 +20,32 @@ export interface ReportBlocker {
   status: "issue" | "on_hold";
   reason?: string;
   sinceLabel: string;
+}
+
+/** 운영 건강도 지표 한 칸(전 기간 대비 증감 포함). 색은 화살표·텍스트의 보조로만 쓴다. */
+export interface HealthMetric {
+  /** 큰 수치 표시 문구. 산출 불가(분모 0·표본 없음)면 "—". */
+  value: string;
+  /** 화살표: up=↑, down=↓, flat=변화 없음, none=전 기간 대비 비교 불가. */
+  direction: "up" | "down" | "flat" | "none";
+  /** 증감 요약 문구(예: "12h 단축", "5%p 개선", "1건 감소"). */
+  deltaLabel: string;
+  /** 이 방향이 개선(green)/악화(red)/중립인지. tone만으로 의미 전달하지 않는다(화살표+텍스트 동반). */
+  tone: "good" | "bad" | "neutral";
+  /** 보조 설명(분모·미해소 등). */
+  sub: string;
+}
+
+/** 운영 건강도 3종 — statusLogs·tasks로만 산출(감시 아님, 흐름·구조 진단). */
+export interface OpsHealth {
+  /** 병목 해소 시간(진입→해소 평균 소요). 짧아지면 개선. */
+  resolution: HealthMetric;
+  /** 기한 준수율(기간 내 마감 도래 작업 중 기한 내 완료 비율). 오르면 개선. */
+  adherence: HealthMetric;
+  /** 재발 병목(기간 내 issue/on_hold 진입 2회 이상 작업 수). 줄면 개선. */
+  recurring: HealthMetric;
+  /** 재발 병목 대표 작업명(툴팁·서브텍스트, 최대 2). */
+  recurringNames: string[];
 }
 
 export interface AdminReportData {
@@ -49,6 +76,45 @@ export interface AdminReportData {
     blocked: number;
   }[];
   weeklyTrend: { label: string; completed: number }[];
+  /** 최근 8주 업무 흐름(신규·완료·기한초과 + 순증) — 기간 필터와 무관한 고정 추이(홈과 동일 산출). */
+  workflowTrend: WorkflowTrend;
+  /** 운영 건강도 3종(리포트 기간 스코프, 전 기간 대비 증감 포함). */
+  opsHealth: OpsHealth;
+}
+
+/** 병목으로 치는 상태(진입/해소 판정). */
+const BLOCKED_STATUSES = new Set(["issue", "on_hold"]);
+
+const EMPTY_METRIC: HealthMetric = {
+  value: "—",
+  direction: "none",
+  deltaLabel: "이전 기간 대비 비교 불가",
+  tone: "neutral",
+  sub: "",
+};
+
+const EMPTY_OPS_HEALTH: OpsHealth = {
+  resolution: EMPTY_METRIC,
+  adherence: EMPTY_METRIC,
+  recurring: EMPTY_METRIC,
+  recurringNames: [],
+};
+
+/** 소요(ms)를 사람이 읽는 라벨로: 24h 미만은 시간(h), 이상은 일(d). */
+function durationLabel(ms: number): string {
+  const hours = ms / 3.6e6;
+  if (hours < 24) return `${hours < 10 ? hours.toFixed(1) : Math.round(hours)}h`;
+  return `${(hours / 24).toFixed(1)}d`;
+}
+
+/** 증감 방향·극성 판정(diff 양수=값 증가). goodDir=값이 어느 방향일 때 개선인지. */
+function dirTone(
+  diff: number,
+  goodDir: "up" | "down",
+): { direction: "up" | "down" | "flat"; tone: HealthMetric["tone"] } {
+  if (diff === 0) return { direction: "flat", tone: "neutral" };
+  const direction = diff > 0 ? "up" : "down";
+  return { direction, tone: direction === goodDir ? "good" : "bad" };
 }
 
 const ymd = (d: Date): string =>
@@ -82,6 +148,8 @@ export async function getAdminReportData(
     currentBlockers: [],
     loadByMember: [],
     weeklyTrend: [],
+    workflowTrend: { weeks: [], weeksBack: 8, netChange: 0, netLabel: "" },
+    opsHealth: EMPTY_OPS_HEALTH,
   };
   if (viewer.role !== "admin") return empty;
 
@@ -211,6 +279,167 @@ export async function getAdminReportData(
     });
   }
 
+  // ── 최근 8주 업무 흐름(기간 필터와 무관 · 홈과 동일 산출) ──
+  const workflowTrend = computeWorkflowTrend(db, now, 8, clientId);
+
+  // ── 운영 건강도 3종 — statusLogs·tasks로 산출, 리포트 기간 vs 전 기간 비교 ──
+  // 작업별 상태로그를 시간순으로 정렬해 두고(병목 진입/해소 짝 매칭), 두 기간에 재사용한다.
+  const logsByTask = new Map<string, typeof db.statusLogs>();
+  for (const l of db.statusLogs) {
+    if (!inClient(l.taskId)) continue;
+    const arr = logsByTask.get(l.taskId);
+    if (arr) arr.push(l);
+    else logsByTask.set(l.taskId, [l]);
+  }
+  for (const arr of logsByTask.values()) arr.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+
+  interface HealthWindow {
+    avgResolutionMs: number | null; // 기간 내 해소된 병목의 평균 소요. 해소 0건이면 null.
+    resolvedCount: number;
+    recurringCount: number;
+    recurringNames: string[];
+    adherencePct: number | null; // 분모(마감 도래) 0이면 null.
+    adherenceDenom: number;
+    adherenceMet: number;
+  }
+
+  const windowHealth = (sMs: number, eMs: number): HealthWindow => {
+    let totalMs = 0;
+    let resolvedCount = 0;
+    const recurringIds: string[] = [];
+    for (const [taskId, arr] of logsByTask) {
+      let blockedSince: number | null = null;
+      let entriesInWindow = 0;
+      for (const l of arr) {
+        const at = new Date(l.createdAt).getTime();
+        if (BLOCKED_STATUSES.has(l.toStatus)) {
+          // 진입 = 비병목→병목. issue→on_hold(병목 연속)은 새 진입으로 세지 않는다.
+          if (blockedSince === null) {
+            blockedSince = at;
+            if (at >= sMs && at <= eMs) entriesInWindow += 1;
+          }
+        } else if (blockedSince !== null) {
+          // 해소 = 병목→다른 상태. 해소 시각이 창 안이면 소요를 집계한다.
+          if (at >= sMs && at <= eMs) {
+            totalMs += at - blockedSince;
+            resolvedCount += 1;
+          }
+          blockedSince = null;
+        }
+      }
+      // 미해소(창 끝까지 막힘)는 소요 집계에서 제외 — resolvedCount에 안 들어감.
+      if (entriesInWindow >= 2) recurringIds.push(taskId);
+    }
+
+    // 기한 준수율: 마감(endAt)이 창 안에 도래한 작업 중 마감 전(당일 포함) 완료 비율.
+    let adherenceDenom = 0;
+    let adherenceMet = 0;
+    for (const t of clientTasks) {
+      if (!t.endAt || t.status === "cancelled" || t.status === "merged") continue;
+      const dueMs = new Date(t.endAt).getTime();
+      if (dueMs < sMs || dueMs > eMs) continue;
+      adherenceDenom += 1;
+      const onTime = (logsByTask.get(t.id) ?? []).some(
+        (l) => l.toStatus === "done" && new Date(l.createdAt).getTime() <= dueMs,
+      );
+      if (onTime) adherenceMet += 1;
+    }
+
+    return {
+      avgResolutionMs: resolvedCount > 0 ? totalMs / resolvedCount : null,
+      resolvedCount,
+      recurringCount: recurringIds.length,
+      recurringNames: recurringIds.map((id) => taskById.get(id)?.title ?? id).slice(0, 2),
+      adherencePct: adherenceDenom > 0 ? Math.round((adherenceMet / adherenceDenom) * 100) : null,
+      adherenceDenom,
+      adherenceMet,
+    };
+  };
+
+  const prevStartD = new Date(start);
+  prevStartD.setDate(prevStartD.getDate() - spanDays);
+  const cur = windowHealth(start.getTime(), end.getTime());
+  const prev = windowHealth(prevStartD.getTime(), start.getTime() - 1);
+
+  // 병목 해소 시간 — 짧아지면 개선(green). 미해소=현재 막힌 작업 수.
+  let resolution: HealthMetric;
+  if (cur.avgResolutionMs === null) {
+    resolution = {
+      ...EMPTY_METRIC,
+      sub: `해소 0건 · 미해소 ${blockedTasks.length}건`,
+    };
+  } else if (prev.avgResolutionMs === null) {
+    resolution = {
+      value: durationLabel(cur.avgResolutionMs),
+      direction: "none",
+      deltaLabel: "이전 기간 대비 비교 불가",
+      tone: "neutral",
+      sub: `해소 ${cur.resolvedCount}건 · 미해소 ${blockedTasks.length}건`,
+    };
+  } else {
+    const diff = cur.avgResolutionMs - prev.avgResolutionMs;
+    const { direction, tone } = dirTone(diff, "down");
+    resolution = {
+      value: durationLabel(cur.avgResolutionMs),
+      direction,
+      deltaLabel:
+        diff === 0
+          ? "이전 기간과 동일"
+          : `${durationLabel(Math.abs(diff))} ${diff < 0 ? "단축" : "증가"}`,
+      tone,
+      sub: `해소 ${cur.resolvedCount}건 · 미해소 ${blockedTasks.length}건`,
+    };
+  }
+
+  // 기한 준수율 — 오르면 개선(green). 분모 0이면 "—".
+  let adherence: HealthMetric;
+  if (cur.adherencePct === null) {
+    adherence = { ...EMPTY_METRIC, sub: "이 기간에 마감 도래한 작업이 없습니다" };
+  } else if (prev.adherencePct === null) {
+    adherence = {
+      value: `${cur.adherencePct}%`,
+      direction: "none",
+      deltaLabel: "이전 기간 대비 비교 불가",
+      tone: "neutral",
+      sub: `마감 ${cur.adherenceDenom}건 중 ${cur.adherenceMet}건 기한 내`,
+    };
+  } else {
+    const diff = cur.adherencePct - prev.adherencePct;
+    const { direction, tone } = dirTone(diff, "up");
+    adherence = {
+      value: `${cur.adherencePct}%`,
+      direction,
+      deltaLabel:
+        diff === 0 ? "이전 기간과 동일" : `${Math.abs(diff)}%p ${diff > 0 ? "개선" : "하락"}`,
+      tone,
+      sub: `마감 ${cur.adherenceDenom}건 중 ${cur.adherenceMet}건 기한 내`,
+    };
+  }
+
+  // 재발 병목 — 줄면 개선(green). 카운트는 항상 정의됨.
+  const recurringDiff = cur.recurringCount - prev.recurringCount;
+  const recurringDT = dirTone(recurringDiff, "down");
+  const recurring: HealthMetric = {
+    value: `${cur.recurringCount}건`,
+    direction: recurringDT.direction,
+    deltaLabel:
+      recurringDiff === 0
+        ? "이전 기간과 동일"
+        : `${Math.abs(recurringDiff)}건 ${recurringDiff < 0 ? "감소" : "증가"}`,
+    tone: recurringDT.tone,
+    sub:
+      cur.recurringNames.length > 0
+        ? `${cur.recurringNames.join(", ")} 등`
+        : "재발 병목 없음",
+  };
+
+  const opsHealth: OpsHealth = {
+    resolution,
+    adherence,
+    recurring,
+    recurringNames: cur.recurringNames,
+  };
+
   const now2 = now.getTime();
   return {
     isAdmin: true,
@@ -241,5 +470,7 @@ export async function getAdminReportData(
     currentBlockers,
     loadByMember,
     weeklyTrend,
+    workflowTrend,
+    opsHealth,
   };
 }

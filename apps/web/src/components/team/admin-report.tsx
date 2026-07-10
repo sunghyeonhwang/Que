@@ -1,9 +1,10 @@
-import { AlertTriangle, Pause, type LucideIcon } from "lucide-react";
-import type { AdminReportData } from "@/lib/report-data";
+import { AlertTriangle, ArrowDown, ArrowUp, Minus, Pause, type LucideIcon } from "lucide-react";
+import type { AdminReportData, HealthMetric } from "@/lib/report-data";
 import type { HomeKpi } from "@/lib/home-grade-data";
 import { AiAnalysisCard } from "./ai-analysis-card";
 import { HomeCard } from "@/components/home/home-card";
 import { KpiStrip } from "@/components/home/kpi-strip";
+import { PerformanceLineChart } from "@/components/performance/performance-line-chart";
 import { cn } from "@/lib/utils";
 
 /** 관리자 리포트 뷰 — 진척(프로젝트별 완료)·병목(현재 막힘)·부하 분포(밸런싱)만 보여준다.
@@ -13,8 +14,15 @@ import { cn } from "@/lib/utils";
 export function AdminReport({ data }: { data: AdminReportData }) {
   const periodLabel = data.period === "week" ? "최근 7일" : "최근 4주";
   const maxProject = Math.max(...data.completedByProject.map((p) => p.count), 1);
-  const maxTrend = Math.max(...data.weeklyTrend.map((w) => w.completed), 1);
   const maxLoad = Math.max(...data.loadByMember.map((m) => m.loadScore), 1);
+  // 순증 배지 tone: 적체 증가(순증>0)=주의(amber), 적체 감소(<0)=완화(green), 0=중립(홈 카드와 동일 규약).
+  const net = data.workflowTrend.netChange;
+  const netClass =
+    net > 0
+      ? "border-[var(--que-warning)] bg-[var(--que-warning-bg)] text-[var(--que-warning)]"
+      : net < 0
+        ? "border-[var(--que-success)] bg-[var(--que-success-bg)] text-[var(--que-success)]"
+        : "border-[var(--que-border)] text-[var(--que-text-secondary)]";
 
   // 전체 현황 → 홈 KpiStrip(tone·href). red=문제/연체, amber=대기.
   const snapshot: HomeKpi[] = [
@@ -65,6 +73,15 @@ export function AdminReport({ data }: { data: AdminReportData }) {
       {/* 전체 현황 → 홈 KpiStrip */}
       <KpiStrip items={snapshot} cols={6} ariaLabel="전체 현황" />
 
+      {/* 운영 건강도 3종 — 흐름·구조 진단(개인 평가 아님). 전 기간 대비 증감 동반. */}
+      <HomeCard title="운영 건강도" meta={`${periodLabel} 기준 · 이전 기간 대비`}>
+        <div className="grid gap-4 sm:grid-cols-3">
+          <HealthCell label="병목 해소 시간" metric={data.opsHealth.resolution} />
+          <HealthCell label="기한 준수율" metric={data.opsHealth.adherence} />
+          <HealthCell label="재발 병목" metric={data.opsHealth.recurring} caption="구조 문제 신호" />
+        </div>
+      </HomeCard>
+
       <div className="grid gap-4 xl:grid-cols-2">
         {/* 진척: 기간 완료 + 프로젝트별 (완료=green) */}
         <HomeCard
@@ -100,41 +117,33 @@ export function AdminReport({ data }: { data: AdminReportData }) {
           </div>
         </HomeCard>
 
-        {/* 병목 유입 + 주별 완료 추세 (문제=red, 홀드=amber, 완료=green) */}
-        <HomeCard title="병목 유입 / 완료 추세">
+        {/* 업무 흐름 — 최근 8주 (신규·완료·기한초과 3선 + 순증, 홈 workflow-trend-card와 동일 렌더).
+            문제/홀드 발생은 '이번 기간' 스코프 보조 뱃지로 유지. */}
+        <HomeCard
+          title="업무 흐름 — 최근 8주"
+          action={
+            <span
+              className={cn(
+                "rounded-full border px-2.5 py-1 text-xs font-medium tabular-nums",
+                netClass,
+              )}
+            >
+              {data.workflowTrend.netLabel}
+            </span>
+          }
+        >
           <div className="flex flex-col gap-3">
             <div className="flex flex-wrap gap-2">
               <span className="inline-flex items-center gap-1.5 rounded-md border border-[var(--que-error)] bg-[var(--que-error-bg)] px-2 py-1 text-xs font-medium text-[var(--que-error)]">
                 <AlertTriangle className="size-3.5" aria-hidden />
-                문제발생 {data.raisedIssues}건
+                이번 기간 문제 {data.raisedIssues}건
               </span>
               <span className="inline-flex items-center gap-1.5 rounded-md border border-[var(--que-warning)] bg-[var(--que-warning-bg)] px-2 py-1 text-xs font-medium text-[var(--que-warning)]">
                 <Pause className="size-3.5" aria-hidden />
-                홀드 전환 {data.raisedHolds}건
+                이번 기간 홀드 {data.raisedHolds}건
               </span>
             </div>
-            <div className="flex flex-col gap-1.5">
-              {data.weeklyTrend.map((w) => (
-                <div key={w.label} className="flex items-center gap-2">
-                  <span className="w-14 shrink-0 text-xs text-[var(--que-text-tertiary)]">
-                    {w.label}
-                  </span>
-                  <span className="flex h-2 flex-1 overflow-hidden rounded-full bg-[var(--que-bg-muted)]">
-                    <span
-                      className="h-full rounded-full bg-[var(--que-success)]"
-                      style={{
-                        width: `${(w.completed / maxTrend) * 100}%`,
-                        minWidth: w.completed ? "0.25rem" : "0",
-                      }}
-                      aria-hidden
-                    />
-                  </span>
-                  <span className="w-16 shrink-0 text-right text-xs tabular-nums text-[var(--que-text-secondary)]">
-                    {w.completed}건 완료
-                  </span>
-                </div>
-              ))}
-            </div>
+            <PerformanceLineChart data={data.workflowTrend.weeks} />
           </div>
         </HomeCard>
       </div>
@@ -206,6 +215,51 @@ export function AdminReport({ data }: { data: AdminReportData }) {
 
       {/* E-10 분석 AI — 온디맨드(버튼식). 리포트 집계를 근거로 병목·조치를 코치 톤으로. */}
       <AiAnalysisCard period={data.period} />
+    </div>
+  );
+}
+
+// 운영 건강도 한 칸 — 큰 수치 + 증감 배지(화살표+텍스트, 색은 보조) + 서브라벨.
+// tone 의미: good=개선(green)/bad=악화(red)/neutral=중립. 색 단독 금지라 화살표·문구를 항상 동반한다.
+const HEALTH_ICON: Record<HealthMetric["direction"], LucideIcon | null> = {
+  up: ArrowUp,
+  down: ArrowDown,
+  flat: Minus,
+  none: null,
+};
+const HEALTH_TONE: Record<HealthMetric["tone"], string> = {
+  good: "text-[var(--que-success)]",
+  bad: "text-[var(--que-error)]",
+  neutral: "text-[var(--que-text-secondary)]",
+};
+
+function HealthCell({
+  label,
+  metric,
+  caption,
+}: {
+  label: string;
+  metric: HealthMetric;
+  caption?: string;
+}) {
+  const Icon = HEALTH_ICON[metric.direction];
+  const toneClass = HEALTH_TONE[metric.tone];
+  return (
+    <div className="flex flex-col gap-1">
+      <p className="text-xs text-[var(--que-text-secondary)]">{label}</p>
+      <p className="text-2xl font-semibold tabular-nums text-[var(--que-text)]">{metric.value}</p>
+      <p className={cn("inline-flex items-center gap-1 text-xs font-medium", toneClass)}>
+        {Icon && <Icon className="size-3.5 shrink-0" aria-hidden />}
+        {metric.deltaLabel}
+      </p>
+      {metric.sub && (
+        <p className="text-xs text-[var(--que-text-tertiary)]" title={metric.sub}>
+          {metric.sub}
+        </p>
+      )}
+      {caption && (
+        <p className="text-[11px] text-[var(--que-text-tertiary)]">{caption}</p>
+      )}
     </div>
   );
 }

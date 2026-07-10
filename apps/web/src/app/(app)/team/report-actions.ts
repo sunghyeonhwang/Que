@@ -88,6 +88,32 @@ export async function analyzeTeamReportAction(period: ReportPeriod): Promise<AiA
       막힘: m.blocked,
     })),
     "주간 완료 추이": data.weeklyTrend,
+    "운영 건강도(전 기간 대비)": {
+      "병목 해소 시간": {
+        값: data.opsHealth.resolution.value,
+        증감: data.opsHealth.resolution.deltaLabel,
+        보조: data.opsHealth.resolution.sub,
+      },
+      "기한 준수율": {
+        값: data.opsHealth.adherence.value,
+        증감: data.opsHealth.adherence.deltaLabel,
+        보조: data.opsHealth.adherence.sub,
+      },
+      "재발 병목": {
+        값: data.opsHealth.recurring.value,
+        증감: data.opsHealth.recurring.deltaLabel,
+        "대표 작업": data.opsHealth.recurringNames,
+      },
+    },
+    "최근 8주 업무 흐름": {
+      순증: data.workflowTrend.netLabel,
+      주별: data.workflowTrend.weeks.map((w) => ({
+        구간: w.label,
+        신규: w.created,
+        완료: w.completed,
+        기한초과: w.overdue,
+      })),
+    },
   };
 
   const grade = gradeForUser(user);
