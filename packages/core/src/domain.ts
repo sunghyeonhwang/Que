@@ -289,6 +289,20 @@ export const recurringTemplateSchema = z
   });
 export type RecurringTemplate = z.infer<typeof recurringTemplateSchema>;
 
+// ---------- AlertRead (알림 읽음 표시, C-3a 알림 센터) ----------
+// 알림은 상태 파생 스냅샷(alerts-data)이라 저장하지 않고, "읽음"만 사용자별로 저장한다.
+// 항목이 해결되면 알림은 자연 소멸하고 읽음 행만 잔존(무해·소량). 업무 데이터가 아니라 ChangeLog 없음.
+
+export const alertReadSchema = z.object({
+  /** `${userId}:${alertId}` — 사용자·알림당 1행(멱등 upsert 키). */
+  id: z.string().min(1),
+  userId: z.string().min(1),
+  /** 파생 알림의 안정 id (예: issue-task-123, overdue-task-9). */
+  alertId: z.string().min(1),
+  readAt: isoDateTime,
+});
+export type AlertRead = z.infer<typeof alertReadSchema>;
+
 // ---------- RevisionNote (수정사항/이슈 트래커) ----------
 
 // 테스트 중 발견한 수정사항을 적는 팀 공용 목록. 비즈니스 업무 데이터가 아니라 ChangeLog는 남기지

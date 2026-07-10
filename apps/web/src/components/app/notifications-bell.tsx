@@ -13,10 +13,11 @@ const TONE_DOT: Record<AlertTone, string> = {
   violet: "bg-[var(--que-violet)]",
 };
 
-/** 상단바 알림 — 운영 신호(문제/기한초과/확인필요/결제)를 목록으로 보여주고 각 화면으로 이동. */
+/** 상단바 알림 — 운영 신호(문제/기한초과/확인필요/결제)를 목록으로 보여주고 각 화면으로 이동.
+ *  뱃지 = 안읽음 수(C-3a). 전체·읽음 처리는 알림 센터(/notifications)에서. */
 export function NotificationsBell({ alerts }: { alerts: AlertsData }) {
   const [open, setOpen] = useState(false);
-  const { items, count } = alerts;
+  const { items, count, unreadCount } = alerts;
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -24,15 +25,15 @@ export function NotificationsBell({ alerts }: { alerts: AlertsData }) {
         render={
           <Button
             variant="ghost"
-            aria-label={count > 0 ? `알림 ${count}건` : "알림"}
+            aria-label={unreadCount > 0 ? `알림 — 새 알림 ${unreadCount}건` : "알림"}
             className="relative size-11 rounded-full text-[var(--que-text-secondary)] hover:bg-[var(--que-bg-muted)]"
           />
         }
       >
         <Bell className="size-5" aria-hidden />
-        {count > 0 && (
+        {unreadCount > 0 && (
           <span className="absolute top-1.5 right-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--que-error)] px-1 text-[10px] font-semibold text-white tabular-nums">
-            {count > 9 ? "9+" : count}
+            {unreadCount > 9 ? "9+" : unreadCount}
           </span>
         )}
       </PopoverTrigger>
@@ -53,14 +54,18 @@ export function NotificationsBell({ alerts }: { alerts: AlertsData }) {
                 <Link
                   href={alert.href}
                   onClick={() => setOpen(false)}
-                  className="flex gap-2.5 px-3.5 py-2.5 hover:bg-[var(--que-bg-muted)] focus-visible:bg-[var(--que-bg-muted)] focus-visible:outline-none"
+                  className={`flex gap-2.5 px-3.5 py-2.5 hover:bg-[var(--que-bg-muted)] focus-visible:bg-[var(--que-bg-muted)] focus-visible:outline-none ${
+                    alert.read ? "" : "bg-[var(--que-brand-subtle)]/40"
+                  }`}
                 >
                   <span
                     className={`mt-1.5 size-2 shrink-0 rounded-full ${TONE_DOT[alert.tone]}`}
                     aria-hidden
                   />
                   <span className="min-w-0 flex-1">
-                    <span className="block text-sm font-medium text-[var(--que-text)]">
+                    <span
+                      className={`block text-sm text-[var(--que-text)] ${alert.read ? "font-normal" : "font-semibold"}`}
+                    >
                       {alert.title}
                     </span>
                     <span className="block truncate text-xs text-[var(--que-text-secondary)]">
@@ -73,11 +78,13 @@ export function NotificationsBell({ alerts }: { alerts: AlertsData }) {
           </ul>
         )}
 
-        {count > items.length && (
-          <p className="border-t border-[var(--que-border)] px-3.5 py-2 text-center text-xs text-[var(--que-text-tertiary)]">
-            외 {count - items.length}건 더
-          </p>
-        )}
+        <Link
+          href="/notifications"
+          onClick={() => setOpen(false)}
+          className="block border-t border-[var(--que-border)] px-3.5 py-2.5 text-center text-sm font-medium text-[var(--que-brand)] hover:bg-[var(--que-bg-muted)] focus-visible:bg-[var(--que-bg-muted)] focus-visible:outline-none"
+        >
+          {count > items.length ? `모두 보기 (${count}건) →` : "모두 보기 →"}
+        </Link>
       </PopoverContent>
     </Popover>
   );

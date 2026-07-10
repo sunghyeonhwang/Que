@@ -293,3 +293,12 @@ create index if not exists idx_task_comments_task on task_comments (task_id, cre
 create index if not exists idx_task_comments_help on task_comments (help_user_id, created_at desc);
 create index if not exists idx_recurring_templates_active on recurring_templates (active);
 create index if not exists idx_revision_notes_created on revision_notes (created_at desc);
+
+-- 알림 읽음 표시(C-3a 알림 센터) — 파생 알림의 사용자별 읽음만 저장(알림 자체는 비저장 스냅샷)
+create table if not exists alert_reads (
+  id       text primary key,
+  user_id  text not null references users(id),
+  alert_id text not null,
+  read_at  timestamptz not null
+);
+create index if not exists idx_alert_reads_user on alert_reads (user_id);

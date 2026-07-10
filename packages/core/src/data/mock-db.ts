@@ -24,6 +24,7 @@ import type {
   User,
 } from "../domain";
 import {
+  type AlertRead,
   clientSchema,
   createRevisionNoteInputSchema,
   milestoneSchema,
@@ -102,6 +103,8 @@ export class MockQueDb implements QueDb {
   revisionNotes: RevisionNote[];
   /** Slack 발송 원장(B-1). 시드에 없다 — mutation 훅이 enqueue로 채운다. Supabase 어댑터가 load에서 덮어쓴다. */
   notificationOutbox: NotificationOutboxEntry[] = [];
+  /** 알림 읽음 표시(C-3a). 시드에 없다 — markAlertsRead가 채운다. Supabase 어댑터가 load에서 덮어쓴다. */
+  alertReads: AlertRead[] = [];
 
   private seq = 0;
   private readonly clock: () => Date;
@@ -2149,6 +2152,25 @@ export class MockQueDb implements QueDb {
     const entry = this.outboxEntry(id);
     entry.status = "skipped";
     return entry;
+  }
+
+  /**
+   * 알림 읽음 처리(C-3a) — 본인 것만, 멱등 upsert(사용자·알림당 1행). 알림은 상태 파생
+   * 스냅샷이라 저장하지 않고 읽음만 저장한다. 업무 데이터가 아니라 ChangeLog를 남기지 않는다
+   * (revision_notes 선례). 읽음은 표시(뱃지·강조)에만 영향 — 항목 자체는 해결 시 자연 소멸.
+   */
+  markAlertsRead(ctx: ActorContext, input: { alertIds: string[] }): number {
+    const actor = this.requireUser(ctx.actorId);
+    const nowIso = this.now();
+    let added = 0;
+    for (const alertId of new Set(input.alertIds)) {
+      if (!alertId || alertId.length > 200) continue; // 형식 방어(파생 id는 짧다)
+      const id = `${actor.id}:${alertId}`;
+      if (this.alertReads.some((r) => r.id === id)) continue; // 멱등
+      this.alertReads.push({ id, userId: actor.id, alertId, readAt: nowIso });
+      added += 1;
+    }
+    return added;
   }
 
   private logChange(

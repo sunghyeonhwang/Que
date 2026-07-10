@@ -70,6 +70,7 @@ export const TABLE_INSERT_ORDER = [
   "task_comments",
   "check_ins",
   "revision_notes",
+  "alert_reads",
 ] as const;
 
 /** QueSeed의 필드명 → DB 테이블명. users는 USERS 상수에서 별도로 넣는다. */

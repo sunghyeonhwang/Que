@@ -31,9 +31,19 @@ const TABLE_TO_FIELD = {
   task_comments: "taskComments",
   check_ins: "checkIns",
   revision_notes: "revisionNotes",
+  alert_reads: "alertReads",
 } as const;
 
 type TableName = keyof typeof TABLE_TO_FIELD;
+
+// 재발 방지(2026-07-10 F-1): TABLE_TO_FIELD에 등록된 테이블이 TABLE_INSERT_ORDER에 빠지면
+// load만 되고 persist가 조용히 건너뛴다(alert_reads 사고). **완전성**을 컴파일 에러로 강제한다 —
+// 누락된 테이블이 있으면 Exclude가 그 리터럴 타입이 되어 AssertNever 제약을 위반한다.
+type AssertNever<T extends never> = T;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- 컴파일 타임 가드(참조 불필요)
+type _OrderCoversAllTables = AssertNever<
+  Exclude<TableName, (typeof TABLE_INSERT_ORDER)[number]>
+>;
 
 export class SupabaseQueDb extends MockQueDb {
   private readonly client: SupabaseClient;
@@ -114,7 +124,7 @@ export class SupabaseQueDb extends MockQueDb {
   /** 변경분 write-through: 신규/변경은 upsert(FK 순서), 삭제는 역순. 변경 없으면 네트워크 호출 없음. */
   async persist(): Promise<void> {
     // upsert: FK 안전 순서 (users → ... → 로그류)
-    for (const table of TABLE_INSERT_ORDER as readonly TableName[]) {
+    for (const table of TABLE_INSERT_ORDER) {
       // ⚠️ users는 절대 write-back하지 않는다. load()에서 password_hash·email을 제거했으므로
       // upsert하면 그 컬럼이 NULL로 덮여 로그인 불능이 된다. 사용자 편집 기능은 전용 경로로.
       if (table === "users") continue;
@@ -130,7 +140,7 @@ export class SupabaseQueDb extends MockQueDb {
       }
     }
     // delete: 역순 (자식 먼저)
-    for (const table of [...TABLE_INSERT_ORDER].reverse() as TableName[]) {
+    for (const table of [...TABLE_INSERT_ORDER].reverse()) {
       if (table === "users") continue; // users는 write-back 대상에서 완전히 제외(위 참조)
       const field = TABLE_TO_FIELD[table];
       const arr = (this as unknown as Record<string, { id: string }[]>)[field] ?? [];
