@@ -17,14 +17,17 @@ export type NotificationTone = "red" | "amber" | "violet" | "blue";
  *  personal_digest는 개인 DM 데일리 브리핑(하루 1회, 아침 9:50 KST) — recipient=Que userId를 담아
  *  발송 직전 Bot Token으로 Slack member ID를 해석한다. dedup_key `personal_digest:<userId>:<date>`.
  *  task_created는 할일 생성 즉시 담당자에게 보내는 개인 DM(Phase 3) — recipient=assigneeId.
- *  dedup_key `task_created:<taskId>`로 **task 1건당 평생 1회**(재시도·중복 훅 방지, marker 무시). */
+ *  dedup_key `task_created:<taskId>`로 **task 1건당 평생 1회**(재시도·중복 훅 방지, marker 무시).
+ *  checkin_prompt는 미응답 체크인 재촉 DM(C-2) — recipient=assigneeId, 버튼(payload.actions)으로
+ *  Slack에서 바로 응답한다. dedup_key `checkin_prompt:<checkInId>:<KST날짜>`로 체크인·날짜당 1회. */
 export type NotificationKind =
   | "issue"
   | "on_hold"
   | "deadline"
   | "standup"
   | "personal_digest"
-  | "task_created";
+  | "task_created"
+  | "checkin_prompt";
 
 /** 아웃박스 status 컬럼. */
 export type NotificationStatus = "pending" | "held" | "sent" | "skipped" | "failed";
@@ -38,6 +41,9 @@ export interface NotificationPayload {
   /** (선택) 요약 1줄(text) 뒤에 붙일 상세 목록 mrkdwn 본문. personal_digest v2만 채운다.
    *  아웃박스 payload(jsonb) 패스스루라 스키마/마이그레이션 무관. 없으면 기존 1줄 동작. */
   detail?: string;
+  /** (선택) 인터랙티브 버튼(C-2 checkin_prompt). Slack actions block으로 렌더 — actionId가
+   *  응답 라우팅 키, value가 대상 id(체크인 id). jsonb 패스스루라 스키마/마이그레이션 무관. */
+  actions?: { actionId: string; label: string; value: string; style?: "primary" | "danger" }[];
 }
 
 /**
@@ -197,15 +203,18 @@ export interface SlackMessage {
   tone: NotificationTone;
   /** (선택) 요약 뒤에 붙일 상세 목록 mrkdwn 본문. 발송 어댑터가 blocks에 이어 붙인다. */
   detail?: string;
+  /** (선택) 인터랙티브 버튼(C-2). 발송 어댑터가 actions block으로 렌더한다. */
+  actions?: NotificationPayload["actions"];
 }
 
 /** 아웃박스 페이로드 → Slack 발송용 메시지. 베이스 URL 주입은 web 계층(deeplinkPath만 넘긴다). */
 export function messageFor(entry: Pick<NotificationOutboxEntry, "payload">): SlackMessage {
-  const { title, text, deeplinkPath, tone, detail } = entry.payload;
+  const { title, text, deeplinkPath, tone, detail, actions } = entry.payload;
   return {
     text: `*${title}*\n${text}`,
     deeplinkPath,
     tone,
     detail,
+    actions,
   };
 }

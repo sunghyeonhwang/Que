@@ -21,8 +21,10 @@ import {
   notificationsEnabled,
   personalDigestEnabled,
   quietHoursConfig,
+  slackInteractiveEnabled,
   webhookEnabled,
 } from "./config";
+import { buildCheckinPromptIntents } from "./checkin-prompt";
 import { buildPersonalDigestIntents } from "./personal-digest";
 import { postToSlack } from "./slack";
 import { postDmToSlack, resolveSlackUserId } from "./slack-bot";
@@ -340,6 +342,25 @@ export async function postStandupDigest(db: MockQueDb, now: Date): Promise<boole
   await sendEntry(db, created[0]);
   await db.persist();
   return true;
+}
+
+/**
+ * 체크인 재촉 DM(C-2) — 응답 대기 체크인을 담당자 개인 DM으로, 버튼과 함께.
+ * 게이트: slackInteractiveEnabled(Bot Token + Signing Secret 둘 다) — 버튼을 받을 수신
+ * 엔드포인트가 없으면 발송하지 않는다(죽은 버튼 방지). dedup은 체크인·날짜당 1회
+ * (`checkin_prompt:<checkInId>:<KST날짜>`), 방해금지 창은 enqueueAndSend가 hold로 흡수.
+ * 크론(10분 주기)마다 스캔하지만 dedup이 하루 1회로 눌러준다.
+ */
+export async function postCheckinPrompts(db: MockQueDb, now: Date): Promise<DispatchCounts> {
+  if (!slackInteractiveEnabled()) return { enqueued: 0, sent: 0, held: 0 };
+  try {
+    const intents = buildCheckinPromptIntents(db, now);
+    return await enqueueAndSend(db, intents, now);
+  } catch (error) {
+    // 재촉 DM 실패가 크론(sync·다른 알림)을 깨지 않게 흡수한다.
+    console.error("[que-notify] postCheckinPrompts 실패(무시)", error);
+    return { enqueued: 0, sent: 0, held: 0 };
+  }
 }
 
 /** 개인 브리핑 발송 결과 요약(크론 응답용). */

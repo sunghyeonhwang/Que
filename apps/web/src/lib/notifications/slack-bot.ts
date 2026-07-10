@@ -139,6 +139,23 @@ export async function resolveSlackUserId(queUserId: string): Promise<string | un
 }
 
 /**
+ * Slack member ID → Que userId 역조회(C-2 인터랙티브 수신용). users.slack_user_id 직조회.
+ * 버튼이 담긴 DM은 발송 시점에 slack_user_id를 backfill하므로, 버튼을 누른 유저는 항상 캐시에 있다.
+ * mock 모드(관리자 클라이언트 없음)나 미매핑이면 undefined — 호출부가 안내 응답으로 처리.
+ */
+export async function resolveQueUserBySlackId(slackUserId: string): Promise<string | undefined> {
+  const client = adminClient();
+  if (!client) return undefined;
+  const { data } = await client
+    .from("users")
+    .select("id")
+    .eq("slack_user_id", slackUserId)
+    .maybeSingle();
+  const id = (data as { id?: string } | null)?.id;
+  return id ? id : undefined;
+}
+
+/**
  * 개인 DM 발송. conversations.open으로 DM 채널을 열고 chat.postMessage로 보낸다.
  * 딥링크는 QUE_APP_URL + deeplinkPath. 실패(비ok/타임아웃)면 throw(호출부가 markFailed).
  */
@@ -159,13 +176,28 @@ export async function postDmToSlack(slackUserId: string, msg: SlackMessage): Pro
   const body = msg.detail
     ? `${msg.text}\n\n${msg.detail}\n\n<${url}|Que에서 열기>`
     : `${msg.text}\n<${url}|Que에서 열기>`;
+  // (C-2) 인터랙티브 버튼 — checkin_prompt가 실어준다. 클릭은 Slack 앱 Interactivity Request URL
+  // (/api/slack/interactive)로 POST되고, 서명 검증 후 core answerCheckIn으로 이어진다.
+  const blocks: unknown[] = [{ type: "section", text: { type: "mrkdwn", text: body } }];
+  if (msg.actions && msg.actions.length > 0) {
+    blocks.push({
+      type: "actions",
+      elements: msg.actions.map((a) => ({
+        type: "button",
+        action_id: a.actionId,
+        text: { type: "plain_text", text: a.label },
+        value: a.value,
+        ...(a.style ? { style: a.style } : {}),
+      })),
+    });
+  }
   await slackApi<{ ok: boolean; error?: string }>("chat.postMessage", token, {
     channel,
     text: msg.text, // 알림/폴백 텍스트(요약 1줄)
     attachments: [
       {
         color: TONE_COLOR[msg.tone],
-        blocks: [{ type: "section", text: { type: "mrkdwn", text: body } }],
+        blocks,
       },
     ],
   });

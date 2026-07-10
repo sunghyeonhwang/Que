@@ -220,6 +220,7 @@ export function CreateScheduleDialog({
             projects={projects}
             idPrefix="cs"
             autoFocusTitle
+            noDateHint="날짜가 없으면 이 캘린더에는 표시되지 않고 작업 목록에서만 보입니다."
             onSubmit={submit}
           />
         ) : (

@@ -184,7 +184,7 @@ create table if not exists change_logs (
   before_value text,
   after_value  text,
   reason       text,
-  via          text not null check (via in ('web','mcp','cli','mobile')),
+  via          text not null check (via in ('web','mcp','cli','mobile','slack')),
   visible_to   text[],
   created_at   timestamptz not null default now()
 );
@@ -264,7 +264,7 @@ create table if not exists revision_notes (
 create table if not exists notification_outbox (
   id          text primary key,
   dedup_key   text not null unique,   -- 이벤트 유일키(issue:/on_hold:/deadline:/standup: 접두). 중복 적재 차단.
-  kind        text not null check (kind in ('issue', 'on_hold', 'deadline', 'standup', 'personal_digest')),
+  kind        text not null check (kind in ('issue', 'on_hold', 'deadline', 'standup', 'personal_digest', 'task_created', 'checkin_prompt')),
   entity_type text not null,
   entity_id   text not null,
   recipient   text,                   -- 팀채널 계열(issue/on_hold/deadline/standup)은 NULL. personal_digest는 Que userId(발송 직전 Slack ID 해석).

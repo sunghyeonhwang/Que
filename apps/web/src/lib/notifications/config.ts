@@ -42,6 +42,22 @@ export function personalDigestEnabled(): boolean {
 }
 
 /**
+ * Slack 앱 Signing Secret(C-2 인터랙티브). /api/slack/interactive의 요청 서명 검증용.
+ * 미설정이면 undefined → 인터랙티브 경로 전체 비활성: 엔드포인트는 503, 체크인 재촉 DM도
+ * 버튼 없이는 응답 수단이 없으므로 발송 자체를 건너뛴다(slackInteractiveEnabled 게이트).
+ * (시크릿 — Vercel env 전용, 클라이언트 노출 금지.)
+ */
+export function slackSigningSecret(): string | undefined {
+  const secret = process.env.SLACK_SIGNING_SECRET?.trim();
+  return secret ? secret : undefined;
+}
+
+/** Slack 인터랙티브(체크인 버튼 응답) 활성 여부 — Bot Token(DM 발송) + Signing Secret(수신 검증) 둘 다 필요. */
+export function slackInteractiveEnabled(): boolean {
+  return personalDigestEnabled() && slackSigningSecret() !== undefined;
+}
+
+/**
  * 개인 DM 브리핑 수신자 허용목록(Que userId, 콤마구분). env `QUE_DIGEST_RECIPIENTS`.
  * 설정되면 그 유저만 받는다(테스트/단계적 롤아웃). 미설정/빈값이면 null = 전체 active 유저.
  */

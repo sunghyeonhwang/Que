@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -76,19 +77,23 @@ export function taskFormToIso(v: TaskFormValue): { startAt?: string; endAt?: str
   };
 }
 
-/** 공통 검증 — 제목 필수 · 마감이 시작보다 앞서면 오류. 부모의 canSubmit 판정에 쓴다. */
+/** 공통 검증 — 제목 필수 · 마감은 시작보다 늦어야 한다(동일 시각=길이 0 작업도 거부 —
+ *  구 quick-add 규약 복원, glados 참고 ① 반영). 부모의 canSubmit 판정에 쓴다. */
 export function taskFormErrors(v: TaskFormValue): { title: string | null; range: string | null } {
   const title = v.title.trim().length === 0 ? "작업 이름을 입력하세요." : null;
   const { startAt, endAt } = taskFormToIso(v);
   const range =
-    startAt && endAt && endAt < startAt ? "마감이 시작보다 앞설 수 없습니다." : null;
+    startAt && endAt && endAt <= startAt ? "마감은 시작보다 늦어야 합니다." : null;
   return { title, range };
 }
 
 /**
  * 공통 필드 렌더. 제어 컴포넌트(value/onChange) — 부모가 상태·제출을 소유한다.
  * - `projects`를 생략하면 프로젝트 셀렉트를 숨긴다(프로젝트 화면처럼 스코프가 고정된 폼).
- * - `showTitleError`는 blur/제출 시도 후에만 필수 에러를 노출하는 부모 정책용.
+ * - 제목 필수 에러는 **blur 후 또는 `showTitleError`(부모의 제출 시도)일 때** 노출 —
+ *   세 폼 공통 정책(입력 전 침묵, 비활성 버튼만 남기지 않는다). glados 참고 ② 반영.
+ * - `noDateHint`: 시작·마감이 모두 비었을 때 보여줄 안내 문구(일정 화면처럼 날짜가
+ *   핵심 맥락인 폼에서 "추가했는데 어디 갔죠"를 예방). glados 참고 ③ 반영.
  */
 export function TaskFormFields({
   value,
@@ -98,6 +103,7 @@ export function TaskFormFields({
   idPrefix,
   autoFocusTitle = false,
   showTitleError = false,
+  noDateHint,
   onSubmit,
 }: {
   value: TaskFormValue;
@@ -109,12 +115,15 @@ export function TaskFormFields({
   idPrefix: string;
   autoFocusTitle?: boolean;
   showTitleError?: boolean;
+  /** 시작·마감이 모두 빈 상태에서 보여줄 안내 문구(선택). */
+  noDateHint?: string;
   /** 제목 입력에서 Enter — 부모의 submit을 잇는다(선택). */
   onSubmit?: () => void;
 }) {
   const set = (patch: Partial<TaskFormValue>) => onChange({ ...value, ...patch });
+  const [titleTouched, setTitleTouched] = useState(false);
   const errors = taskFormErrors(value);
-  const titleError = showTitleError ? errors.title : null;
+  const titleError = titleTouched || showTitleError ? errors.title : null;
 
   const assigneeItems = {
     [ASSIGNEE_ME]: "나에게 배정",
@@ -138,6 +147,7 @@ export function TaskFormFields({
           id={`${idPrefix}-title`}
           value={value.title}
           onChange={(e) => set({ title: e.target.value })}
+          onBlur={() => setTitleTouched(true)}
           onKeyDown={(e) => {
             if (e.key === "Enter" && onSubmit) onSubmit();
           }}
@@ -250,6 +260,9 @@ export function TaskFormFields({
         </Field>
       </div>
       {errors.range && <p className="-mt-1 text-sm text-destructive">{errors.range}</p>}
+      {noDateHint && !value.startDate && !value.dueDate && (
+        <p className="-mt-1 text-sm text-[var(--que-text-secondary)]">{noDateHint}</p>
+      )}
 
       {projectItems && (
         <div className="grid grid-cols-2 gap-3">

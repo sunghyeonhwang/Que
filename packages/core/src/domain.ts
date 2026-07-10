@@ -416,7 +416,7 @@ export const statusLogSchema = z.object({
 });
 export type StatusLog = z.infer<typeof statusLogSchema>;
 
-export const changeViaSchema = z.enum(["web", "mcp", "cli", "mobile"]);
+export const changeViaSchema = z.enum(["web", "mcp", "cli", "mobile", "slack"]);
 export type ChangeVia = z.infer<typeof changeViaSchema>;
 
 export const changeLogSchema = z.object({

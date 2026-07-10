@@ -3,6 +3,7 @@ import { getDb } from "@/lib/db";
 import { notificationsEnabled } from "@/lib/notifications/config";
 import {
   drainOutbox,
+  postCheckinPrompts,
   postPersonalDigests,
   postStandupDigest,
   scanDeadlines,
@@ -52,6 +53,8 @@ export async function GET(request: Request) {
         digestEnqueued: number;
         digestSent: number;
         digestFailed: number;
+        checkinPromptEnqueued: number;
+        checkinPromptSent: number;
       }
     | { error: true }
     | { skipped: true } = { skipped: true };
@@ -62,6 +65,8 @@ export async function GET(request: Request) {
       const standupSent = await postStandupDigest(db, now);
       // 개인 DM 브리핑 — Bot Token 게이트 + 9:50~10:30 KST 창. 자체 try/catch로 sync·팀채널과 격리.
       const digest = await postPersonalDigests(db, now);
+      // 체크인 재촉 DM(C-2) — Bot Token+Signing Secret 게이트, dedup이 체크인·날짜당 1회로 제한.
+      const checkinPrompt = await postCheckinPrompts(db, now);
       notifications = {
         deadlineEnqueued: deadline.enqueued,
         deadlineSent: deadline.sent,
@@ -72,6 +77,8 @@ export async function GET(request: Request) {
         digestEnqueued: digest.enqueued,
         digestSent: digest.sent,
         digestFailed: digest.failed,
+        checkinPromptEnqueued: checkinPrompt.enqueued,
+        checkinPromptSent: checkinPrompt.sent,
       };
     } catch (error) {
       console.error("[que-cron] 알림 처리 실패(무시)", error);
