@@ -2445,3 +2445,181 @@ describe("수정사항(이슈/피드백) 트래커 — 팀 공용, 누구나 작
     ).toThrowError(QueRuleError);
   });
 });
+
+describe("setTaskPredecessors — 선행 작업(의존성, E-9) 규칙", () => {
+  // 시드: prj-summer에 task-landing-copy(황성현)·task-ad-review(오승훈)·task-detail-qa(황성현)·
+  // task-banner-design(김리원). task-weekly-report는 프로젝트 없음. task-payment-qa는 prj-payment.
+  const ADMIN = { actorId: "hwang-sunghyeon", via: "web" as const };
+
+  it("정상 연결: 전체 교체 시맨틱 + ChangeLog(via) 기록", () => {
+    const d = db();
+    const task = d.setTaskPredecessors(ADMIN, {
+      taskId: "task-detail-qa",
+      predecessorIds: ["task-landing-copy", "task-ad-review"],
+    });
+    expect(task.predecessorIds).toEqual(["task-landing-copy", "task-ad-review"]);
+    const log = d.changeLogs.at(-1)!;
+    expect(log.entityId).toBe("task-detail-qa");
+    expect(log.via).toBe("web");
+    expect(log.afterValue).toContain("선행 작업:");
+    // 빈 배열 = 전부 해제(필드 제거)
+    const cleared = d.setTaskPredecessors(ADMIN, { taskId: "task-detail-qa", predecessorIds: [] });
+    expect(cleared.predecessorIds).toBeUndefined();
+  });
+
+  it("자기 자신을 선행으로 연결할 수 없다", () => {
+    expect(() =>
+      db().setTaskPredecessors(ADMIN, {
+        taskId: "task-detail-qa",
+        predecessorIds: ["task-detail-qa"],
+      }),
+    ).toThrowError(/자기 자신/);
+  });
+
+  it("다른 프로젝트 작업은 선행으로 연결할 수 없다", () => {
+    expect(() =>
+      db().setTaskPredecessors(ADMIN, {
+        taskId: "task-detail-qa",
+        predecessorIds: ["task-payment-qa"], // prj-payment 소속
+      }),
+    ).toThrowError(/같은 프로젝트/);
+  });
+
+  it("프로젝트 없는 작업에는 선행을 연결할 수 없다", () => {
+    expect(() =>
+      db().setTaskPredecessors(ADMIN, {
+        taskId: "task-weekly-report", // projectId 없음
+        predecessorIds: ["task-landing-copy"],
+      }),
+    ).toThrowError(/프로젝트에 속한 작업만/);
+  });
+
+  it("직접 순환(A→B, B→A)을 거부한다", () => {
+    const d = db();
+    d.setTaskPredecessors(ADMIN, {
+      taskId: "task-detail-qa",
+      predecessorIds: ["task-landing-copy"],
+    });
+    expect(() =>
+      d.setTaskPredecessors(ADMIN, {
+        taskId: "task-landing-copy",
+        predecessorIds: ["task-detail-qa"],
+      }),
+    ).toThrowError(/순환/);
+  });
+
+  it("간접 순환(A→B→C, C→A)도 거부한다", () => {
+    const d = db();
+    d.setTaskPredecessors(ADMIN, {
+      taskId: "task-ad-review",
+      predecessorIds: ["task-landing-copy"], // B→A
+    });
+    d.setTaskPredecessors(ADMIN, {
+      taskId: "task-detail-qa",
+      predecessorIds: ["task-ad-review"], // C→B
+    });
+    expect(() =>
+      d.setTaskPredecessors(ADMIN, {
+        taskId: "task-landing-copy",
+        predecessorIds: ["task-detail-qa"], // A→C = 순환
+      }),
+    ).toThrowError(/순환/);
+  });
+
+  it("취소된 작업은 선행으로 연결할 수 없다", () => {
+    const d = db();
+    d.cancelTask(ADMIN, { taskId: "task-landing-copy" });
+    expect(() =>
+      d.setTaskPredecessors(ADMIN, {
+        taskId: "task-detail-qa",
+        predecessorIds: ["task-landing-copy"],
+      }),
+    ).toThrowError(/취소·병합/);
+  });
+
+  it("권한: 무관한 팀원은 타인 작업의 선행을 바꿀 수 없다(canEditTask 재사용)", () => {
+    expect(() =>
+      db().setTaskPredecessors(
+        { actorId: "lee-hyejin", via: "web" }, // member, 담당·소유·프로젝트 오너 아님
+        { taskId: "task-detail-qa", predecessorIds: ["task-landing-copy"] },
+      ),
+    ).toThrowError(QueRuleError);
+  });
+
+  it("중복 id는 제거되고 무변경 재호출은 로그를 남기지 않는다", () => {
+    const d = db();
+    d.setTaskPredecessors(ADMIN, {
+      taskId: "task-detail-qa",
+      predecessorIds: ["task-landing-copy", "task-landing-copy"],
+    });
+    expect(d.tasks.find((t) => t.id === "task-detail-qa")!.predecessorIds).toEqual([
+      "task-landing-copy",
+    ]);
+    const logCount = d.changeLogs.length;
+    d.setTaskPredecessors(ADMIN, {
+      taskId: "task-detail-qa",
+      predecessorIds: ["task-landing-copy"],
+    });
+    expect(d.changeLogs.length).toBe(logCount); // 무변경 — 로그 없음
+  });
+});
+
+describe("선행 링크 수명주기(E-9) — 취소·병합·프로젝트 이동 시 자동 정리(데드락 방지)", () => {
+  const ADMIN = { actorId: "hwang-sunghyeon", via: "web" as const };
+
+  it("선행 작업을 취소하면 후행의 링크가 자동으로 풀리고, 이후 선행 편집이 막히지 않는다", () => {
+    const d = db();
+    d.setTaskPredecessors(ADMIN, {
+      taskId: "task-detail-qa",
+      predecessorIds: ["task-landing-copy"],
+    });
+    d.cancelTask(ADMIN, { taskId: "task-landing-copy" });
+    const after = d.tasks.find((t) => t.id === "task-detail-qa")!;
+    expect(after.predecessorIds).toBeUndefined(); // 링크 자동 해제
+    // 정리 ChangeLog가 후행에 남는다
+    expect(
+      d.changeLogs.some(
+        (l) => l.entityId === "task-detail-qa" && (l.afterValue ?? "").includes("해제"),
+      ),
+    ).toBe(true);
+    // 데드락 없음 — 새 선행을 바로 연결할 수 있다
+    const next = d.setTaskPredecessors(ADMIN, {
+      taskId: "task-detail-qa",
+      predecessorIds: ["task-ad-review"],
+    });
+    expect(next.predecessorIds).toEqual(["task-ad-review"]);
+  });
+
+  it("프로젝트를 옮기면 자기 선행과 자기를 선행으로 가진 링크가 모두 풀린다", () => {
+    const d = db();
+    d.setTaskPredecessors(ADMIN, {
+      taskId: "task-detail-qa",
+      predecessorIds: ["task-landing-copy"], // detail-qa ← landing-copy
+    });
+    d.setTaskPredecessors(ADMIN, {
+      taskId: "task-ad-review",
+      predecessorIds: ["task-detail-qa"], // ad-review ← detail-qa
+    });
+    // detail-qa를 다른 프로젝트로 이동 → 양방향 링크 정리
+    d.updateTaskDetails(ADMIN, { taskId: "task-detail-qa", projectId: "prj-payment" });
+    expect(d.tasks.find((t) => t.id === "task-detail-qa")!.predecessorIds).toBeUndefined();
+    expect(d.tasks.find((t) => t.id === "task-ad-review")!.predecessorIds).toBeUndefined();
+  });
+
+  it("grandfather: 잔재(취소된 선행)가 남아 있어도 기존 연결의 유지·해제는 가능하다", () => {
+    const d = db();
+    // 비정상 잔재를 강제 주입(정리 훅을 우회한 과거 데이터 시뮬레이션)
+    const task = d.tasks.find((t) => t.id === "task-detail-qa")!;
+    d.cancelTask(ADMIN, { taskId: "task-landing-copy" });
+    task.predecessorIds = ["task-landing-copy"]; // 취소된 작업이 선행으로 잔존
+    // 유지한 채 다른 선행 추가 — 신규분만 검증하므로 통과해야 한다
+    const kept = d.setTaskPredecessors(ADMIN, {
+      taskId: "task-detail-qa",
+      predecessorIds: ["task-landing-copy", "task-ad-review"],
+    });
+    expect(kept.predecessorIds).toEqual(["task-landing-copy", "task-ad-review"]);
+    // 전체 해제도 가능
+    const cleared = d.setTaskPredecessors(ADMIN, { taskId: "task-detail-qa", predecessorIds: [] });
+    expect(cleared.predecessorIds).toBeUndefined();
+  });
+});

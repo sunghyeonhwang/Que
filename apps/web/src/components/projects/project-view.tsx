@@ -5,6 +5,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import type {
   ProjectBoard,
   ProjectCalendar,
+  ProjectGantt,
   ProjectList,
   ProjectListItem,
   ProjectMeta,
@@ -18,8 +19,9 @@ import { ViewTabs, type ProjectView as ProjectViewKey } from "./view-tabs";
 import { ListView } from "./list-view";
 import { BoardView } from "./board-view";
 import { ProjectCalendarView } from "./calendar-view";
+import { GanttView } from "./gantt-view";
 
-const VIEW_KEYS: ProjectViewKey[] = ["list", "board", "calendar"];
+const VIEW_KEYS: ProjectViewKey[] = ["list", "board", "calendar", "gantt"];
 
 function resolveView(raw: string | undefined): ProjectViewKey {
   return VIEW_KEYS.includes(raw as ProjectViewKey) ? (raw as ProjectViewKey) : "board";
@@ -36,6 +38,7 @@ export function ProjectView({
   board,
   list,
   calendar,
+  gantt,
   meta,
   isAdmin,
 }: {
@@ -50,6 +53,7 @@ export function ProjectView({
   board: ProjectBoard;
   list: ProjectList;
   calendar: ProjectCalendar;
+  gantt: ProjectGantt;
   /** 단일 보기의 프로젝트 메타. 전체 보기면 null(스코프 요약으로 대체). */
   meta: ProjectMeta | null;
   isAdmin: boolean;
@@ -118,6 +122,8 @@ export function ProjectView({
         />
       ) : view === "calendar" ? (
         <ProjectCalendarView data={calendar} taskHref={taskHref} showProject={isAllProjects} />
+      ) : view === "gantt" ? (
+        <GanttView data={gantt} taskHref={taskHref} showProject={isAllProjects} />
       ) : (
         <ListView
           columns={list.columns}

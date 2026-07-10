@@ -37,6 +37,7 @@ import {
   QueRuleError,
   assertCanConfirmActionItem,
   assertCanEditTask,
+  assertNoPredecessorCycle,
   assertCanManageRecurringTemplate,
   assertCanMoveCalendarEvent,
   assertCanResolveActionItem,
@@ -214,6 +215,10 @@ export class MockQueDb implements QueDb {
     const nowIso = this.now();
     task.status = input.to;
     if (input.to === "merged") task.mergedIntoTaskId = input.mergedIntoTaskId;
+    // 취소·병합되는 작업은 선행 의미를 잃는다 — 걸린 링크를 자동 정리(E-9, 데드락 방지).
+    if ((input.to === "cancelled" || input.to === "merged") && from !== input.to) {
+      this.clearPredecessorLinks(ctx, task, input.to === "cancelled" ? "작업 취소" : "작업 병합");
+    }
     task.lastChangedBy = actor.id;
     task.lastChangedAt = nowIso;
 
@@ -275,6 +280,100 @@ export class MockQueDb implements QueDb {
       changeType: "update",
       beforeValue: `담당: ${prevAssignee?.name ?? task.assigneeId}`,
       afterValue: `담당: ${newAssignee.name}`,
+    });
+    return task;
+  }
+
+  /**
+   * 선행 연결 정리(E-9) — 이 작업이 걸린 선행 링크를 모두 끊는다: 자기 선행 목록 해제 +
+   * 자기를 선행으로 가진 후행들에서 제거. **취소·병합·프로젝트 이동 시 자동 호출** —
+   * 안 하면 취소된(또는 다른 프로젝트로 간) 선행이 잔존해 후행의 선행 편집이 규칙 검증에
+   * 막히는 데드락이 생긴다. 각 후행에 ChangeLog를 남겨 "왜 연결이 풀렸는지" 추적 가능하게 한다.
+   */
+  private clearPredecessorLinks(ctx: ActorContext, task: Task, cause: string): void {
+    if (task.predecessorIds?.length) {
+      task.predecessorIds = undefined;
+      this.logChange(ctx, {
+        entityType: "task",
+        entityId: task.id,
+        changeType: "update",
+        beforeValue: "선행 작업 연결됨",
+        afterValue: `선행 작업 전체 해제 (${cause})`,
+      });
+    }
+    for (const t of this.tasks) {
+      if (!t.predecessorIds?.includes(task.id)) continue;
+      const rest = t.predecessorIds.filter((id) => id !== task.id);
+      t.predecessorIds = rest.length > 0 ? rest : undefined;
+      this.logChange(ctx, {
+        entityType: "task",
+        entityId: t.id,
+        changeType: "update",
+        beforeValue: `선행 작업: '${task.title}' 포함`,
+        afterValue: `선행 '${task.title}' 해제 (${cause})`,
+      });
+    }
+  }
+
+  /**
+   * 선행 작업(의존성) 설정 — E-9. FS(끝나야 시작) 단일 의미, 전체 교체 시맨틱(빈 배열 = 전부 해제).
+   * 규칙(UI가 아니라 여기서 강제, 웹/MCP/CLI 공통):
+   * - 프로젝트에 속한 작업만 연결 가능하고, 선행도 **같은 프로젝트** 작업만.
+   * - 자기 자신 금지 · 취소/병합된 작업 금지 · 순환 금지(assertNoPredecessorCycle) · 최대 20개.
+   * - 권한은 기존 편집 규칙(canEditTask) 그대로.
+   */
+  setTaskPredecessors(
+    ctx: ActorContext,
+    input: { taskId: string; predecessorIds: string[] },
+  ): Task {
+    const actor = this.requireUser(ctx.actorId);
+    const task = this.requireTask(input.taskId);
+    assertCanEditTask(actor, task, this.projectOf(task));
+
+    if (!task.projectId) {
+      throw new QueRuleError("INVALID_INPUT", "프로젝트에 속한 작업만 선행 작업을 연결할 수 있다");
+    }
+    const next = [...new Set(input.predecessorIds)]; // 중복 제거(입력 순서 유지)
+    if (next.length > 20) {
+      throw new QueRuleError("INVALID_INPUT", "선행 작업은 최대 20개까지 연결할 수 있다");
+    }
+    // 실재·같은 프로젝트·취소/병합 검사는 **새로 추가되는 id에만** 적용한다(grandfather) —
+    // 정리 훅이 놓친 잔재(과거 데이터)가 있어도 기존 연결의 유지·해제는 항상 가능해야
+    // 편집이 막히지 않는다. 자기 참조·순환·최대 개수는 전체에 적용.
+    const prevSet = new Set(task.predecessorIds ?? []);
+    for (const id of next) {
+      if (id === task.id) {
+        throw new QueRuleError("INVALID_INPUT", "자기 자신을 선행 작업으로 연결할 수 없다");
+      }
+      if (prevSet.has(id)) continue;
+      const p = this.tasks.find((t) => t.id === id);
+      if (!p) throw new QueRuleError("NOT_FOUND", `선행 작업 없음: ${id}`);
+      if (p.projectId !== task.projectId) {
+        throw new QueRuleError("INVALID_INPUT", `같은 프로젝트의 작업만 선행으로 연결할 수 있다: ${p.title}`);
+      }
+      if (p.status === "cancelled" || p.status === "merged") {
+        throw new QueRuleError("INVALID_INPUT", `취소·병합된 작업은 선행으로 연결할 수 없다: ${p.title}`);
+      }
+    }
+    assertNoPredecessorCycle(task.id, next, new Map(this.tasks.map((t) => [t.id, t])));
+
+    const prev = task.predecessorIds ?? [];
+    const same = prev.length === next.length && prev.every((id, i) => id === next[i]);
+    if (same) return task; // 무변경 — 로그를 남기지 않는다
+
+    const nameOf = (ids: readonly string[]) =>
+      ids.length === 0
+        ? "(없음)"
+        : ids.map((id) => this.tasks.find((t) => t.id === id)?.title ?? id).join(", ");
+    task.predecessorIds = next.length > 0 ? next : undefined;
+    task.lastChangedBy = actor.id;
+    task.lastChangedAt = this.now();
+    this.logChange(ctx, {
+      entityType: "task",
+      entityId: task.id,
+      changeType: "update",
+      beforeValue: `선행 작업: ${nameOf(prev)}`,
+      afterValue: `선행 작업: ${nameOf(next)}`,
     });
     return task;
   }
@@ -748,6 +847,8 @@ export class MockQueDb implements QueDb {
         before.push(`프로젝트: ${prevProject?.name ?? "(없음)"}`);
         changes.push(`프로젝트: ${nextProject?.name ?? "(없음)"}`);
         task.projectId = projectId;
+        // 선행 연결은 "같은 프로젝트 내"가 불변식 — 프로젝트가 바뀌면 걸린 링크를 자동 정리(E-9).
+        this.clearPredecessorLinks(ctx, task, "프로젝트 이동");
       }
     }
 

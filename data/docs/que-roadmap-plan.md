@@ -90,6 +90,8 @@
 - ~~**E-7**(PAT 항상 노출)~~ → ❌ **드롭 (2026-07-08)**: 복호화 저장이 보안 다운그레이드이고 대상이 숙달 사용자뿐이라 편의 이득 미미 → 현행 '발급 시 1회 노출'(해시만 저장) 유지. 인프라(secret_enc·QUE_PAT_ENC_KEY·마이그레이션) 착수 전 중단 — 변경 0.
 
 ### E-9 Gantt (신규 대형, ~1.5~2주, 순차)
+
+> **✅ 완료(2026-07-10)**: E-9a~d 전체 구현·배포. 상세는 HANDOFF "E-9 간트" 절. 미결이던 '임계경로 깊이'는 **단순 전파(3규칙)로 확정**(PM 용어 없이 문장 노출) — 심화는 사용 피드백 후.
 - **E-9a (M, 전제)**: core 의존성 모델 — `domain.ts` taskSchema에 `predecessorIds?: string[]`, DB `add-task-predecessors.sql`(`predecessor_ids text[]`), **Finish-to-Start 단일·같은 프로젝트 내만·순환 방지 규칙**(core rules), 신규 mutation `setTaskPredecessors`(ChangeLog via). *마이그레이션 포함이라 가장 먼저 프로덕션 적용.*
 - **E-9b (L)**: `/projects` **4번째 뷰 탭 '간트'** — 작업 막대(startAt~endAt)·의존성 화살표(SVG)·오늘 라인·마일스톤 다이아몬드. 막대 클릭→기존 `?task=` 드로어. 태블릿 가로스크롤+sticky(히트맵 선례).
 - **E-9c (M)**: 드로어 '선행 작업' 섹션(같은 프로젝트 다중선택·순환 후보 제외·canEdit 게이트).

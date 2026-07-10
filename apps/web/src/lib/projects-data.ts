@@ -1,6 +1,7 @@
 import {
   addDays,
   addMonths,
+  differenceInCalendarDays,
   format,
   isSameDay,
   isSameMonth,
@@ -213,6 +214,10 @@ export interface TaskDetail {
   comments: TaskCommentView[];
   /** 최근 변경 이력(누가·무엇을·언제). 최신순 최대 5건. core ChangeLog에서 읽음. */
   activity: TaskActivityItem[];
+  /** 선행 작업(E-9) — 이 작업들이 끝나야 시작. */
+  predecessorIds: string[];
+  /** 선행으로 연결 가능한 후보(같은 프로젝트·취소/병합 제외·자기 제외·순환 유발 제외). */
+  predecessorOptions: { id: string; title: string; statusLabel: string }[];
   canEdit: boolean;
 }
 
@@ -557,6 +562,40 @@ export async function getTaskDetail(
       timeLabel: formatRelative(log.createdAt, now),
     }));
 
+  // 선행 후보(E-9): 같은 프로젝트, 취소/병합·자기 자신 제외, 그리고 그 후보의 선행 사슬에
+  // 이 태스크가 이미 들어 있으면(=연결 시 순환) 제외한다 — UI에서 불가능한 선택지를 안 보여준다.
+  const taskById = new Map(db.tasks.map((t) => [t.id, t]));
+  const chainsInto = (candidateId: string): boolean => {
+    const stack = [candidateId];
+    const seen = new Set<string>();
+    while (stack.length > 0) {
+      const id = stack.pop()!;
+      if (id === task.id) return true;
+      if (seen.has(id)) continue;
+      seen.add(id);
+      const t = taskById.get(id);
+      if (t?.predecessorIds) stack.push(...t.predecessorIds);
+    }
+    return false;
+  };
+  // 현재 연결된 선행은 상태와 무관하게 항상 포함 — 뱃지에 제목이 보이고 해제도 가능해야 한다
+  // (core는 기존 연결의 유지·해제를 grandfather로 허용). 신규 후보만 취소/병합·순환을 거른다.
+  const linked = new Set(task.predecessorIds ?? []);
+  const predecessorOptions = !task.projectId
+    ? []
+    : db.tasks
+        .filter(
+          (t) =>
+            t.id !== task.id &&
+            (linked.has(t.id) ||
+              (t.projectId === task.projectId &&
+                t.status !== "cancelled" &&
+                t.status !== "merged" &&
+                !chainsInto(t.id))),
+        )
+        .sort((a, b) => a.title.localeCompare(b.title, "ko"))
+        .map((t) => ({ id: t.id, title: t.title, statusLabel: STATUS_LABEL[t.status] }));
+
   return {
     taskId: task.id,
     projectId: task.projectId ?? "",
@@ -574,6 +613,168 @@ export async function getTaskDetail(
     commentCount: comments.get(task.id) ?? 0,
     comments: commentViews.get(task.id) ?? [],
     activity,
+    predecessorIds: task.predecessorIds ?? [],
+    predecessorOptions,
     canEdit: canEditTask(actor, task, project),
+  };
+}
+
+// ---------- 간트 뷰 (E-9) ----------
+
+/** 간트 행 하나 = 일정(시작 또는 마감)이 있는 작업. 시간은 무시하고 일 단위로 그린다. */
+export interface GanttTask {
+  taskId: string;
+  title: string;
+  status: TaskStatus;
+  assignee: ListViewMember | null;
+  /** 전체 보기에서 소속 표시용. 단일 프로젝트 보기면 null. */
+  projectName: string | null;
+  /** 막대 구간(dateKey 'yyyy-MM-dd'). 한쪽만 있으면 같은 값(하루 막대). */
+  startDay: string;
+  endDay: string;
+  predecessorIds: string[];
+  isOverdue: boolean;
+  canEdit: boolean;
+  /** E-9d 일정 주의 — 선행 지연/겹침으로 시작이 밀릴 수 있는 상태. */
+  atRisk: boolean;
+  /** 주의 사유(사람이 읽는 문장). atRisk=false면 null. */
+  riskReason: string | null;
+}
+
+export interface GanttMilestone {
+  id: string;
+  title: string;
+  /** dateKey 'yyyy-MM-dd'. */
+  day: string;
+  riskStatus: "on_track" | "at_risk" | "late";
+}
+
+export interface ProjectGantt {
+  /** startDay 오름차순. */
+  tasks: GanttTask[];
+  /** 일정 없는 작업 — 간트에 못 그리므로 하단 칩으로 노출(날짜 지정 유도). */
+  unscheduled: { taskId: string; title: string; assigneeName: string | null }[];
+  milestones: GanttMilestone[];
+  /** 그리드 범위(dateKey, 양끝 포함). 작업·마일스톤·오늘을 덮고 앞뒤 2일 패딩. */
+  rangeStart: string;
+  rangeEnd: string;
+  /** 오늘 dateKey — 오늘 라인 위치·과거 판정을 서버 기준(KST)으로 고정. */
+  today: string;
+}
+
+const GANTT_PAD_DAYS = 2;
+/** 그리드 상한(컬럼 수) — 초장기 이상치가 화면을 무한히 늘리는 것 방지. */
+const GANTT_MAX_DAYS = 180;
+
+const toDay = (iso: string): string => format(new Date(iso), "yyyy-MM-dd");
+
+/**
+ * E-9d 일정 주의 판정 — "선행이 안 끝났는데 내 시작이 다가온다"를 사람이 읽는 문장으로.
+ * 우선순위: ①선행 마감 지남·미완료(확실한 지연) ②선행 마감이 내 시작보다 늦음(계획 겹침)
+ * ③선행 자체가 주의 상태(연쇄 전파). 완료/취소·병합 작업은 주의를 달지 않는다.
+ */
+function computeGanttRisk(
+  tasks: Task[],
+  taskById: Map<string, Task>,
+  todayIso: string,
+): Map<string, string> {
+  const reasons = new Map<string, string>();
+  const now = Date.parse(todayIso);
+  const isDoneLike = (t: Task) => t.status === "done" || t.status === "cancelled" || t.status === "merged";
+
+  // 선행 그래프를 따라 전파해야 하므로, 시작일 순으로 반복 판정(선행이 먼저 판정되도록 정렬).
+  const ordered = [...tasks].sort((a, b) =>
+    (a.startAt ?? a.endAt ?? "").localeCompare(b.startAt ?? b.endAt ?? ""),
+  );
+  for (const task of ordered) {
+    if (isDoneLike(task) || !task.predecessorIds?.length) continue;
+    for (const pid of task.predecessorIds) {
+      const p = taskById.get(pid);
+      if (!p || isDoneLike(p)) continue;
+      if (p.endAt && Date.parse(p.endAt) < now) {
+        reasons.set(task.id, `선행 '${p.title}'의 마감이 지났는데 아직 끝나지 않았어요`);
+        break;
+      }
+      if (p.endAt && task.startAt && Date.parse(p.endAt) > Date.parse(task.startAt)) {
+        reasons.set(task.id, `선행 '${p.title}'가 끝나기 전에 시작하도록 잡혀 있어요`);
+        break;
+      }
+      if (reasons.has(pid)) {
+        reasons.set(task.id, `선행 '${p.title}'의 일정이 밀릴 수 있어요`);
+        break;
+      }
+    }
+  }
+  return reasons;
+}
+
+/** 간트 뷰 데이터 — 보드와 같은 스코프(취소/병합 제외), 상태색·권한 규칙 공유. */
+export async function getProjectGantt(actor: User, projectIds: string[]): Promise<ProjectGantt> {
+  const db = await getDb();
+  const projectById = projectByIdMap(db);
+  const tasks = boardTasksOf(db, projectIds);
+  const taskById = new Map(db.tasks.map((t) => [t.id, t]));
+  const todayIso = new Date().toISOString();
+  const today = toDay(todayIso);
+  const risks = computeGanttRisk(tasks, taskById, todayIso);
+
+  const scheduled = tasks.filter((t) => t.startAt || t.endAt);
+  const idSet = new Set(projectIds);
+  const milestones: GanttMilestone[] = db.milestones
+    .filter((m) => idSet.has(m.projectId))
+    .map((m) => ({ id: m.id, title: m.title, day: toDay(m.dueAt), riskStatus: m.riskStatus }))
+    .sort((a, b) => a.day.localeCompare(b.day));
+
+  const ganttTasks: GanttTask[] = scheduled
+    .map((t) => {
+      const start = toDay(t.startAt ?? t.endAt!);
+      const end = toDay(t.endAt ?? t.startAt!);
+      const project = projectById.get(t.projectId ?? "");
+      const reason = risks.get(t.id) ?? null;
+      return {
+        taskId: t.id,
+        title: t.title,
+        status: t.status,
+        assignee: resolveMember(t.assigneeId),
+        projectName: project?.name ?? null,
+        startDay: start <= end ? start : end,
+        endDay: start <= end ? end : start,
+        predecessorIds: t.predecessorIds ?? [],
+        isOverdue: isTaskOverdue(t),
+        canEdit: canEditTask(actor, t, project),
+        atRisk: reason !== null,
+        riskReason: reason,
+      };
+    })
+    .sort((a, b) => a.startDay.localeCompare(b.startDay) || a.endDay.localeCompare(b.endDay));
+
+  // 범위: 작업·마일스톤·오늘을 덮고 ±2일. 상한(180일)을 넘으면 오늘 주변을 우선 보존.
+  const days = [
+    ...ganttTasks.flatMap((t) => [t.startDay, t.endDay]),
+    ...milestones.map((m) => m.day),
+    today,
+  ].sort();
+  let rangeStart = format(addDays(new Date(days[0]), -GANTT_PAD_DAYS), "yyyy-MM-dd");
+  let rangeEnd = format(addDays(new Date(days[days.length - 1]), GANTT_PAD_DAYS), "yyyy-MM-dd");
+  const span = differenceInCalendarDays(new Date(rangeEnd), new Date(rangeStart)) + 1;
+  if (span > GANTT_MAX_DAYS) {
+    const half = Math.floor(GANTT_MAX_DAYS / 2);
+    rangeStart = format(addDays(new Date(today), -half), "yyyy-MM-dd");
+    rangeEnd = format(addDays(new Date(today), half), "yyyy-MM-dd");
+  }
+
+  return {
+    tasks: ganttTasks,
+    unscheduled: tasks
+      .filter((t) => !t.startAt && !t.endAt)
+      .map((t) => ({
+        taskId: t.id,
+        title: t.title,
+        assigneeName: resolveMember(t.assigneeId)?.name ?? null,
+      })),
+    milestones,
+    rangeStart,
+    rangeEnd,
+    today,
   };
 }

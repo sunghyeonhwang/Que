@@ -279,3 +279,34 @@ export function parseScheduleRange(input: {
   }
   return parsed.data;
 }
+
+// ---------- 선행 작업(의존성, E-9) ----------
+// FS(Finish-to-Start) 단일 의미: predecessorIds의 작업들이 끝나야 이 작업을 시작한다.
+// 같은 프로젝트 내에서만·자기 참조/순환 금지. UI가 아니라 여기서 강제한다(웹/MCP/CLI 공통).
+
+/**
+ * 선행 연결이 순환을 만드는지 검증한다. task가 nextPredecessorIds를 갖게 될 때,
+ * 그 선행들의 (현재 저장된) 선행 사슬을 따라가 task 자신에 다시 도달하면 순환이다.
+ * 방문 집합으로 중복 탐색을 막아 O(작업 수)에 끝난다.
+ */
+export function assertNoPredecessorCycle(
+  taskId: string,
+  nextPredecessorIds: readonly string[],
+  taskById: ReadonlyMap<string, Task>,
+): void {
+  const visited = new Set<string>();
+  const stack = [...nextPredecessorIds];
+  while (stack.length > 0) {
+    const id = stack.pop()!;
+    if (id === taskId) {
+      throw new QueRuleError(
+        "INVALID_INPUT",
+        "선행 작업이 순환합니다 — 서로가 서로를 기다리게 되어 연결할 수 없다",
+      );
+    }
+    if (visited.has(id)) continue;
+    visited.add(id);
+    const t = taskById.get(id);
+    if (t?.predecessorIds) stack.push(...t.predecessorIds);
+  }
+}

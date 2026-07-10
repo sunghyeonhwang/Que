@@ -78,6 +78,7 @@ create table if not exists tasks (
     ('manual','natural_language','action_item','recurring_template')),
   visibility          text not null default 'team' check (visibility in ('team','private')),
   merged_into_task_id text,
+  predecessor_ids     text[],
   recurring_template_id text,
   last_changed_by     text references users(id),
   last_changed_at     timestamptz,

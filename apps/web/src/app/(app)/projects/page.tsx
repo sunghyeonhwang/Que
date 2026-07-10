@@ -6,6 +6,7 @@ import {
   getActiveProjects,
   getProjectBoard,
   getProjectCalendar,
+  getProjectGantt,
   getProjectList,
   getProjectMeta,
   getTaskDetail,
@@ -96,10 +97,11 @@ export default async function ProjectsPage({
     );
   }
 
-  const [board, list, calendar, taskDetail] = await Promise.all([
+  const [board, list, calendar, gantt, taskDetail] = await Promise.all([
     getProjectBoard(user, projectIds),
     getProjectList(user, projectIds),
     getProjectCalendar(projectIds, params.month),
+    getProjectGantt(user, projectIds),
     getTaskDetail(user, params.task),
   ]);
 
@@ -125,6 +127,7 @@ export default async function ProjectsPage({
         board={board}
         list={list}
         calendar={calendar}
+        gantt={gantt}
         meta={meta}
         isAdmin={user.role === "admin"}
       />

@@ -5,6 +5,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   AlertTriangle,
   CalendarDays,
+  GitBranch,
   Circle,
   Flag,
   MoreHorizontal,
@@ -26,6 +27,7 @@ import {
   deleteTaskAction,
   moveTaskAction,
   reassignTaskAction,
+  setTaskPredecessorsAction,
   updateTaskDetailsAction,
 } from "@/app/(app)/projects/pm-actions";
 import { useSafeAction } from "@/components/app/use-safe-action";
@@ -404,6 +406,77 @@ function DrawerBody({
               </span>
             )}
           </FieldRow>
+
+          {/* 선행 작업(E-9) — "앞의 일이 끝나야 시작". 후보는 같은 프로젝트·순환 불가 항목만
+              서버가 걸러 내려준다(predecessorOptions). 토글 즉시 커밋(담당자 변경과 동일 패턴). */}
+          {(detail.predecessorIds.length > 0 || (canEdit && detail.predecessorOptions.length > 0)) && (
+            <FieldRow icon={<GitBranch className="size-4" aria-hidden />} label="선행 작업">
+              <div className="flex flex-col gap-1.5">
+                {detail.predecessorIds.length > 0 ? (
+                  <div className="flex flex-wrap gap-1.5">
+                    {detail.predecessorIds.map((id) => {
+                      const opt = detail.predecessorOptions.find((o) => o.id === id);
+                      return (
+                        <span
+                          key={id}
+                          className="rounded-md bg-[var(--que-bg-muted)] px-2 py-0.5 text-xs text-[var(--que-text)]"
+                        >
+                          {opt?.title ?? id}
+                        </span>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <span className="text-sm text-[var(--que-text-tertiary)]">없음</span>
+                )}
+                {canEdit && detail.predecessorOptions.length > 0 && (
+                  <details className="group">
+                    <summary className="cursor-pointer list-none text-xs font-medium text-[var(--que-brand)] select-none">
+                      연결 편집 <span className="group-open:hidden">▾</span>
+                      <span className="hidden group-open:inline">▴</span>
+                    </summary>
+                    <div className="mt-1.5 flex max-h-44 flex-col gap-0.5 overflow-y-auto rounded-lg border border-[var(--que-border)] p-1.5">
+                      {detail.predecessorOptions.map((o) => {
+                        const checked = detail.predecessorIds.includes(o.id);
+                        return (
+                          <label
+                            key={o.id}
+                            className="flex min-h-10 cursor-pointer items-center gap-2 rounded-md px-2 text-sm hover:bg-[var(--que-bg-muted)]"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              disabled={pending}
+                              onChange={() => {
+                                const next = checked
+                                  ? detail.predecessorIds.filter((id) => id !== o.id)
+                                  : [...detail.predecessorIds, o.id];
+                                run(
+                                  () =>
+                                    setTaskPredecessorsAction({
+                                      taskId: detail.taskId,
+                                      predecessorIds: next,
+                                    }),
+                                  { success: "선행 작업을 저장했습니다" },
+                                );
+                              }}
+                              className="size-4 accent-[var(--que-brand)]"
+                            />
+                            <span className="min-w-0 flex-1 truncate text-[var(--que-text)]">{o.title}</span>
+                            <span className="shrink-0 text-[11px] text-[var(--que-text-tertiary)]">{o.statusLabel}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </details>
+                )}
+                <p className="text-[11px] leading-relaxed text-[var(--que-text-tertiary)]">
+                  선행 작업이 끝나야 이 작업을 시작할 수 있습니다. 간트 보기에서 화살표로 연결되고,
+                  선행이 늦어지면 일정 주의가 표시됩니다.
+                </p>
+              </div>
+            </FieldRow>
+          )}
         </dl>
 
         {/* 설명 */}

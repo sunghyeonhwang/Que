@@ -135,6 +135,9 @@ export const taskSchema = z.object({
   source: taskSourceSchema,
   visibility: visibilitySchema.default("team"),
   mergedIntoTaskId: z.string().optional(),
+  /** 선행 작업 id 목록 — "이 작업들이 끝나야 시작"(Finish-to-Start 단일 의미, E-9).
+   *  같은 프로젝트 내에서만·자기 참조/순환 금지는 setTaskPredecessors mutation이 강제한다. */
+  predecessorIds: z.array(z.string().min(1)).max(20).optional(),
   /** source가 recurring_template일 때 생성 출처 템플릿 (추적용) */
   recurringTemplateId: z.string().optional(),
   lastChangedBy: z.string().optional(),

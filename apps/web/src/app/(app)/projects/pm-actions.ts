@@ -149,3 +149,12 @@ export async function moveTaskAction(input: {
     throw error;
   }
 }
+
+/** 선행 작업(의존성, E-9) 설정 — 전체 교체 시맨틱. 같은 프로젝트·순환 금지 등은 core가 강제. */
+export async function setTaskPredecessorsAction(input: {
+  taskId: string;
+  predecessorIds: string[];
+}): Promise<ActionResult> {
+  const user = await getCurrentUser();
+  return toResult((db) => db.setTaskPredecessors({ actorId: user.id, via: "web" }, input));
+}

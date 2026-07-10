@@ -1,0 +1,411 @@
+"use client";
+
+import Link from "next/link";
+import { useEffect, useMemo, useRef } from "react";
+import { TriangleAlert, Check } from "lucide-react";
+import type { GanttMilestone, ProjectGantt } from "@/lib/projects-data";
+import { TONE_STYLE, type StatusTone } from "@/lib/pm-columns";
+import type { TaskStatus } from "@que/core";
+import { cn } from "@/lib/utils";
+
+// 간트 뷰 — E-9b·E-9d. "일정이 밀리는 게 눈에 보이는 그림"(PM 용어 없이).
+// - 좌측 작업·담당자 열은 sticky(가로 스크롤 시 고정), 날짜 헤더는 sticky top — 내부 스크롤만
+//   쓰고 페이지 전체를 깨지 않는다(화면 원칙). 라이브러리 없이 CSS 막대 + SVG 화살표 오버레이.
+// - 상태색은 기존 의미 고정 팔레트(TONE_STYLE) 재사용: 예정=blue, 진행=green, 홀드·문제=amber/red,
+//   완료=중립+취소선(남은 일이 도드라지게). 새 색 없음.
+// - 선행 화살표: 평상시 중립 회색 실선, **일정 주의(atRisk)일 때만 amber 점선 + ⚠ 아이콘 + 사유
+//   툴팁** — 색·모양·아이콘 3중 표현(색상 단독 금지).
+// - 오늘 = 브랜드색 점선 세로선 + '오늘' 칩(red는 문제 의미라 쓰지 않는다).
+// - 마일스톤은 최상단 전용 레인의 다이아(위험 상태색 반영).
+// - 시간은 무시하고 일 단위 스냅. 일정 없는 작업은 하단 칩(잊히지 않게 날짜 지정 유도).
+
+const COL_W = 46; // 일 컬럼 폭(px)
+const ROW_H = 48; // 행 높이(px) — 터치 40px+ 여유
+const HEADER_H = 52;
+const NAME_W = 232; // 좌측 고정 열 폭
+const BAR_H = 28;
+const BAR_TOP = (ROW_H - BAR_H) / 2;
+
+/** 상태 → 톤. 보드 4열 매핑(pm-columns)과 같은 의미, done만 중립(뒤로 물러남). */
+function toneOf(status: TaskStatus): StatusTone {
+  if (status === "done") return "neutral";
+  if (status === "in_progress") return "green";
+  if (status === "on_hold" || status === "needs_reschedule") return "amber";
+  if (status === "issue") return "red";
+  return "blue"; // scheduled
+}
+
+const MILESTONE_TONE: Record<GanttMilestone["riskStatus"], string> = {
+  on_track: "var(--que-success)",
+  at_risk: "var(--que-warning)",
+  late: "var(--que-error)",
+};
+const MILESTONE_LABEL: Record<GanttMilestone["riskStatus"], string | null> = {
+  on_track: null,
+  at_risk: "주의",
+  late: "지연",
+};
+
+/** 'yyyy-MM-dd' 두 dateKey 사이 일수(달력 기준). */
+function dayDiff(a: string, b: string): number {
+  return Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86_400_000);
+}
+
+function buildDays(rangeStart: string, rangeEnd: string): { key: string; dow: number; label: string }[] {
+  const out: { key: string; dow: number; label: string }[] = [];
+  const count = dayDiff(rangeStart, rangeEnd) + 1;
+  const start = new Date(`${rangeStart}T00:00:00`);
+  for (let i = 0; i < count; i++) {
+    const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
+    const mm = d.getMonth() + 1;
+    const dd = d.getDate();
+    out.push({
+      key: `${d.getFullYear()}-${String(mm).padStart(2, "0")}-${String(dd).padStart(2, "0")}`,
+      dow: d.getDay(),
+      label: `${mm}/${dd}`,
+    });
+  }
+  return out;
+}
+
+const DOW_LABEL = ["일", "월", "화", "수", "목", "금", "토"];
+
+export function GanttView({
+  data,
+  taskHref,
+  showProject,
+}: {
+  data: ProjectGantt;
+  taskHref: (taskId: string) => string;
+  showProject: boolean;
+}) {
+  const days = useMemo(() => buildDays(data.rangeStart, data.rangeEnd), [data.rangeStart, data.rangeEnd]);
+  const idx = (day: string) => Math.min(Math.max(dayDiff(data.rangeStart, day), 0), days.length - 1);
+  const todayIdx = days.findIndex((d) => d.key === data.today);
+  const hasMilestoneLane = data.milestones.length > 0;
+  // 행 y 오프셋: (마일스톤 레인) + 작업 행들
+  const rowY = (taskRow: number) => (hasMilestoneLane ? ROW_H : 0) + taskRow * ROW_H;
+  const bodyH = rowY(data.tasks.length);
+  const gridW = days.length * COL_W;
+  const rowIndexByTask = useMemo(
+    () => new Map(data.tasks.map((t, i) => [t.taskId, i])),
+    [data.tasks],
+  );
+
+  // 첫 렌더에 오늘이 보이도록 스크롤(오늘 x가 뷰포트 앞 1/3쯤 오게) — DayBlocks scroll-to-now 관례.
+  const scrollRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || todayIdx < 0) return;
+    el.scrollLeft = Math.max(0, NAME_W + todayIdx * COL_W - (el.clientWidth - NAME_W) / 3 - NAME_W);
+  }, [todayIdx]);
+
+  if (data.tasks.length === 0 && data.milestones.length === 0 && data.unscheduled.length === 0) {
+    return <GanttEmptyPrimer />;
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      {/* 범례 — 처음 보는 팀원용 읽기 안내(교육) */}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-1 text-xs text-[var(--que-text-secondary)]">
+        <span className="font-medium text-[var(--que-text)]">막대 = 작업 기간(시작~마감)</span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="inline-block size-2 rounded-full" style={{ background: "var(--que-brand)" }} />예정
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="inline-block size-2 rounded-full" style={{ background: "var(--que-success)" }} />진행중
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="inline-block size-2 rounded-full" style={{ background: "var(--que-warning)" }} />홀드·주의
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="inline-block size-2 rotate-45 rounded-[2px]" style={{ background: "var(--que-success)" }} />마일스톤
+        </span>
+        <span style={{ color: "var(--que-brand)" }}>┆ 오늘</span>
+        <span>→ 선행 작업(앞의 일이 끝나야 시작)</span>
+        <span className="inline-flex items-center gap-1" style={{ color: "var(--que-warning)" }}>
+          <TriangleAlert className="size-3.5" aria-hidden />
+          일정 주의
+        </span>
+      </div>
+
+      {/* 그리드 — 내부 스크롤 + sticky(이름 열·날짜 헤더) */}
+      <div ref={scrollRef} className="overflow-auto rounded-xl border border-[var(--que-border)] bg-[var(--que-bg)]" style={{ maxHeight: "70vh" }}>
+        <div className="relative flex w-max min-w-full">
+          {/* 좌측 고정 열 */}
+          <div className="sticky left-0 z-20 shrink-0 border-r border-[var(--que-border)] bg-[var(--que-bg)]" style={{ width: NAME_W }}>
+            <div
+              className="sticky top-0 z-10 flex items-end border-b border-[var(--que-border)] bg-[var(--que-bg)] px-3.5 pb-2 text-xs text-[var(--que-text-tertiary)]"
+              style={{ height: HEADER_H }}
+            >
+              작업 · 담당자
+            </div>
+            {hasMilestoneLane && (
+              <div className="flex items-center border-b border-[var(--que-bg-muted)] px-3.5" style={{ height: ROW_H }}>
+                <span className="text-xs font-medium text-[var(--que-text-tertiary)]">◆ 마일스톤</span>
+              </div>
+            )}
+            {data.tasks.map((t) => (
+              <Link
+                key={t.taskId}
+                href={taskHref(t.taskId)}
+                scroll={false}
+                className="flex items-center gap-2 border-b border-[var(--que-bg-muted)] px-3.5 hover:bg-[var(--que-bg-muted)] focus-visible:outline-2 focus-visible:outline-[var(--que-brand)]"
+                style={{ height: ROW_H }}
+              >
+                {t.assignee ? (
+                  <span
+                    aria-hidden
+                    className="flex size-6 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold text-white"
+                    style={{ background: t.assignee.avatarColor }}
+                  >
+                    {t.assignee.name.slice(0, 1)}
+                  </span>
+                ) : (
+                  <span className="size-6 shrink-0 rounded-full bg-[var(--que-bg-muted)]" aria-hidden />
+                )}
+                <span className="min-w-0 flex-1">
+                  <span className={cn("block truncate text-[13px] font-medium text-[var(--que-text)]", t.status === "done" && "text-[var(--que-text-tertiary)] line-through")}>
+                    {t.title}
+                  </span>
+                  {showProject && t.projectName && (
+                    <span className="block truncate text-[11px] text-[var(--que-text-tertiary)]">{t.projectName}</span>
+                  )}
+                </span>
+                <span className="shrink-0 text-[11px] text-[var(--que-text-tertiary)]">
+                  {t.assignee?.name ?? ""}
+                </span>
+              </Link>
+            ))}
+          </div>
+
+          {/* 타임라인 */}
+          <div className="relative shrink-0" style={{ width: gridW }}>
+            {/* 날짜 헤더 */}
+            <div className="sticky top-0 z-10 flex border-b border-[var(--que-border)] bg-[var(--que-bg)]" style={{ height: HEADER_H }}>
+              {days.map((d) => (
+                <div
+                  key={d.key}
+                  className={cn(
+                    "flex shrink-0 flex-col items-center justify-end pb-1.5 text-[11px] tabular-nums",
+                    d.key === data.today
+                      ? "font-bold text-[var(--que-brand)]"
+                      : "text-[var(--que-text-secondary)]",
+                    (d.dow === 0 || d.dow === 6) && d.key !== data.today && "text-[var(--que-text-tertiary)]",
+                  )}
+                  style={{ width: COL_W }}
+                >
+                  <span className="text-[10px]">{DOW_LABEL[d.dow]}</span>
+                  {d.label}
+                </div>
+              ))}
+            </div>
+
+            {/* 본문 */}
+            <div className="relative" style={{ height: bodyH, width: gridW }}>
+              {/* 주말 음영 + 세로 눈금 */}
+              {days.map((d, i) =>
+                d.dow === 0 || d.dow === 6 ? (
+                  <div
+                    key={d.key}
+                    aria-hidden
+                    className="absolute top-0 bottom-0 bg-[var(--que-bg-muted)] opacity-50"
+                    style={{ left: i * COL_W, width: COL_W }}
+                  />
+                ) : null,
+              )}
+              <div
+                aria-hidden
+                className="absolute inset-0"
+                style={{
+                  backgroundImage: `repeating-linear-gradient(to right, transparent, transparent ${COL_W - 1}px, var(--que-bg-muted) ${COL_W - 1}px, var(--que-bg-muted) ${COL_W}px)`,
+                }}
+              />
+              {/* 행 구분선 */}
+              {Array.from({ length: data.tasks.length + (hasMilestoneLane ? 1 : 0) }, (_, r) => (
+                <div
+                  key={r}
+                  aria-hidden
+                  className="absolute right-0 left-0 border-b border-[var(--que-bg-muted)]"
+                  style={{ top: (r + 1) * ROW_H - 1 }}
+                />
+              ))}
+
+              {/* 마일스톤 레인 */}
+              {hasMilestoneLane &&
+                data.milestones.map((m) => {
+                  const x = idx(m.day) * COL_W + COL_W / 2;
+                  const suffix = MILESTONE_LABEL[m.riskStatus];
+                  return (
+                    <div key={m.id} className="absolute" style={{ left: x - 7, top: ROW_H / 2 - 7 }}>
+                      <span
+                        aria-hidden
+                        className="block size-3.5 rotate-45 rounded-[3px]"
+                        style={{ background: MILESTONE_TONE[m.riskStatus] }}
+                      />
+                      <span
+                        className="absolute top-1/2 left-5 -translate-y-1/2 text-[11px] whitespace-nowrap"
+                        style={{ color: suffix ? MILESTONE_TONE[m.riskStatus] : "var(--que-text-secondary)" }}
+                      >
+                        {m.title}
+                        {suffix && ` · ${suffix}`}
+                      </span>
+                    </div>
+                  );
+                })}
+
+              {/* 선행 화살표(SVG 오버레이) — 시각 보조라 aria-hidden, 의미는 막대 라벨·툴팁이 전달 */}
+              <svg aria-hidden className="pointer-events-none absolute inset-0" width={gridW} height={bodyH}>
+                <defs>
+                  <marker id="gantt-ah" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+                    <path d="M0,0 L7,3.5 L0,7 z" fill="var(--que-text-tertiary)" />
+                  </marker>
+                  <marker id="gantt-ah-warn" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+                    <path d="M0,0 L7,3.5 L0,7 z" fill="var(--que-warning)" />
+                  </marker>
+                </defs>
+                {data.tasks.flatMap((t, row) =>
+                  t.predecessorIds.map((pid) => {
+                    const pRow = rowIndexByTask.get(pid);
+                    if (pRow === undefined) return null; // 선행이 화면 밖(일정 없음 등)이면 생략
+                    const p = data.tasks[pRow];
+                    const x1 = (idx(p.endDay) + 1) * COL_W - 4;
+                    const y1 = rowY(pRow) + ROW_H / 2;
+                    const x2 = idx(t.startDay) * COL_W + 2;
+                    const y2 = rowY(row) + ROW_H / 2;
+                    const bend = Math.max(x1 + 12, x2 - 14);
+                    const warn = t.atRisk;
+                    return (
+                      <path
+                        key={`${pid}-${t.taskId}`}
+                        d={`M ${x1} ${y1} L ${bend} ${y1} L ${bend} ${y2} L ${x2} ${y2}`}
+                        fill="none"
+                        stroke={warn ? "var(--que-warning)" : "var(--que-text-tertiary)"}
+                        strokeWidth={1.5}
+                        strokeDasharray={warn ? "4 3" : undefined}
+                        markerEnd={warn ? "url(#gantt-ah-warn)" : "url(#gantt-ah)"}
+                      />
+                    );
+                  }),
+                )}
+              </svg>
+
+              {/* 작업 막대 */}
+              {data.tasks.map((t, row) => {
+                const s = idx(t.startDay);
+                const e = idx(t.endDay);
+                const tone = TONE_STYLE[toneOf(t.status)];
+                const period = t.startDay === t.endDay ? t.startDay : `${t.startDay} ~ ${t.endDay}`;
+                const label = `${t.title} — ${period}${t.riskReason ? ` · 일정 주의: ${t.riskReason}` : ""}`;
+                // 좁은 막대(3일 미만)는 제목이 안 들어가므로 막대 오른쪽 밖에 라벨을 뺀다.
+                const narrow = e - s + 1 < 3;
+                return (
+                  <div key={t.taskId} className="absolute" style={{ top: rowY(row), height: ROW_H, left: 0, right: 0 }}>
+                    {t.atRisk && (
+                      <span
+                        title={t.riskReason ?? undefined}
+                        className="absolute z-10 flex size-[18px] items-center justify-center rounded-full border bg-[var(--que-warning-bg)] text-[var(--que-warning)]"
+                        style={{ left: Math.max(s * COL_W - 22, 2), top: ROW_H / 2 - 9, borderColor: "var(--que-warning)" }}
+                      >
+                        <TriangleAlert className="size-3" aria-hidden />
+                      </span>
+                    )}
+                    <Link
+                      href={taskHref(t.taskId)}
+                      scroll={false}
+                      aria-label={label}
+                      title={t.riskReason ?? undefined}
+                      className={cn(
+                        "absolute flex items-center gap-1.5 truncate rounded-[7px] border px-2.5 text-xs font-medium",
+                        "focus-visible:outline-2 focus-visible:outline-[var(--que-brand)]",
+                        t.status === "done" && "line-through opacity-80",
+                      )}
+                      style={{
+                        left: s * COL_W + 3,
+                        width: Math.max((e - s + 1) * COL_W - 6, COL_W - 6),
+                        top: BAR_TOP,
+                        height: BAR_H,
+                        background: tone.tint,
+                        borderColor: tone.dot,
+                        color: tone.text,
+                      }}
+                    >
+                      <span aria-hidden className="size-[7px] shrink-0 rounded-full" style={{ background: tone.dot }} />
+                      {!narrow && (
+                        <span className="truncate">
+                          {t.title}
+                          {t.status === "done" && <Check className="ml-1 inline size-3" aria-hidden />}
+                        </span>
+                      )}
+                    </Link>
+                    {narrow && (
+                      <span
+                        aria-hidden
+                        className={cn(
+                          "pointer-events-none absolute truncate text-xs font-medium",
+                          t.status === "done" ? "text-[var(--que-text-tertiary)] line-through" : "text-[var(--que-text-secondary)]",
+                        )}
+                        style={{ left: (e + 1) * COL_W + 8, top: BAR_TOP + 6, maxWidth: 180 }}
+                      >
+                        {t.title}
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+
+              {/* 오늘 라인 */}
+              {todayIdx >= 0 && (
+                <div
+                  aria-hidden
+                  className="absolute top-0 bottom-0 z-10 border-l-2 border-dashed"
+                  style={{ left: todayIdx * COL_W + COL_W / 2, borderColor: "var(--que-brand)" }}
+                >
+                  <span className="absolute -top-0.5 -left-4 rounded-full bg-[var(--que-brand)] px-1.5 py-px text-[10px] text-white">
+                    오늘
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 일정 없는 작업 — 간트에서 잊히지 않게 날짜 지정 유도 */}
+      {data.unscheduled.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-[var(--que-border)] bg-[var(--que-bg)] px-4 py-2.5 text-sm">
+          <span className="rounded-full bg-[var(--que-warning-bg)] px-2.5 py-0.5 text-xs font-semibold text-[var(--que-warning)]">
+            일정 없는 작업 {data.unscheduled.length}
+          </span>
+          <span className="text-[var(--que-text-secondary)]">간트에 표시하려면 상세에서 날짜를 지정하세요 →</span>
+          {data.unscheduled.map((u) => (
+            <Link
+              key={u.taskId}
+              href={taskHref(u.taskId)}
+              scroll={false}
+              className="rounded-lg border border-[var(--que-border)] px-2.5 py-1 text-xs text-[var(--que-text)] hover:bg-[var(--que-bg-muted)]"
+            >
+              {u.title}
+              {u.assigneeName && <span className="text-[var(--que-text-tertiary)]"> · {u.assigneeName}</span>}
+            </Link>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** 교육형 빈 상태 — 간트가 처음인 팀원에게 개념을 먼저(E-F 요건). */
+function GanttEmptyPrimer() {
+  return (
+    <div className="rounded-xl border border-[var(--que-border)] bg-[var(--que-bg)] px-6 py-10 text-center">
+      <p className="text-sm font-medium text-[var(--que-text)]">아직 간트에 표시할 작업이 없습니다.</p>
+      <p className="mx-auto mt-2 max-w-lg text-sm text-[var(--que-text-secondary)]">
+        간트는 작업 기간을 가로 막대로 늘어놓은 그림입니다. 막대의 왼쪽 끝이 시작, 오른쪽 끝이
+        마감이고, 화살표는 &ldquo;앞의 일이 끝나야 뒤의 일을 시작한다&rdquo;는 연결(선행 작업)입니다.
+        작업에 시작·마감 날짜를 지정하면 여기에 나타나고, 일정이 밀릴 위험이 있는 작업에는 주의
+        표시가 붙습니다.
+      </p>
+    </div>
+  );
+}
