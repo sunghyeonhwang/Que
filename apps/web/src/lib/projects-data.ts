@@ -12,6 +12,7 @@ import {
 import { ko } from "date-fns/locale";
 import {
   canEditTask,
+  canManageMilestone,
   findUser,
   type ChangeLog,
   type Project,
@@ -145,6 +146,25 @@ export interface ProjectList {
   columns: BoardColumn[];
 }
 
+// ---------- 마일스톤 (프로젝트 스코프 공용) ----------
+
+/**
+ * 프로젝트 화면(캘린더 셀·보드/목록 상단 띠·간트 레인)이 공유하는 마일스톤 뷰모델.
+ * /schedule의 공용 MilestoneChip과 같은 필드 계약(id·title·dueAt·riskStatus·projectName·canManage).
+ * canManage는 서버에서 canManageMilestone으로 판정해 내려보낸다(클라이언트 신뢰 금지).
+ */
+export interface ProjectMilestone {
+  id: string;
+  title: string;
+  /** 기한 ISO datetime. */
+  dueAt: string;
+  /** dateKey 'yyyy-MM-dd'(캘린더 셀 배치·간트 레인 위치용). */
+  day: string;
+  projectName: string;
+  riskStatus: "on_track" | "at_risk" | "late";
+  canManage: boolean;
+}
+
 // ---------- 캘린더 뷰 ----------
 
 export interface CalendarCard {
@@ -165,6 +185,8 @@ export interface CalendarDay {
   inMonth: boolean;
   isToday: boolean;
   cards: CalendarCard[];
+  /** 이 날짜가 기한인 마일스톤(그라데이션 칩으로 셀 상단에 표시). */
+  milestones: ProjectMilestone[];
 }
 
 export interface ProjectCalendar {
@@ -321,6 +343,47 @@ function boardTasksOf(db: Awaited<ReturnType<typeof getDb>>, projectIds: string[
 /** projectId → Project 조회 맵(카드의 소속 프로젝트명·권한 판단용). */
 function projectByIdMap(db: Awaited<ReturnType<typeof getDb>>): Map<string, Project> {
   return new Map(db.projects.map((p) => [p.id, p]));
+}
+
+/**
+ * 스코프 내 프로젝트의 마일스톤을 공용 뷰모델로. 기한(day) 오름차순.
+ * canManage는 canManageMilestone(관리자·프로젝트 담당자)으로 서버 판정.
+ * 캘린더 셀·보드/목록 띠·간트 레인이 같은 데이터를 공유한다.
+ */
+function buildProjectMilestones(
+  db: Awaited<ReturnType<typeof getDb>>,
+  projectIds: string[],
+  actor: User,
+): ProjectMilestone[] {
+  const idSet = new Set(projectIds);
+  const projectById = projectByIdMap(db);
+  return db.milestones
+    .filter((m) => idSet.has(m.projectId))
+    .map((m) => {
+      const project = projectById.get(m.projectId);
+      return {
+        id: m.id,
+        title: m.title,
+        dueAt: m.dueAt,
+        day: format(new Date(m.dueAt), "yyyy-MM-dd"),
+        projectName: project?.name ?? m.projectId,
+        riskStatus: m.riskStatus,
+        canManage: canManageMilestone(actor, project),
+      };
+    })
+    .sort((a, b) => a.day.localeCompare(b.day));
+}
+
+/**
+ * 보드·목록 상단 띠용 마일스톤 목록(스코프 존중). 기한 오름차순.
+ * 캘린더/간트는 각자 그리드에 배치하므로 별도 경로로 조회한다.
+ */
+export async function getProjectMilestones(
+  actor: User,
+  projectIds: string[],
+): Promise<ProjectMilestone[]> {
+  const db = await getDb();
+  return buildProjectMilestones(db, projectIds, actor);
 }
 
 function commentCountMap(db: Awaited<ReturnType<typeof getDb>>): Map<string, number> {
@@ -484,12 +547,21 @@ function defaultAnchorMonth(tasks: Task[]): string {
  * projectIds가 여러 개면(전체 보기) 스코프 내 프로젝트를 합산한다.
  */
 export async function getProjectCalendar(
+  actor: User,
   projectIds: string[],
   anchorMonth: string | null | undefined,
 ): Promise<ProjectCalendar> {
   const db = await getDb();
   const projectById = projectByIdMap(db);
   const tasks = boardTasksOf(db, projectIds);
+
+  // 마일스톤을 날짜(day)별로 묶어 해당 셀 상단에 그라데이션 칩으로 표시한다.
+  const milestonesByDay = new Map<string, ProjectMilestone[]>();
+  for (const m of buildProjectMilestones(db, projectIds, actor)) {
+    const list = milestonesByDay.get(m.day) ?? [];
+    list.push(m);
+    milestonesByDay.set(m.day, list);
+  }
 
   const month =
     anchorMonth && MONTH_RE.test(anchorMonth) ? anchorMonth : defaultAnchorMonth(tasks);
@@ -524,6 +596,7 @@ export async function getProjectCalendar(
       inMonth: isSameMonth(d, anchorDate),
       isToday: isSameDay(d, today),
       cards: byDate.get(key) ?? [],
+      milestones: milestonesByDay.get(key) ?? [],
     };
   });
 
@@ -655,13 +728,8 @@ export interface GanttTask {
   riskReason: string | null;
 }
 
-export interface GanttMilestone {
-  id: string;
-  title: string;
-  /** dateKey 'yyyy-MM-dd'. */
-  day: string;
-  riskStatus: "on_track" | "at_risk" | "late";
-}
+/** 간트 레인 마일스톤 = 공용 ProjectMilestone(그라데이션 칩·수정 진입점 공유). */
+export type GanttMilestone = ProjectMilestone;
 
 export interface ProjectGantt {
   /** startDay 오름차순. */
@@ -679,6 +747,11 @@ export interface ProjectGantt {
 const GANTT_PAD_DAYS = 2;
 /** 그리드 상한(컬럼 수) — 초장기 이상치가 화면을 무한히 늘리는 것 방지. */
 const GANTT_MAX_DAYS = 180;
+/**
+ * 오른쪽(미래)으로 최소 확보하는 일수 — 작업 범위가 짧아도 우측에 빈 날짜 칸이 계속 이어져
+ * 앞일을 미리 배치할 수 있게 한다(2026-07-11 요청 5: "7/19 이후가 안 나옴"). 왼쪽은 기존 유지.
+ */
+const GANTT_MIN_FUTURE_DAYS = 56;
 
 const toDay = (iso: string): string => format(new Date(iso), "yyyy-MM-dd");
 
@@ -736,11 +809,7 @@ export async function getProjectGantt(actor: User, projectIds: string[]): Promis
   const risks = computeGanttRisk(tasks, taskById, todayIso);
 
   const scheduled = tasks.filter((t) => t.startAt || t.endAt);
-  const idSet = new Set(projectIds);
-  const milestones: GanttMilestone[] = db.milestones
-    .filter((m) => idSet.has(m.projectId))
-    .map((m) => ({ id: m.id, title: m.title, day: toDay(m.dueAt), riskStatus: m.riskStatus }))
-    .sort((a, b) => a.day.localeCompare(b.day));
+  const milestones: GanttMilestone[] = buildProjectMilestones(db, projectIds, actor);
 
   const ganttTasks: GanttTask[] = scheduled
     .map((t) => {
@@ -773,6 +842,9 @@ export async function getProjectGantt(actor: User, projectIds: string[]): Promis
   ].sort();
   let rangeStart = format(addDays(new Date(days[0]), -GANTT_PAD_DAYS), "yyyy-MM-dd");
   let rangeEnd = format(addDays(new Date(days[days.length - 1]), GANTT_PAD_DAYS), "yyyy-MM-dd");
+  // 우측을 오늘+N일까지 최소 확보 — 작업이 근시일에 몰려 있어도 미래 날짜 칸이 계속 이어진다.
+  const minFutureEnd = format(addDays(new Date(today), GANTT_MIN_FUTURE_DAYS), "yyyy-MM-dd");
+  if (rangeEnd < minFutureEnd) rangeEnd = minFutureEnd;
   const span = differenceInCalendarDays(new Date(rangeEnd), new Date(rangeStart)) + 1;
   if (span > GANTT_MAX_DAYS) {
     const half = Math.floor(GANTT_MAX_DAYS / 2);

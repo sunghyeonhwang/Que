@@ -9,7 +9,9 @@ import type {
   ProjectList,
   ProjectListItem,
   ProjectMeta,
+  ProjectMilestone,
 } from "@/lib/projects-data";
+import { MilestoneStrip } from "./milestone-strip";
 import { ProjectHeader } from "./project-header";
 import { ProjectScopeSummary } from "./project-scope-summary";
 import { ALL_CLIENTS } from "@/lib/projects-scope";
@@ -40,6 +42,7 @@ export function ProjectView({
   list,
   calendar,
   gantt,
+  milestones,
   meta,
   isAdmin,
 }: {
@@ -55,6 +58,8 @@ export function ProjectView({
   list: ProjectList;
   calendar: ProjectCalendar;
   gantt: ProjectGantt;
+  /** 스코프 마일스톤(보드·목록 상단 띠용). 캘린더·간트는 각자 그리드에 배치. */
+  milestones: ProjectMilestone[];
   /** 단일 보기의 프로젝트 메타. 전체 보기면 null(스코프 요약으로 대체). */
   meta: ProjectMeta | null;
   isAdmin: boolean;
@@ -116,6 +121,14 @@ export function ProjectView({
           ) : null}
         </div>
       </div>
+
+      {/* 보드·목록엔 그리드 셀이 없으므로 상단 띠로 다가오는 마일스톤을 노출.
+          캘린더는 날짜 셀, 간트는 전용 레인에 이미 칩이 뜬다. */}
+      {(view === "board" || view === "list") && (
+        <div className="shrink-0">
+          <MilestoneStrip milestones={milestones} />
+        </div>
+      )}
 
       {view === "board" ? (
         <BoardView

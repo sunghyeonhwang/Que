@@ -1,5 +1,6 @@
 import {
   canEditTask,
+  canManageMilestone,
   canViewPrivateEventDetail,
   type Milestone,
   type Project,
@@ -48,8 +49,8 @@ export interface ScheduleFilters {
   keyword?: string;
 }
 
-/** 캘린더에 얹는 마일스톤(프로젝트명 포함). 일정 화면에선 읽기 전용 마커로만 표시한다. */
-export type CalendarMilestone = Milestone & { projectName: string };
+/** 캘린더에 얹는 마일스톤(프로젝트명 포함). 칩 클릭으로 수정 가능(canManage일 때만). */
+export type CalendarMilestone = Milestone & { projectName: string; canManage: boolean };
 
 export interface CalendarData {
   items: CalendarViewItem[];
@@ -148,6 +149,7 @@ export async function getCalendarData(
     .map((m) => ({
       ...m,
       projectName: projectById.get(m.projectId)?.name ?? m.projectId,
+      canManage: canManageMilestone(viewer, projectById.get(m.projectId)),
     }));
 
   return {

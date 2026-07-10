@@ -150,7 +150,9 @@ function Column({
       onDragLeave={() => setIsOver(false)}
       onDrop={onDrop}
       className={cn(
-        "flex h-full min-h-0 w-[318px] shrink-0 flex-col rounded-xl border transition-colors sm:w-[340px]",
+        // 고정폭 대신 flex-1+최소폭 — 와이드 화면에선 4열이 남는 폭을 나눠 늘어나고,
+        // 좁으면 min-w 바닥 아래로 줄지 않고 부모 overflow-x 스크롤로 전환(2026-07-11 요청 6).
+        "flex h-full min-h-0 min-w-[318px] flex-1 shrink-0 flex-col rounded-xl border transition-colors sm:min-w-[340px]",
         isOver
           ? "border-[var(--que-brand)] ring-2 ring-[var(--que-brand)]/30"
           : "border-[var(--que-border)]",

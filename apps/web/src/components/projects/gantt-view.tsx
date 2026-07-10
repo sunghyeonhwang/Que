@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef } from "react";
-import { TriangleAlert, Check } from "lucide-react";
-import type { GanttMilestone, ProjectGantt } from "@/lib/projects-data";
+import { TriangleAlert, Check, ChevronLeft, ChevronRight, LocateFixed } from "lucide-react";
+import type { ProjectGantt } from "@/lib/projects-data";
 import { TONE_STYLE, type StatusTone } from "@/lib/pm-columns";
 import type { TaskStatus } from "@que/core";
+import { MilestoneChip } from "@/components/milestones/milestone-chip";
 import { cn } from "@/lib/utils";
 
 // 간트 뷰 — E-9b·E-9d. "일정이 밀리는 게 눈에 보이는 그림"(PM 용어 없이).
@@ -34,17 +35,6 @@ function toneOf(status: TaskStatus): StatusTone {
   if (status === "issue") return "red";
   return "blue"; // scheduled
 }
-
-const MILESTONE_TONE: Record<GanttMilestone["riskStatus"], string> = {
-  on_track: "var(--que-success)",
-  at_risk: "var(--que-warning)",
-  late: "var(--que-error)",
-};
-const MILESTONE_LABEL: Record<GanttMilestone["riskStatus"], string | null> = {
-  on_track: null,
-  at_risk: "주의",
-  late: "지연",
-};
 
 /** 'yyyy-MM-dd' 두 dateKey 사이 일수(달력 기준). */
 function dayDiff(a: string, b: string): number {
@@ -119,13 +109,53 @@ export function GanttView({
           <span className="inline-block size-2 rounded-full" style={{ background: "var(--que-warning)" }} />홀드·주의
         </span>
         <span className="inline-flex items-center gap-1.5">
-          <span className="inline-block size-2 rotate-45 rounded-[2px]" style={{ background: "var(--que-success)" }} />마일스톤
+          <span
+            aria-hidden
+            className="inline-block h-3 w-4 rounded-[3px] bg-[linear-gradient(144deg,rgba(0,242,255,1)_0%,rgba(255,247,0,1)_100%)]"
+          />
+          마일스톤
         </span>
         <span style={{ color: "var(--que-brand)" }}>┆ 오늘</span>
         <span>→ 선행 작업(앞의 일이 끝나야 시작)</span>
         <span className="inline-flex items-center gap-1" style={{ color: "var(--que-warning)" }}>
           <TriangleAlert className="size-3.5" aria-hidden />
           일정 주의
+        </span>
+
+        {/* 차트 좌우 이동(2026-07-11 요청) — 한 번에 7일치, '오늘'로 즉시 복귀 버튼 포함. */}
+        <span className="ml-auto inline-flex items-center gap-1">
+          <button
+            type="button"
+            aria-label="이전 7일 보기"
+            onClick={() => scrollRef.current?.scrollBy({ left: -COL_W * 7, behavior: "smooth" })}
+            className="flex size-10 items-center justify-center rounded-lg border border-[var(--que-border)] bg-[var(--que-bg)] text-[var(--que-text-secondary)] transition-colors hover:bg-[var(--que-bg-muted)] hover:text-[var(--que-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--que-brand)]"
+          >
+            <ChevronLeft className="size-4" aria-hidden />
+          </button>
+          <button
+            type="button"
+            aria-label="오늘 위치로 이동"
+            onClick={() => {
+              const el = scrollRef.current;
+              if (!el || todayIdx < 0) return;
+              el.scrollTo({
+                left: Math.max(0, NAME_W + todayIdx * COL_W - (el.clientWidth - NAME_W) / 3 - NAME_W),
+                behavior: "smooth",
+              });
+            }}
+            className="flex h-10 items-center gap-1.5 rounded-lg border border-[var(--que-border)] bg-[var(--que-bg)] px-3 text-xs font-medium text-[var(--que-text-secondary)] transition-colors hover:bg-[var(--que-bg-muted)] hover:text-[var(--que-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--que-brand)]"
+          >
+            <LocateFixed className="size-3.5" aria-hidden />
+            오늘
+          </button>
+          <button
+            type="button"
+            aria-label="다음 7일 보기"
+            onClick={() => scrollRef.current?.scrollBy({ left: COL_W * 7, behavior: "smooth" })}
+            className="flex size-10 items-center justify-center rounded-lg border border-[var(--que-border)] bg-[var(--que-bg)] text-[var(--que-text-secondary)] transition-colors hover:bg-[var(--que-bg-muted)] hover:text-[var(--que-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--que-brand)]"
+          >
+            <ChevronRight className="size-4" aria-hidden />
+          </button>
         </span>
       </div>
 
@@ -231,28 +261,18 @@ export function GanttView({
                 />
               ))}
 
-              {/* 마일스톤 레인 */}
+              {/* 마일스톤 레인 — /schedule과 동일한 그라데이션 칩(클릭 → 상세/수정, 권한 있을 때).
+                  기한 날짜 컬럼 위치에 칩 왼쪽 끝(다이아 마커)을 맞춘다. */}
               {hasMilestoneLane &&
-                data.milestones.map((m) => {
-                  const x = idx(m.day) * COL_W + COL_W / 2;
-                  const suffix = MILESTONE_LABEL[m.riskStatus];
-                  return (
-                    <div key={m.id} className="absolute" style={{ left: x - 7, top: ROW_H / 2 - 7 }}>
-                      <span
-                        aria-hidden
-                        className="block size-3.5 rotate-45 rounded-[3px]"
-                        style={{ background: MILESTONE_TONE[m.riskStatus] }}
-                      />
-                      <span
-                        className="absolute top-1/2 left-5 -translate-y-1/2 text-[11px] whitespace-nowrap"
-                        style={{ color: suffix ? MILESTONE_TONE[m.riskStatus] : "var(--que-text-secondary)" }}
-                      >
-                        {m.title}
-                        {suffix && ` · ${suffix}`}
-                      </span>
-                    </div>
-                  );
-                })}
+                data.milestones.map((m) => (
+                  <div
+                    key={m.id}
+                    className="absolute z-10"
+                    style={{ left: idx(m.day) * COL_W + 2, top: ROW_H / 2 - 14 }}
+                  >
+                    <MilestoneChip milestone={m} size="sm" truncate={false} />
+                  </div>
+                ))}
 
               {/* 선행 화살표(SVG 오버레이) — 시각 보조라 aria-hidden, 의미는 막대 라벨·툴팁이 전달 */}
               <svg aria-hidden className="pointer-events-none absolute inset-0" width={gridW} height={bodyH}>

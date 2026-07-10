@@ -8,6 +8,7 @@ import type { CalendarCard, CalendarDay, ProjectCalendar } from "@/lib/projects-
 import { STATUS_TONE, TONE_STYLE } from "@/lib/pm-columns";
 import { buttonVariants } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { MilestoneChip } from "@/components/milestones/milestone-chip";
 import { cn } from "@/lib/utils";
 
 const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
@@ -147,6 +148,10 @@ function DayCell({
       </div>
 
       <div className="flex flex-col gap-1">
+        {/* 마일스톤은 셀 상단에 그라데이션 칩으로(클릭 → 상세/수정). 작업 pill보다 먼저 노출. */}
+        {day.milestones.map((m) => (
+          <MilestoneChip key={m.id} milestone={m} size="sm" />
+        ))}
         {day.cards.slice(0, MAX_PILLS).map((card) => (
           <TaskPill
             key={card.taskId}

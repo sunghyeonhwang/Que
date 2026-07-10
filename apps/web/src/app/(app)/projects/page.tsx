@@ -9,6 +9,7 @@ import {
   getProjectGantt,
   getProjectList,
   getProjectMeta,
+  getProjectMilestones,
   getTaskDetail,
   resolveSelectedProjectId,
 } from "@/lib/projects-data";
@@ -100,11 +101,12 @@ export default async function ProjectsPage({
     );
   }
 
-  const [board, list, calendar, gantt, taskDetail] = await Promise.all([
+  const [board, list, calendar, gantt, milestones, taskDetail] = await Promise.all([
     getProjectBoard(user, projectIds),
     getProjectList(user, projectIds),
-    getProjectCalendar(projectIds, params.month),
+    getProjectCalendar(user, projectIds, params.month),
     getProjectGantt(user, projectIds),
+    getProjectMilestones(user, projectIds),
     getTaskDetail(user, params.task),
   ]);
 
@@ -131,6 +133,7 @@ export default async function ProjectsPage({
         list={list}
         calendar={calendar}
         gantt={gantt}
+        milestones={milestones}
         meta={meta}
         isAdmin={user.role === "admin"}
       />

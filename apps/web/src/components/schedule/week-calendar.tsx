@@ -257,22 +257,21 @@ function EventBlock({ pos }: { pos: PositionedItem }) {
       </div>
       <div
         className={cn(
-          "mt-0.5 line-clamp-2 text-[12px] font-semibold leading-snug",
+          "mt-0.5 line-clamp-2 p-[3px] text-[12px] font-semibold leading-snug",
         )}
         style={{ color: swatch.text }}
       >
         {item.title}
       </div>
       {!compact && (
-        <div className="mt-1 flex items-center gap-1">
-          <span
-            className="flex size-5 items-center justify-center rounded-full text-[9px] font-semibold text-white ring-2 ring-white/70"
-            style={{ backgroundColor: item.ownerColor }}
-            aria-hidden
-          >
-            {item.ownerName.slice(1, 3) || item.ownerName.slice(0, 2)}
-          </span>
-        </div>
+        // 팀원 이니셜 뱃지 — 블록 우하단 고정, 테두리 없음(2026-07-11 사용자 지정 — 전 화면 뱃지 border 제거).
+        <span
+          className="absolute right-1 bottom-1 flex size-5 items-center justify-center rounded-full text-[9px] font-semibold text-white"
+          style={{ backgroundColor: item.ownerColor }}
+          aria-hidden
+        >
+          {item.ownerName.slice(1, 3) || item.ownerName.slice(0, 2)}
+        </span>
       )}
     </div>
     </EventDetailPopover>
