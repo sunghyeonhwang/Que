@@ -4,6 +4,7 @@ import {
   visibilitySchema,
   type ActionItem,
   type CalendarEvent,
+  type KeyResult,
   type MeetingNote,
   type Project,
   type RecurringTemplate,
@@ -309,4 +310,30 @@ export function assertNoPredecessorCycle(
     const t = taskById.get(id);
     if (t?.predecessorIds) stack.push(...t.predecessorIds);
   }
+}
+
+/** KR 진척 집계에서 제외하는 Task 상태(취소·병합은 완료율 분모/분자에서 뺀다). */
+const KR_EXCLUDED_TASK_STATUS: ReadonlySet<TaskStatus> = new Set(["cancelled", "merged"]);
+
+/**
+ * KR 진척률(0~100) — 하이브리드 측정의 단일 계산기(기획 §2·§8-3). 웹·MCP·CLI 공용 순수 함수.
+ * - manual: round(currentValue / targetValue * 100), 상한 100. targetValue가 없거나 0이면 0.
+ * - task_auto: 연결 Task(keyResultId=kr.id, 취소·병합 제외) 중 done 비율(개수 기준, 가중치 없음).
+ *   연결이 0건이면 0.
+ * 소비처(보드·성과)는 이 단일 progress만 본다 — metricType 분기를 UI에 노출하지 않는다.
+ */
+export function keyResultProgress(kr: KeyResult, tasks: readonly Task[]): number {
+  if (kr.metricType === "manual") {
+    const target = kr.targetValue ?? 0;
+    if (target <= 0) return 0;
+    const current = kr.currentValue ?? 0;
+    return Math.min(100, Math.round((current / target) * 100));
+  }
+  // task_auto — 연결 Task 완료율(개수 기준). 취소·병합은 분모에서 제외.
+  const linked = tasks.filter(
+    (t) => t.keyResultId === kr.id && !KR_EXCLUDED_TASK_STATUS.has(t.status),
+  );
+  if (linked.length === 0) return 0;
+  const done = linked.filter((t) => t.status === "done").length;
+  return Math.round((done / linked.length) * 100);
 }

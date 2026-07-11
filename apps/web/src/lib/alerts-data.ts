@@ -1,5 +1,6 @@
 import { canViewMeetingNote, helpUserIdsOf, latestStatusLog, type User } from "@que/core";
 import { getDb } from "./db";
+import { kstDateKey } from "./daily-data";
 import { computeGanttRisk } from "./projects-data";
 import { getTeamData } from "./team-data";
 import { isAwaitingAnswer } from "./notifications/checkin-prompt";
@@ -21,7 +22,8 @@ export type AlertKind =
   | "help_request"
   | "schedule_risk"
   | "payment_status"
-  | "checkin";
+  | "checkin"
+  | "standup";
 export type AlertTone = "violet" | "red" | "amber" | "blue" | "green";
 
 export interface AlertItem {
@@ -45,6 +47,23 @@ export interface AlertsData {
 
 const OPEN = new Set(["scheduled", "in_progress", "needs_reschedule", "on_hold", "issue"]);
 const DISPLAY_CAP = 8;
+
+/**
+ * 오늘 데일리 스탠드업을 본인이 아직 제출하지 않았는지(기획 §7 Phase 4).
+ * 조건: 평일 + KST 10시 이후 + 본인 오늘 체크인 없음. 주말은 스탠드업이 없으므로 게이트한다(§8-5).
+ * TZ=Asia/Seoul 고정(instrumentation)이라 now의 로컬 요일/시가 곧 KST다.
+ * getViewerAlerts(벨·사원 홈)와 getTeamPriorityItems(관리자·대표 홈)가 공유해 세 화면 수치를 맞춘다.
+ */
+function isStandupMissing(
+  db: Awaited<ReturnType<typeof getDb>>,
+  userId: string,
+  now: Date,
+): boolean {
+  const day = now.getDay(); // 0=일, 6=토
+  if (day === 0 || day === 6) return false;
+  if (now.getHours() < 10) return false;
+  return !db.standupEntriesByDate(kstDateKey(now)).some((e) => e.userId === userId);
+}
 
 /**
  * viewer-scoped 알림 — 로그인 사용자 본인 관련 신호만 모은다(벨 개인화, 홈 명세 §3).
@@ -193,6 +212,20 @@ export async function getViewerAlerts(
     });
   }
 
+  // 7-b) 오늘 데일리 스탠드업 미제출(기획 §7 Phase 4) — 운영 리듬 넛지(감시 아님). tone blue, href /daily.
+  if (isStandupMissing(db, user.id, now)) {
+    const id = `standup-${user.id}-${kstDateKey(now)}`;
+    items.push({
+      id,
+      read: readIds.has(id),
+      kind: "standup",
+      tone: "blue",
+      title: "스탠드업 미제출",
+      description: "오늘 데일리 스탠드업 체크인을 아직 제출하지 않았습니다.",
+      href: "/daily",
+    });
+  }
+
   // 8) 본인 작업 기한 초과(마감 지났는데 아직 열려 있음). 문제/홀드로 이미 잡힌 건 제외.
   for (const t of myTasks.filter(
     (t) =>
@@ -232,7 +265,8 @@ export type PriorityKind =
   | "help_request"
   | "conflict"
   | "awaiting_checkin"
-  | "schedule_risk";
+  | "schedule_risk"
+  | "standup";
 
 export interface PriorityItem {
   id: string;
@@ -264,6 +298,7 @@ const PRIORITY_RANK: Record<PriorityKind, number> = {
   conflict: 3,
   awaiting_checkin: 4,
   schedule_risk: 5,
+  standup: 6,
 };
 
 /**
@@ -347,6 +382,18 @@ export async function getTeamPriorityItems(
       description: `${t.title} · 담당 ${userById.get(t.assigneeId)?.name ?? t.assigneeId} · ${reason}`,
       href: "/team",
       reason,
+    });
+  }
+
+  // 본인 스탠드업 미제출(기획 §7 Phase 4) — 관리자·대표도 본인 체크인은 제출 대상. 팀 신호 뒤 마지막.
+  if (isStandupMissing(db, user.id, now)) {
+    items.push({
+      id: `standup-${user.id}-${kstDateKey(now)}`,
+      kind: "standup",
+      tone: "blue",
+      title: "스탠드업 미제출",
+      description: "오늘 데일리 스탠드업 체크인을 아직 제출하지 않았습니다.",
+      href: "/daily",
     });
   }
 

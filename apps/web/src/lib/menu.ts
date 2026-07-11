@@ -16,7 +16,10 @@ import {
   Building2,
   FolderKanban,
   Bug,
-  Smartphone,
+  GanttChart,
+  Eye,
+  ListTodo,
+  Palette,
   type LucideIcon,
 } from "lucide-react";
 
@@ -28,10 +31,18 @@ export const OPEN_TODO_APP_EVENT = "que:open-todo-app";
 export interface MenuItem {
   /** 이동 경로. 단, `#`으로 시작하면 라우트가 아니라 **모달 액션**이다(예: `#todo-app`).
    *  네비 컴포넌트는 이런 항목을 링크가 아니라 버튼으로 렌더하고, 클릭 시 전역 이벤트
-   *  (OPEN_TODO_APP_EVENT)를 쏜다. 라우팅을 안 하므로 현재 화면 상태를 보존한다. */
+   *  (OPEN_TODO_APP_EVENT)를 쏜다. 라우팅을 안 하므로 현재 화면 상태를 보존한다.
+   *  `http`로 시작하거나 external=true면 외부 링크로 판정한다(아래 external 참고). */
   href: string;
   label: string;
   icon: LucideIcon;
+  /** 외부 링크(다른 도메인 전용 화면). 네비는 `<a target="_blank" rel="noopener noreferrer">`로
+   *  렌더하고 ExternalLink 아이콘을 덧붙이며, 현재 경로 active 하이라이트를 하지 않는다.
+   *  생략 시 href가 `http`로 시작하면 자동으로 외부로 본다(nav의 판정 규약과 일치). */
+  external?: boolean;
+  /** 아이콘 틴트용 포인트 컬러(CSS 컬러). '바로가기' 섹션 전용 — 각 앱의 정체성 색을 아이콘에만 입힌다.
+   *  상태색 의미(green=진행 등)와 혼동되지 않게 배경·뱃지에는 쓰지 않고 아이콘 색만 바꾼다. */
+  accentColor?: string;
   /** 병합 메뉴의 active 매칭 경로. 없으면 href로 매칭한다. */
   match?: string[];
   /** 사이드바 우측 뱃지 정적 폴백. 실데이터는 레이아웃이 SidebarNav의 badges prop으로 href별 주입. */
@@ -64,8 +75,16 @@ export const MENU_SECTIONS: MenuSection[] = [
       // 매일 쓰는 화면을 상단으로. (2026-07-07 UX 감사 IA 재정렬)
       { href: "/home", label: "홈", icon: Home },
       // 데일리 스탠드업(/daily) — 매일 10시 비동기 체크인 오늘 보드. 홈 바로 아래(매일 쓰는 화면 상단 IA).
-      // 전원 접근. children 없음(OKR 탭은 Phase 3에서 추가 예정).
-      { href: "/daily", label: "데일리", icon: CalendarCheck },
+      // 전원 접근. 하위: URL 탭(오늘=기본 / OKR=?tab=okr)을 사이드바에서도 펼침(기획 §4).
+      {
+        href: "/daily",
+        label: "데일리",
+        icon: CalendarCheck,
+        children: [
+          { label: "오늘", href: "/daily" },
+          { label: "OKR", href: "/daily?tab=okr" },
+        ],
+      },
       // 작업 목록(/today) — 오늘 개인 진입점(팀원). 2026-07-11 Now를 독립 메뉴로 분리(탭 병합 폐기).
       // 하위: 상단 패널 스위처(현황=기본 / 입력=?panel=input)를 사이드바에서도 펼침.
       {
@@ -124,6 +143,48 @@ export const MENU_SECTIONS: MenuSection[] = [
     ],
   },
   {
+    // 바로가기 — Que 밖의 전용 화면(다른 도메인) 4개. 순서 고정(간트→뷰→투두→컬러).
+    // 전부 external 링크라 새 탭으로 열리고 active 하이라이트가 없다. 아이콘에만 포인트 컬러를 입힌다
+    // (상태색 의미와 분리 — 배경·뱃지 금지). '기타' 위에 둬 자주 여는 외부 도구를 가깝게 배치한다.
+    // 기존 'TODO 앱' QR 모달(#todo-app)은 여기 '투두'(외부 링크)로 통합해 메뉴 진입점을 이관했다
+    // (TodoAppDialog·`#` 모달 규약은 유지 — 도움말 참조·향후 재사용 대비).
+    label: "바로가기",
+    items: [
+      // 간트: 마일스톤 그라데이션 정체성 → 시안 계열.
+      {
+        href: "https://gant.griff.co.kr",
+        label: "간트",
+        icon: GanttChart,
+        external: true,
+        accentColor: "#06b6d4",
+      },
+      // 뷰: 블루.
+      {
+        href: "https://view.griff.co.kr",
+        label: "뷰",
+        icon: Eye,
+        external: true,
+        accentColor: "#3b82f6",
+      },
+      // 투두(DayBlocks): 그린. 구 'TODO 앱' 통합 — 휴대폰은 주소로 직접 접속, 데스크톱은 새 탭.
+      {
+        href: "https://todo.griff.co.kr",
+        label: "투두",
+        icon: ListTodo,
+        external: true,
+        accentColor: "#22c55e",
+      },
+      // 컬러: 핑크(상태색 violet과 혼동 방지 — 바로가기 아이콘 틴트 전용).
+      {
+        href: "https://color.griff.co.kr",
+        label: "컬러",
+        icon: Palette,
+        external: true,
+        accentColor: "#ec4899",
+      },
+    ],
+  },
+  {
     label: "기타",
     items: [
       // 클라이언트(거래처)·프로젝트 관리 — 관리자 전용. adminOnly로 사이드바 노출을 막고,
@@ -132,10 +193,6 @@ export const MENU_SECTIONS: MenuSection[] = [
       { href: "/payments", label: "결제요청", icon: Receipt },
       // 수정사항(이슈/피드백) 트래커 — 테스트 중 발견한 수정사항 팀 공용 목록. 전원 접근(adminOnly 아님).
       { href: "/revisions", label: "수정사항", icon: Bug },
-      // TODO 앱(DayBlocks) 접속 QR 모달 — 라우트가 아니라 모달 액션(`#` 규약, 위 MenuItem 주석).
-      // 소비처가 링크 대신 버튼으로 렌더하고 클릭 시 전역 이벤트(OPEN_TODO_APP_EVENT)를 dispatch →
-      // 앱 셸에 전역 마운트된 TodoAppDialog가 수신해 QR 모달을 연다(URL 무변경 → 화면 상태 보존).
-      { href: "#todo-app", label: "TODO 앱", icon: Smartphone },
       { href: "/tools", label: "MCP · CLI", icon: Terminal },
       { href: "/help", label: "도움말", icon: CircleHelp },
       { href: "/settings", label: "설정", icon: Settings },

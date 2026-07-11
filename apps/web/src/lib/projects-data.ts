@@ -241,6 +241,16 @@ export interface TaskDetail {
   /** 선행으로 연결 가능한 후보(같은 프로젝트·취소/병합 제외·자기 제외·순환 유발 제외).
       마감일 최신순(없으면 뒤) — 선행은 보통 시간상 직전 작업이라 최근 것이 위에 온다. */
   predecessorOptions: { id: string; title: string; statusLabel: string; dueLabel: string | null }[];
+  /** 연결된 핵심결과(KR) id. 없으면 null(기획 §4 — Task↔KR 단일 연결). */
+  keyResultId: string | null;
+  /** 연결 가능한 KR 후보(취소 제외). 내 월 KR을 우선 정렬(§4). 본인 작업 편집 지점에서만 노출. */
+  keyResultOptions: {
+    id: string;
+    title: string;
+    objectiveTitle: string;
+    month: string;
+    isMine: boolean;
+  }[];
   canEdit: boolean;
 }
 
@@ -683,6 +693,29 @@ export async function getTaskDetail(
           dueLabel: t.endAt ? format(new Date(t.endAt), "M/d", { locale: ko }) : null,
         }));
 
+  // KR 연결 후보(기획 §4) — 취소된 KR 제외. 내 월(현재 월) KR을 맨 위로, 그다음 내 KR, 나머지 순.
+  // 목록 상세는 과설계 금지 — Objective 제목·월만 라벨에 붙인다. 연결/해제는 core canEditTask가 강제.
+  const nowMonthKey = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`;
+  const objectiveTitleById = new Map(db.objectives.map((o) => [o.id, o.title] as const));
+  const krRank = (isMine: boolean, month: string): number =>
+    isMine && month === nowMonthKey ? 0 : isMine ? 1 : 2;
+  const keyResultOptions = db.keyResults
+    .filter((k) => k.status !== "cancelled")
+    .map((k) => ({
+      id: k.id,
+      title: k.title,
+      objectiveTitle: objectiveTitleById.get(k.objectiveId) ?? "",
+      month: k.month,
+      isMine: k.ownerId === actor.id,
+    }))
+    .sort((a, b) => {
+      const ra = krRank(a.isMine, a.month);
+      const rb = krRank(b.isMine, b.month);
+      if (ra !== rb) return ra - rb;
+      if (a.month !== b.month) return b.month.localeCompare(a.month);
+      return a.title.localeCompare(b.title, "ko");
+    });
+
   return {
     taskId: task.id,
     projectId: task.projectId ?? "",
@@ -702,6 +735,8 @@ export async function getTaskDetail(
     activity,
     predecessorIds: task.predecessorIds ?? [],
     predecessorOptions,
+    keyResultId: task.keyResultId ?? null,
+    keyResultOptions,
     canEdit: canEditTask(actor, task, project),
   };
 }

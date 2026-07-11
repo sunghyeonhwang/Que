@@ -19,6 +19,8 @@ const TABLE_TO_FIELD = {
   clients: "clients",
   projects: "projects",
   milestones: "milestones",
+  objectives: "objectives",
+  key_results: "keyResults",
   tasks: "tasks",
   calendar_events: "calendarEvents",
   meeting_notes: "meetingNotes",

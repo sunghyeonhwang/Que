@@ -6,8 +6,12 @@ import type {
   CheckIn,
   CheckInResponse,
   Client,
+  KeyResult,
+  KeyResultStatus,
   MeetingNote,
   Milestone,
+  Objective,
+  ObjectiveStatus,
   PaymentCategory,
   PaymentRequest,
   PaymentStatus,
@@ -28,8 +32,13 @@ import type {
 import {
   type AlertRead,
   clientSchema,
+  createKeyResultInputSchema,
+  createObjectiveInputSchema,
   createRevisionNoteInputSchema,
+  keyResultMetricTypeSchema,
+  keyResultStatusSchema,
   milestoneSchema,
+  objectiveStatusSchema,
   paymentCategorySchema,
   projectSchema,
   revisionNoteStatusSchema,
@@ -82,6 +91,8 @@ export interface QueDb {
   revisionNotes: RevisionNote[];
   standupEntries: StandupEntry[];
   standupTeamSummaries: StandupTeamSummary[];
+  objectives: Objective[];
+  keyResults: KeyResult[];
 }
 
 interface ActorContext {
@@ -108,6 +119,8 @@ export class MockQueDb implements QueDb {
   revisionNotes: RevisionNote[];
   standupEntries: StandupEntry[];
   standupTeamSummaries: StandupTeamSummary[];
+  objectives: Objective[];
+  keyResults: KeyResult[];
   /** Slack 발송 원장(B-1). 시드에 없다 — mutation 훅이 enqueue로 채운다. Supabase 어댑터가 load에서 덮어쓴다. */
   notificationOutbox: NotificationOutboxEntry[] = [];
   /** 알림 읽음 표시(C-3a). 시드에 없다 — markAlertsRead가 채운다. Supabase 어댑터가 load에서 덮어쓴다. */
@@ -137,6 +150,8 @@ export class MockQueDb implements QueDb {
     this.revisionNotes = seed.revisionNotes;
     this.standupEntries = seed.standupEntries;
     this.standupTeamSummaries = seed.standupTeamSummaries;
+    this.objectives = seed.objectives;
+    this.keyResults = seed.keyResults;
   }
 
   // ---------- 조회 ----------
@@ -781,6 +796,8 @@ export class MockQueDb implements QueDb {
       endAt?: string | null;
       /** 소속 프로젝트 id. null이면 프로젝트 해제(무소속 잡무). */
       projectId?: string | null;
+      /** 연결 KR(핵심결과) id. null이면 연결 해제. 지정 시 실재 검증(없는 id 거부). */
+      keyResultId?: string | null;
     },
   ): Task {
     const actor = this.requireUser(ctx.actorId);
@@ -861,6 +878,20 @@ export class MockQueDb implements QueDb {
         task.projectId = projectId;
         // 선행 연결은 "같은 프로젝트 내"가 불변식 — 프로젝트가 바뀌면 걸린 링크를 자동 정리(E-9).
         this.clearPredecessorLinks(ctx, task, "프로젝트 이동");
+      }
+    }
+    if (input.keyResultId !== undefined) {
+      const keyResultId = input.keyResultId === null ? undefined : input.keyResultId;
+      // 지정 시 실재 KR이어야 한다(유령 id 차단). 해제(null)는 검증 없이 통과.
+      const nextKr = keyResultId ? this.keyResults.find((k) => k.id === keyResultId) : undefined;
+      if (keyResultId && !nextKr) {
+        throw new QueRuleError("NOT_FOUND", `핵심결과(KR) 없음: ${keyResultId}`);
+      }
+      if (keyResultId !== task.keyResultId) {
+        const prevKr = this.keyResults.find((k) => k.id === task.keyResultId);
+        before.push(`KR: ${prevKr?.title ?? "(없음)"}`);
+        changes.push(`KR: ${nextKr?.title ?? "(없음)"}`);
+        task.keyResultId = keyResultId;
       }
     }
 
@@ -2169,6 +2200,367 @@ export class MockQueDb implements QueDb {
   /** 특정 날짜(KST YYYY-MM-DD)의 AI 팀 요약 — 없으면 undefined. 조회는 전원 열람. */
   standupTeamSummaryByDate(date: string): StandupTeamSummary | undefined {
     return this.standupTeamSummaries.find((s) => s.date === date);
+  }
+
+  // ---------- OKR (분기 목표 + 월 핵심결과, 기획 §2·§6) ----------
+  // 목표 데이터는 감사 대상 — 생성·진척 변경은 ChangeLog에 남긴다(운영 리듬 산출물인 standup과 다르다).
+  // 입력은 신뢰하지 않고 스키마로 파싱한다(웹/MCP/CLI 공유 경로).
+
+  private requireObjective(id: string): Objective {
+    const obj = this.objectives.find((o) => o.id === id);
+    if (!obj) throw new QueRuleError("NOT_FOUND", `Objective 없음: ${id}`);
+    return obj;
+  }
+
+  private requireKeyResult(id: string): KeyResult {
+    const kr = this.keyResults.find((k) => k.id === id);
+    if (!kr) throw new QueRuleError("NOT_FOUND", `핵심결과(KR) 없음: ${id}`);
+    return kr;
+  }
+
+  /** Objective 생성 — **admin만**(기획 §6). ownerId 실재+재직 검증. ChangeLog(create) 기록. */
+  createObjective(
+    ctx: ActorContext,
+    input: {
+      title: string;
+      description?: string;
+      period: string;
+      ownerId: string;
+      status?: ObjectiveStatus;
+      order?: number;
+    },
+  ): Objective {
+    const actor = this.requireUser(ctx.actorId);
+    if (actor.role !== "admin") {
+      throw new QueRuleError("NOT_AUTHORIZED", "분기 목표(Objective)는 관리자만 만들 수 있다");
+    }
+    const parsed = createObjectiveInputSchema.safeParse(input);
+    if (!parsed.success) {
+      throw new QueRuleError("INVALID_INPUT", parsed.error.issues.map((i) => i.message).join(", "));
+    }
+    const data = parsed.data;
+    this.requireActiveAssignee(data.ownerId); // 소유자 실재+재직 검증
+    // order 미지정이면 같은 분기 내 마지막 뒤에 붙인다.
+    const order =
+      data.order ??
+      this.objectives.filter((o) => o.period === data.period).reduce((m, o) => Math.max(m, o.order + 1), 0);
+    const objective: Objective = {
+      id: this.nextId("obj"),
+      title: data.title,
+      description: data.description || undefined,
+      period: data.period,
+      ownerId: data.ownerId,
+      status: data.status ?? "active",
+      order,
+      createdAt: this.now(),
+    };
+    this.objectives.push(objective);
+    this.logChange(ctx, {
+      entityType: "objective",
+      entityId: objective.id,
+      changeType: "create",
+      afterValue: `${objective.title} (${objective.period})`,
+    });
+    return objective;
+  }
+
+  /** Objective 수정 — **admin만**(title/description/status/order). ChangeLog(update) 기록. */
+  updateObjective(
+    ctx: ActorContext,
+    input: {
+      objectiveId: string;
+      title?: string;
+      description?: string | null;
+      status?: ObjectiveStatus;
+      order?: number;
+    },
+  ): Objective {
+    const actor = this.requireUser(ctx.actorId);
+    if (actor.role !== "admin") {
+      throw new QueRuleError("NOT_AUTHORIZED", "분기 목표(Objective)는 관리자만 수정할 수 있다");
+    }
+    const objective = this.requireObjective(input.objectiveId);
+    const before: string[] = [];
+    const changes: string[] = [];
+
+    if (input.title !== undefined) {
+      const title = input.title.trim();
+      if (!title) throw new QueRuleError("INVALID_INPUT", "제목은 필수다");
+      if (title.length > 200) throw new QueRuleError("INVALID_INPUT", "제목은 200자 이내다");
+      if (title !== objective.title) {
+        before.push(`제목: ${objective.title}`);
+        changes.push(`제목: ${title}`);
+        objective.title = title;
+      }
+    }
+    if (input.description !== undefined) {
+      const description = input.description?.trim() || undefined;
+      if ((description?.length ?? 0) > 2000) {
+        throw new QueRuleError("INVALID_INPUT", "설명은 2000자 이내다");
+      }
+      if (description !== objective.description) {
+        before.push(`설명: ${objective.description ?? "(없음)"}`);
+        changes.push(`설명: ${description ?? "(없음)"}`);
+        objective.description = description;
+      }
+    }
+    if (input.status !== undefined) {
+      if (!objectiveStatusSchema.safeParse(input.status).success) {
+        throw new QueRuleError("INVALID_INPUT", "잘못된 Objective 상태다");
+      }
+      if (input.status !== objective.status) {
+        before.push(`상태: ${objective.status}`);
+        changes.push(`상태: ${input.status}`);
+        objective.status = input.status;
+      }
+    }
+    if (input.order !== undefined) {
+      if (!Number.isFinite(input.order)) {
+        throw new QueRuleError("INVALID_INPUT", "잘못된 정렬 순서다");
+      }
+      if (input.order !== objective.order) {
+        before.push(`순서: ${objective.order}`);
+        changes.push(`순서: ${input.order}`);
+        objective.order = input.order;
+      }
+    }
+
+    if (changes.length === 0) return objective; // no-op ChangeLog 방지
+    this.logChange(ctx, {
+      entityType: "objective",
+      entityId: objective.id,
+      changeType: "update",
+      beforeValue: before.join(" · "),
+      afterValue: changes.join(" · "),
+    });
+    return objective;
+  }
+
+  /** 특정 분기(YYYY-Qn)의 Objective — order 오름차순. 조회는 전원 열람. */
+  objectivesByPeriod(period: string): Objective[] {
+    return this.objectives
+      .filter((o) => o.period === period)
+      .sort((a, b) => a.order - b.order);
+  }
+
+  /** KR 생성 — **admin 또는 해당 Objective 소유자**(기획 §6). manual이면 targetValue 필수(스키마 강제).
+   *  ownerId 실재+재직 검증. ChangeLog(create) 기록. */
+  createKeyResult(
+    ctx: ActorContext,
+    input: {
+      objectiveId: string;
+      title: string;
+      ownerId: string;
+      month: string;
+      metricType: KeyResult["metricType"];
+      targetValue?: number;
+      currentValue?: number;
+      unit?: string;
+      status?: KeyResultStatus;
+    },
+  ): KeyResult {
+    const actor = this.requireUser(ctx.actorId);
+    const parsed = createKeyResultInputSchema.safeParse(input);
+    if (!parsed.success) {
+      throw new QueRuleError("INVALID_INPUT", parsed.error.issues.map((i) => i.message).join(", "));
+    }
+    const data = parsed.data;
+    const objective = this.requireObjective(data.objectiveId); // Objective 실재 검증
+    if (actor.role !== "admin" && objective.ownerId !== actor.id) {
+      throw new QueRuleError(
+        "NOT_AUTHORIZED",
+        "핵심결과(KR)는 관리자 또는 해당 목표 소유자만 만들 수 있다",
+      );
+    }
+    this.requireActiveAssignee(data.ownerId); // KR 소유자 실재+재직 검증
+    const nowIso = this.now();
+    const kr: KeyResult = {
+      id: this.nextId("kr"),
+      objectiveId: data.objectiveId,
+      title: data.title,
+      ownerId: data.ownerId,
+      month: data.month,
+      metricType: data.metricType,
+      targetValue: data.metricType === "manual" ? data.targetValue : undefined,
+      currentValue: data.metricType === "manual" ? data.currentValue ?? 0 : undefined,
+      unit: data.metricType === "manual" ? data.unit || undefined : undefined,
+      status: data.status ?? "active",
+      updatedAt: nowIso,
+      updatedBy: actor.id,
+    };
+    this.keyResults.push(kr);
+    this.logChange(ctx, {
+      entityType: "key_result",
+      entityId: kr.id,
+      changeType: "create",
+      afterValue: `${kr.title} (${kr.month}, ${kr.metricType})`,
+    });
+    return kr;
+  }
+
+  /** KR 수정(제목·월·metricType·단위·목표치·상태·소유자) — **admin 또는 해당 Objective 소유자**.
+   *  진척(currentValue)은 여기서 바꾸지 않는다 — updateKeyResultProgress(소유자+admin) 별도 경로. */
+  updateKeyResult(
+    ctx: ActorContext,
+    input: {
+      keyResultId: string;
+      title?: string;
+      month?: string;
+      metricType?: KeyResult["metricType"];
+      targetValue?: number | null;
+      unit?: string | null;
+      status?: KeyResultStatus;
+      ownerId?: string;
+    },
+  ): KeyResult {
+    const actor = this.requireUser(ctx.actorId);
+    const kr = this.requireKeyResult(input.keyResultId);
+    const objective = this.requireObjective(kr.objectiveId);
+    if (actor.role !== "admin" && objective.ownerId !== actor.id) {
+      throw new QueRuleError(
+        "NOT_AUTHORIZED",
+        "핵심결과(KR)는 관리자 또는 해당 목표 소유자만 수정할 수 있다",
+      );
+    }
+    const before: string[] = [];
+    const changes: string[] = [];
+
+    if (input.title !== undefined) {
+      const title = input.title.trim();
+      if (!title) throw new QueRuleError("INVALID_INPUT", "제목은 필수다");
+      if (title.length > 200) throw new QueRuleError("INVALID_INPUT", "제목은 200자 이내다");
+      if (title !== kr.title) {
+        before.push(`제목: ${kr.title}`);
+        changes.push(`제목: ${title}`);
+        kr.title = title;
+      }
+    }
+    if (input.month !== undefined) {
+      if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(input.month)) {
+        throw new QueRuleError("INVALID_INPUT", "월은 YYYY-MM 형식이어야 한다 (예: 2026-07)");
+      }
+      if (input.month !== kr.month) {
+        before.push(`월: ${kr.month}`);
+        changes.push(`월: ${input.month}`);
+        kr.month = input.month;
+      }
+    }
+    if (input.ownerId !== undefined && input.ownerId !== kr.ownerId) {
+      this.requireActiveAssignee(input.ownerId); // 새 소유자 실재+재직 검증
+      before.push(`소유자: ${kr.ownerId}`);
+      changes.push(`소유자: ${input.ownerId}`);
+      kr.ownerId = input.ownerId;
+    }
+    if (input.status !== undefined) {
+      if (!keyResultStatusSchema.safeParse(input.status).success) {
+        throw new QueRuleError("INVALID_INPUT", "잘못된 KR 상태다");
+      }
+      if (input.status !== kr.status) {
+        before.push(`상태: ${kr.status}`);
+        changes.push(`상태: ${input.status}`);
+        kr.status = input.status;
+      }
+    }
+    // metricType/targetValue/unit는 상호 의존(manual만 target·unit 유효)이라 함께 판정한다.
+    const nextMetricType = input.metricType ?? kr.metricType;
+    if (input.metricType !== undefined && input.metricType !== kr.metricType) {
+      if (!keyResultMetricTypeSchema.safeParse(input.metricType).success) {
+        throw new QueRuleError("INVALID_INPUT", "잘못된 측정 방식이다");
+      }
+      before.push(`측정: ${kr.metricType}`);
+      changes.push(`측정: ${input.metricType}`);
+      kr.metricType = input.metricType;
+    }
+    if (nextMetricType === "manual") {
+      // 목표치: 지정되면 갱신, 미지정이면 유지. 최종 목표치가 없으면(양수 아님) 거부.
+      const nextTarget =
+        input.targetValue === undefined
+          ? kr.targetValue
+          : input.targetValue === null
+            ? undefined
+            : input.targetValue;
+      if ((nextTarget ?? 0) <= 0) {
+        throw new QueRuleError("INVALID_INPUT", "manual KR은 목표치(targetValue)가 필수다 (양수)");
+      }
+      if (nextTarget !== kr.targetValue) {
+        before.push(`목표치: ${kr.targetValue ?? "(없음)"}`);
+        changes.push(`목표치: ${nextTarget}`);
+        kr.targetValue = nextTarget;
+      }
+      if (input.unit !== undefined) {
+        const unit = input.unit === null ? undefined : input.unit.trim() || undefined;
+        if ((unit?.length ?? 0) > 20) throw new QueRuleError("INVALID_INPUT", "단위는 20자 이내다");
+        if (unit !== kr.unit) {
+          before.push(`단위: ${kr.unit ?? "(없음)"}`);
+          changes.push(`단위: ${unit ?? "(없음)"}`);
+          kr.unit = unit;
+        }
+      }
+    } else if (kr.metricType === "task_auto") {
+      // task_auto로 바뀌면 manual 필드는 의미가 없다 — 정리한다(진척은 연결 Task로 계산).
+      if (kr.targetValue !== undefined || kr.currentValue !== undefined || kr.unit !== undefined) {
+        kr.targetValue = undefined;
+        kr.currentValue = undefined;
+        kr.unit = undefined;
+      }
+    }
+
+    if (changes.length === 0) return kr; // no-op ChangeLog 방지
+    kr.updatedAt = this.now();
+    kr.updatedBy = actor.id;
+    this.logChange(ctx, {
+      entityType: "key_result",
+      entityId: kr.id,
+      changeType: "update",
+      beforeValue: before.join(" · "),
+      afterValue: changes.join(" · "),
+    });
+    return kr;
+  }
+
+  /** KR 진척(currentValue) 입력 — **KR 소유자 본인 또는 admin만**(기획 §6). manual KR에서만 유효.
+   *  목표 데이터는 감사 대상이라 ChangeLog(update) 기록. */
+  updateKeyResultProgress(
+    ctx: ActorContext,
+    input: { keyResultId: string; currentValue: number },
+  ): KeyResult {
+    const actor = this.requireUser(ctx.actorId);
+    const kr = this.requireKeyResult(input.keyResultId);
+    if (actor.role !== "admin" && kr.ownerId !== actor.id) {
+      throw new QueRuleError(
+        "NOT_AUTHORIZED",
+        "핵심결과(KR) 진척은 소유자 본인 또는 관리자만 입력할 수 있다",
+      );
+    }
+    if (kr.metricType !== "manual") {
+      throw new QueRuleError(
+        "INVALID_INPUT",
+        "task_auto KR의 진척은 연결 작업 완료율로 자동 계산된다 — 직접 입력할 수 없다",
+      );
+    }
+    if (!Number.isFinite(input.currentValue) || input.currentValue < 0) {
+      throw new QueRuleError("INVALID_INPUT", "진척 값은 0 이상의 숫자여야 한다");
+    }
+    const before = kr.currentValue ?? 0;
+    if (input.currentValue === before) return kr; // no-op
+    kr.currentValue = input.currentValue;
+    kr.updatedAt = this.now();
+    kr.updatedBy = actor.id;
+    this.logChange(ctx, {
+      entityType: "key_result",
+      entityId: kr.id,
+      changeType: "update",
+      beforeValue: `진척: ${before}`,
+      afterValue: `진척: ${input.currentValue}`,
+    });
+    return kr;
+  }
+
+  /** 특정 Objective의 KR 목록 — 월 오름차순. 조회는 전원 열람. */
+  keyResultsByObjective(objectiveId: string): KeyResult[] {
+    return this.keyResults
+      .filter((k) => k.objectiveId === objectiveId)
+      .sort((a, b) => a.month.localeCompare(b.month));
   }
 
   // ---------- 내부 ----------

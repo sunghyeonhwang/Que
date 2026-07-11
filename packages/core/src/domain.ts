@@ -140,6 +140,8 @@ export const taskSchema = z.object({
   predecessorIds: z.array(z.string().min(1)).max(20).optional(),
   /** source가 recurring_template일 때 생성 출처 템플릿 (추적용) */
   recurringTemplateId: z.string().optional(),
+  /** 연결된 월 KR(핵심결과) id — 단일(다대다는 8인 규모에 과설계, 기획 §2). 실재 검증은 mutation이 강제. */
+  keyResultId: z.string().optional(),
   lastChangedBy: z.string().optional(),
   lastChangedAt: isoDateTime.optional(),
 });
@@ -428,6 +430,95 @@ export const standupTeamSummarySchema = z.object({
 });
 export type StandupTeamSummary = z.infer<typeof standupTeamSummarySchema>;
 
+// ---------- Objective / KeyResult (OKR — 분기 목표 + 월 핵심결과, 기획 §2) ----------
+// 회사 레벨 단일 계층(팀/회사 분리는 8인 규모에 과설계). Objective=분기 목표, KeyResult=월 핵심결과.
+// 목표 데이터는 감사 대상 — 생성·진척 변경은 ChangeLog에 남긴다(운영 리듬 산출물인 standup과 다르다).
+// 권한: objectives는 admin, key_results는 admin 또는 Objective 소유자, manual 진척 입력은 KR 소유자+admin.
+
+/** 분기 키(예: 2026-Q3). Q1~Q4만 허용. */
+const periodPattern = /^\d{4}-Q[1-4]$/;
+/** 월 키(예: 2026-07). 01~12만 허용. */
+const monthPattern = /^\d{4}-(0[1-9]|1[0-2])$/;
+
+export const objectiveStatusSchema = z.enum(["draft", "active", "done", "cancelled"]);
+export type ObjectiveStatus = z.infer<typeof objectiveStatusSchema>;
+
+export const objectiveSchema = z.object({
+  id: z.string().min(1),
+  title: z.string().min(1).max(200),
+  description: z.string().max(2000).optional(),
+  /** 분기 키(YYYY-Qn). */
+  period: z.string().regex(periodPattern, "분기는 YYYY-Qn 형식이어야 한다 (예: 2026-Q3)"),
+  ownerId: z.string().min(1),
+  status: objectiveStatusSchema.default("active"),
+  /** 표시 정렬 순서(작을수록 먼저). */
+  order: z.number(),
+  createdAt: isoDateTime,
+});
+export type Objective = z.infer<typeof objectiveSchema>;
+
+/** Objective 생성 입력 검증(신뢰 못 할 클라이언트/MCP/CLI 값을 mutation 경로에서 파싱). */
+export const createObjectiveInputSchema = z.object({
+  title: z.string().trim().min(1, "제목은 필수다").max(200, "제목은 200자 이내"),
+  description: z.string().trim().max(2000, "설명은 2000자 이내").optional(),
+  period: z.string().trim().regex(periodPattern, "분기는 YYYY-Qn 형식이어야 한다 (예: 2026-Q3)"),
+  ownerId: z.string().min(1, "소유자는 필수다"),
+  status: objectiveStatusSchema.optional(),
+  order: z.number().optional(),
+});
+export type CreateObjectiveInput = z.infer<typeof createObjectiveInputSchema>;
+
+export const keyResultStatusSchema = z.enum(["active", "done", "cancelled"]);
+export type KeyResultStatus = z.infer<typeof keyResultStatusSchema>;
+
+/** KR 측정 방식(기획 §2 하이브리드). manual=사람이 입력하는 수치, task_auto=연결 Task 완료율. */
+export const keyResultMetricTypeSchema = z.enum(["manual", "task_auto"]);
+export type KeyResultMetricType = z.infer<typeof keyResultMetricTypeSchema>;
+
+export const keyResultSchema = z
+  .object({
+    id: z.string().min(1),
+    objectiveId: z.string().min(1),
+    title: z.string().min(1).max(200),
+    ownerId: z.string().min(1),
+    /** 월 키(YYYY-MM). */
+    month: z.string().regex(monthPattern, "월은 YYYY-MM 형식이어야 한다 (예: 2026-07)"),
+    metricType: keyResultMetricTypeSchema,
+    /** manual 측정용 — 목표치(양수). */
+    targetValue: z.number().positive().optional(),
+    /** manual 측정용 — 현재치. */
+    currentValue: z.number().optional(),
+    /** manual 측정용 — 단위(예: 건, %, 만원). */
+    unit: z.string().max(20).optional(),
+    status: keyResultStatusSchema.default("active"),
+    updatedAt: isoDateTime,
+    updatedBy: z.string().min(1),
+  })
+  .refine((kr) => kr.metricType !== "manual" || (kr.targetValue ?? 0) > 0, {
+    message: "manual KR은 목표치(targetValue)가 필수다 (양수)",
+    path: ["targetValue"],
+  });
+export type KeyResult = z.infer<typeof keyResultSchema>;
+
+/** KR 생성 입력 검증. manual이면 targetValue 필수(양수)를 refine으로 강제한다. */
+export const createKeyResultInputSchema = z
+  .object({
+    objectiveId: z.string().min(1, "Objective는 필수다"),
+    title: z.string().trim().min(1, "제목은 필수다").max(200, "제목은 200자 이내"),
+    ownerId: z.string().min(1, "소유자는 필수다"),
+    month: z.string().trim().regex(monthPattern, "월은 YYYY-MM 형식이어야 한다 (예: 2026-07)"),
+    metricType: keyResultMetricTypeSchema,
+    targetValue: z.number().positive("목표치는 양수여야 한다").optional(),
+    currentValue: z.number().optional(),
+    unit: z.string().trim().max(20, "단위는 20자 이내").optional(),
+    status: keyResultStatusSchema.optional(),
+  })
+  .refine((kr) => kr.metricType !== "manual" || (kr.targetValue ?? 0) > 0, {
+    message: "manual KR은 목표치(targetValue)가 필수다 (양수)",
+    path: ["targetValue"],
+  });
+export type CreateKeyResultInput = z.infer<typeof createKeyResultInputSchema>;
+
 // ---------- PaymentRequest ----------
 
 export const paymentStatusSchema = z.enum(["waiting", "done", "cancelled"]);
@@ -519,6 +610,8 @@ export const changeLogSchema = z.object({
     "project",
     "client",
     "user",
+    "objective",
+    "key_result",
   ]),
   entityId: z.string().min(1),
   actorId: z.string().min(1),

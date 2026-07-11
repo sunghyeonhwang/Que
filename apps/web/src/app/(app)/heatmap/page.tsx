@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import Link from "next/link";
 import {
   CircleCheckBig,
   ClipboardList,
@@ -10,6 +11,7 @@ import { gradeForUser } from "@que/core";
 import { getCurrentUser } from "@/lib/current-user";
 import { getClientFilter, getClientFilterName } from "@/lib/client-filter";
 import { getPerformanceData, type PerfKpi } from "@/lib/performance-data";
+import { getOkrData, currentMonthKey, currentPeriodKey } from "@/lib/okr-data";
 import { ClientFilterBadge } from "@/components/app/client-filter-badge";
 import { CompletionBarChart } from "@/components/performance/completion-bar-chart";
 import { OverdueAreaChart } from "@/components/performance/overdue-area-chart";
@@ -94,6 +96,22 @@ export default async function PerformancePage({
   // '내 성과'(scope=me)면 대표여도 표 대신 본인 월간 요약을 본다. 관리자/사원도 본인 요약.
   const isCeo = viewerGrade === "ceo";
   const showTeamLoadTable = isCeo && scope !== "me";
+
+  // KR 달성률 축(기획 §7 Phase 4) — 이번 달 활성 KR 평균 진척(keyResultProgress). 목표 진척 축.
+  // '내 성과'(me·사원 고정)면 내 KR만, 팀 스코프면 전사 활성 KR. getOkrData를 재사용하되
+  // period를 현재 분기로 고정한다 — 미래 분기 Objective를 미리 만들어도(정상 워크플로)
+  // 이 카드가 미래 분기를 조회해 이번 달 KR을 놓치지 않게(글래도스 게이트2 Medium).
+  const okr = await getOkrData(user, { period: currentPeriodKey(now) });
+  const monthKey = currentMonthKey(now);
+  const scopeToMe = scope === "me" || !canScopeTeam;
+  const activeKrs = okr.objectives
+    .flatMap((o) => o.keyResults)
+    .filter((v) => v.keyResult.month === monthKey && v.keyResult.status === "active")
+    .filter((v) => !scopeToMe || v.keyResult.ownerId === user.id);
+  const krCount = activeKrs.length;
+  const krAvgProgress = krCount
+    ? Math.round(activeKrs.reduce((sum, v) => sum + v.progress, 0) / krCount)
+    : 0;
   // 업무 부하 표(홈·리포트와 동일) — 팀 스코프에서만. '내 성과'(scope=me)에서는 숨긴다.
   const showLoadTable = scope !== "me";
   const loadScopeLabel = isCeo ? "전 인원 부하" : "업무 부하";
@@ -135,6 +153,51 @@ export default async function PerformancePage({
           <KpiCard key={kpi.key} kpi={kpi} icon={KPI_ICONS[kpi.key]} />
         ))}
       </div>
+
+      {/* KR 달성률 — 이번 달 활성 KR 평균 진척(목표 진척 축). '내 성과'는 내 KR만. */}
+      <SectionCard
+        title="KR 달성률"
+        meta={scopeToMe ? "내 KR · 이번 달" : "팀 KR · 이번 달"}
+        action={
+          <Link
+            href="/daily?tab=okr"
+            className="text-sm font-medium text-[var(--que-brand)] hover:underline"
+          >
+            OKR 보기
+          </Link>
+        }
+      >
+        {krCount > 0 ? (
+          <div className="flex flex-col gap-2">
+            <div className="flex items-end gap-3">
+              <p className="text-4xl font-semibold tabular-nums text-[var(--que-text)]">
+                {krAvgProgress}%
+              </p>
+              <p className="pb-1.5 text-sm text-[var(--que-text-secondary)]">
+                활성 KR {krCount}개 평균 진척
+              </p>
+            </div>
+            <div
+              className="h-2 w-full overflow-hidden rounded-full bg-[var(--que-bg-muted)]"
+              role="progressbar"
+              aria-valuenow={krAvgProgress}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-label="이번 달 활성 KR 평균 진척"
+            >
+              <div
+                className="h-full rounded-full bg-[var(--que-brand)]"
+                style={{ width: `${krAvgProgress}%` }}
+              />
+            </div>
+            <p className="text-xs text-[var(--que-text-tertiary)]">
+              분기 목표(Objective) 대비 이번 달 핵심결과(KR) 달성 축입니다. 개인 평가가 아닙니다.
+            </p>
+          </div>
+        ) : (
+          <p className="text-sm text-[var(--que-text-tertiary)]">이번 달 활성 KR이 없습니다.</p>
+        )}
+      </SectionCard>
 
       {/* 2행: 완료율(막대) | 기한 초과 추이(영역) */}
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">

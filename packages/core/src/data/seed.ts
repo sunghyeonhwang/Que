@@ -4,8 +4,10 @@ import type {
   ChangeLog,
   CheckIn,
   Client,
+  KeyResult,
   MeetingNote,
   Milestone,
+  Objective,
   PaymentCategory,
   PaymentRequest,
   Project,
@@ -40,6 +42,8 @@ export interface QueSeed {
   revisionNotes: RevisionNote[];
   standupEntries: StandupEntry[];
   standupTeamSummaries: StandupTeamSummary[];
+  objectives: Objective[];
+  keyResults: KeyResult[];
 }
 
 export function createSeed(now: Date): QueSeed {
@@ -108,6 +112,7 @@ export function createSeed(now: Date): QueSeed {
       estimatedHours: 1.5,
       source: "manual",
       visibility: "team",
+      keyResultId: "kr-summer-tasks", // task_auto KR 연결(진척 자동 집계)
     },
     {
       id: "task-ad-review",
@@ -137,6 +142,7 @@ export function createSeed(now: Date): QueSeed {
       estimatedHours: 2,
       source: "natural_language",
       visibility: "team",
+      keyResultId: "kr-summer-tasks", // task_auto KR 연결(진척 자동 집계)
     },
     {
       id: "task-payment-qa",
@@ -695,6 +701,70 @@ export function createSeed(now: Date): QueSeed {
   // AI 팀 요약은 시드에 두지 않는다 — 크론(11시/전원 제출)이 generateTeamSummary로 당일 생성한다.
   const standupTeamSummaries: StandupTeamSummary[] = [];
 
+  // ── OKR 데모 시드(기획 §2) — 분기 목표 1 + 월 KR 3(manual 2·task_auto 1, 오너 분산) ──────
+  // period/month는 now 기준 현재 분기·현재 월로 파생해 언제 실행해도 OKR 탭에 보이게 한다.
+  const okrYear = now.getFullYear();
+  const okrMonthNum = now.getMonth() + 1;
+  const okrQuarter = Math.floor((okrMonthNum - 1) / 3) + 1;
+  const okrPeriod = `${okrYear}-Q${okrQuarter}`;
+  const okrMonth = `${okrYear}-${String(okrMonthNum).padStart(2, "0")}`;
+  const objectives: Objective[] = [
+    {
+      id: "obj-summer",
+      title: "여름 프로모션을 성공적으로 런칭한다",
+      description: "오픈 일정 준수 + 결제 안정화 + CS 대응 체계 확립",
+      period: okrPeriod,
+      ownerId: hwang.id, // 대표(admin)
+      status: "active",
+      order: 0,
+      createdAt: at(-7, 10),
+    },
+  ];
+  const keyResults: KeyResult[] = [
+    {
+      // task_auto — 연결 Task(kr-summer-tasks) 완료율로 자동 집계.
+      id: "kr-summer-tasks",
+      objectiveId: "obj-summer",
+      title: "여름 프로모션 핵심 작업을 기한 내 완료",
+      ownerId: hwang.id,
+      month: okrMonth,
+      metricType: "task_auto",
+      status: "active",
+      updatedAt: at(-7, 10),
+      updatedBy: hwang.id,
+    },
+    {
+      // manual — 오승훈 담당. 90건 중 40건 진행.
+      id: "kr-payment-cases",
+      objectiveId: "obj-summer",
+      title: "결제 QA 케이스 90건 처리",
+      ownerId: oh.id,
+      month: okrMonth,
+      metricType: "manual",
+      targetValue: 90,
+      currentValue: 40,
+      unit: "건",
+      status: "active",
+      updatedAt: at(-1, 15),
+      updatedBy: oh.id,
+    },
+    {
+      // manual — 이예진 담당. 30건 중 12건.
+      id: "kr-cs-faq",
+      objectiveId: "obj-summer",
+      title: "CS FAQ 항목 30건 신규 작성",
+      ownerId: yejin.id,
+      month: okrMonth,
+      metricType: "manual",
+      targetValue: 30,
+      currentValue: 12,
+      unit: "건",
+      status: "active",
+      updatedAt: at(-2, 11),
+      updatedBy: yejin.id,
+    },
+  ];
+
   // ── 과거 6주 완료/취소 이력 (결정론적 생성) ──────────────────────────
   // 관리자 리포트의 주간/월간 집계가 빈 표가 아니라 실제 데이터로 검증되도록,
   // 지난 42~3일의 이력을 만든다. random 없이 인덱스 기반으로 분배해 재현 가능.
@@ -798,5 +868,7 @@ export function createSeed(now: Date): QueSeed {
     revisionNotes,
     standupEntries,
     standupTeamSummaries,
+    objectives,
+    keyResults,
   };
 }

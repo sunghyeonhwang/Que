@@ -1,4 +1,5 @@
 import { format } from "date-fns";
+import { Target } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -19,6 +20,8 @@ export interface BoardMember {
   blockedTitles: string[];
   /** 파생 4분면 개수(본인=live myStandup, 타인=제출 시점 snapshot). 미제출 타인은 없음. */
   counts?: { done: number; carried: number; today: number };
+  /** 이번 달 활성 KR 진척 칩(최대 2개). 없으면 빈 배열 — 미표시. */
+  krChips: { title: string; progress: number }[];
 }
 
 type DerivedCounts = NonNullable<BoardMember["counts"]>;
@@ -29,6 +32,25 @@ function DerivedChips({ counts }: { counts: DerivedCounts }) {
       <span className="rounded-md bg-muted px-2 py-0.5">어제 완료 {counts.done}</span>
       <span className="rounded-md bg-muted px-2 py-0.5">이월 {counts.carried}</span>
       <span className="rounded-md bg-muted px-2 py-0.5">오늘 {counts.today}</span>
+    </div>
+  );
+}
+
+/** 이번 달 활성 KR 진척 칩(기획 §7 Phase 4). 목표 진척 축 — 상태색과 분리한 중립 틴트. */
+function KrChips({ chips }: { chips: BoardMember["krChips"] }) {
+  if (chips.length === 0) return null;
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {chips.map((kr) => (
+        <span
+          key={kr.title}
+          className="inline-flex items-center gap-1 rounded-md border border-border bg-muted/40 px-2 py-0.5 text-xs text-muted-foreground"
+        >
+          <Target className="size-3 shrink-0" aria-hidden />
+          <span className="max-w-[140px] truncate">{kr.title}</span>
+          <span className="font-medium tabular-nums text-foreground">{kr.progress}%</span>
+        </span>
+      ))}
     </div>
   );
 }
@@ -57,6 +79,7 @@ function MemberCard({ member }: { member: BoardMember }) {
         <CardContent className="flex flex-col gap-3">
           <p className="text-sm text-muted-foreground">아직 제출 전</p>
           {member.counts && <DerivedChips counts={member.counts} />}
+          <KrChips chips={member.krChips} />
         </CardContent>
       </Card>
     );
@@ -95,6 +118,7 @@ function MemberCard({ member }: { member: BoardMember }) {
           </div>
         )}
         {member.counts && <DerivedChips counts={member.counts} />}
+        <KrChips chips={member.krChips} />
       </CardContent>
     </Card>
   );

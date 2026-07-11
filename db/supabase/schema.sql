@@ -61,6 +61,38 @@ create table if not exists milestones (
   last_changed_at timestamptz
 );
 
+-- OKR — 분기 목표(기획 §2). tasks보다 먼저 정의(tasks.key_result_id → key_results FK 참조).
+create table if not exists objectives (
+  id          text primary key,
+  title       text not null check (char_length(title) <= 200),
+  description text check (char_length(description) <= 2000),
+  period      text not null,                       -- 예: 2026-Q3 (형식은 앱 검증)
+  owner_id    text not null references users(id),
+  status      text not null default 'active'
+                check (status in ('draft', 'active', 'done', 'cancelled')),
+  "order"     integer not null default 0,
+  created_at  timestamptz not null default now()
+);
+create index if not exists idx_objectives_period on objectives (period);
+
+-- OKR — 월 핵심결과(개인 담당, 기획 §2). manual targetValue 필수·형식은 앱 검증.
+create table if not exists key_results (
+  id            text primary key,
+  objective_id  text not null references objectives(id),
+  title         text not null check (char_length(title) <= 200),
+  owner_id      text not null references users(id),
+  month         text not null,                     -- 예: 2026-07 (형식은 앱 검증)
+  metric_type   text not null check (metric_type in ('manual', 'task_auto')),
+  target_value  numeric,
+  current_value numeric,
+  unit          text check (char_length(unit) <= 20),
+  status        text not null default 'active'
+                  check (status in ('active', 'done', 'cancelled')),
+  updated_at    timestamptz not null,
+  updated_by    text not null references users(id)
+);
+create index if not exists idx_key_results_objective on key_results (objective_id);
+
 create table if not exists tasks (
   id                  text primary key,
   title               text not null check (char_length(title) <= 200),
@@ -80,10 +112,12 @@ create table if not exists tasks (
   merged_into_task_id text,
   predecessor_ids     text[],
   recurring_template_id text,
+  key_result_id       text references key_results(id),  -- 연결 KR(단일, optional, 기획 §2)
   last_changed_by     text references users(id),
   last_changed_at     timestamptz,
   created_at          timestamptz not null default now()
 );
+create index if not exists idx_tasks_key_result on tasks (key_result_id);
 
 create table if not exists calendar_events (
   id                   text primary key,
@@ -178,7 +212,7 @@ create table if not exists status_logs (
 create table if not exists change_logs (
   id           text primary key,
   entity_type  text not null check (entity_type in
-    ('task','calendar_event','milestone','action_item','payment_request','payment_category','meeting_note','recurring_template','project','client','user')),
+    ('task','calendar_event','milestone','action_item','payment_request','payment_category','meeting_note','recurring_template','project','client','user','objective','key_result')),
   entity_id    text not null,
   actor_id     text not null references users(id),
   change_type  text not null check (change_type in ('create','update','move','status_change','delete')),

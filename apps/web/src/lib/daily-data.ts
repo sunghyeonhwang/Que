@@ -1,5 +1,7 @@
 import type { StandupEntry, StandupTeamSummary, User } from "@que/core";
+import { keyResultProgress } from "@que/core";
 import { getDb } from "./db";
+import { currentMonthKey } from "./okr-data";
 import { getStandupData, type StandupRow } from "./team-data";
 
 // 데일리 스탠드업 "오늘 보드"용 데이터 조합(기획 §4). 전사 리듬이라 클라이언트 필터와 무관하게
@@ -14,11 +16,20 @@ export function kstDateKey(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
+/** 스탠드업 카드 하단 KR 진척 칩(기획 §7 Phase 4). */
+export interface DailyKrChip {
+  title: string;
+  /** 진척률 0~100(keyResultProgress 하이브리드 계산기). */
+  progress: number;
+}
+
 export interface DailyMemberEntry {
   user: User;
   /** 오늘 제출한 체크인(없으면 미제출). */
   entry?: StandupEntry;
   submitted: boolean;
+  /** 이 사람의 이번 달 활성 KR 진척 칩(최대 2개). KR 없으면 빈 배열. */
+  krChips: DailyKrChip[];
 }
 
 export interface DailyData {
@@ -47,11 +58,27 @@ export async function getDailyData(user: User, now: Date = new Date()): Promise<
   const standupRows = await getStandupData(now);
   const rowByUser = new Map(standupRows.map((r) => [r.user.id, r]));
 
+  // 이번 달 활성 KR을 owner별로 묶어(최대 2개) 카드 하단 진척 칩으로 내려보낸다(기획 §7 Phase 4).
+  // 진척은 저장하지 않고 keyResultProgress 단일 계산기로 파생한다(OKR 탭과 동일).
+  const month = currentMonthKey(now);
+  const krByOwner = new Map<string, DailyKrChip[]>();
+  for (const kr of db.keyResults) {
+    if (kr.month !== month || kr.status !== "active") continue;
+    const list = krByOwner.get(kr.ownerId) ?? [];
+    list.push({ title: kr.title, progress: keyResultProgress(kr, db.tasks) });
+    krByOwner.set(kr.ownerId, list);
+  }
+
   const members: DailyMemberEntry[] = db.users
     .filter((u) => u.active !== false)
     .map((u) => {
       const entry = entryByUser.get(u.id);
-      return { user: u, entry, submitted: Boolean(entry) };
+      return {
+        user: u,
+        entry,
+        submitted: Boolean(entry),
+        krChips: (krByOwner.get(u.id) ?? []).slice(0, 2),
+      };
     });
 
   return {

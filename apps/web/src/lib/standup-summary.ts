@@ -1,8 +1,14 @@
 import "server-only";
 
-import { latestStatusLog, type MockQueDb, type StandupTeamSummary } from "@que/core";
+import {
+  keyResultProgress,
+  latestStatusLog,
+  type MockQueDb,
+  type StandupTeamSummary,
+} from "@que/core";
 import { getStandupData } from "./team-data";
 import { kstDateKey } from "./daily-data";
+import { currentMonthKey } from "./okr-data";
 import { generateAnalysis } from "./ai/gemini";
 
 // 데일리 스탠드업 AI 팀 요약(기획 §3②) — pro 우선, 실패 시 flash 폴백. server-only.
@@ -23,6 +29,7 @@ const SUMMARY_SYSTEM = [
   "  [어제→오늘 흐름] 이월이 몰린 곳·모멘텀(잘 나가는 흐름)을 2~3문장으로.",
   "  [추천 액션] 오늘 팀이 할 구체적 행동 2~3개를 번호로. 각 1문장, 실행 가능하게.",
   "- 전체 12줄 이내. 미제출자 수가 주어지면 [어제→오늘 흐름] 끝에 'n인 미제출'을 덧붙인다.",
+  "- '이번 달 KR' 목록이 주어지면, 오늘 체크인이 어느 KR 진척에 기여하는지 보일 때만 [어제→오늘 흐름]에서 짧게 언급한다(근거 없으면 생략).",
 ].join("\n");
 
 /** AI 팀 요약을 위한 1인 데이터 묶음(제출자만). */
@@ -84,10 +91,22 @@ export async function generateTeamSummary(
   const activeUsers = db.users.filter((u) => u.active !== false);
   const missing = activeUsers.filter((u) => !submittedSet.has(u.id));
 
+  // 이번 달 활성 KR(최대 5) — 체크인이 어느 목표에 기여하는지 흐름 섹션에서 언급하도록 문맥만 준다(기획 §7 Phase 4).
+  const month = currentMonthKey(now);
+  const activeKrs = db.keyResults
+    .filter((k) => k.month === month && k.status === "active")
+    .slice(0, 5)
+    .map((k) => ({
+      제목: k.title,
+      owner: nameById.get(k.ownerId) ?? k.ownerId,
+      진척: keyResultProgress(k, db.tasks),
+    }));
+
   const payload = {
     날짜: date,
     "제출 인원": `${members.length}/${activeUsers.length}`,
     미제출자: missing.map((u) => u.name),
+    "이번 달 KR": activeKrs,
     제출: members,
   };
   const userContent = JSON.stringify(payload, null, 1);

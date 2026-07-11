@@ -1,6 +1,7 @@
 import Link from "next/link";
 import {
   AlertTriangle,
+  CalendarCheck,
   CalendarClock,
   CalendarX,
   CircleCheck,
@@ -40,6 +41,7 @@ const KIND_ICON: Record<string, LucideIcon> = {
   conflict: CalendarX,
   awaiting_checkin: MessageCircle,
   checkin: MessageCircle,
+  standup: CalendarCheck,
 };
 
 /** 우선 확인 행(사원 AlertItem·관리자/대표 PriorityItem 공통 최소 형태). */

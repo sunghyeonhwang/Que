@@ -58,6 +58,10 @@ export const TABLE_INSERT_ORDER = [
   "clients",
   "projects",
   "milestones",
+  // OKR은 tasks보다 먼저 삽입한다 — tasks.key_result_id가 key_results를 FK로 참조하므로.
+  // (objectives → key_results 순서: key_results.objective_id FK.)
+  "objectives",
+  "key_results",
   "tasks",
   "calendar_events",
   "meeting_notes",
@@ -80,6 +84,8 @@ export const SEED_KEY_TO_TABLE: Record<string, string> = {
   clients: "clients",
   projects: "projects",
   milestones: "milestones",
+  objectives: "objectives",
+  keyResults: "key_results",
   tasks: "tasks",
   calendarEvents: "calendar_events",
   meetingNotes: "meeting_notes",

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { ExternalLink } from "lucide-react";
 import { MENU_SECTIONS, OPEN_TODO_APP_EVENT } from "@/lib/menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
@@ -28,8 +29,11 @@ export function SidebarRail({
             {items.map((item) => {
               // `#` 항목은 라우트가 아니라 모달 액션 — 링크 대신 버튼으로 렌더한다.
               const isAction = item.href.startsWith("#");
+              // 외부 링크 — 새 탭 <a>, active 없음, 아이콘에 포인트 컬러 틴트.
+              const isExternal = item.external ?? item.href.startsWith("http");
               const matchPaths = item.match ?? [item.href];
-              const active = !isAction && matchPaths.some((path) => pathname.startsWith(path));
+              const active =
+                !isAction && !isExternal && matchPaths.some((path) => pathname.startsWith(path));
               const Icon = item.icon;
               const badgeCount = badges?.[item.href] ?? item.badge ?? 0;
               const triggerClass = cn(
@@ -39,8 +43,11 @@ export function SidebarRail({
                   ? "bg-[var(--que-brand-subtle)] text-[var(--que-brand)]"
                   : "text-[var(--que-text-secondary)] hover:bg-[var(--que-bg-muted)] hover:text-[var(--que-text)]",
               );
-              const ariaLabel =
-                badgeCount > 0 ? `${item.label} (${badgeCount}건)` : item.label;
+              const ariaLabel = isExternal
+                ? `${item.label} (새 탭에서 열림)`
+                : badgeCount > 0
+                  ? `${item.label} (${badgeCount}건)`
+                  : item.label;
               return (
                 <Tooltip key={item.href}>
                   <TooltipTrigger
@@ -52,6 +59,14 @@ export function SidebarRail({
                           onClick={() => window.dispatchEvent(new Event(OPEN_TODO_APP_EVENT))}
                           className={cn(triggerClass, "cursor-pointer")}
                         />
+                      ) : isExternal ? (
+                        <a
+                          href={item.href}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          aria-label={ariaLabel}
+                          className={triggerClass}
+                        />
                       ) : (
                         <Link
                           href={item.href}
@@ -62,7 +77,19 @@ export function SidebarRail({
                       )
                     }
                   >
-                    <Icon className="size-[18px] shrink-0" aria-hidden />
+                    <Icon
+                      className="size-[18px] shrink-0"
+                      style={isExternal && item.accentColor ? { color: item.accentColor } : undefined}
+                      aria-hidden
+                    />
+                    {isExternal ? (
+                      <span
+                        className="absolute -bottom-0.5 -right-0.5 flex size-3 items-center justify-center rounded-full bg-[var(--que-bg)] text-[var(--que-text-tertiary)]"
+                        aria-hidden
+                      >
+                        <ExternalLink className="size-2.5" />
+                      </span>
+                    ) : null}
                     {badgeCount > 0 ? (
                       <span
                         className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--que-error)] px-1 text-[10px] font-semibold text-white"

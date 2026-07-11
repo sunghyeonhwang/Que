@@ -4,6 +4,7 @@ import { ko } from "date-fns/locale";
 import { Presentation } from "lucide-react";
 import { canManageMilestone } from "@que/core";
 import { PageHeader } from "@/components/app/page-header";
+import { LinkTabs } from "@/components/app/link-tabs";
 import { StandupForm, type BlockerCandidate } from "@/components/daily/standup-form";
 import { StandupBoard, type BoardMember } from "@/components/daily/standup-board";
 import { TeamSummaryPanel } from "@/components/daily/team-summary-panel";
@@ -11,18 +12,57 @@ import {
   CrisisDecisionCards,
   type CrisisCard,
 } from "@/components/daily/crisis-decision-cards";
+import { OkrBoard } from "@/components/okr/okr-board";
 import { detectCrisisTriggers } from "@/lib/notifications/crisis";
 import { getCurrentUser } from "@/lib/current-user";
 import { getDailyData } from "@/lib/daily-data";
+import { getOkrData } from "@/lib/okr-data";
 import { getDb } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
-// 데일리 스탠드업 "오늘 보드"(기획 §4). 전사 리듬이라 클라이언트 필터와 무관하게 전원을 본다.
-// 위→아래: ⑴ 내 체크인 폼 ⑵ 전원 카드 그리드(N/8 제출). AI 팀 요약(⑶)은 Phase 2.
-export default async function DailyPage() {
+const DAILY_TABS = [
+  { key: "today", label: "오늘", href: "/daily" },
+  { key: "okr", label: "OKR", href: "/daily?tab=okr" },
+];
+
+// 데일리(기획 §4) — URL 탭(오늘 보드 | OKR). 전사 리듬이라 클라이언트 필터와 무관하게 전원을 본다.
+// 오늘 보드: ⑴ 내 체크인 폼 ⑵ 전원 카드 그리드 ⑶ AI 팀 요약. OKR: 분기 목표+월 핵심결과 트리.
+export default async function DailyPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string; period?: string }>;
+}) {
+  const { tab, period } = await searchParams;
   const user = await getCurrentUser();
   const now = new Date();
+
+  // OKR 탭 — 오늘 보드 데이터는 건너뛰고 OKR 트리만 조회한다.
+  if (tab === "okr") {
+    const [okr, db] = await Promise.all([getOkrData(user, { period }), getDb()]);
+    const members = db.users
+      .filter((u) => u.active !== false)
+      .map((u) => ({ id: u.id, name: u.name, avatarColor: u.avatarColor }));
+
+    return (
+      <div className="flex flex-col gap-4">
+        <PageHeader
+          title="데일리"
+          subtitle="분기 목표(Objective)와 월 핵심결과(KR)로 오늘 하는 일이 어떤 목표에 기여하는지 봅니다."
+        />
+        <LinkTabs label="데일리 보기 전환" active="okr" tabs={DAILY_TABS} />
+        <OkrBoard
+          period={okr.period}
+          periods={okr.periods}
+          objectives={okr.objectives}
+          canManageObjectives={okr.canManageObjectives}
+          members={members}
+          currentMonth={okr.month}
+        />
+      </div>
+    );
+  }
+
   const [data, db] = await Promise.all([getDailyData(user, now), getDb()]);
 
   // 긴급 결정 대기(기획 §1-e) — 판정은 서버 detectCrisisTriggers 재사용(이중 로직 금지).
@@ -97,6 +137,7 @@ export default async function DailyPage() {
         .map((id) => titleById.get(id))
         .filter((t): t is string => Boolean(t)),
       counts,
+      krChips: m.krChips,
     };
   });
 
@@ -115,6 +156,8 @@ export default async function DailyPage() {
           </Link>
         }
       />
+
+      <LinkTabs label="데일리 보기 전환" active="today" tabs={DAILY_TABS} />
 
       {/* 긴급 결정 대기 — 트리거가 있을 때만 상단 red 섹션 */}
       <CrisisDecisionCards cards={crisisCards} />

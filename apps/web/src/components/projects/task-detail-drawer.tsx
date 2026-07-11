@@ -9,6 +9,7 @@ import {
   Circle,
   Flag,
   MoreHorizontal,
+  Target,
   Trash2,
   User,
   X,
@@ -30,6 +31,7 @@ import {
   setTaskPredecessorsAction,
   updateTaskDetailsAction,
 } from "@/app/(app)/projects/pm-actions";
+import { linkTaskToKeyResultAction } from "@/app/(app)/daily/okr-actions";
 import { useSafeAction } from "@/components/app/use-safe-action";
 import { useOptimisticAction } from "@/components/app/use-optimistic-action";
 import { Sheet, SheetClose, SheetContent, SheetTitle } from "@/components/ui/sheet";
@@ -76,6 +78,9 @@ const PRIORITY_ITEMS: Record<TaskPriority, string> = {
   normal: "보통",
   low: "낮음",
 };
+
+/** KR 연결 Select의 '연결 안 함'(해제) 센티널 값. 빈 문자열은 placeholder와 충돌해 별도 값을 쓴다. */
+const KR_NONE = "__none__";
 
 /**
  * 태스크 상세/편집 드로어 — 열림 상태는 URL(`?task=<id>`)로 관리한다.
@@ -197,6 +202,18 @@ function DrawerBody({
     const name = meta.members.find((m) => m.id === assigneeId)?.name ?? "담당자";
     run(() => reassignTaskAction({ taskId: detail.taskId, assigneeId }), {
       success: `담당자를 ${name}(으)로 변경했습니다`,
+    });
+  }
+
+  // 핵심결과(KR) 연결/해제(기획 §4) — 본인 작업 편집 지점 1곳. 즉시 커밋(담당자 변경과 동일 패턴).
+  function linkKeyResult(value: string) {
+    const keyResultId = value === KR_NONE ? null : value;
+    if ((detail.keyResultId ?? null) === keyResultId) return;
+    const label = keyResultId
+      ? (detail.keyResultOptions.find((o) => o.id === keyResultId)?.title ?? "핵심결과")
+      : null;
+    run(() => linkTaskToKeyResultAction({ taskId: detail.taskId, keyResultId }), {
+      success: label ? `핵심결과 "${label}"에 연결했습니다` : "핵심결과 연결을 해제했습니다",
     });
   }
 
@@ -417,6 +434,55 @@ function DrawerBody({
               </span>
             )}
           </FieldRow>
+
+          {/* 핵심결과(KR) 연결(기획 §4) — 본인 작업 편집 지점 1곳. 내 월 KR이 위로 정렬(서버).
+              연결/해제는 즉시 커밋. 후보가 없고 미연결이면 숨긴다(빈 Select 방지). */}
+          {(detail.keyResultId || (canEdit && detail.keyResultOptions.length > 0)) && (
+            <FieldRow icon={<Target className="size-4" aria-hidden />} label="핵심결과">
+              {canEdit && detail.keyResultOptions.length > 0 ? (
+                <Select
+                  items={{
+                    [KR_NONE]: "연결 안 함",
+                    ...Object.fromEntries(detail.keyResultOptions.map((o) => [o.id, o.title])),
+                  }}
+                  value={detail.keyResultId ?? KR_NONE}
+                  onValueChange={(v) => v && linkKeyResult(v)}
+                >
+                  <SelectTrigger
+                    aria-label="핵심결과(KR) 연결"
+                    className="h-10 min-h-10 w-full border-[var(--que-border)]"
+                  >
+                    <SelectValue placeholder="핵심결과 선택" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={KR_NONE}>연결 안 함</SelectItem>
+                    {detail.keyResultOptions.map((o) => (
+                      <SelectItem key={o.id} value={o.id}>
+                        <span className="flex min-w-0 flex-col">
+                          <span className="flex items-center gap-1.5 truncate">
+                            {o.title}
+                            {o.isMine ? (
+                              <span className="shrink-0 rounded bg-[var(--que-brand-subtle)] px-1 text-[10px] font-medium text-[var(--que-brand)]">
+                                내 KR
+                              </span>
+                            ) : null}
+                          </span>
+                          <span className="truncate text-[11px] text-[var(--que-text-tertiary)]">
+                            {o.objectiveTitle} · {o.month}
+                          </span>
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <span className="text-sm text-[var(--que-text)]">
+                  {detail.keyResultOptions.find((o) => o.id === detail.keyResultId)?.title ??
+                    "연결됨"}
+                </span>
+              )}
+            </FieldRow>
+          )}
 
           {/* 선행 작업(E-9) — "앞의 일이 끝나야 시작". 후보는 같은 프로젝트·순환 불가 항목만
               서버가 걸러 내려준다(predecessorOptions). 토글 즉시 커밋(담당자 변경과 동일 패턴). */}

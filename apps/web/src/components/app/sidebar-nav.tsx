@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, ExternalLink } from "lucide-react";
 import { MENU_SECTIONS, OPEN_TODO_APP_EVENT } from "@/lib/menu";
 import { cn } from "@/lib/utils";
 
@@ -60,9 +60,11 @@ export function SidebarNav({
             {items.map((item) => {
               // `#`으로 시작하는 항목은 라우트가 아니라 모달 액션 — 링크 대신 버튼으로 렌더한다.
               const isAction = item.href.startsWith("#");
+              // 외부 링크(다른 도메인 전용 화면) — 새 탭 <a>로 렌더, active 하이라이트 없음.
+              const isExternal = item.external ?? item.href.startsWith("http");
               const matchPaths = item.match ?? [item.href];
               const active =
-                !isAction && matchPaths.some((path) => pathname.startsWith(path));
+                !isAction && !isExternal && matchPaths.some((path) => pathname.startsWith(path));
               const Icon = item.icon;
               const badgeCount = badges?.[item.href] ?? item.badge ?? 0;
 
@@ -107,6 +109,31 @@ export function SidebarNav({
                   >
                     {inner}
                   </button>
+                );
+              }
+
+              if (isExternal) {
+                // 외부 링크: 새 탭, 포인트 컬러는 아이콘 틴트만(배경·뱃지 금지). 우측에 ExternalLink 표시.
+                return (
+                  <a
+                    key={item.href}
+                    href={item.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={onNavigate}
+                    className={itemClass}
+                  >
+                    <Icon
+                      className="size-[18px] shrink-0"
+                      style={item.accentColor ? { color: item.accentColor } : undefined}
+                      aria-hidden
+                    />
+                    <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                    <ExternalLink
+                      className="size-3.5 shrink-0 text-[var(--que-text-tertiary)]"
+                      aria-label="새 탭에서 열림"
+                    />
+                  </a>
                 );
               }
 
