@@ -156,6 +156,68 @@ Griff OS
 
 ---
 
+## 1차 통합 선별 (2026-07-11 — "Que에 먼저 합쳐질 기능"부터)
+
+선별 기준: ①기존 자산 재사용도(구현 비용) ②베타 운영 즉시 가치 ③원칙 충돌 없음 ④의존 관계.
+
+| 순위 | 기능 | 선별 근거 |
+|---|---|---|
+| **1** | **OS-1 상태형 KR** | 기존 OKR에 measureType 하나 추가(비용 소). **베타에서 실제 KR 입력이 시작되기 전에 있어야** 에이전시식 KR("일정 내 납품")을 처음부터 올바르게 쓴다 |
+| **2** | **OS-2a 실패 분류** | 마일스톤 종결 확인 카드+주간 회의 집계(비용 소). 회고 데이터가 빨리 쌓일수록 Knowledge(OS-6)가 빨라진다 |
+| **3** | **OS-2b 외부 변경 접수** | 클라이언트 변경은 매주 일어나는 일 — crisis 인프라 재사용(비용 중). 24h SLA 확정됨 |
+| 4 | OS-3 Role & Arena | jobRole 배정표 대기 중 + 배치 뷰(OS-4) 전까지 표시 위주라 가치 후행 |
+| 5 | OS-5 손익(대표 전용) | 대표 1인 가치 — 급하지 않음 |
+| 후순위 | OS-4·OS-6·Product | 의존(OS-3)·데이터 축적·제품 성숙 대기 |
+
+**→ 1차 통합 묶음 = OS-1 + OS-2a + OS-2b ("에이전시 OKR 3종 세트")** — 아래 부록에 구현 가능 수준으로 상세 기획.
+
+---
+
+## 부록 A. OS-1 상태형 KR — 상세 기획
+
+**데이터 모델** (기존 key_results 확장):
+- `metricType`에 `"state"` 추가.
+- `stateChecks: { id, label, done, requiresAdminConfirm, confirmedBy?, doneAt? }[]` (1~7개, jsonb) — state일 때 필수(1개 이상).
+- 진척: `keyResultProgress`에 분기 추가 — `done 체크 수 / 전체 체크 수`(소비처 무변경 — 단일 계산기 원칙).
+
+**화면**:
+- KR 생성 Dialog: 측정 방식에 "상태 체크" 추가 → 선택 시 체크 항목 동적 리스트(추가/삭제, 항목별 "관리자 확인 필요" 토글).
+- KR 행 확장: 체크리스트 렌더 — 일반 항목은 KR 소유자·admin이 토글, `requiresAdminConfirm` 항목은 **admin만** 토글 가능(잠금 아이콘+뱃지 "관리자 확인"). 체크 시 doneAt·confirmedBy 기록.
+- 진척 바·뱃지("상태")는 기존 KR 행 UI 그대로.
+
+**규칙·감사**: 체크 토글은 ChangeLog(key_result update, afterValue에 "체크: <label> 완료") — 목표 데이터 감사 원칙. Task ≠ KR — 체크 항목에서 Task 자동 생성하지 않는다.
+
+**DB**: `alter table key_results add column state_checks jsonb` + metric_type 체크에 'state' 추가. additive.
+
+## 부록 B. OS-2a 실패 분류 — 상세 기획
+
+**데이터 모델** (신규 `milestone_retros`):
+- `id · milestoneId · cause(internal|external) · causeDetail(schedule_mgmt|qa_lack|communication|approval_missed|client_direction|budget_change|schedule_change|event_cancelled|other) · note(한 줄) · managed(boolean — 대응 프로세스를 탔는가) · createdBy/createdAt`.
+
+**입력 지점**:
+- 마일스톤이 **기한 초과 상태로 완료/취소**되거나 riskStatus late로 종결될 때 → 확인 카드(1분: 원인 2택 → 세부 유형 → 한 줄) — /planning·간트·긴급 결정 종결 흐름에서 공통 호출.
+- 수동 추가: /planning 마일스톤 행에 "회고 남기기".
+
+**집계·노출**:
+- 주간 통합 회의 섹션 ⑴에 "지난주 실패 분류: 내부 N · 외부 N(관리됨 M)".
+- 분기 회고(성과 화면 또는 리포트)에 **내부 실패 비율** 추이 — 팀이 실제로 개선 가능한 지표.
+- **원칙**: 회고는 프로젝트·마일스톤 단위다 — 카드에 담당자 이름을 강조하지 않는다(감시 아님).
+
+## 부록 C. OS-2b 외부 변경 접수 — 상세 기획
+
+**데이터 모델** (신규 `change_requests`):
+- `id · projectId · milestoneId? · title · description? · stage(received|impact_analyzed|renegotiated|approved|closed) · receivedAt · impactDeadline(접수+24h) · stageLog: { stage, at, by }[] · closedAt?`.
+
+**흐름** (확정 SLA 24h):
+1. **접수**: PM이 /daily 버튼 또는 회의 LLM 콘솔("○○ 클라이언트가 일정 변경 요청")로 접수 → 카드 생성, 담당 PM·관련자 DM(crisis 인프라 — kind `change_request`).
+2. **영향 분석(24h)**: 마감까지 미완이면 12h 재촉 → 24h admin·대표 에스컬레이션(crisis 재촉·에스컬레이션 경로 재사용, 시간만 12/24h).
+3. **재협의 → 승인(admin)**: 단계 완료를 순서대로 체크(stageLog 기록). 일정 변경이 수반되면 마일스톤 드래그/연기(기존)와 연결.
+4. **종결**: 자동으로 milestone_retros(external·managed=**true**) 생성 — "대응을 탔다"는 사실이 기록된다.
+
+**화면**: /daily 상단(긴급 결정 카드 형제)에 "진행 중 변경 대응" 카드 — 단계 프로그레스(접수→분석→재협의→승인)·마감 카운트다운. 주간 회의 섹션 ⑷(결정 필요)에 미결 변경 목록.
+
+---
+
 ## 운영 정책 확정 (2026-07-11 사용자 답변 — ② 제외 전부 확정)
 
 1. ✅ **상태형 KR 승인 주체**: 항목별 `requiresAdminConfirm` 선택 플래그 — 평소 셀프 체크, 중요 항목(클라이언트 최종 승인 등)만 admin 이중 확인.
