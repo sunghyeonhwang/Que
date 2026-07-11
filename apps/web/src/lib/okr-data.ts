@@ -32,6 +32,11 @@ export interface OkrKeyResultView {
   ownerName: string;
   /** 진척 입력 가능(KR 소유자 본인 또는 admin) — manual KR에서만 의미. */
   canEditProgress: boolean;
+  /** 상태 체크 토글 가능(KR 소유자 본인 또는 admin) — state KR에서만 의미.
+   *  단 requiresAdminConfirm 항목은 admin만(core가 최종 강제, UI는 잠금 표시용으로 isAdmin도 내림). */
+  canToggleChecks: boolean;
+  /** 뷰어가 admin인지 — requiresAdminConfirm 항목의 잠금 UI 판정용(실제 강제는 core). */
+  isAdmin: boolean;
 }
 
 export interface OkrObjectiveView {
@@ -95,6 +100,8 @@ export async function getOkrData(
             doneTaskCount,
             ownerName: nameOf(kr.ownerId),
             canEditProgress: kr.metricType === "manual" && (isAdmin || kr.ownerId === user.id),
+            canToggleChecks: kr.metricType === "state" && (isAdmin || kr.ownerId === user.id),
+            isAdmin,
           };
         });
       return { objective, ownerName: nameOf(objective.ownerId), keyResults, canManage };

@@ -2,11 +2,13 @@ import type {
   ActionItem,
   CalendarEvent,
   ChangeLog,
+  ChangeRequest,
   CheckIn,
   Client,
   KeyResult,
   MeetingNote,
   Milestone,
+  MilestoneRetro,
   Objective,
   PaymentCategory,
   PaymentRequest,
@@ -44,6 +46,8 @@ export interface QueSeed {
   standupTeamSummaries: StandupTeamSummary[];
   objectives: Objective[];
   keyResults: KeyResult[];
+  milestoneRetros: MilestoneRetro[];
+  changeRequests: ChangeRequest[];
 }
 
 export function createSeed(now: Date): QueSeed {
@@ -850,6 +854,49 @@ export function createSeed(now: Date): QueSeed {
     }
   }
 
+  // ── OS-2a 실패 분류 회고(부록 B) ── 지난주 집계가 빈 표가 아니게 최근 며칠분을 둔다.
+  // 회고는 프로젝트·마일스톤 단위 — 담당자 강조 없음. managed=대응 프로세스를 탔는가.
+  const milestoneRetros: MilestoneRetro[] = [
+    {
+      id: "retro-payment-qa",
+      milestoneId: "ms-payment-qa",
+      cause: "internal",
+      causeDetail: "qa_lack",
+      note: "QA 케이스 커버리지가 부족해 마감이 밀렸다",
+      managed: false,
+      createdBy: oh.id,
+      createdAt: at(-3, 18),
+    },
+    {
+      id: "retro-cs-faq",
+      milestoneId: "ms-cs-faq",
+      cause: "external",
+      causeDetail: "client_direction",
+      note: "클라이언트 방향 전환으로 FAQ 범위가 바뀌었다 — 대응 프로세스 진행",
+      managed: true,
+      createdBy: hwang.id,
+      createdAt: at(-2, 14),
+    },
+  ];
+
+  // ── OS-2b 외부 변경 접수(부록 C) ── 진행 중 1건(영향 분석 단계). SLA 24h 카운트다운 데모.
+  const changeRequests: ChangeRequest[] = [
+    {
+      id: "chgreq-summer-scope",
+      projectId: "prj-summer",
+      milestoneId: "ms-summer-open",
+      title: "멘딕스 프로모션 오픈일 1주 앞당김 요청",
+      description: "클라이언트가 오픈 일정을 앞당겨 달라고 요청 — 영향 분석 중",
+      stage: "impact_analyzed",
+      receivedAt: at(0, 9),
+      impactDeadline: at(1, 9),
+      stageLog: [
+        { stage: "received", at: at(0, 9), by: hwang.id },
+        { stage: "impact_analyzed", at: at(0, 11), by: hwang.id },
+      ],
+    },
+  ];
+
   return {
     clients,
     projects,
@@ -870,5 +917,7 @@ export function createSeed(now: Date): QueSeed {
     standupTeamSummaries,
     objectives,
     keyResults,
+    milestoneRetros,
+    changeRequests,
   };
 }

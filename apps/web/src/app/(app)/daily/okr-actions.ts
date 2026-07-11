@@ -6,6 +6,7 @@ import type {
   KeyResultMetricType,
   KeyResultStatus,
   ObjectiveStatus,
+  StateCheckInput,
 } from "@que/core";
 import { getDb } from "@/lib/db";
 import { getCurrentUser } from "@/lib/current-user";
@@ -73,6 +74,7 @@ export async function createKeyResultAction(input: {
   targetValue?: number;
   currentValue?: number;
   unit?: string;
+  stateChecks?: StateCheckInput[];
   status?: KeyResultStatus;
 }): Promise<ActionResult> {
   const user = await getCurrentUser();
@@ -93,6 +95,7 @@ export async function updateKeyResultAction(input: {
   metricType?: KeyResultMetricType;
   targetValue?: number | null;
   unit?: string | null;
+  stateChecks?: StateCheckInput[];
   status?: KeyResultStatus;
   ownerId?: string;
 }): Promise<ActionResult> {
@@ -121,6 +124,25 @@ export async function updateKeyResultProgressAction(input: {
   }
   return toResult((d) =>
     d.updateKeyResultProgress({ actorId: user.id, via: "web" }, input),
+  );
+}
+
+/** 상태형 KR(OS-1) 체크 항목 토글 — KR 소유자 본인 또는 admin. requiresAdminConfirm 항목은
+ *  admin만(core가 최종 강제). done/해제 시 doneAt·confirmedBy 기록·정리. */
+export async function toggleKeyResultCheckAction(input: {
+  keyResultId: string;
+  checkId: string;
+  done: boolean;
+}): Promise<ActionResult> {
+  const user = await getCurrentUser();
+  const db = await getDb();
+  const kr = db.keyResults.find((k) => k.id === input.keyResultId);
+  if (!kr) return { ok: false, error: "핵심결과를 찾을 수 없습니다." };
+  if (user.role !== "admin" && kr.ownerId !== user.id) {
+    return { ok: false, error: "상태 체크는 소유자 본인 또는 관리자만 토글할 수 있습니다." };
+  }
+  return toResult((d) =>
+    d.toggleKeyResultCheck({ actorId: user.id, via: "web" }, input),
   );
 }
 

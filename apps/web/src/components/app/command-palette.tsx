@@ -12,17 +12,18 @@ import {
   ClipboardCheck,
   Milestone,
   CornerDownLeft,
+  Sparkles,
   type LucideIcon,
 } from "lucide-react";
 import { searchAction } from "@/app/(app)/search-actions";
 import type { SearchGroup, SearchKind } from "@/lib/search-data";
 import { MENU_SECTIONS } from "@/lib/menu";
+import { CopilotChat } from "@/components/app/copilot-chat";
 import {
   Command,
   CommandDialog,
   CommandInput,
   CommandList,
-  CommandEmpty,
   CommandGroup,
   CommandItem,
 } from "@/components/ui/command";
@@ -52,7 +53,8 @@ const QUICK_ACTIONS: { id: string; label: string; href: string; icon: LucideIcon
  * 전역 ⌘K 커맨드 팔레트.
  * - 입력 비면: '이동'(라우트 빠른 이동) + '빠른 액션'.
  * - 입력 있으면: 서버액션 디바운스 검색 → 그룹 결과(작업/회의록/Action/결제/팀원).
- * ↑↓ 이동·Enter 이동·Esc 닫기는 cmdk가 처리한다.
+ * - 어느 경우든 목록 맨 아래에 항상 `✨ AI에게 묻기`(Que Copilot 진입) — 선택 시 chat 모드로 확장(기획 D-4).
+ * ↑↓ 이동·Enter 이동·Esc 닫기는 cmdk가 처리한다(chat 모드의 Esc는 CopilotChat이 캡처해 검색 복귀).
  */
 export function CommandPalette() {
   const router = useRouter();
@@ -60,6 +62,9 @@ export function CommandPalette() {
   const [query, setQuery] = useState("");
   const [groups, setGroups] = useState<SearchGroup[]>([]);
   const [loading, setLoading] = useState(false);
+  // 팔레트 뷰 모드 — "search"(검색·이동) | "chat"(Que Copilot). seedQuestion은 chat 진입 시 첫 질문.
+  const [mode, setMode] = useState<"search" | "chat">("search");
+  const [seedQuestion, setSeedQuestion] = useState<string>("");
   const reqId = useRef(0);
   const openRef = useRef(false);
 
@@ -76,7 +81,22 @@ export function CommandPalette() {
       setQuery("");
       setGroups([]);
       setLoading(false);
+      // 닫을 때 검색 모드로 리셋(다음에 열면 검색부터 — 채팅 이력은 세션 로컬이라 사라진다).
+      setMode("search");
+      setSeedQuestion("");
     }
+  }, []);
+
+  // AI에게 묻기 진입 — 현재 입력을 seed로 넘기고 chat 모드로 확장.
+  const openChat = useCallback((seed: string) => {
+    setSeedQuestion(seed.trim());
+    setMode("chat");
+  }, []);
+
+  // chat → 검색 복귀(← 검색으로 / Esc). seed는 비워 재진입 시 재전송 방지.
+  const backToSearch = useCallback(() => {
+    setMode("search");
+    setSeedQuestion("");
   }, []);
 
   // 전역 ⌘K / Ctrl+K 로 팔레트 토글. 팔레트가 ⌘K를 소유한다.
@@ -125,6 +145,7 @@ export function CommandPalette() {
   );
 
   const hasQuery = query.trim().length > 0;
+  const isChat = mode === "chat";
 
   return (
     <CommandDialog
@@ -132,8 +153,19 @@ export function CommandPalette() {
       onOpenChange={setPaletteOpen}
       title="커맨드 팔레트"
       description="작업·회의록·Action·결제·팀원을 검색하거나 화면으로 이동합니다."
-      className="border-[var(--que-border)] shadow-[var(--que-shadow-md)]"
+      className={
+        isChat
+          ? "border-[var(--que-border)] shadow-[var(--que-shadow-md)] sm:max-w-2xl"
+          : "border-[var(--que-border)] shadow-[var(--que-shadow-md)]"
+      }
     >
+      {isChat ? (
+        <CopilotChat
+          seedQuestion={seedQuestion}
+          onNavigate={go}
+          onBackToSearch={backToSearch}
+        />
+      ) : (
       <Command shouldFilter={false} className="rounded-none! bg-transparent">
         <CommandInput
           placeholder="검색하거나 이동할 화면을 입력하세요…"
@@ -182,13 +214,14 @@ export function CommandPalette() {
           </>
         )}
 
+        {/* AI 항목이 항상 있어 cmdk의 CommandEmpty(0건일 때만)가 뜨지 않으므로 안내는 일반 텍스트로 렌더. */}
         {hasQuery && loading && groups.length === 0 && (
-          <CommandEmpty className="text-[var(--que-text-tertiary)]">검색 중…</CommandEmpty>
+          <p className="px-2 py-4 text-center text-sm text-[var(--que-text-tertiary)]">검색 중…</p>
         )}
         {hasQuery && !loading && groups.length === 0 && (
-          <CommandEmpty className="text-[var(--que-text-tertiary)]">
+          <p className="px-2 py-4 text-center text-sm text-[var(--que-text-tertiary)]">
             “{query.trim()}” 검색 결과가 없습니다.
-          </CommandEmpty>
+          </p>
         )}
 
         {hasQuery &&
@@ -233,8 +266,35 @@ export function CommandPalette() {
               </CommandGroup>
             );
           })}
+
+        {/* 항상 노출되는 AI 진입(shouldFilter=false라 검색어와 무관하게 맨 아래 고정). 기획 D-4. */}
+        <CommandGroup heading="Que Copilot">
+          <CommandItem
+            value="ai:ask"
+            onSelect={() => openChat(query)}
+            className="min-h-11 gap-2.5"
+          >
+            <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-[var(--que-brand-subtle)] text-[var(--que-brand)]">
+              <Sparkles className="size-4" aria-hidden />
+            </span>
+            <span className="min-w-0 flex-1 truncate text-sm text-[var(--que-text)]">
+              {hasQuery ? (
+                <>
+                  ✨ AI에게 묻기: <span className="font-medium">“{query.trim()}”</span>
+                </>
+              ) : (
+                "✨ AI에게 물어보기"
+              )}
+            </span>
+            <CornerDownLeft
+              className="size-3.5 shrink-0 opacity-0 text-[var(--que-text-tertiary)] group-data-selected/command-item:opacity-100"
+              aria-hidden
+            />
+          </CommandItem>
+        </CommandGroup>
         </CommandList>
       </Command>
+      )}
     </CommandDialog>
   );
 }

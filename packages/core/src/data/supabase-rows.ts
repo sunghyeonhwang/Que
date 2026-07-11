@@ -76,6 +76,9 @@ export const TABLE_INSERT_ORDER = [
   "revision_notes",
   "standup_entries",
   "standup_team_summaries",
+  // OS-2: 회고는 milestones를, 변경 요청은 projects·milestones를 FK로 참조한다(모두 위에서 삽입됨).
+  "milestone_retros",
+  "change_requests",
   "alert_reads",
 ] as const;
 
@@ -100,4 +103,6 @@ export const SEED_KEY_TO_TABLE: Record<string, string> = {
   revisionNotes: "revision_notes",
   standupEntries: "standup_entries",
   standupTeamSummaries: "standup_team_summaries",
+  milestoneRetros: "milestone_retros",
+  changeRequests: "change_requests",
 };

@@ -14,7 +14,7 @@ import {
   scanDeadlines,
 } from "@/lib/notifications/dispatch";
 import { postWeeklyPreview } from "@/lib/notifications/weekly-preview";
-import { scanCrisisTriggers } from "@/lib/notifications/crisis";
+import { scanCrisisTriggers, scanChangeRequestSla } from "@/lib/notifications/crisis";
 
 export const dynamic = "force-dynamic";
 // 팀 요약(§3②)·주간 프리뷰(§1-d)가 pro(gemini)를 호출 — 수십 초 걸릴 수 있어 함수 시간 명시(기본값 의존 금지).
@@ -67,6 +67,8 @@ export async function GET(request: Request) {
         weeklyAgendaPosted: boolean;
         crisisEnqueued: number;
         crisisSent: number;
+        changeSlaEnqueued: number;
+        changeSlaSent: number;
         digestEnqueued: number;
         digestSent: number;
         digestFailed: number;
@@ -86,6 +88,8 @@ export async function GET(request: Request) {
       const weeklyAgendaPosted = await postWeeklyAgenda(db, now);
       // 긴급 결정 감지·발송·에스컬레이션 — 평일 게이트·dedup·하루 3건 상한은 함수 내부. 시각 무관 상시 스캔.
       const crisis = await scanCrisisTriggers(db, now);
+      // 외부 변경 SLA(OS-2b) — 12h 전 재촉·마감 초과 에스컬레이션. 평일 게이트·dedup은 함수 내부.
+      const changeSla = await scanChangeRequestSla(db, now);
       // 주말 게이트(§8-5): KST 토·일이면 스탠드업 리듬(오픈/재촉/요약)·개인 브리핑을 스킵한다.
       // 마감 스캔·드레인·체크인 재촉(진행 중 작업 리듬)은 유지한다.
       const weekend = isKstWeekend(now);
@@ -120,6 +124,8 @@ export async function GET(request: Request) {
         weeklyAgendaPosted,
         crisisEnqueued: crisis.enqueued,
         crisisSent: crisis.sent,
+        changeSlaEnqueued: changeSla.enqueued,
+        changeSlaSent: changeSla.sent,
         digestEnqueued: digest.enqueued,
         digestSent: digest.sent,
         digestFailed: digest.failed,

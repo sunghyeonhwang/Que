@@ -35,6 +35,8 @@ const TABLE_TO_FIELD = {
   revision_notes: "revisionNotes",
   standup_entries: "standupEntries",
   standup_team_summaries: "standupTeamSummaries",
+  milestone_retros: "milestoneRetros",
+  change_requests: "changeRequests",
   alert_reads: "alertReads",
 } as const;
 

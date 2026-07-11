@@ -2,7 +2,13 @@
 
 import { revalidatePath } from "next/cache";
 import { format } from "date-fns";
-import { canManageMilestone, isQueRuleError, type Milestone } from "@que/core";
+import {
+  canManageMilestone,
+  isQueRuleError,
+  type Milestone,
+  type RetroCause,
+  type RetroCauseDetail,
+} from "@que/core";
 import { getDb } from "@/lib/db";
 import { getCurrentUser } from "@/lib/current-user";
 import { webhookEnabled } from "@/lib/notifications/config";
@@ -47,6 +53,21 @@ export async function updateMilestoneAction(input: {
 }): Promise<ActionResult> {
   const user = await getCurrentUser();
   return toResult((db) => db.updateMilestone({ actorId: user.id, via: "web" }, input));
+}
+
+/**
+ * 마일스톤 회고 남기기(OS-2a 실패 분류, 부록 B). 담당·admin만(core canManageMilestone 강제).
+ * 회고=기록 그 자체라 ChangeLog는 남기지 않는다. 확인 카드(원인 2택 → 세부 유형 → 한 줄) 종결 경로.
+ */
+export async function createMilestoneRetroAction(input: {
+  milestoneId: string;
+  cause: RetroCause;
+  causeDetail: RetroCauseDetail;
+  note?: string;
+  managed?: boolean;
+}): Promise<ActionResult> {
+  const user = await getCurrentUser();
+  return toResult((db) => db.createMilestoneRetro({ actorId: user.id, via: "web" }, input));
 }
 
 /**

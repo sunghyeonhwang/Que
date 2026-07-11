@@ -4,8 +4,10 @@ import {
   visibilitySchema,
   type ActionItem,
   type CalendarEvent,
+  type ChangeRequest,
   type KeyResult,
   type MeetingNote,
+  type MilestoneRetro,
   type Project,
   type RecurringTemplate,
   type ScheduleRange,
@@ -329,6 +331,13 @@ export function keyResultProgress(kr: KeyResult, tasks: readonly Task[]): number
     const current = kr.currentValue ?? 0;
     return Math.min(100, Math.round((current / target) * 100));
   }
+  if (kr.metricType === "state") {
+    // state — 상태 체크리스트 done 비율(개수 기준). 항목이 없으면 0.
+    const checks = kr.stateChecks ?? [];
+    if (checks.length === 0) return 0;
+    const done = checks.filter((c) => c.done).length;
+    return Math.round((done / checks.length) * 100);
+  }
   // task_auto — 연결 Task 완료율(개수 기준). 취소·병합은 분모에서 제외.
   const linked = tasks.filter(
     (t) => t.keyResultId === kr.id && !KR_EXCLUDED_TASK_STATUS.has(t.status),
@@ -336,4 +345,55 @@ export function keyResultProgress(kr: KeyResult, tasks: readonly Task[]): number
   if (linked.length === 0) return 0;
   const done = linked.filter((t) => t.status === "done").length;
   return Math.round((done / linked.length) * 100);
+}
+
+/** 실패 분류 주간 집계 결과(OS-2a 부록 B). 주간 통합 회의 ⑴에 주입한다. */
+/** 외부 변경 SLA 판정(부록 C·글래도스 게이트 High-1) — **영향 분석 전(stage=received)에만** 발화한다.
+ *  분석이 끝난 건(impact_analyzed 이후)은 마감이 지났어도 재촉·에스컬레이션 대상이 아니다
+ *  (허위 경보가 매일 반복되는 회귀의 재발 방지). 12h 전=remind, 마감 초과=esc. */
+export function changeRequestSlaState(
+  cr: Pick<ChangeRequest, "stage" | "impactDeadline">,
+  now: Date,
+  remindBeforeMs = 12 * 60 * 60 * 1000,
+): "remind" | "esc" | null {
+  if (cr.stage !== "received") return null;
+  const deadlineMs = Date.parse(cr.impactDeadline);
+  if (Number.isNaN(deadlineMs)) return null;
+  const nowMs = now.getTime();
+  if (nowMs >= deadlineMs) return "esc";
+  if (nowMs >= deadlineMs - remindBeforeMs) return "remind";
+  return null;
+}
+
+export interface RetroWeekSummary {
+  /** 내부 원인 회고 수. */
+  internal: number;
+  /** 외부 원인 회고 수. */
+  external: number;
+  /** 대응 프로세스를 탄(managed=true) 회고 수. */
+  managed: number;
+}
+
+/**
+ * 지난 7일(now 기준, [now-7d, now]) 마일스톤 회고를 내부/외부/관리됨으로 집계한다(OS-2a 부록 B).
+ * 주간 통합 회의 ⑴("지난주 실패 분류: 내부 N · 외부 N(관리됨 M)")·분기 회고 추이의 단일 집계기.
+ * 순수 함수 — db는 milestoneRetros 배열만 요구한다(웹/MCP/CLI 공용). 미래(now 이후) 회고는 제외.
+ */
+export function retroSummaryForWeek(
+  db: { milestoneRetros: readonly MilestoneRetro[] },
+  now: Date = new Date(),
+): RetroWeekSummary {
+  const end = now.getTime();
+  const start = end - 7 * 24 * 60 * 60 * 1000;
+  let internal = 0;
+  let external = 0;
+  let managed = 0;
+  for (const r of db.milestoneRetros) {
+    const ms = Date.parse(r.createdAt);
+    if (Number.isNaN(ms) || ms < start || ms > end) continue;
+    if (r.cause === "internal") internal += 1;
+    else external += 1;
+    if (r.managed) managed += 1;
+  }
+  return { internal, external, managed };
 }

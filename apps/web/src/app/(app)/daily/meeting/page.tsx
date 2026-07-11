@@ -4,6 +4,10 @@ import { canManageMilestone } from "@que/core";
 import { buildWeeklyAgenda } from "@/lib/meeting-agenda";
 import { buildMilestoneAgendaQueue } from "@/lib/milestone-agenda";
 import { collectTodayActions } from "@/lib/meeting-minutes";
+import {
+  CHANGE_REQUEST_STAGE_LABELS,
+  getOpenChangeRequests,
+} from "@/lib/change-request-data";
 import { getCurrentUser } from "@/lib/current-user";
 import { getDb } from "@/lib/db";
 import { MeetingMode, type MeetingModeProps } from "@/components/daily/meeting-mode";
@@ -18,9 +22,22 @@ export default async function MeetingPage() {
   const now = new Date();
   const db = await getDb();
 
-  const [agenda] = await Promise.all([buildWeeklyAgenda(db, now, { withSummary: false })]);
+  const [agenda, openChangeRequests] = await Promise.all([
+    buildWeeklyAgenda(db, now, { withSummary: false }),
+    getOpenChangeRequests(now),
+  ]);
   const queue = buildMilestoneAgendaQueue(db, now);
   const todayDecisionCount = collectTodayActions(db, now).length;
+
+  // ⑷ 미결 외부 변경(OS-2b) — 결정 필요 섹션에 읽기 블록으로. 진행은 /daily 카드에서.
+  const openChanges = openChangeRequests.map((v) => ({
+    id: v.changeRequest.id,
+    title: v.changeRequest.title,
+    projectName: v.projectName,
+    stageLabel: CHANGE_REQUEST_STAGE_LABELS[v.changeRequest.stage],
+    countdownLabel: v.countdownLabel,
+    overdue: v.overdue,
+  }));
 
   // 마일스톤 안건별 결정 권한(담당자·관리자). UI 노출만 조정하고 서버가 최종 강제한다.
   const milestoneAgenda: MeetingModeProps["milestoneAgenda"] = queue.map((m) => {
@@ -62,9 +79,11 @@ export default async function MeetingPage() {
         date={agenda.date}
         isAdmin={user.role === "admin"}
         lastWeek={agenda.lastWeek}
+        failureClassification={agenda.failureClassification}
         thisWeek={agenda.thisWeek}
         milestoneAgenda={milestoneAgenda}
         decisions={agenda.decisions}
+        openChanges={openChanges}
         teamRound={agenda.teamRound}
         todayDecisionCount={todayDecisionCount}
       />

@@ -1,7 +1,8 @@
 import "server-only";
 
-import type { MockQueDb } from "@que/core";
+import type { MockQueDb, RetroWeekSummary } from "@que/core";
 import { computeHomeLoad } from "@/lib/home-load";
+import { retroWeekSummary } from "@/lib/retro-data";
 import { getAdminReportData } from "@/lib/report-data";
 import { generateAnalysis } from "@/lib/ai/gemini";
 import { kstDateKey } from "@/lib/daily-data";
@@ -68,6 +69,8 @@ export interface WeeklyAgendaData {
     /** 현재 막혀 있는 작업 수. */
     blockedNow: number;
   } | null;
+  /** ⑴ 지난주 실패 분류(OS-2a) — 내부 N · 외부 N(관리됨 M). 비관리자 뷰어와 무관하게 항상 채운다. */
+  failureClassification: RetroWeekSummary;
   /** ⑵ 이번 주 조망. */
   thisWeek: {
     range: { start: string; end: string };
@@ -254,6 +257,8 @@ export async function buildWeeklyAgenda(
   const data: WeeklyAgendaData = {
     date,
     lastWeek,
+    // ⑴ 지난주 실패 분류(OS-2a) — 지난 7일 회고 집계(내부/외부/관리됨).
+    failureClassification: retroWeekSummary(db, now),
     thisWeek: {
       range: week,
       dueMilestones,

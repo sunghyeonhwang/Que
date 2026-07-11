@@ -471,9 +471,32 @@ export type CreateObjectiveInput = z.infer<typeof createObjectiveInputSchema>;
 export const keyResultStatusSchema = z.enum(["active", "done", "cancelled"]);
 export type KeyResultStatus = z.infer<typeof keyResultStatusSchema>;
 
-/** KR 측정 방식(기획 §2 하이브리드). manual=사람이 입력하는 수치, task_auto=연결 Task 완료율. */
-export const keyResultMetricTypeSchema = z.enum(["manual", "task_auto"]);
+/** KR 측정 방식(기획 §2 하이브리드 + OS-1 부록 A).
+ *  manual=사람이 입력하는 수치, task_auto=연결 Task 완료율, state=상태 체크리스트 완료 비율. */
+export const keyResultMetricTypeSchema = z.enum(["manual", "task_auto", "state"]);
 export type KeyResultMetricType = z.infer<typeof keyResultMetricTypeSchema>;
+
+/** 상태형 KR(OS-1 부록 A)의 체크 항목 1개. done 비율로 진척을 낸다.
+ *  requiresAdminConfirm=true면 admin만 토글 가능(클라이언트 최종 승인 등 이중 확인 항목). */
+export const stateCheckSchema = z.object({
+  id: z.string().min(1),
+  label: z.string().trim().min(1, "체크 항목 라벨은 필수다").max(100, "체크 항목은 100자 이내"),
+  done: z.boolean(),
+  /** true면 admin만 이 항목을 완료/해제할 수 있다(잠금). */
+  requiresAdminConfirm: z.boolean(),
+  /** 완료로 토글한 사람(감사용). */
+  confirmedBy: z.string().optional(),
+  /** 완료로 토글한 시각. */
+  doneAt: isoDateTime.optional(),
+});
+export type StateCheck = z.infer<typeof stateCheckSchema>;
+
+/** 상태형 KR 생성 입력의 체크 항목(id·done은 mutation이 부여한다). */
+export const stateCheckInputSchema = z.object({
+  label: z.string().trim().min(1, "체크 항목 라벨은 필수다").max(100, "체크 항목은 100자 이내"),
+  requiresAdminConfirm: z.boolean().default(false),
+});
+export type StateCheckInput = z.infer<typeof stateCheckInputSchema>;
 
 export const keyResultSchema = z
   .object({
@@ -490,6 +513,8 @@ export const keyResultSchema = z
     currentValue: z.number().optional(),
     /** manual 측정용 — 단위(예: 건, %, 만원). */
     unit: z.string().max(20).optional(),
+    /** state 측정용 — 상태 체크리스트(1~7개). state일 때만 유효. */
+    stateChecks: z.array(stateCheckSchema).max(7).optional(),
     status: keyResultStatusSchema.default("active"),
     updatedAt: isoDateTime,
     updatedBy: z.string().min(1),
@@ -497,10 +522,14 @@ export const keyResultSchema = z
   .refine((kr) => kr.metricType !== "manual" || (kr.targetValue ?? 0) > 0, {
     message: "manual KR은 목표치(targetValue)가 필수다 (양수)",
     path: ["targetValue"],
+  })
+  .refine((kr) => kr.metricType !== "state" || (kr.stateChecks?.length ?? 0) >= 1, {
+    message: "state KR은 체크 항목이 1개 이상 필요하다",
+    path: ["stateChecks"],
   });
 export type KeyResult = z.infer<typeof keyResultSchema>;
 
-/** KR 생성 입력 검증. manual이면 targetValue 필수(양수)를 refine으로 강제한다. */
+/** KR 생성 입력 검증. manual이면 targetValue 필수(양수), state면 stateChecks 1개 이상을 refine으로 강제한다. */
 export const createKeyResultInputSchema = z
   .object({
     objectiveId: z.string().min(1, "Objective는 필수다"),
@@ -511,13 +540,121 @@ export const createKeyResultInputSchema = z
     targetValue: z.number().positive("목표치는 양수여야 한다").optional(),
     currentValue: z.number().optional(),
     unit: z.string().trim().max(20, "단위는 20자 이내").optional(),
+    /** state 측정용 — 체크 항목(label·requiresAdminConfirm). id·done은 mutation이 부여. */
+    stateChecks: z.array(stateCheckInputSchema).max(7, "체크 항목은 7개 이내").optional(),
     status: keyResultStatusSchema.optional(),
   })
   .refine((kr) => kr.metricType !== "manual" || (kr.targetValue ?? 0) > 0, {
     message: "manual KR은 목표치(targetValue)가 필수다 (양수)",
     path: ["targetValue"],
+  })
+  .refine((kr) => kr.metricType !== "state" || (kr.stateChecks?.length ?? 0) >= 1, {
+    message: "state KR은 체크 항목이 1개 이상 필요하다",
+    path: ["stateChecks"],
+  })
+  // manual 필드(targetValue/unit)와 state 필드(stateChecks)는 배타 — 측정 방식과 무관한 필드는 거부.
+  .refine((kr) => kr.metricType === "manual" || (kr.targetValue === undefined && kr.unit === undefined), {
+    message: "manual이 아닌 KR에는 목표치·단위를 넣을 수 없다",
+    path: ["targetValue"],
+  })
+  .refine((kr) => kr.metricType === "state" || (kr.stateChecks === undefined), {
+    message: "state가 아닌 KR에는 체크 항목을 넣을 수 없다",
+    path: ["stateChecks"],
   });
 export type CreateKeyResultInput = z.infer<typeof createKeyResultInputSchema>;
+
+// ---------- MilestoneRetro (OS-2a 실패 분류, 부록 B) ----------
+// 마일스톤이 기한 초과로 종결되거나 수동 회고 시 남기는 불변 레코드. 회고=기록 그 자체라
+// ChangeLog를 남기지 않는다(revision_notes 선례). 원칙: 회고는 프로젝트·마일스톤 단위 —
+// 카드에 담당자 이름을 강조하지 않는다(감시 아님). createdBy는 감사용 최소 기록.
+
+/** 실패 원인 대분류 — 내부(개선 가능) vs 외부(클라이언트·환경). */
+export const retroCauseSchema = z.enum(["internal", "external"]);
+export type RetroCause = z.infer<typeof retroCauseSchema>;
+
+/** 실패 세부 유형(부록 B). 앞쪽은 내부 성향, 뒤쪽은 외부 성향이나 강제 매핑은 하지 않는다. */
+export const retroCauseDetailSchema = z.enum([
+  "schedule_mgmt", // 일정 관리 미흡(내부)
+  "qa_lack", // QA 부족(내부)
+  "communication", // 커뮤니케이션(내부)
+  "approval_missed", // 승인 누락(내부)
+  "client_direction", // 클라이언트 방향 전환(외부)
+  "budget_change", // 예산 변경(외부)
+  "schedule_change", // 일정 변경(외부)
+  "event_cancelled", // 행사 취소(외부)
+  "other", // 기타
+]);
+export type RetroCauseDetail = z.infer<typeof retroCauseDetailSchema>;
+
+export const milestoneRetroSchema = z.object({
+  id: z.string().min(1),
+  milestoneId: z.string().min(1),
+  cause: retroCauseSchema,
+  causeDetail: retroCauseDetailSchema,
+  /** 한 줄 메모(≤300자). */
+  note: z.string().max(300).optional(),
+  /** 대응 프로세스(외부 변경 접수 등)를 탔는가. */
+  managed: z.boolean(),
+  createdBy: z.string().min(1),
+  createdAt: isoDateTime,
+});
+export type MilestoneRetro = z.infer<typeof milestoneRetroSchema>;
+
+/** 회고 생성 입력 검증(웹/자동 생성 공유). id·createdBy·createdAt은 mutation이 부여. */
+export const createMilestoneRetroInputSchema = z.object({
+  milestoneId: z.string().min(1, "마일스톤은 필수다"),
+  cause: retroCauseSchema,
+  causeDetail: retroCauseDetailSchema,
+  note: z.string().trim().max(300, "메모는 300자 이내").optional(),
+  managed: z.boolean().default(false),
+});
+export type CreateMilestoneRetroInput = z.infer<typeof createMilestoneRetroInputSchema>;
+
+// ---------- ChangeRequest (OS-2b 외부 변경 접수, 부록 C) ----------
+// 클라이언트발 외부 변경을 접수→분석→재협의→승인→종결 5단계로 관리한다. SLA 24h 고정.
+// 업무 영향 변경이라 ChangeLog에 기록(entityType "change_request"). 종결 시 external·managed 회고 자동 생성.
+
+/** 외부 변경 대응 5단계(순서 강제). */
+export const changeRequestStageSchema = z.enum([
+  "received", // 접수
+  "impact_analyzed", // 영향 분석
+  "renegotiated", // 재협의
+  "approved", // 승인(admin)
+  "closed", // 종결
+]);
+export type ChangeRequestStage = z.infer<typeof changeRequestStageSchema>;
+
+/** 단계 전이 로그 1건(누가·언제). */
+export const changeRequestStageLogSchema = z.object({
+  stage: changeRequestStageSchema,
+  at: isoDateTime,
+  by: z.string().min(1),
+});
+export type ChangeRequestStageLog = z.infer<typeof changeRequestStageLogSchema>;
+
+export const changeRequestSchema = z.object({
+  id: z.string().min(1),
+  projectId: z.string().min(1),
+  milestoneId: z.string().optional(),
+  title: z.string().min(1).max(200),
+  description: z.string().max(2000).optional(),
+  stage: changeRequestStageSchema.default("received"),
+  receivedAt: isoDateTime,
+  /** 영향 분석 마감 = 접수 + 24h(SLA). */
+  impactDeadline: isoDateTime,
+  stageLog: z.array(changeRequestStageLogSchema).default([]),
+  closedAt: isoDateTime.optional(),
+});
+export type ChangeRequest = z.infer<typeof changeRequestSchema>;
+
+/** 변경 접수 입력 검증. receivedAt·impactDeadline·stage·stageLog는 mutation이 부여. */
+export const createChangeRequestInputSchema = z.object({
+  projectId: z.string().min(1, "프로젝트는 필수다"),
+  milestoneId: z.string().optional(),
+  title: z.string().trim().min(1, "제목은 필수다").max(200, "제목은 200자 이내"),
+  description: z.string().trim().max(2000, "설명은 2000자 이내").optional(),
+});
+export type CreateChangeRequestInput = z.infer<typeof createChangeRequestInputSchema>;
 
 // ---------- PaymentRequest ----------
 
@@ -593,7 +730,8 @@ export const statusLogSchema = z.object({
 });
 export type StatusLog = z.infer<typeof statusLogSchema>;
 
-export const changeViaSchema = z.enum(["web", "mcp", "cli", "mobile", "slack"]);
+// chat = Que Copilot(⌘K 채팅) 확정 실행 — 대화 경유 변경을 구분 기록한다(기획 모듈 D-2).
+export const changeViaSchema = z.enum(["web", "mcp", "cli", "mobile", "slack", "chat"]);
 export type ChangeVia = z.infer<typeof changeViaSchema>;
 
 export const changeLogSchema = z.object({
@@ -612,6 +750,7 @@ export const changeLogSchema = z.object({
     "user",
     "objective",
     "key_result",
+    "change_request",
   ]),
   entityId: z.string().min(1),
   actorId: z.string().min(1),

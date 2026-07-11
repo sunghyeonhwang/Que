@@ -1,15 +1,21 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, Plus } from "lucide-react";
-import type { ObjectiveStatus } from "@que/core";
+import { format } from "date-fns";
+import { ChevronDown, ListChecks, Lock, Plus } from "lucide-react";
+import type { ObjectiveStatus, StateCheck } from "@que/core";
 import type { OkrKeyResultView, OkrObjectiveView } from "@/lib/okr-data";
-import { updateKeyResultProgressAction } from "@/app/(app)/daily/okr-actions";
+import {
+  toggleKeyResultCheckAction,
+  updateKeyResultProgressAction,
+} from "@/app/(app)/daily/okr-actions";
 import { useSafeAction } from "@/components/app/use-safe-action";
 import { ToneBadge, type BadgeTone } from "@/components/app/tone-badge";
 import { MemberAvatars } from "@/components/projects/member-avatars";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { CreateKeyResultDialog } from "./create-key-result-dialog";
 import { periodLabel, type OkrMember } from "./okr-board";
 import { cn } from "@/lib/utils";
@@ -117,7 +123,12 @@ export function ObjectiveCard({
           ) : (
             <div className="flex flex-col gap-2">
               {keyResults.map((kr) => (
-                <KrRow key={kr.keyResult.id} view={kr} owner={memberById.get(kr.keyResult.ownerId)} />
+                <KrRow
+                  key={kr.keyResult.id}
+                  view={kr}
+                  owner={memberById.get(kr.keyResult.ownerId)}
+                  memberById={memberById}
+                />
               ))}
             </div>
           )}
@@ -152,23 +163,47 @@ export function ObjectiveCard({
 const METRIC_LABEL: Record<OkrKeyResultView["keyResult"]["metricType"], string> = {
   manual: "수동 지표",
   task_auto: "작업 자동",
+  state: "상태 체크",
 };
 
-/** 월 KR 행 — 진척 바·측정방식 뱃지·소유자·연결 작업 수·월. 확장 시 진척 입력/자동 안내. */
-function KrRow({ view, owner }: { view: OkrKeyResultView; owner?: OkrMember }) {
-  const { keyResult: kr, progress, linkedTaskCount, doneTaskCount, ownerName, canEditProgress } =
-    view;
+/** 월 KR 행 — 진척 바·측정방식 뱃지·소유자·연결 작업 수·월. 확장 시 진척 입력/자동 안내/상태 체크리스트. */
+function KrRow({
+  view,
+  owner,
+  memberById,
+}: {
+  view: OkrKeyResultView;
+  owner?: OkrMember;
+  memberById: Map<string, OkrMember>;
+}) {
+  const {
+    keyResult: kr,
+    progress,
+    linkedTaskCount,
+    doneTaskCount,
+    ownerName,
+    canEditProgress,
+    canToggleChecks,
+    isAdmin,
+  } = view;
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState(String(kr.currentValue ?? 0));
   const { run, pending } = useSafeAction();
 
   const numeric = Number(value);
   const invalid = value.trim() === "" || Number.isNaN(numeric) || numeric < 0;
+  const isState = kr.metricType === "state";
 
   const save = () => {
     if (invalid) return;
     run(() => updateKeyResultProgressAction({ keyResultId: kr.id, currentValue: numeric }), {
       success: "진척을 저장했습니다.",
+    });
+  };
+
+  const toggleCheck = (checkId: string, done: boolean) => {
+    run(() => toggleKeyResultCheckAction({ keyResultId: kr.id, checkId, done }), {
+      success: done ? "체크했습니다." : "체크를 해제했습니다.",
     });
   };
 
@@ -190,7 +225,15 @@ function KrRow({ view, owner }: { view: OkrKeyResultView; owner?: OkrMember }) {
           />
           <span className="truncate text-sm font-medium text-[var(--que-text)]">{kr.title}</span>
         </div>
-        <span className="rounded-full border border-[var(--que-border)] px-2 py-0.5 text-[11px] font-medium text-[var(--que-text-secondary)]">
+        <span
+          className={cn(
+            "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium",
+            isState
+              ? "border-[var(--que-border-strong)] text-[var(--que-text)]"
+              : "border-[var(--que-border)] text-[var(--que-text-secondary)]",
+          )}
+        >
+          {isState ? <ListChecks className="size-3" aria-hidden /> : null}
           {METRIC_LABEL[kr.metricType]}
         </span>
         <span className="text-xs text-[var(--que-text-tertiary)] tabular-nums">{kr.month}</span>
@@ -199,10 +242,17 @@ function KrRow({ view, owner }: { view: OkrKeyResultView; owner?: OkrMember }) {
         ) : (
           <span className="text-xs text-[var(--que-text-tertiary)]">{ownerName}</span>
         )}
-        <span className="text-xs text-[var(--que-text-tertiary)] tabular-nums">
-          연결 작업 {linkedTaskCount}
-          <span className="text-[var(--que-success)]"> (완료 {doneTaskCount})</span>
-        </span>
+        {isState ? (
+          <span className="text-xs text-[var(--que-text-tertiary)] tabular-nums">
+            체크 {(kr.stateChecks ?? []).filter((c) => c.done).length}/
+            {(kr.stateChecks ?? []).length}
+          </span>
+        ) : (
+          <span className="text-xs text-[var(--que-text-tertiary)] tabular-nums">
+            연결 작업 {linkedTaskCount}
+            <span className="text-[var(--que-success)]"> (완료 {doneTaskCount})</span>
+          </span>
+        )}
         <div className="flex w-32 shrink-0 items-center gap-2">
           <ProgressBar value={progress} />
           <span className="w-9 text-right text-xs font-medium tabular-nums text-[var(--que-text-secondary)]">
@@ -213,7 +263,16 @@ function KrRow({ view, owner }: { view: OkrKeyResultView; owner?: OkrMember }) {
 
       {open && (
         <div className="border-t border-[var(--que-border)] px-3 py-3">
-          {kr.metricType === "task_auto" ? (
+          {isState ? (
+            <StateChecklist
+              checks={kr.stateChecks ?? []}
+              canToggle={canToggleChecks}
+              isAdmin={isAdmin}
+              pending={pending}
+              memberById={memberById}
+              onToggle={toggleCheck}
+            />
+          ) : kr.metricType === "task_auto" ? (
             <p className="text-sm text-[var(--que-text-secondary)]">
               연결된 작업의 완료율로 진척이 자동 계산됩니다. 현재 연결 작업 {linkedTaskCount}개 중{" "}
               {doneTaskCount}개 완료 ({progress}%). 작업을 이 핵심결과에 연결하려면 작업 상세에서
@@ -257,6 +316,102 @@ function KrRow({ view, owner }: { view: OkrKeyResultView; owner?: OkrMember }) {
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * 상태형 KR(OS-1)의 체크리스트. 각 항목은 판정 기준 — Task를 자동 생성하지 않는다(Task ≠ KR).
+ * 일반 항목은 소유자·admin이 토글, requiresAdminConfirm 항목은 admin만(잠금 아이콘+뱃지, 비-admin은 비활성+툴팁).
+ * 완료 항목은 우측에 doneAt·확인자를 표시한다(시안 ①). 토글은 낙관 없이 서버 액션 결과로 갱신한다.
+ */
+function StateChecklist({
+  checks,
+  canToggle,
+  isAdmin,
+  pending,
+  memberById,
+  onToggle,
+}: {
+  checks: StateCheck[];
+  canToggle: boolean;
+  isAdmin: boolean;
+  pending: boolean;
+  memberById: Map<string, OkrMember>;
+  onToggle: (checkId: string, done: boolean) => void;
+}) {
+  if (checks.length === 0) {
+    return (
+      <p className="text-sm text-[var(--que-text-tertiary)]">등록된 체크 항목이 없습니다.</p>
+    );
+  }
+  return (
+    <div className="flex flex-col gap-2">
+      {checks.map((c) => {
+        const adminLocked = c.requiresAdminConfirm && !isAdmin;
+        const disabled = pending || !canToggle || adminLocked;
+        const confirmerName = c.confirmedBy
+          ? (memberById.get(c.confirmedBy)?.name ?? c.confirmedBy)
+          : undefined;
+        const checkbox = (
+          <Checkbox
+            checked={c.done}
+            disabled={disabled}
+            onCheckedChange={(v) => onToggle(c.id, v === true)}
+            aria-label={`${c.label} ${c.done ? "체크 해제" : "체크"}`}
+          />
+        );
+        return (
+          <div
+            key={c.id}
+            className="flex min-h-10 items-center gap-2.5 rounded-lg border border-[var(--que-border)] px-3 py-2"
+          >
+            {adminLocked ? (
+              <Tooltip>
+                <TooltipTrigger
+                  render={<span className="inline-flex" tabIndex={0} />}
+                >
+                  {checkbox}
+                </TooltipTrigger>
+                <TooltipContent>관리자만 확인할 수 있는 항목입니다.</TooltipContent>
+              </Tooltip>
+            ) : (
+              checkbox
+            )}
+            <span
+              className={cn(
+                "flex-1 text-sm",
+                c.done
+                  ? "text-[var(--que-text-secondary)] line-through"
+                  : "text-[var(--que-text)]",
+              )}
+            >
+              {c.label}
+            </span>
+            {c.requiresAdminConfirm ? (
+              <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-[var(--que-warning)]/40 px-2 py-0.5 text-[11px] font-medium text-[var(--que-warning)]">
+                <Lock className="size-3" aria-hidden />
+                관리자 확인
+              </span>
+            ) : null}
+            {c.done && (c.doneAt || confirmerName) ? (
+              <span className="shrink-0 text-[11px] tabular-nums text-[var(--que-text-tertiary)]">
+                {c.doneAt ? format(new Date(c.doneAt), "M/d") : ""}
+                {confirmerName ? ` ${confirmerName}` : ""}
+              </span>
+            ) : null}
+          </div>
+        );
+      })}
+      <p className="mt-1 rounded-md bg-[var(--que-bg-muted)] px-3 py-2 text-xs leading-relaxed text-[var(--que-text-secondary)]">
+        체크 항목은 <b className="font-medium text-[var(--que-text)]">판정 기준</b>입니다 — 작업이
+        자동 생성되지 않습니다. 모든 체크는 기록으로 남습니다.
+      </p>
+      {!canToggle ? (
+        <p className="text-xs text-[var(--que-text-tertiary)]">
+          체크는 핵심결과 소유자 본인 또는 관리자만 할 수 있습니다.
+        </p>
+      ) : null}
     </div>
   );
 }

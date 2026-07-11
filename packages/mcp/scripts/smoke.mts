@@ -24,9 +24,25 @@ function check(name: string, condition: boolean, detail?: string) {
   console.log(`${mark}  ${name}${detail ? ` — ${detail}` : ""}`);
 }
 
-// 1) 도구 목록
+// 1) 도구 목록 — 개수 하드코딩 대신 이름 목록 대조(누락·유령을 이름으로 지목, 게이트 High-2).
+const EXPECTED_TOOLS = [
+  "add_task_comment", "cancel_task", "change_task_status", "confirm_action",
+  "create_payment_request", "create_task", "get_me", "get_my_day", "get_now_board",
+  "get_team_status", "list_action_candidates", "list_clients", "list_payment_requests",
+  "list_task_comments", "list_tasks", "move_task", "parse_task_input", "reassign_task",
+  "resolve_action", "respond_checkin", "update_action_item", "update_payment_status",
+].sort();
 const { tools } = await client.listTools();
-check("도구 개수 20", tools.length === 20, `실제 ${tools.length}`);
+const actualNames = tools.map((t) => t.name).sort();
+const missing = EXPECTED_TOOLS.filter((n) => !actualNames.includes(n));
+const unexpected = actualNames.filter((n) => !EXPECTED_TOOLS.includes(n));
+check(
+  `도구 목록 일치 (${EXPECTED_TOOLS.length}개)`,
+  missing.length === 0 && unexpected.length === 0,
+  missing.length || unexpected.length
+    ? `누락: ${missing.join(",") || "-"} / 예상 밖: ${unexpected.join(",") || "-"}`
+    : undefined,
+);
 check(
   "조회 도구 readOnlyHint",
   tools.filter((t) => t.annotations?.readOnlyHint).length === 10,

@@ -50,7 +50,9 @@ export type NotificationKind =
   | "weekly_agenda"
   | "crisis"
   | "crisis_remind"
-  | "crisis_esc";
+  | "crisis_esc"
+  | "change_remind"
+  | "change_esc";
 
 /** 아웃박스 status 컬럼. */
 export type NotificationStatus = "pending" | "held" | "sent" | "skipped" | "failed";

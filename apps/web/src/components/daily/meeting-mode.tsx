@@ -50,6 +50,8 @@ export interface MeetingModeProps {
     resolutionLabel: string;
     blockedNow: number;
   } | null;
+  /** ⑴ 지난주 실패 분류(OS-2a) — 내부 N · 외부 N(관리됨 M). */
+  failureClassification: { internal: number; external: number; managed: number };
   thisWeek: {
     range: { start: string; end: string };
     dueMilestones: AgendaMilestoneView[];
@@ -59,6 +61,15 @@ export interface MeetingModeProps {
   };
   milestoneAgenda: MilestoneAgendaView[];
   decisions: { kind: "action" | "payment" | "help"; label: string; detail: string }[];
+  /** ⑷ 미결 외부 변경(OS-2b) — 결정 필요 섹션에 한 블록으로 노출. */
+  openChanges: {
+    id: string;
+    title: string;
+    projectName: string;
+    stageLabel: string;
+    countdownLabel: string;
+    overdue: boolean;
+  }[];
   teamRound: {
     userId: string;
     name: string;
@@ -172,10 +183,17 @@ export function MeetingMode(props: MeetingModeProps) {
 
       {/* 섹션 본체 — 큰 타이포 */}
       <div className="flex-1">
-        {step === 1 && <LastWeekSection lastWeek={props.lastWeek} />}
+        {step === 1 && (
+          <LastWeekSection
+            lastWeek={props.lastWeek}
+            failureClassification={props.failureClassification}
+          />
+        )}
         {step === 2 && <ThisWeekSection thisWeek={props.thisWeek} />}
         {step === 3 && <MilestoneAgendaSection items={props.milestoneAgenda} />}
-        {step === 4 && <DecisionsSection decisions={props.decisions} />}
+        {step === 4 && (
+          <DecisionsSection decisions={props.decisions} openChanges={props.openChanges} />
+        )}
         {step === 5 && (
           <TeamRoundSection
             members={props.teamRound}
@@ -221,12 +239,29 @@ export function MeetingMode(props: MeetingModeProps) {
   );
 }
 
-/** ⑴ 지난주 요약 — KPI 카드. */
-function LastWeekSection({ lastWeek }: { lastWeek: MeetingModeProps["lastWeek"] }) {
+/** ⑴ 지난주 요약 — KPI 카드 + 실패 분류(OS-2a) 한 줄. */
+function LastWeekSection({
+  lastWeek,
+  failureClassification,
+}: {
+  lastWeek: MeetingModeProps["lastWeek"];
+  failureClassification: MeetingModeProps["failureClassification"];
+}) {
+  const fc = failureClassification;
+  const failureLine = (
+    <p className="text-base text-[var(--que-text-secondary)]">
+      지난주 실패 분류:{" "}
+      <span className="font-semibold text-[var(--que-text)] tabular-nums">내부 {fc.internal}</span> ·{" "}
+      <span className="font-semibold text-[var(--que-error)] tabular-nums">외부 {fc.external}</span>{" "}
+      <span className="text-[var(--que-text-tertiary)] tabular-nums">(관리됨 {fc.managed})</span>
+    </p>
+  );
+
   if (!lastWeek) {
     return (
       <SectionShell title="지난주 요약">
         <p className="text-lg text-[var(--que-text-tertiary)]">집계 없음</p>
+        <div className="mt-3">{failureLine}</div>
       </SectionShell>
     );
   }
@@ -254,6 +289,9 @@ function LastWeekSection({ lastWeek }: { lastWeek: MeetingModeProps["lastWeek"] 
             </p>
           </div>
         ))}
+      </div>
+      <div className="mt-4 rounded-lg border border-[var(--que-border)] bg-[var(--que-bg-muted)] px-4 py-3">
+        {failureLine}
       </div>
     </SectionShell>
   );
@@ -384,39 +422,86 @@ function MilestoneAgendaSection({ items }: { items: MilestoneAgendaView[] }) {
   );
 }
 
-/** ⑷ 결정 필요 — 미배정 Action·결제 대기·미응답 도움 요청 + 딥링크. */
-function DecisionsSection({ decisions }: { decisions: MeetingModeProps["decisions"] }) {
+/** ⑷ 결정 필요 — 미배정 Action·결제 대기·미응답 도움 요청 + 미결 외부 변경(OS-2b) + 딥링크. */
+function DecisionsSection({
+  decisions,
+  openChanges,
+}: {
+  decisions: MeetingModeProps["decisions"];
+  openChanges: MeetingModeProps["openChanges"];
+}) {
+  const empty = decisions.length === 0 && openChanges.length === 0;
   return (
     <SectionShell title="결정 필요">
-      {decisions.length === 0 ? (
+      {empty ? (
         <p className="text-[var(--que-text-tertiary)]">결정을 기다리는 안건이 없습니다.</p>
       ) : (
-        <ul className="flex flex-col gap-2">
-          {decisions.map((d, i) => {
-            const link = DECISION_LINK[d.kind];
-            const Icon = link.icon;
-            return (
-              <li
-                key={`${d.kind}-${i}`}
-                className="flex items-center justify-between gap-3 rounded-lg border border-[var(--que-border)] bg-[var(--que-bg)] p-3"
-              >
-                <div className="min-w-0">
-                  <span className="rounded-md bg-[var(--que-bg-muted)] px-2 py-0.5 text-xs font-medium text-[var(--que-text-secondary)]">
-                    {d.label}
-                  </span>
-                  <p className="mt-1 text-base text-[var(--que-text)]">{d.detail}</p>
-                </div>
-                <Link
-                  href={link.href}
-                  className={cn(buttonVariants({ variant: "outline" }), "h-10 shrink-0")}
-                >
-                  <Icon className="size-4" aria-hidden />
-                  처리
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
+        <div className="flex flex-col gap-4">
+          {openChanges.length > 0 ? (
+            <div>
+              <h3 className="mb-2 text-base font-semibold text-[var(--que-text)]">
+                미결 외부 변경 대응
+              </h3>
+              <ul className="flex flex-col gap-2">
+                {openChanges.map((c) => (
+                  <li
+                    key={c.id}
+                    className="flex items-center justify-between gap-3 rounded-lg border border-[var(--que-border)] bg-[var(--que-bg)] p-3"
+                  >
+                    <div className="min-w-0">
+                      <span className="rounded-md border border-[var(--que-error)]/40 px-2 py-0.5 text-xs font-medium text-[var(--que-error)]">
+                        외부 변경 · {c.stageLabel}
+                      </span>
+                      <p className="mt-1 text-base text-[var(--que-text)]">
+                        {c.title}
+                        <span className="ml-2 text-sm text-[var(--que-text-tertiary)]">
+                          {c.projectName}
+                        </span>
+                      </p>
+                    </div>
+                    <span
+                      className={cn(
+                        "shrink-0 text-sm font-semibold tabular-nums",
+                        c.overdue ? "text-[var(--que-error)]" : "text-[var(--que-warning)]",
+                      )}
+                    >
+                      {c.countdownLabel}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+
+          {decisions.length > 0 ? (
+            <ul className="flex flex-col gap-2">
+              {decisions.map((d, i) => {
+                const link = DECISION_LINK[d.kind];
+                const Icon = link.icon;
+                return (
+                  <li
+                    key={`${d.kind}-${i}`}
+                    className="flex items-center justify-between gap-3 rounded-lg border border-[var(--que-border)] bg-[var(--que-bg)] p-3"
+                  >
+                    <div className="min-w-0">
+                      <span className="rounded-md bg-[var(--que-bg-muted)] px-2 py-0.5 text-xs font-medium text-[var(--que-text-secondary)]">
+                        {d.label}
+                      </span>
+                      <p className="mt-1 text-base text-[var(--que-text)]">{d.detail}</p>
+                    </div>
+                    <Link
+                      href={link.href}
+                      className={cn(buttonVariants({ variant: "outline" }), "h-10 shrink-0")}
+                    >
+                      <Icon className="size-4" aria-hidden />
+                      처리
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : null}
+        </div>
       )}
     </SectionShell>
   );

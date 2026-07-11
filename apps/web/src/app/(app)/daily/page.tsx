@@ -13,10 +13,19 @@ import {
   type CrisisCard,
 } from "@/components/daily/crisis-decision-cards";
 import { OkrBoard } from "@/components/okr/okr-board";
+import {
+  ChangeRequestCard,
+  type ChangeRequestCardData,
+} from "@/components/change/change-request-card";
+import {
+  CreateChangeRequestDialog,
+  type ChangeRequestProjectOption,
+} from "@/components/change/create-change-request-dialog";
 import { detectCrisisTriggers } from "@/lib/notifications/crisis";
 import { getCurrentUser } from "@/lib/current-user";
 import { getDailyData } from "@/lib/daily-data";
 import { getOkrData } from "@/lib/okr-data";
+import { getOpenChangeRequests } from "@/lib/change-request-data";
 import { getDb } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
@@ -63,7 +72,45 @@ export default async function DailyPage({
     );
   }
 
-  const [data, db] = await Promise.all([getDailyData(user, now), getDb()]);
+  const [data, db, openChangeRequests] = await Promise.all([
+    getDailyData(user, now),
+    getDb(),
+    getOpenChangeRequests(now),
+  ]);
+
+  const isAdmin = user.role === "admin";
+
+  // OS-2b 외부 변경 대응 카드(부록 C). 진행 중(종결 전) 변경만 상단 노출. 단계 진행은 담당·admin.
+  const changeCards: {
+    data: ChangeRequestCardData;
+    canManage: boolean;
+  }[] = openChangeRequests.map((v) => {
+    const project = db.projects.find((p) => p.id === v.changeRequest.projectId);
+    return {
+      data: {
+        id: v.changeRequest.id,
+        title: v.changeRequest.title,
+        stage: v.changeRequest.stage,
+        projectName: v.projectName,
+        milestoneTitle: v.milestoneTitle,
+        impactDeadline: v.changeRequest.impactDeadline,
+        relatedTaskCount: v.relatedTaskCount,
+        stageLog: v.stageLog.map((l) => ({ stage: l.stage, at: l.at, byName: l.byName })),
+      },
+      canManage: isAdmin || project?.ownerId === user.id,
+    };
+  });
+
+  // 외부 변경 접수 대상 프로젝트(담당·admin) + 각 프로젝트의 마일스톤(선택 연결용).
+  const changeProjectOptions: ChangeRequestProjectOption[] = db.projects
+    .filter((p) => isAdmin || p.ownerId === user.id)
+    .map((p) => ({
+      id: p.id,
+      name: p.name,
+      milestones: db.milestones
+        .filter((m) => m.projectId === p.id)
+        .map((m) => ({ id: m.id, title: m.title })),
+    }));
 
   // 긴급 결정 대기(기획 §1-e) — 판정은 서버 detectCrisisTriggers 재사용(이중 로직 금지).
   // 담당자·관리자만 결정 버튼을 노출(canManageMilestone). 서버 액션이 최종 강제한다.
@@ -147,13 +194,18 @@ export default async function DailyPage({
         title="데일리"
         subtitle={`매일 10시, 어제·오늘·막힘을 팀과 맞춥니다 · ${format(now, "M월 d일 (EEE)", { locale: ko })}`}
         actions={
-          <Link
-            href="/daily/meeting"
-            className="inline-flex h-10 items-center gap-2 rounded-lg border border-[var(--que-border)] px-3 text-sm font-medium text-[var(--que-text-secondary)] hover:bg-[var(--que-bg-muted)]"
-          >
-            <Presentation className="size-4" aria-hidden />
-            회의 진행 모드
-          </Link>
+          <div className="flex items-center gap-2">
+            {changeProjectOptions.length > 0 ? (
+              <CreateChangeRequestDialog projects={changeProjectOptions} />
+            ) : null}
+            <Link
+              href="/daily/meeting"
+              className="inline-flex h-10 items-center gap-2 rounded-lg border border-[var(--que-border)] px-3 text-sm font-medium text-[var(--que-text-secondary)] hover:bg-[var(--que-bg-muted)]"
+            >
+              <Presentation className="size-4" aria-hidden />
+              회의 진행 모드
+            </Link>
+          </div>
         }
       />
 
@@ -161,6 +213,21 @@ export default async function DailyPage({
 
       {/* 긴급 결정 대기 — 트리거가 있을 때만 상단 red 섹션 */}
       <CrisisDecisionCards cards={crisisCards} />
+
+      {/* OS-2b 진행 중 외부 변경 대응 — 있을 때만 상단 노출(긴급 결정 형제) */}
+      {changeCards.length > 0 ? (
+        <section aria-label="진행 중 외부 변경 대응" className="flex flex-col gap-3">
+          <h2 className="text-base font-semibold text-[var(--que-text)]">진행 중 외부 변경 대응</h2>
+          {changeCards.map((c) => (
+            <ChangeRequestCard
+              key={c.data.id}
+              data={c.data}
+              canManage={c.canManage}
+              isAdmin={isAdmin}
+            />
+          ))}
+        </section>
+      ) : null}
 
       {/* ⑴ 내 체크인 폼 — 미제출이면 최상단 강조, 제출 후엔 확정 표기+수정 */}
       <StandupForm blockerCandidates={blockerCandidates} myEntry={myEntry} />

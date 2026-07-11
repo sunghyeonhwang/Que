@@ -7,6 +7,7 @@ import {
   type User,
 } from "@que/core";
 import { getDb } from "./db";
+import { needsRetro } from "./retro-data";
 import type { TemplateListItem } from "@/components/templates/template-list";
 
 // 반복·마일스톤 화면(/planning) 데이터 — core 계층 재사용, 조회 전용.
@@ -20,6 +21,12 @@ export interface MilestoneRow {
   dueAt: string;
   riskStatus: Milestone["riskStatus"];
   canManage: boolean;
+  /** OS-2a — 기한 초과·지연 종결로 회고가 필요한 상태인지(부록 B needsRetro). */
+  needsRetro: boolean;
+  /** 이미 회고가 남아 있는지(중복 방지). */
+  hasRetro: boolean;
+  /** 이 마일스톤이 변경 접수 프로세스를 탔는지(external·managed 자동 판정). */
+  managed: boolean;
 }
 
 export interface PlanningData {
@@ -56,6 +63,13 @@ export async function getPlanningData(user: User): Promise<PlanningData> {
       canManage: canManageRecurringTemplate(user, t),
     }));
 
+  const now = new Date();
+  // 마일스톤별 회고 유무·변경 접수 여부를 한 번에 집계(N+1 방지).
+  const retroMilestoneIds = new Set(db.milestoneRetros.map((r) => r.milestoneId));
+  const changeMilestoneIds = new Set(
+    db.changeRequests.filter((c) => c.milestoneId).map((c) => c.milestoneId as string),
+  );
+
   const milestones: MilestoneRow[] = [...db.milestones]
     .sort((a, b) => a.dueAt.localeCompare(b.dueAt))
     .map((m) => {
@@ -68,6 +82,9 @@ export async function getPlanningData(user: User): Promise<PlanningData> {
         dueAt: m.dueAt,
         riskStatus: m.riskStatus,
         canManage: canManageMilestone(user, project),
+        needsRetro: needsRetro(m, now),
+        hasRetro: retroMilestoneIds.has(m.id),
+        managed: changeMilestoneIds.has(m.id),
       };
     });
 

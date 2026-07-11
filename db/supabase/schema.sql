@@ -82,10 +82,11 @@ create table if not exists key_results (
   title         text not null check (char_length(title) <= 200),
   owner_id      text not null references users(id),
   month         text not null,                     -- 예: 2026-07 (형식은 앱 검증)
-  metric_type   text not null check (metric_type in ('manual', 'task_auto')),
-  target_value  numeric,
-  current_value numeric,
+  metric_type   text not null check (metric_type in ('manual', 'task_auto', 'state')),
+  target_value  numeric,                            -- manual 측정용
+  current_value numeric,                            -- manual 측정용
   unit          text check (char_length(unit) <= 20),
+  state_checks  jsonb,                              -- state 측정용(OS-1): [{id,label,done,requiresAdminConfirm,confirmedBy?,doneAt?}]
   status        text not null default 'active'
                   check (status in ('active', 'done', 'cancelled')),
   updated_at    timestamptz not null,
@@ -212,14 +213,14 @@ create table if not exists status_logs (
 create table if not exists change_logs (
   id           text primary key,
   entity_type  text not null check (entity_type in
-    ('task','calendar_event','milestone','action_item','payment_request','payment_category','meeting_note','recurring_template','project','client','user','objective','key_result')),
+    ('task','calendar_event','milestone','action_item','payment_request','payment_category','meeting_note','recurring_template','project','client','user','objective','key_result','change_request')),
   entity_id    text not null,
   actor_id     text not null references users(id),
   change_type  text not null check (change_type in ('create','update','move','status_change','delete')),
   before_value text,
   after_value  text,
   reason       text,
-  via          text not null check (via in ('web','mcp','cli','mobile','slack')),
+  via          text not null check (via in ('web','mcp','cli','mobile','slack','chat')),
   visible_to   text[],
   created_at   timestamptz not null default now()
 );
@@ -300,7 +301,7 @@ create table if not exists revision_notes (
 create table if not exists notification_outbox (
   id          text primary key,
   dedup_key   text not null unique,   -- 이벤트 유일키(issue:/on_hold:/deadline:/standup: 접두). 중복 적재 차단.
-  kind        text not null check (kind in ('issue', 'on_hold', 'deadline', 'standup', 'personal_digest', 'task_created', 'checkin_prompt', 'standup_open', 'standup_remind', 'standup_summary', 'weekly_preview', 'weekly_agenda', 'crisis', 'crisis_remind', 'crisis_esc')),
+  kind        text not null check (kind in ('issue', 'on_hold', 'deadline', 'standup', 'personal_digest', 'task_created', 'checkin_prompt', 'standup_open', 'standup_remind', 'standup_summary', 'weekly_preview', 'weekly_agenda', 'crisis', 'crisis_remind', 'crisis_esc', 'change_remind', 'change_esc')),
   entity_type text not null,
   entity_id   text not null,
   recipient   text,                   -- 팀채널 계열(issue/on_hold/deadline/standup)은 NULL. personal_digest는 Que userId(발송 직전 Slack ID 해석).
@@ -370,3 +371,37 @@ create table if not exists standup_team_summaries (
   regenerated_by     text references users(id)
 );
 create index if not exists idx_standup_team_summaries_date on standup_team_summaries (date desc);
+
+-- OS-2a 실패 분류 회고(부록 B) — 마일스톤 실패 원인 기록. 회고=기록 그 자체라 ChangeLog 없음(불변).
+-- 원칙: 회고는 프로젝트·마일스톤 단위 — 담당자 강조 없음(감시 아님).
+create table if not exists milestone_retros (
+  id           text primary key,
+  milestone_id text not null references milestones(id),
+  cause        text not null check (cause in ('internal', 'external')),
+  cause_detail text not null check (cause_detail in
+    ('schedule_mgmt', 'qa_lack', 'communication', 'approval_missed',
+     'client_direction', 'budget_change', 'schedule_change', 'event_cancelled', 'other')),
+  note         text check (char_length(note) <= 300),
+  managed      boolean not null default false,
+  created_by   text not null references users(id),
+  created_at   timestamptz not null default now()
+);
+create index if not exists idx_milestone_retros_milestone on milestone_retros (milestone_id);
+create index if not exists idx_milestone_retros_created on milestone_retros (created_at desc);
+
+-- OS-2b 외부 변경 접수(부록 C) — 접수→분석→재협의→승인→종결 5단계. SLA 24h. 업무 영향이라 ChangeLog 기록.
+create table if not exists change_requests (
+  id              text primary key,
+  project_id      text not null references projects(id),
+  milestone_id    text references milestones(id),
+  title           text not null check (char_length(title) <= 200),
+  description     text check (char_length(description) <= 2000),
+  stage           text not null default 'received'
+                    check (stage in ('received', 'impact_analyzed', 'renegotiated', 'approved', 'closed')),
+  received_at     timestamptz not null,
+  impact_deadline timestamptz not null,             -- received_at + 24h(SLA)
+  stage_log       jsonb not null default '[]'::jsonb,
+  closed_at       timestamptz
+);
+create index if not exists idx_change_requests_project on change_requests (project_id);
+create index if not exists idx_change_requests_stage on change_requests (stage);

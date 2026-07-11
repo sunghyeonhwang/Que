@@ -239,7 +239,7 @@ Griff OS
 - `id · projectId · milestoneId? · title · description? · stage(received|impact_analyzed|renegotiated|approved|closed) · receivedAt · impactDeadline(접수+24h) · stageLog: { stage, at, by }[] · closedAt?`.
 
 **흐름** (확정 SLA 24h):
-1. **접수**: PM이 /daily 버튼 또는 회의 LLM 콘솔("○○ 클라이언트가 일정 변경 요청")로 접수 → 카드 생성, 담당 PM·관련자 DM(crisis 인프라 — kind `change_request`).
+1. **접수**: PM이 /daily 버튼 또는 회의 LLM 콘솔("○○ 클라이언트가 일정 변경 요청")로 접수 → 카드 생성. **접수 시점 DM은 발송하지 않는다(2026-07-11 구현 결정 — 게이트 M-2)**: 접수자가 대부분 담당 PM 본인이라 접수 DM은 소음이고, 팀 공유는 /daily 카드·주간 회의 ⑷ 목록이 담당한다. 발송은 SLA 재촉(12h 전)·에스컬레이션(초과)만.
 2. **영향 분석(24h)**: 마감까지 미완이면 12h 재촉 → 24h admin·대표 에스컬레이션(crisis 재촉·에스컬레이션 경로 재사용, 시간만 12/24h).
 3. **재협의 → 승인(admin)**: 단계 완료를 순서대로 체크(stageLog 기록). 일정 변경이 수반되면 마일스톤 드래그/연기(기존)와 연결.
 4. **종결**: 자동으로 milestone_retros(external·managed=**true**) 생성 — "대응을 탔다"는 사실이 기록된다.

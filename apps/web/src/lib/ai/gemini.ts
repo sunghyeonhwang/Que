@@ -106,3 +106,92 @@ async function callOnce(
     clearTimeout(timer);
   }
 }
+
+// ---------------------------------------------------------------------------
+// Que Copilot 전용 — Gemini function calling(도구 호출) 저수준 래퍼.
+// generateAnalysis(단발 텍스트 생성)와 달리 도구 선언 + 멀티턴 contents를 받아
+// 모델의 후보 content(text 또는 functionCall parts)를 그대로 돌려준다. 도구 실행 루프는
+// 호출부(copilot.ts)가 담당한다 — 이 함수는 왕복 1회만. MODEL_ID·키·타임아웃을 재사용한다.
+// generateAnalysis는 건드리지 않는다(function calling 미지원 경로라 별도 함수로 분리).
+
+/** 모델이 호출한 도구(functionCall) — args는 모델이 채운 파라미터(신뢰 금지, 호출부에서 검증). */
+export interface GeminiFunctionCall {
+  name: string;
+  args: Record<string, unknown>;
+}
+
+/** Gemini content part — text / functionCall(모델→우리) / functionResponse(우리→모델) 중 하나. */
+export interface GeminiPart {
+  text?: string;
+  functionCall?: GeminiFunctionCall;
+  functionResponse?: { name: string; response: Record<string, unknown> };
+}
+
+/** 대화 턴. role은 v1beta에서 "user"|"model"만 유효(functionResponse도 "user" 턴으로 보낸다). */
+export interface GeminiContent {
+  role: "user" | "model";
+  parts: GeminiPart[];
+}
+
+/** 도구(함수) 선언 — parameters는 OpenAPI subset JSON Schema. */
+export interface GeminiFunctionDeclaration {
+  name: string;
+  description: string;
+  parameters?: Record<string, unknown>;
+}
+
+/**
+ * 도구 선언과 함께 1회 generateContent 호출 → 모델 후보 content(parts) 반환.
+ * parts 안에 functionCall이 있으면 호출부가 도구를 실행하고 functionResponse를 append해 다시 부른다.
+ */
+export async function generateWithTools(params: {
+  systemInstruction: string;
+  contents: GeminiContent[];
+  functionDeclarations: GeminiFunctionDeclaration[];
+  model?: "flash" | "pro";
+  maxOutputTokens?: number;
+}): Promise<GeminiContent> {
+  const key = process.env.GEMINI_API_KEY;
+  if (!key) {
+    throw new Error("AI 코파일럿이 설정되지 않았습니다 (GEMINI_API_KEY 미설정) — 관리자에게 문의하세요.");
+  }
+  const model = params.model ?? "flash";
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS[model]);
+  try {
+    const res = await fetch(urlFor(model), {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-goog-api-key": key },
+      signal: controller.signal,
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: params.systemInstruction }] },
+        contents: params.contents,
+        tools: [{ functionDeclarations: params.functionDeclarations }],
+        generationConfig: {
+          temperature: 0.2,
+          maxOutputTokens: params.maxOutputTokens ?? 2048,
+          thinkingConfig: { thinkingBudget: model === "pro" ? 2048 : 512 },
+        },
+      }),
+    });
+    if (!res.ok) {
+      console.error(`[gemini:tools] HTTP ${res.status}: ${(await res.text()).slice(0, 300)}`);
+      throw new Error(
+        res.status === 429
+          ? "AI 사용량 한도에 도달했습니다. 잠시 후 다시 시도하세요."
+          : "AI 응답 생성에 실패했습니다. 잠시 후 다시 시도하세요.",
+      );
+    }
+    const data = (await res.json()) as { candidates?: { content?: GeminiContent }[] };
+    const content = data.candidates?.[0]?.content;
+    if (!content) throw new Error("AI가 빈 응답을 돌려줬습니다. 다시 시도하세요.");
+    return { role: "model", parts: content.parts ?? [] };
+  } catch (e) {
+    if (e instanceof Error && e.name === "AbortError") {
+      throw new Error("AI 응답이 너무 오래 걸립니다. 잠시 후 다시 시도하세요.");
+    }
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
+}

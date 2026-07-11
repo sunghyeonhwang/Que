@@ -3,10 +3,11 @@
 import { useState } from "react";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, ClipboardList } from "lucide-react";
 import { updateMilestoneAction } from "@/app/(app)/planning/actions";
 import { useSafeAction } from "@/components/app/use-safe-action";
 import { ToneBadge, type BadgeTone } from "@/components/app/tone-badge";
+import { MilestoneRetroDialog } from "@/components/retro/milestone-retro-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -65,11 +66,14 @@ export function MilestoneList({
 function MilestoneRowItem({ milestone: m }: { milestone: MilestoneRow }) {
   const { run, pending } = useSafeAction();
   const [editing, setEditing] = useState(false);
+  const [retroOpen, setRetroOpen] = useState(false);
   const [title, setTitle] = useState(m.title);
   const [dueAt, setDueAt] = useState(toLocalInput(m.dueAt));
 
   // 기한이 지났는데 리스크가 아직 '지연'이 아니면 시각 힌트만 덧붙인다(리스크 값 자동 변경 안 함).
   const overdue = new Date(m.dueAt) < new Date() && m.riskStatus !== "late";
+  // OS-2a — 회고가 필요한데 아직 없는 마일스톤에 "회고 남기기" 강조(부록 B). 담당·관리자만.
+  const retroNeeded = m.needsRetro && !m.hasRetro;
 
   const changeRisk = (risk: Risk) => {
     run(() => updateMilestoneAction({ milestoneId: m.id, riskStatus: risk }), {
@@ -104,6 +108,22 @@ function MilestoneRowItem({ milestone: m }: { milestone: MilestoneRow }) {
             <AlertTriangle className="size-3.5" aria-hidden />
             기한 초과
           </span>
+        )}
+        {retroNeeded && (
+          <span className="flex items-center gap-1 text-xs font-medium text-[var(--que-warning)]">
+            <ClipboardList className="size-3.5" aria-hidden />
+            회고 필요
+          </span>
+        )}
+        {retroNeeded && m.canManage && (
+          <Button
+            size="sm"
+            className="h-10 gap-1.5 bg-[var(--que-warning)] text-[var(--que-on-brand)] hover:opacity-90"
+            onClick={() => setRetroOpen(true)}
+          >
+            <ClipboardList className="size-4" aria-hidden />
+            회고 남기기
+          </Button>
         )}
         {m.canManage && (
           <div className="flex items-center gap-1.5">
@@ -162,6 +182,17 @@ function MilestoneRowItem({ milestone: m }: { milestone: MilestoneRow }) {
             {pending ? "저장 중…" : "저장"}
           </Button>
         </div>
+      )}
+
+      {m.canManage && (
+        <MilestoneRetroDialog
+          open={retroOpen}
+          onOpenChange={setRetroOpen}
+          milestoneId={m.id}
+          milestoneTitle={m.title}
+          contextLabel={`${m.projectName} · 기한 ${format(new Date(m.dueAt), "M월 d일", { locale: ko })}`}
+          managed={m.managed}
+        />
       )}
     </div>
   );

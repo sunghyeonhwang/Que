@@ -2,6 +2,8 @@ import type {
   ActionItem,
   CalendarEvent,
   ChangeLog,
+  ChangeRequest,
+  ChangeRequestStage,
   ChangeVia,
   CheckIn,
   CheckInResponse,
@@ -10,8 +12,13 @@ import type {
   KeyResultStatus,
   MeetingNote,
   Milestone,
+  MilestoneRetro,
   Objective,
   ObjectiveStatus,
+  RetroCause,
+  RetroCauseDetail,
+  StateCheck,
+  StateCheckInput,
   PaymentCategory,
   PaymentRequest,
   PaymentStatus,
@@ -32,7 +39,9 @@ import type {
 import {
   type AlertRead,
   clientSchema,
+  createChangeRequestInputSchema,
   createKeyResultInputSchema,
+  createMilestoneRetroInputSchema,
   createObjectiveInputSchema,
   createRevisionNoteInputSchema,
   keyResultMetricTypeSchema,
@@ -56,6 +65,7 @@ import {
   assertCanResolveActionItem,
   assertStatusDetail,
   canManageClient,
+  canManageMilestone,
   canManagePaymentCategory,
   canManageProject,
   canViewMeetingNote,
@@ -93,6 +103,8 @@ export interface QueDb {
   standupTeamSummaries: StandupTeamSummary[];
   objectives: Objective[];
   keyResults: KeyResult[];
+  milestoneRetros: MilestoneRetro[];
+  changeRequests: ChangeRequest[];
 }
 
 interface ActorContext {
@@ -121,6 +133,8 @@ export class MockQueDb implements QueDb {
   standupTeamSummaries: StandupTeamSummary[];
   objectives: Objective[];
   keyResults: KeyResult[];
+  milestoneRetros: MilestoneRetro[];
+  changeRequests: ChangeRequest[];
   /** Slack 발송 원장(B-1). 시드에 없다 — mutation 훅이 enqueue로 채운다. Supabase 어댑터가 load에서 덮어쓴다. */
   notificationOutbox: NotificationOutboxEntry[] = [];
   /** 알림 읽음 표시(C-3a). 시드에 없다 — markAlertsRead가 채운다. Supabase 어댑터가 load에서 덮어쓴다. */
@@ -152,6 +166,8 @@ export class MockQueDb implements QueDb {
     this.standupTeamSummaries = seed.standupTeamSummaries;
     this.objectives = seed.objectives;
     this.keyResults = seed.keyResults;
+    this.milestoneRetros = seed.milestoneRetros;
+    this.changeRequests = seed.changeRequests;
   }
 
   // ---------- 조회 ----------
@@ -2356,6 +2372,7 @@ export class MockQueDb implements QueDb {
       targetValue?: number;
       currentValue?: number;
       unit?: string;
+      stateChecks?: StateCheckInput[];
       status?: KeyResultStatus;
     },
   ): KeyResult {
@@ -2374,6 +2391,16 @@ export class MockQueDb implements QueDb {
     }
     this.requireActiveAssignee(data.ownerId); // KR 소유자 실재+재직 검증
     const nowIso = this.now();
+    // state면 입력 체크 항목에 id를 부여하고 done=false로 초기화(id·done은 서버가 소유).
+    const stateChecks: StateCheck[] | undefined =
+      data.metricType === "state"
+        ? (data.stateChecks ?? []).map((c) => ({
+            id: this.nextId("chk"),
+            label: c.label,
+            done: false,
+            requiresAdminConfirm: c.requiresAdminConfirm,
+          }))
+        : undefined;
     const kr: KeyResult = {
       id: this.nextId("kr"),
       objectiveId: data.objectiveId,
@@ -2384,6 +2411,7 @@ export class MockQueDb implements QueDb {
       targetValue: data.metricType === "manual" ? data.targetValue : undefined,
       currentValue: data.metricType === "manual" ? data.currentValue ?? 0 : undefined,
       unit: data.metricType === "manual" ? data.unit || undefined : undefined,
+      stateChecks,
       status: data.status ?? "active",
       updatedAt: nowIso,
       updatedBy: actor.id,
@@ -2409,6 +2437,7 @@ export class MockQueDb implements QueDb {
       metricType?: KeyResult["metricType"];
       targetValue?: number | null;
       unit?: string | null;
+      stateChecks?: StateCheckInput[];
       status?: KeyResultStatus;
       ownerId?: string;
     },
@@ -2471,6 +2500,10 @@ export class MockQueDb implements QueDb {
       changes.push(`측정: ${input.metricType}`);
       kr.metricType = input.metricType;
     }
+    // stateChecks 입력은 state KR에서만 유효 — 다른 측정 방식이면 거부(배타).
+    if (input.stateChecks !== undefined && nextMetricType !== "state") {
+      throw new QueRuleError("INVALID_INPUT", "state가 아닌 KR에는 체크 항목을 넣을 수 없다");
+    }
     if (nextMetricType === "manual") {
       // 목표치: 지정되면 갱신, 미지정이면 유지. 최종 목표치가 없으면(양수 아님) 거부.
       const nextTarget =
@@ -2496,13 +2529,53 @@ export class MockQueDb implements QueDb {
           kr.unit = unit;
         }
       }
-    } else if (kr.metricType === "task_auto") {
-      // task_auto로 바뀌면 manual 필드는 의미가 없다 — 정리한다(진척은 연결 Task로 계산).
+      // manual로 바뀌면 state 체크는 정리한다.
+      if (kr.stateChecks !== undefined) kr.stateChecks = undefined;
+    } else if (nextMetricType === "state") {
+      // 체크 항목 정의를 새로 받으면 교체(id 재부여). 같은 label의 done/confirmedBy/doneAt는 보존한다.
+      if (input.stateChecks !== undefined) {
+        if (input.stateChecks.length < 1) {
+          throw new QueRuleError("INVALID_INPUT", "state KR은 체크 항목이 1개 이상 필요하다");
+        }
+        if (input.stateChecks.length > 7) {
+          throw new QueRuleError("INVALID_INPUT", "체크 항목은 7개 이내다");
+        }
+        const prevByLabel = new Map((kr.stateChecks ?? []).map((c) => [c.label, c]));
+        const next: StateCheck[] = input.stateChecks.map((c) => {
+          const label = c.label.trim();
+          if (!label) throw new QueRuleError("INVALID_INPUT", "체크 항목 라벨은 필수다");
+          if (label.length > 100) throw new QueRuleError("INVALID_INPUT", "체크 항목은 100자 이내다");
+          const prev = prevByLabel.get(label);
+          return {
+            id: prev?.id ?? this.nextId("chk"),
+            label,
+            done: prev?.done ?? false,
+            requiresAdminConfirm: c.requiresAdminConfirm,
+            confirmedBy: prev?.done ? prev.confirmedBy : undefined,
+            doneAt: prev?.done ? prev.doneAt : undefined,
+          };
+        });
+        before.push(`체크: ${(kr.stateChecks ?? []).map((c) => c.label).join("/") || "(없음)"}`);
+        changes.push(`체크: ${next.map((c) => c.label).join("/")}`);
+        kr.stateChecks = next;
+      } else if ((kr.stateChecks?.length ?? 0) < 1) {
+        // state로 전환하는데 기존/입력 체크가 없으면 거부(1개 이상 필수).
+        throw new QueRuleError("INVALID_INPUT", "state KR은 체크 항목이 1개 이상 필요하다");
+      }
+      // state로 바뀌면 manual 필드는 정리한다.
       if (kr.targetValue !== undefined || kr.currentValue !== undefined || kr.unit !== undefined) {
         kr.targetValue = undefined;
         kr.currentValue = undefined;
         kr.unit = undefined;
       }
+    } else if (nextMetricType === "task_auto") {
+      // task_auto로 바뀌면 manual·state 필드는 의미가 없다 — 정리한다(진척은 연결 Task로 계산).
+      if (kr.targetValue !== undefined || kr.currentValue !== undefined || kr.unit !== undefined) {
+        kr.targetValue = undefined;
+        kr.currentValue = undefined;
+        kr.unit = undefined;
+      }
+      if (kr.stateChecks !== undefined) kr.stateChecks = undefined;
     }
 
     if (changes.length === 0) return kr; // no-op ChangeLog 방지
@@ -2561,6 +2634,247 @@ export class MockQueDb implements QueDb {
     return this.keyResults
       .filter((k) => k.objectiveId === objectiveId)
       .sort((a, b) => a.month.localeCompare(b.month));
+  }
+
+  /** 상태형 KR(OS-1 부록 A)의 체크 항목 토글 — **KR 소유자 또는 admin**. 단,
+   *  requiresAdminConfirm 항목은 **admin만** 토글할 수 있다(클라이언트 최종 승인 등 이중 확인).
+   *  done→doneAt·confirmedBy 기록, 해제→둘 다 정리. 목표 데이터는 감사 대상이라 ChangeLog(update). */
+  toggleKeyResultCheck(
+    ctx: ActorContext,
+    input: { keyResultId: string; checkId: string; done: boolean },
+  ): KeyResult {
+    const actor = this.requireUser(ctx.actorId);
+    const kr = this.requireKeyResult(input.keyResultId);
+    const isAdmin = actor.role === "admin";
+    if (!isAdmin && kr.ownerId !== actor.id) {
+      throw new QueRuleError(
+        "NOT_AUTHORIZED",
+        "핵심결과(KR) 체크는 소유자 본인 또는 관리자만 토글할 수 있다",
+      );
+    }
+    if (kr.metricType !== "state") {
+      throw new QueRuleError("INVALID_INPUT", "상태 체크는 state 측정 KR에서만 토글할 수 있다");
+    }
+    const check = kr.stateChecks?.find((c) => c.id === input.checkId);
+    if (!check) {
+      throw new QueRuleError("NOT_FOUND", `체크 항목 없음: ${input.checkId}`);
+    }
+    if (check.requiresAdminConfirm && !isAdmin) {
+      throw new QueRuleError(
+        "NOT_AUTHORIZED",
+        "'관리자 확인' 항목은 관리자만 완료/해제할 수 있다",
+      );
+    }
+    if (check.done === input.done) return kr; // no-op
+    check.done = input.done;
+    if (input.done) {
+      check.doneAt = this.now();
+      check.confirmedBy = actor.id;
+    } else {
+      check.doneAt = undefined;
+      check.confirmedBy = undefined;
+    }
+    kr.updatedAt = this.now();
+    kr.updatedBy = actor.id;
+    this.logChange(ctx, {
+      entityType: "key_result",
+      entityId: kr.id,
+      changeType: "update",
+      afterValue: `체크: ${check.label} ${input.done ? "완료" : "해제"}`,
+    });
+    return kr;
+  }
+
+  // ---------- MilestoneRetro (OS-2a 실패 분류, 부록 B) ----------
+  // 회고=기록 그 자체라 ChangeLog를 남기지 않는다(revision_notes 선례). 불변 레코드(updatedAt 없음).
+  // 권한: 마일스톤 담당(프로젝트 owner)·admin(canManageMilestone 준용).
+
+  private requireMilestone(id: string): Milestone {
+    const m = this.milestones.find((x) => x.id === id);
+    if (!m) throw new QueRuleError("NOT_FOUND", `마일스톤 없음: ${id}`);
+    return m;
+  }
+
+  /** 마일스톤 회고 생성 — **마일스톤 담당·admin**(canManageMilestone 준용). enum은 스키마가 강제. */
+  createMilestoneRetro(
+    ctx: ActorContext,
+    input: {
+      milestoneId: string;
+      cause: RetroCause;
+      causeDetail: RetroCauseDetail;
+      note?: string;
+      managed?: boolean;
+    },
+  ): MilestoneRetro {
+    const actor = this.requireUser(ctx.actorId);
+    const parsed = createMilestoneRetroInputSchema.safeParse(input);
+    if (!parsed.success) {
+      throw new QueRuleError("INVALID_INPUT", parsed.error.issues.map((i) => i.message).join(", "));
+    }
+    const data = parsed.data;
+    const milestone = this.requireMilestone(data.milestoneId); // 마일스톤 실재 검증
+    const project = this.projects.find((p) => p.id === milestone.projectId);
+    if (!canManageMilestone(actor, project)) {
+      throw new QueRuleError(
+        "NOT_AUTHORIZED",
+        "마일스톤 회고는 담당자 또는 관리자만 남길 수 있다",
+      );
+    }
+    const retro: MilestoneRetro = {
+      id: this.nextId("retro"),
+      milestoneId: data.milestoneId,
+      cause: data.cause,
+      causeDetail: data.causeDetail,
+      note: data.note || undefined,
+      managed: data.managed,
+      createdBy: actor.id,
+      createdAt: this.now(),
+    };
+    this.milestoneRetros.push(retro);
+    return retro;
+  }
+
+  /** 특정 마일스톤의 회고 목록(최신순). 조회는 전원 열람. */
+  retrosByMilestone(milestoneId: string): MilestoneRetro[] {
+    return this.milestoneRetros
+      .filter((r) => r.milestoneId === milestoneId)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }
+
+  // ---------- ChangeRequest (OS-2b 외부 변경 접수, 부록 C) ----------
+  // 접수→분석→재협의→승인→종결 5단계(순서 강제). SLA 24h. 업무 영향이라 ChangeLog 기록.
+
+  private requireChangeRequest(id: string): ChangeRequest {
+    const cr = this.changeRequests.find((c) => c.id === id);
+    if (!cr) throw new QueRuleError("NOT_FOUND", `변경 요청 없음: ${id}`);
+    return cr;
+  }
+
+  /** 외부 변경 접수 — **프로젝트 담당·admin**(canManageProject 준용). impactDeadline=접수+24h 자동. */
+  createChangeRequest(
+    ctx: ActorContext,
+    input: {
+      projectId: string;
+      milestoneId?: string;
+      title: string;
+      description?: string;
+    },
+  ): ChangeRequest {
+    const actor = this.requireUser(ctx.actorId);
+    const parsed = createChangeRequestInputSchema.safeParse(input);
+    if (!parsed.success) {
+      throw new QueRuleError("INVALID_INPUT", parsed.error.issues.map((i) => i.message).join(", "));
+    }
+    const data = parsed.data;
+    const project = this.projects.find((p) => p.id === data.projectId);
+    if (!project) {
+      throw new QueRuleError("NOT_FOUND", `프로젝트 없음: ${data.projectId}`);
+    }
+    if (!canManageProject(actor, project)) {
+      throw new QueRuleError(
+        "NOT_AUTHORIZED",
+        "외부 변경 접수는 프로젝트 담당자 또는 관리자만 할 수 있다",
+      );
+    }
+    if (data.milestoneId) this.requireMilestone(data.milestoneId); // 지정 시 실재 검증
+    const nowIso = this.now();
+    const deadline = new Date(new Date(nowIso).getTime() + 24 * 60 * 60 * 1000).toISOString();
+    const cr: ChangeRequest = {
+      id: this.nextId("chgreq"),
+      projectId: data.projectId,
+      milestoneId: data.milestoneId || undefined,
+      title: data.title,
+      description: data.description || undefined,
+      stage: "received",
+      receivedAt: nowIso,
+      impactDeadline: deadline,
+      stageLog: [{ stage: "received", at: nowIso, by: actor.id }],
+    };
+    this.changeRequests.push(cr);
+    this.logChange(ctx, {
+      entityType: "change_request",
+      entityId: cr.id,
+      changeType: "create",
+      afterValue: `${cr.title} (접수)`,
+    });
+    return cr;
+  }
+
+  /** 변경 대응 단계 진행 — **프로젝트 담당·admin**. 순서 강제(건너뛰기 거부), approved는 **admin만**,
+   *  closed 도달 시 closedAt 기록 + (milestoneId 있으면) external·managed 회고 자동 생성. */
+  advanceChangeRequestStage(
+    ctx: ActorContext,
+    input: { changeRequestId: string; toStage: ChangeRequestStage },
+  ): ChangeRequest {
+    const actor = this.requireUser(ctx.actorId);
+    const cr = this.requireChangeRequest(input.changeRequestId);
+    const project = this.projects.find((p) => p.id === cr.projectId);
+    if (!canManageProject(actor, project)) {
+      throw new QueRuleError(
+        "NOT_AUTHORIZED",
+        "변경 대응 진행은 프로젝트 담당자 또는 관리자만 할 수 있다",
+      );
+    }
+    const ORDER: ChangeRequestStage[] = [
+      "received",
+      "impact_analyzed",
+      "renegotiated",
+      "approved",
+      "closed",
+    ];
+    const fromIdx = ORDER.indexOf(cr.stage);
+    const toIdx = ORDER.indexOf(input.toStage);
+    if (toIdx < 0) {
+      throw new QueRuleError("INVALID_INPUT", "잘못된 단계다");
+    }
+    if (toIdx !== fromIdx + 1) {
+      throw new QueRuleError(
+        "INVALID_INPUT",
+        "변경 대응 단계는 순서대로만 진행할 수 있다(건너뛰기 불가)",
+      );
+    }
+    if (input.toStage === "approved" && actor.role !== "admin") {
+      throw new QueRuleError("NOT_AUTHORIZED", "승인 단계는 관리자만 진행할 수 있다");
+    }
+    const nowIso = this.now();
+    const before = cr.stage;
+    cr.stage = input.toStage;
+    cr.stageLog = [...cr.stageLog, { stage: input.toStage, at: nowIso, by: actor.id }];
+    if (input.toStage === "closed") {
+      cr.closedAt = nowIso;
+    }
+    this.logChange(ctx, {
+      entityType: "change_request",
+      entityId: cr.id,
+      changeType: "status_change",
+      beforeValue: `단계: ${before}`,
+      afterValue: `단계: ${input.toStage}`,
+    });
+    // 종결 시 external·managed 회고 자동 생성("대응을 탔다"는 사실 기록) — milestoneId 있을 때만.
+    if (input.toStage === "closed" && cr.milestoneId) {
+      const milestone = this.milestones.find((m) => m.id === cr.milestoneId);
+      if (milestone) {
+        const retro: MilestoneRetro = {
+          id: this.nextId("retro"),
+          milestoneId: cr.milestoneId,
+          cause: "external",
+          causeDetail: "client_direction",
+          note: `외부 변경 대응 종결: ${cr.title}`,
+          managed: true,
+          createdBy: actor.id,
+          createdAt: nowIso,
+        };
+        this.milestoneRetros.push(retro);
+      }
+    }
+    return cr;
+  }
+
+  /** 진행 중(종결 전) 변경 요청 목록 — 접수 최신순. 조회는 전원 열람. */
+  openChangeRequests(): ChangeRequest[] {
+    return this.changeRequests
+      .filter((c) => c.stage !== "closed")
+      .sort((a, b) => b.receivedAt.localeCompare(a.receivedAt));
   }
 
   // ---------- 내부 ----------

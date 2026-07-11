@@ -2,6 +2,7 @@ import "server-only";
 
 import type { MockQueDb, NotificationIntent } from "@que/core";
 import { computeGanttRisk } from "@/lib/projects-data";
+import { changeRequestSlaState } from "@que/core";
 import { kstDateKey } from "@/lib/daily-data";
 import { appBaseUrl, personalDigestEnabled } from "./config";
 import { enqueueAndSend, type DispatchCounts } from "./dispatch";
@@ -303,6 +304,100 @@ export async function scanCrisisTriggers(db: MockQueDb, now: Date): Promise<Disp
     return await enqueueAndSend(db, intents, now);
   } catch (error) {
     console.error("[que-notify] scanCrisisTriggers 실패(무시)", error);
+    return empty;
+  }
+}
+
+// ── OS-2b 외부 변경 접수 SLA 스캔(부록 C) ──────────────────────────────────────
+// impactDeadline(접수+24h) 기준: 12h 전 재촉(change_remind, 담당 PM+admin), 초과 시 에스컬레이션
+// (change_esc, admin·대표). 크라이시스 인프라(수신자 계산·dedup·enqueueAndSend) 재사용.
+// dedup 접두 `<kind>:<changeRequestId>:<KST날짜>` + 수신자 개별화(marker에 recipient 덧붙임).
+
+const CHANGE_REMIND_BEFORE_MS = 12 * 60 * 60 * 1000; // 마감 12h 전부터 재촉
+
+/** 변경 대응 SLA DM intent 묶음(수신자별 개별 행). */
+function changeRequestIntents(
+  kind: "change_remind" | "change_esc",
+  changeRequestId: string,
+  date: string,
+  recipientIds: string[],
+  title: string,
+  text: string,
+): NotificationIntent[] {
+  const deeplink = `${appBaseUrl()}/daily`;
+  return recipientIds.map((rid) => ({
+    kind,
+    entityType: "change_request",
+    entityId: changeRequestId,
+    marker: `${date}:${rid}`,
+    recipient: rid,
+    payload: {
+      title,
+      text,
+      deeplinkPath: "/daily",
+      tone: "red",
+      actions: [
+        { actionId: "change:open", label: "변경 대응 보기", value: changeRequestId, url: deeplink, style: "primary" },
+      ],
+    },
+  }));
+}
+
+/**
+ * 외부 변경 SLA 스캔·발송(크론용). 평일 게이트·Bot Token 게이트(크라이시스와 동일).
+ * 진행 중(종결 전) 변경 요청만 대상. 12h 전 재촉, 마감 초과 에스컬레이션. dedup은 kind·CR·날짜당 1회.
+ */
+export async function scanChangeRequestSla(db: MockQueDb, now: Date): Promise<DispatchCounts> {
+  const empty: DispatchCounts = { enqueued: 0, sent: 0, held: 0 };
+  if (!personalDigestEnabled()) return empty; // 개인 DM — Bot Token 게이트
+  const day = kstDayOfWeek(now);
+  if (day === 0 || day === 6) return empty; // 평일만
+  try {
+    const date = todayKey(now);
+    const intents: NotificationIntent[] = [];
+    for (const cr of db.changeRequests) {
+      // SLA는 영향 분석 전(stage=received)에만 — 분석 완료 건에 허위 재촉·에스컬레이션 금지(게이트 High-1).
+      const slaState = changeRequestSlaState(cr, now, CHANGE_REMIND_BEFORE_MS);
+      if (!slaState) continue;
+      const project = db.projects.find((p) => p.id === cr.projectId);
+      const label = `${project?.name ?? "-"} · ${cr.title}`;
+
+      if (slaState === "esc") {
+        // 마감 초과 — admin·대표 에스컬레이션.
+        const esc = escalationRecipients(db, project?.ownerId);
+        if (esc.length > 0) {
+          intents.push(
+            ...changeRequestIntents(
+              "change_esc",
+              cr.id,
+              date,
+              esc,
+              "외부 변경 SLA 초과",
+              `${label} — 영향 분석 마감(24h)을 넘겼습니다. 관리자·대표 확인이 필요합니다.`,
+            ),
+          );
+        }
+      } else {
+        // 마감 12h 전 — 담당 PM + admin 재촉.
+        const recipients = decisionRecipients(db, project?.ownerId);
+        if (recipients.length > 0) {
+          intents.push(
+            ...changeRequestIntents(
+              "change_remind",
+              cr.id,
+              date,
+              recipients,
+              "외부 변경 영향 분석 재촉",
+              `${label} — 영향 분석 마감이 12시간 이내입니다. 분석·재협의를 진행해 주세요.`,
+            ),
+          );
+        }
+      }
+    }
+    if (intents.length === 0) return empty;
+    return await enqueueAndSend(db, intents, now);
+  } catch (error) {
+    console.error("[que-notify] scanChangeRequestSla 실패(무시)", error);
     return empty;
   }
 }
