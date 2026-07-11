@@ -169,11 +169,11 @@ Griff OS
 | 5 | OS-5 손익(대표 전용) | 대표 1인 가치 — 급하지 않음 |
 | 후순위 | OS-4·OS-6·Product | 의존(OS-3)·데이터 축적·제품 성숙 대기 |
 
-**→ 1차 통합 묶음 = OS-1 + OS-2a + OS-2b ("에이전시 OKR 3종 세트")** — 아래 부록에 구현 가능 수준으로 상세 기획.
+**→ 1차 통합 묶음 = OS-1 + OS-2a + OS-2b ("에이전시 OKR 3종 세트")** — 아래 부록에 구현 가능 수준으로 상세 기획. **화면 시안: `que+/os-batch1-mockup.html`**(2026-07-11 — ①KR 체크리스트+관리자 확인 잠금 ②실패 분류 확인 카드 ③변경 대응 5단계 프로그레스+SLA 카운트다운. 구현 시 이 구조를 shadcn·--que-* 토큰으로 따른다).
 
 ---
 
-## 부록 A. OS-1 상태형 KR — 상세 기획
+## 부록 A. OS-1 상태형 KR — 상세 기획 (시안: os-batch1-mockup.html ①)
 
 **데이터 모델** (기존 key_results 확장):
 - `metricType`에 `"state"` 추가.
@@ -189,7 +189,7 @@ Griff OS
 
 **DB**: `alter table key_results add column state_checks jsonb` + metric_type 체크에 'state' 추가. additive.
 
-## 부록 B. OS-2a 실패 분류 — 상세 기획
+## 부록 B. OS-2a 실패 분류 — 상세 기획 (시안: os-batch1-mockup.html ②)
 
 **데이터 모델** (신규 `milestone_retros`):
 - `id · milestoneId · cause(internal|external) · causeDetail(schedule_mgmt|qa_lack|communication|approval_missed|client_direction|budget_change|schedule_change|event_cancelled|other) · note(한 줄) · managed(boolean — 대응 프로세스를 탔는가) · createdBy/createdAt`.
@@ -203,7 +203,7 @@ Griff OS
 - 분기 회고(성과 화면 또는 리포트)에 **내부 실패 비율** 추이 — 팀이 실제로 개선 가능한 지표.
 - **원칙**: 회고는 프로젝트·마일스톤 단위다 — 카드에 담당자 이름을 강조하지 않는다(감시 아님).
 
-## 부록 C. OS-2b 외부 변경 접수 — 상세 기획
+## 부록 C. OS-2b 외부 변경 접수 — 상세 기획 (시안: os-batch1-mockup.html ③)
 
 **데이터 모델** (신규 `change_requests`):
 - `id · projectId · milestoneId? · title · description? · stage(received|impact_analyzed|renegotiated|approved|closed) · receivedAt · impactDeadline(접수+24h) · stageLog: { stage, at, by }[] · closedAt?`.
