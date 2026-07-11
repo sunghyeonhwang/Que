@@ -112,6 +112,7 @@ create table if not exists meeting_notes (
   markdown_body     text not null check (char_length(markdown_body) <= 500000),
   visibility        text not null default 'team' check (visibility in ('team','project','admin','restricted')),
   restricted_user_ids text[],
+  kind              text not null default 'general' check (kind in ('milestone','weekly','general')),
   extraction_status text not null check (extraction_status in ('pending','done')),
   created_at        timestamptz not null default now(),
   updated_at        timestamptz not null default now()
@@ -303,3 +304,22 @@ create table if not exists alert_reads (
   read_at  timestamptz not null
 );
 create index if not exists idx_alert_reads_user on alert_reads (user_id);
+
+-- 데일리 스탠드업 비동기 체크인(기획 §2) — "사람이 쓴 말"만 저장. 파생 4분면은 jsonb로 경량 동결.
+-- (date, user_id) 유니크 1건 — 재제출은 덮어쓰기. ChangeLog 미기록(운영 리듬 기록).
+create table if not exists standup_entries (
+  id                text primary key,
+  date              text not null,
+  user_id           text not null references users(id),
+  focus             text not null check (char_length(focus) <= 200),
+  note              text check (char_length(note) <= 1000),
+  blocker_text      text check (char_length(blocker_text) <= 1000),
+  blocked_task_ids  text[],
+  snapshot_task_ids jsonb not null default '{}'::jsonb,
+  ai_drafted        boolean not null default false,
+  draft_edited      boolean,
+  submitted_at      timestamptz not null,
+  updated_at        timestamptz not null,
+  unique (date, user_id)
+);
+create index if not exists idx_standup_entries_date on standup_entries (date desc);

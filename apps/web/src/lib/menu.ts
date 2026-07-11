@@ -1,6 +1,7 @@
 import {
   Home,
   Activity,
+  CalendarCheck,
   Calendar,
   ChartColumn,
   ListChecks,
@@ -62,6 +63,9 @@ export const MENU_SECTIONS: MenuSection[] = [
       // 순서: 실행(할 일·프로젝트·일정) → 운영(팀 현황·회의록·반복) → 분석/참조(성과·팀).
       // 매일 쓰는 화면을 상단으로. (2026-07-07 UX 감사 IA 재정렬)
       { href: "/home", label: "홈", icon: Home },
+      // 데일리 스탠드업(/daily) — 매일 10시 비동기 체크인 오늘 보드. 홈 바로 아래(매일 쓰는 화면 상단 IA).
+      // 전원 접근. children 없음(OKR 탭은 Phase 3에서 추가 예정).
+      { href: "/daily", label: "데일리", icon: CalendarCheck },
       // 작업 목록(/today) — 오늘 개인 진입점(팀원). 2026-07-11 Now를 독립 메뉴로 분리(탭 병합 폐기).
       // 하위: 상단 패널 스위처(현황=기본 / 입력=?panel=input)를 사이드바에서도 펼침.
       {

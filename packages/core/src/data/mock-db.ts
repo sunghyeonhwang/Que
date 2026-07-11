@@ -16,6 +16,7 @@ import type {
   RecurringTemplate,
   RevisionNote,
   RevisionNoteStatus,
+  StandupEntry,
   StatusDetail,
   StatusLog,
   Task,
@@ -31,6 +32,7 @@ import {
   paymentCategorySchema,
   projectSchema,
   revisionNoteStatusSchema,
+  submitStandupEntryInputSchema,
   taskSchema,
 } from "../domain";
 import { USERS } from "../mock/users";
@@ -77,6 +79,7 @@ export interface QueDb {
   taskComments: TaskComment[];
   recurringTemplates: RecurringTemplate[];
   revisionNotes: RevisionNote[];
+  standupEntries: StandupEntry[];
 }
 
 interface ActorContext {
@@ -101,6 +104,7 @@ export class MockQueDb implements QueDb {
   taskComments: TaskComment[];
   recurringTemplates: RecurringTemplate[];
   revisionNotes: RevisionNote[];
+  standupEntries: StandupEntry[];
   /** Slack 발송 원장(B-1). 시드에 없다 — mutation 훅이 enqueue로 채운다. Supabase 어댑터가 load에서 덮어쓴다. */
   notificationOutbox: NotificationOutboxEntry[] = [];
   /** 알림 읽음 표시(C-3a). 시드에 없다 — markAlertsRead가 채운다. Supabase 어댑터가 load에서 덮어쓴다. */
@@ -128,6 +132,7 @@ export class MockQueDb implements QueDb {
     this.taskComments = seed.taskComments;
     this.recurringTemplates = seed.recurringTemplates;
     this.revisionNotes = seed.revisionNotes;
+    this.standupEntries = seed.standupEntries;
   }
 
   // ---------- 조회 ----------
@@ -885,6 +890,8 @@ export class MockQueDb implements QueDb {
       markdownBody: string;
       visibility?: MeetingNote["visibility"];
       restrictedUserIds?: string[];
+      /** 회의 종류(주간/마일스톤/일반). 미지정은 general. */
+      kind?: MeetingNote["kind"];
     },
   ): MeetingNote {
     const actor = this.requireUser(ctx.actorId);
@@ -933,6 +940,7 @@ export class MockQueDb implements QueDb {
       markdownBody: input.markdownBody,
       visibility: input.visibility ?? "team",
       restrictedUserIds: input.visibility === "restricted" ? input.restrictedUserIds : undefined,
+      kind: input.kind ?? "general",
       extractionStatus: "pending",
       createdAt: nowIso,
       updatedAt: nowIso,
@@ -2045,6 +2053,73 @@ export class MockQueDb implements QueDb {
     note.updatedAt = this.now();
     note.updatedBy = actor.id;
     return note;
+  }
+
+  // ---------- 데일리 스탠드업 (비동기 체크인, 기획 §2) ----------
+
+  /** 스탠드업 체크인 제출. **본인만** — userId는 입력이 아니라 ctx.actorId에서 온다(대리 제출 차단).
+   *  (date, userId) 유니크 1건: 이미 있으면 덮어쓰기(updatedAt 갱신·submittedAt 유지), 없으면 생성.
+   *  focus 필수. ChangeLog는 남기지 않는다(운영 리듬 기록 — RevisionNote 선례, 기획 §2 명시).
+   *  입력은 신뢰하지 않고 스키마로 파싱한다(웹/MCP/CLI 공유 경로). */
+  submitStandupEntry(
+    ctx: ActorContext,
+    input: {
+      date: string;
+      focus: string;
+      note?: string;
+      blockerText?: string;
+      blockedTaskIds?: string[];
+      snapshotTaskIds: StandupEntry["snapshotTaskIds"];
+      aiDrafted?: boolean;
+      draftEdited?: boolean;
+    },
+  ): StandupEntry {
+    const actor = this.requireUser(ctx.actorId);
+    const parsed = submitStandupEntryInputSchema.safeParse(input);
+    if (!parsed.success) {
+      throw new QueRuleError(
+        "INVALID_INPUT",
+        parsed.error.issues.map((i) => i.message).join(", "),
+      );
+    }
+    const data = parsed.data;
+    const nowIso = this.now();
+    const existing = this.standupEntries.find(
+      (e) => e.date === data.date && e.userId === actor.id,
+    );
+    if (existing) {
+      // 덮어쓰기 — 최초 제출 시각(submittedAt)은 유지하고 updatedAt만 갱신한다.
+      existing.focus = data.focus;
+      existing.note = data.note || undefined;
+      existing.blockerText = data.blockerText || undefined;
+      existing.blockedTaskIds = data.blockedTaskIds?.length ? data.blockedTaskIds : undefined;
+      existing.snapshotTaskIds = data.snapshotTaskIds;
+      existing.aiDrafted = data.aiDrafted ?? false;
+      existing.draftEdited = data.draftEdited;
+      existing.updatedAt = nowIso;
+      return existing;
+    }
+    const entry: StandupEntry = {
+      id: this.nextId("standup"),
+      date: data.date,
+      userId: actor.id,
+      focus: data.focus,
+      note: data.note || undefined,
+      blockerText: data.blockerText || undefined,
+      blockedTaskIds: data.blockedTaskIds?.length ? data.blockedTaskIds : undefined,
+      snapshotTaskIds: data.snapshotTaskIds,
+      aiDrafted: data.aiDrafted ?? false,
+      draftEdited: data.draftEdited,
+      submittedAt: nowIso,
+      updatedAt: nowIso,
+    };
+    this.standupEntries.push(entry);
+    return entry;
+  }
+
+  /** 특정 날짜(KST YYYY-MM-DD)의 스탠드업 체크인 전체 — 조회는 전원 열람. */
+  standupEntriesByDate(date: string): StandupEntry[] {
+    return this.standupEntries.filter((e) => e.date === date);
   }
 
   // ---------- 내부 ----------

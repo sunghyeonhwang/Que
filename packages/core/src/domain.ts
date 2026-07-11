@@ -220,6 +220,9 @@ export const meetingNoteSchema = z.object({
   visibility: z.enum(["team", "project", "admin", "restricted"]).default("team"),
   /** visibility가 "restricted"일 때만 사용 — 이 목록의 사용자와 관리자·업로더만 열람 가능 (예: 연봉협상 회의록) */
   restrictedUserIds: z.array(z.string()).optional(),
+  /** 회의 종류 — weekly=월요일 주간 통합 회의, milestone=주중 수시 마일스톤 처리, general=일반.
+   *  하위호환: 기존 데이터·미지정은 general(default). (데일리 스탠드업 기획 §1-f·§2) */
+  kind: z.enum(["milestone", "weekly", "general"]).default("general"),
   extractionStatus: z.enum(["pending", "done"]),
   createdAt: isoDateTime,
   updatedAt: isoDateTime,
@@ -344,6 +347,60 @@ export const createRevisionNoteInputSchema = z.object({
   status: revisionNoteStatusSchema.optional(),
 });
 export type CreateRevisionNoteInput = z.infer<typeof createRevisionNoteInputSchema>;
+
+// ---------- StandupEntry (데일리 스탠드업 비동기 체크인) ----------
+
+// 매일 10시 비동기 스탠드업에서 "사람이 쓴 말"만 저장한다(데일리 스탠드업 기획 §2).
+// 파생 데이터(어제/오늘/막힘)는 저장하지 않고 getStandupData 파생을 계속 쓰되, 다음 날 재현이
+// 안 되므로 제출 시점 Task id만 경량 동결(snapshotTaskIds)한다.
+// (date, userId) 1건 유니크 — 재제출은 덮어쓰기. ChangeLog 생략(운영 리듬 기록 — RevisionNote 선례),
+// updatedAt만 추적한다. 권한: 생성/수정 본인만, 조회 전원(도메인 규칙 "본인 작업만 수정" 정합).
+
+/** 제출 시점 파생 4분면의 Task id만 경량 동결(다음 날 파생 재현 불가 대비). 표시는 여전히 파생을 쓴다. */
+export const standupSnapshotSchema = z.object({
+  yesterdayDone: z.array(z.string()),
+  yesterdayUnfinished: z.array(z.string()),
+  todayPlanned: z.array(z.string()),
+});
+export type StandupSnapshot = z.infer<typeof standupSnapshotSchema>;
+
+export const standupEntrySchema = z.object({
+  id: z.string().min(1),
+  /** KST 날짜 키(YYYY-MM-DD). (date, userId) 유니크. */
+  date: isoDate,
+  userId: z.string().min(1),
+  /** 오늘의 포커스 한마디 — 필수, 최대 200자. */
+  focus: z.string().min(1).max(200),
+  /** 부연(선택, 최대 1000자). */
+  note: z.string().max(1000).optional(),
+  /** 막힘 자유 서술(선택). */
+  blockerText: z.string().max(1000).optional(),
+  /** 막힌 작업 참조(선택 — issue/on_hold Task id). */
+  blockedTaskIds: z.array(z.string()).optional(),
+  /** 제출 시점 파생 4분면 Task id 동결. */
+  snapshotTaskIds: standupSnapshotSchema,
+  /** AI 개인 초안으로 프리필됐는지. */
+  aiDrafted: z.boolean(),
+  /** AI 초안을 사람이 편집했는지(선택). */
+  draftEdited: z.boolean().optional(),
+  submittedAt: isoDateTime,
+  updatedAt: isoDateTime,
+});
+export type StandupEntry = z.infer<typeof standupEntrySchema>;
+
+/** 스탠드업 제출 입력 검증. userId는 입력이 아니라 ctx.actorId에서 온다(본인만 — 대리 제출 차단).
+ *  신뢰 못 할 클라이언트/MCP/CLI 값을 mutation 경로에서 파싱한다. */
+export const submitStandupEntryInputSchema = z.object({
+  date: isoDate,
+  focus: z.string().trim().min(1, "오늘의 포커스는 필수다").max(200, "포커스는 200자 이내"),
+  note: z.string().trim().max(1000, "부연은 1000자 이내").optional(),
+  blockerText: z.string().trim().max(1000, "막힘 서술은 1000자 이내").optional(),
+  blockedTaskIds: z.array(z.string()).optional(),
+  snapshotTaskIds: standupSnapshotSchema,
+  aiDrafted: z.boolean().optional(),
+  draftEdited: z.boolean().optional(),
+});
+export type SubmitStandupEntryInput = z.infer<typeof submitStandupEntryInputSchema>;
 
 // ---------- PaymentRequest ----------
 

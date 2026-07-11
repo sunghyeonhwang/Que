@@ -11,6 +11,7 @@ import type {
   Project,
   RecurringTemplate,
   RevisionNote,
+  StandupEntry,
   StatusLog,
   Task,
   TaskComment,
@@ -36,6 +37,7 @@ export interface QueSeed {
   taskComments: TaskComment[];
   recurringTemplates: RecurringTemplate[];
   revisionNotes: RevisionNote[];
+  standupEntries: StandupEntry[];
 }
 
 export function createSeed(now: Date): QueSeed {
@@ -339,6 +341,7 @@ export function createSeed(now: Date): QueSeed {
         "- 환불 정책 문구 검토 — 담당자 미정",
       ].join("\n"),
       visibility: "team",
+      kind: "general",
       extractionStatus: "done",
       createdAt: at(-1, 15),
       updatedAt: at(-1, 15),
@@ -353,6 +356,7 @@ export function createSeed(now: Date): QueSeed {
       fileName: "여름 프로모션 킥오프.md",
       markdownBody: "# 여름 프로모션 킥오프\n\n- 오픈 D-7 기준으로 역산 일정 확정\n- 배너 시안 2종 우선",
       visibility: "team",
+      kind: "general",
       extractionStatus: "pending",
       createdAt: at(-3, 11),
       updatedAt: at(-3, 11),
@@ -367,6 +371,7 @@ export function createSeed(now: Date): QueSeed {
       markdownBody: "# 박승환 연봉협상\n\n- 다음 분기 목표와 연동해 재검토\n- 결과는 별도 서면 통보",
       visibility: "restricted",
       restrictedUserIds: [park.id],
+      kind: "general",
       extractionStatus: "done",
       createdAt: at(-2, 17),
       updatedAt: at(-2, 17),
@@ -647,6 +652,44 @@ export function createSeed(now: Date): QueSeed {
     },
   ];
 
+  // 데일리 스탠드업 데모 체크인 — 오늘(KST) 날짜 기준 2건(황성현·오승훈). mock 모드 전용 시드.
+  // (date, userId) 유니크. 파생 4분면은 저장하지 않고 제출 시점 Task id만 경량 동결한다(기획 §2).
+  const dateKey = (dayOffset: number): string => {
+    // KST(Asia/Seoul, instrumentation.ts에서 TZ 고정) 로컬 날짜. UTC 변환 금지.
+    const d = new Date(now);
+    d.setDate(d.getDate() + dayOffset);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  };
+  const today = dateKey(0);
+  const standupEntries: StandupEntry[] = [
+    {
+      id: "standup-hwang-today",
+      date: today,
+      userId: hwang.id,
+      focus: "여름 프로모션 오픈 D-7 역산 일정 확정하고 배너 시안 방향 잡기",
+      note: "오전엔 킥오프 후속 정리, 오후엔 시안 리뷰.",
+      snapshotTaskIds: { yesterdayDone: [], yesterdayUnfinished: [], todayPlanned: [] },
+      aiDrafted: false,
+      submittedAt: at(0, 9, 40),
+      updatedAt: at(0, 9, 40),
+    },
+    {
+      id: "standup-oh-today",
+      date: today,
+      userId: oh.id,
+      focus: "결제 QA 잔여 케이스 마무리 — 마감 임박 마일스톤 우선",
+      blockerText: "결제 API 응답 형식이 프론트 표시값과 아직 안 맞아 확인 대기 중",
+      snapshotTaskIds: { yesterdayDone: [], yesterdayUnfinished: [], todayPlanned: [] },
+      aiDrafted: true,
+      draftEdited: true,
+      submittedAt: at(0, 9, 52),
+      updatedAt: at(0, 9, 52),
+    },
+  ];
+
   // ── 과거 6주 완료/취소 이력 (결정론적 생성) ──────────────────────────
   // 관리자 리포트의 주간/월간 집계가 빈 표가 아니라 실제 데이터로 검증되도록,
   // 지난 42~3일의 이력을 만든다. random 없이 인덱스 기반으로 분배해 재현 가능.
@@ -748,5 +791,6 @@ export function createSeed(now: Date): QueSeed {
     taskComments,
     recurringTemplates,
     revisionNotes,
+    standupEntries,
   };
 }

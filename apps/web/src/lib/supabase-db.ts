@@ -31,6 +31,7 @@ const TABLE_TO_FIELD = {
   task_comments: "taskComments",
   check_ins: "checkIns",
   revision_notes: "revisionNotes",
+  standup_entries: "standupEntries",
   alert_reads: "alertReads",
 } as const;
 

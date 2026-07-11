@@ -39,7 +39,7 @@
 | **D-1** | Que 모바일 인증 엔드포인트(email+비번→토큰) | 중간 | 🔴 **선결 blocker** — 현재 PAT는 웹 수동 발급뿐(로그인 UX 없음). Supabase Auth(auth.users 7명) 재사용 vs 신설 토큰교환 결정 필요 |
 | **D-2** | CORS 허용(todo.griff.co.kr) + `via='mobile'` 태깅 | 작음 | 🔴 PWA(브라우저)면 CORS 없이는 Que API 호출 차단. 감사 출처 'cli' 오기록 해소 |
 | **D-3** | DayBlocks ↔ Que Task 동기화 | 큼 | 읽기(`/api/my-day` 오늘 태스크→블록 임포트) + 쓰기(완료/상태) 방향·범위 결정 |
-| **D-4** | OKR 데이터 모델 | 중간~큼 | ⚠️ **Que에도 앱에도 없음** — DayBlocks 자체 저장으로 신규 정의(Que는 Task만 제공) |
+| **D-4** | OKR 데이터 모델 | 중간~큼 | ⚠️ **Que에도 앱에도 없음** — DayBlocks 자체 저장으로 신규 정의(Que는 Task만 제공) · **2026-07-11 갱신: Que 내부 팀 OKR(분기 Objective+월 KR)이 별도 트랙으로 기획 확정**(`que+/daily-standup-okr-plan.md` §2 — DayBlocks D-4는 개인 로컬 트래커로 유지, 서로 다른 층) |
 | **D-5** | 오프라인↔서버 동기화 충돌 정책 | 중간 | 로컬 우선 앱 + 서버 병합 = 충돌 해결 규칙 |
 | **D-6** | 네이티브 전환 | 중간 | 현재 PWA → 최단 경로 Capacitor 래핑(vs RN/Expo/네이티브) |
 | **보안** | RLS-off 4테이블(clients·revision_notes·payment_categories·notification_outbox) | 작음 | anon 키 쓰는 앱 붙기 전 정책 필요(별건 보안) |

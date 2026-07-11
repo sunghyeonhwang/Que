@@ -70,6 +70,7 @@ export const TABLE_INSERT_ORDER = [
   "task_comments",
   "check_ins",
   "revision_notes",
+  "standup_entries",
   "alert_reads",
 ] as const;
 
@@ -90,4 +91,5 @@ export const SEED_KEY_TO_TABLE: Record<string, string> = {
   taskComments: "task_comments",
   checkIns: "check_ins",
   revisionNotes: "revision_notes",
+  standupEntries: "standup_entries",
 };
