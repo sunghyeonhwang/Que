@@ -266,7 +266,7 @@ create table if not exists revision_notes (
 create table if not exists notification_outbox (
   id          text primary key,
   dedup_key   text not null unique,   -- 이벤트 유일키(issue:/on_hold:/deadline:/standup: 접두). 중복 적재 차단.
-  kind        text not null check (kind in ('issue', 'on_hold', 'deadline', 'standup', 'personal_digest', 'task_created', 'checkin_prompt')),
+  kind        text not null check (kind in ('issue', 'on_hold', 'deadline', 'standup', 'personal_digest', 'task_created', 'checkin_prompt', 'standup_open', 'standup_remind', 'standup_summary', 'weekly_preview')),
   entity_type text not null,
   entity_id   text not null,
   recipient   text,                   -- 팀채널 계열(issue/on_hold/deadline/standup)은 NULL. personal_digest는 Que userId(발송 직전 Slack ID 해석).
@@ -323,3 +323,16 @@ create table if not exists standup_entries (
   unique (date, user_id)
 );
 create index if not exists idx_standup_entries_date on standup_entries (date desc);
+
+-- 데일리 스탠드업 AI 팀 요약(기획 §2·§3②) — AI 저장 관례의 의도적 예외(시스템 생성 즉시 저장).
+-- date 유니크 1건, 재생성(admin)은 덮어쓰기. ChangeLog 미기록(운영 리듬 산출물).
+create table if not exists standup_team_summaries (
+  id                 text primary key,
+  date               text not null unique,
+  generated_at       timestamptz not null,
+  model              text not null check (model in ('flash', 'pro')),
+  content            text not null,
+  submitted_user_ids text[] not null default '{}',
+  regenerated_by     text references users(id)
+);
+create index if not exists idx_standup_team_summaries_date on standup_team_summaries (date desc);

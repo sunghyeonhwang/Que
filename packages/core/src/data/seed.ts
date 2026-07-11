@@ -12,6 +12,7 @@ import type {
   RecurringTemplate,
   RevisionNote,
   StandupEntry,
+  StandupTeamSummary,
   StatusLog,
   Task,
   TaskComment,
@@ -38,6 +39,7 @@ export interface QueSeed {
   recurringTemplates: RecurringTemplate[];
   revisionNotes: RevisionNote[];
   standupEntries: StandupEntry[];
+  standupTeamSummaries: StandupTeamSummary[];
 }
 
 export function createSeed(now: Date): QueSeed {
@@ -690,6 +692,9 @@ export function createSeed(now: Date): QueSeed {
     },
   ];
 
+  // AI 팀 요약은 시드에 두지 않는다 — 크론(11시/전원 제출)이 generateTeamSummary로 당일 생성한다.
+  const standupTeamSummaries: StandupTeamSummary[] = [];
+
   // ── 과거 6주 완료/취소 이력 (결정론적 생성) ──────────────────────────
   // 관리자 리포트의 주간/월간 집계가 빈 표가 아니라 실제 데이터로 검증되도록,
   // 지난 42~3일의 이력을 만든다. random 없이 인덱스 기반으로 분배해 재현 가능.
@@ -792,5 +797,6 @@ export function createSeed(now: Date): QueSeed {
     recurringTemplates,
     revisionNotes,
     standupEntries,
+    standupTeamSummaries,
   };
 }

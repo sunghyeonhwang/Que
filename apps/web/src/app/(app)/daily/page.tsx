@@ -3,6 +3,7 @@ import { ko } from "date-fns/locale";
 import { PageHeader } from "@/components/app/page-header";
 import { StandupForm, type BlockerCandidate } from "@/components/daily/standup-form";
 import { StandupBoard, type BoardMember } from "@/components/daily/standup-board";
+import { TeamSummaryPanel } from "@/components/daily/team-summary-panel";
 import { getCurrentUser } from "@/lib/current-user";
 import { getDailyData } from "@/lib/daily-data";
 import { getDb } from "@/lib/db";
@@ -94,6 +95,23 @@ export default async function DailyPage() {
         </div>
         <StandupBoard members={members} />
       </section>
+
+      {/* ⑶ AI 팀 요약 패널 — 전원 제출 즉시 또는 11:00 생성. 생성 전엔 대기 카드. */}
+      <TeamSummaryPanel
+        summary={
+          data.teamSummary
+            ? {
+                content: data.teamSummary.content,
+                model: data.teamSummary.model,
+                generatedAt: data.teamSummary.generatedAt,
+                submittedAtGen: data.teamSummary.submittedUserIds.length,
+              }
+            : undefined
+        }
+        submittedCount={data.submittedCount}
+        totalCount={data.totalCount}
+        isAdmin={user.role === "admin"}
+      />
     </div>
   );
 }

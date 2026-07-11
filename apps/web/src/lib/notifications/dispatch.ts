@@ -15,7 +15,9 @@ import {
   type TaskStatus,
 } from "@que/core";
 import { getStandupData } from "@/lib/team-data";
+import { generateTeamSummary } from "@/lib/standup-summary";
 import {
+  appBaseUrl,
   deadlineThresholdHours,
   digestRecipientAllowlist,
   notificationsEnabled,
@@ -40,13 +42,18 @@ import { postDmToSlack, resolveSlackUserId } from "./slack-bot";
 
 const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
 const MAX_ATTEMPTS = 5;
-// 스탠드업 다이제스트 발송 시각(KST 시). 크론이 */10이라 이 시(hour) 첫 실행 1건만 dedup으로 발송된다.
+// 스탠드업 오픈 시각(KST 시, 기획 §5 재편: 9→10). 크론이 */10이라 이 시(hour) 첫 실행 1건만 dedup으로 발송.
 // 방해금지 기본 창(22-8) 밖의 아침 시각으로 둬 자정 발송·야간 발송을 막는다.
-const STANDUP_HOUR_KST = 9;
-// 개인 DM 브리핑 발송 창(KST 분 단위). 9:50~10:30 — 크론(*/10) 지연을 흡수하되 하루 1회는 dedup으로 강제.
-// standup의 hour 게이트와 달리 분 단위 창을 쓰는 이유: 9:50 정시 크론이 밀려도 창 안 첫 실행이 발송.
-const DIGEST_WINDOW_START_MIN = 9 * 60 + 50; // 09:50
-const DIGEST_WINDOW_END_MIN = 10 * 60 + 30; // 10:30
+const STANDUP_HOUR_KST = 10;
+// 개인 DM 브리핑 발송 창(KST 분 단위). 기획 §5 재편: 9:50~10:30 → **9:30~10:00**(브리핑 읽고 체크인 준비 순서).
+// standup의 hour 게이트와 달리 분 단위 창을 쓰는 이유: 정시 크론이 밀려도 창 안 첫 실행이 발송.
+const DIGEST_WINDOW_START_MIN = 9 * 60 + 30; // 09:30
+const DIGEST_WINDOW_END_MIN = 10 * 60; // 10:00
+// 미제출 재촉 DM 발송 창(KST 분). 10:40~11:00 — 팀 요약(11:00) 직전에 미제출자만 재촉.
+const STANDUP_REMIND_WINDOW_START_MIN = 10 * 60 + 40; // 10:40
+const STANDUP_REMIND_WINDOW_END_MIN = 11 * 60; // 11:00
+// 팀 요약 컷오프 시각(KST 시). 이 시각 도달 시 미제출자가 있어도 생성(전원 제출 즉시와 '먼저 오는 쪽' §8-2).
+const STANDUP_SUMMARY_HOUR_KST = 11;
 
 /** 발송 결과 요약(크론 응답·호출부 로깅용). */
 export interface DispatchCounts {
@@ -74,6 +81,24 @@ function kstMinuteOfDay(now: Date): number {
 /** now의 KST 날짜 키(YYYY-MM-DD). standup dedup에 쓴다. */
 function kstDateKey(now: Date): string {
   return new Date(now.getTime() + KST_OFFSET_MS).toISOString().slice(0, 10);
+}
+
+/** now가 KST 기준 주말(토·일)인지 — 스탠드업 계열 알림 주말 게이트(§8-5). */
+export function isKstWeekend(now: Date): boolean {
+  const day = new Date(now.getTime() + KST_OFFSET_MS).getUTCDay(); // 0=일, 6=토
+  return day === 0 || day === 6;
+}
+
+/** now의 KST 분(자정 이후 누적 분, 0-1439). 재촉 창 판정용(kstMinuteOfDay 재사용). */
+function kstMinute(now: Date): number {
+  return kstMinuteOfDay(now);
+}
+
+/** ISO(마일스톤 dueAt 등)의 KST 날짜 키(YYYY-MM-DD). 파싱 실패 시 빈 문자열. */
+function kstDateKeyOfIso(iso: string): string {
+  const ms = Date.parse(iso);
+  if (Number.isNaN(ms)) return "";
+  return new Date(ms + KST_OFFSET_MS).toISOString().slice(0, 10);
 }
 
 function inQuietHours(now: Date, quiet: { start: number; end: number }): boolean {
@@ -299,13 +324,12 @@ export async function scanDeadlines(db: MockQueDb, now: Date): Promise<DispatchC
 }
 
 /**
- * 팀 데일리 스탠드업 다이제스트 — 하루 1회 아침(STANDUP_HOUR_KST). dedup_key
- * `standup:team:<YYYY-MM-DD(KST)>`로 중복 차단. 크론이 10분마다라 발송 시(hour)에만 게이트를 열고,
- * 그 시의 첫 실행 1건만 dedup으로 발송된다(나머지·다른 시각 실행은 no-op=false).
- * 시간창 게이트로 자정·야간(방해금지) 발송을 막는다.
+ * 팀채널 "스탠드업 오픈" 게시 — 하루 1회 10:00(STANDUP_HOUR_KST). dedup_key `standup:team:<KST날짜>`.
+ * 기획 §5 재편: 9→10시로 이동 + 내용 개편(오늘 마감 마일스톤 · 어제 요약 한 줄 + /daily 딥링크).
+ * 크론이 10분마다라 발송 시(hour)에만 게이트를 열고, 그 시 첫 실행 1건만 dedup으로 발송된다.
  */
 export async function postStandupDigest(db: MockQueDb, now: Date): Promise<boolean> {
-  if (!webhookEnabled()) return false; // 팀채널 다이제스트 — Webhook 게이트
+  if (!webhookEnabled()) return false; // 팀채널 게시 — Webhook 게이트
   if (kstHour(now) !== STANDUP_HOUR_KST) return false;
   const dateKey = kstDateKey(now);
   // payload 없이 dedup 키만 먼저 확인 — 이미 오늘 발송했으면 getStandupData 로드를 아낀다.
@@ -314,25 +338,37 @@ export async function postStandupDigest(db: MockQueDb, now: Date): Promise<boole
     entityType: "team",
     entityId: "team",
     marker: dateKey,
-    payload: { title: "", text: "", deeplinkPath: "/team", tone: "violet" },
+    payload: { title: "", text: "", deeplinkPath: "/daily", tone: "violet" },
   };
   const key = dedupKeyFor(probe);
   if (db.notificationOutbox.some((e) => e.dedupKey === key)) return false;
 
+  // 어제 요약 한 줄(getStandupData의 yesterday는 now 기준 어제).
   const rows = await getStandupData(now);
   const sum = (pick: (r: (typeof rows)[number]) => unknown[]) =>
     rows.reduce((acc, r) => acc + pick(r).length, 0);
   const done = sum((r) => r.yesterdayDone);
   const carried = sum((r) => r.yesterdayUnfinished);
-  const today = sum((r) => r.todayPlanned);
-  const blocked = sum((r) => r.blocked);
+
+  // 오늘 마감 마일스톤(KST) — 제목·위험 라벨. 최대 5개 표시.
+  const RISK: Record<string, string> = { at_risk: "주의", late: "지연", on_track: "" };
+  const dueToday = db.milestones.filter((m) => kstDateKeyOfIso(m.dueAt) === dateKey);
+  const milestoneLine =
+    dueToday.length > 0
+      ? "오늘 마감 마일스톤: " +
+        dueToday
+          .slice(0, 5)
+          .map((m) => (RISK[m.riskStatus] ? `${m.title}(${RISK[m.riskStatus]})` : m.title))
+          .join(", ") +
+        (dueToday.length > 5 ? ` 외 ${dueToday.length - 5}건` : "")
+      : "오늘 마감 마일스톤 없음";
 
   const intent: NotificationIntent = {
     ...probe,
     payload: {
-      title: "데일리 스탠드업",
-      text: `어제 완료 ${done} · 이월 ${carried} · 오늘 예정 ${today} · 막힘 ${blocked}`,
-      deeplinkPath: "/team",
+      title: "스탠드업이 열렸습니다",
+      text: `${milestoneLine}\n어제 완료 ${done} · 이월 ${carried} — 오늘 체크인을 남겨 주세요.`,
+      deeplinkPath: "/daily",
       tone: "violet",
     },
   };
@@ -342,6 +378,156 @@ export async function postStandupDigest(db: MockQueDb, now: Date): Promise<boole
   await sendEntry(db, created[0]);
   await db.persist();
   return true;
+}
+
+/**
+ * 개인 DM "초안으로 시작" — 10:00 스탠드업 오픈 시 아직 미제출인 활성 유저에게. Bot Token 게이트.
+ * 버튼(url=/daily 딥링크)으로 바로 체크인 화면을 연다. dedup `standup_open:<userId>:<KST날짜>`.
+ * allowlist(QUE_DIGEST_RECIPIENTS)를 존중(개인 DM 계열 공통 롤아웃 게이트). 방해금지 창은 enqueueAndSend가 흡수.
+ */
+export async function postStandupOpenPrompts(db: MockQueDb, now: Date): Promise<DispatchCounts> {
+  const empty: DispatchCounts = { enqueued: 0, sent: 0, held: 0 };
+  if (!personalDigestEnabled()) return empty; // 개인 DM — Bot Token 게이트
+  if (kstHour(now) !== STANDUP_HOUR_KST) return empty;
+  try {
+    const dateKey = kstDateKey(now);
+    const submitted = new Set(db.standupEntriesByDate(dateKey).map((e) => e.userId));
+    const allow = digestRecipientAllowlist();
+    const deeplink = `${appBaseUrl()}/daily`;
+    const intents: NotificationIntent[] = db.users
+      .filter((u) => u.active !== false && !submitted.has(u.id))
+      .filter((u) => !allow || allow.includes(u.id))
+      .map((u) => ({
+        kind: "standup_open",
+        entityType: "user",
+        entityId: u.id,
+        marker: dateKey,
+        recipient: u.id,
+        payload: {
+          title: "데일리 스탠드업",
+          text: "오늘 스탠드업이 열렸습니다. 초안으로 빠르게 시작해 보세요.",
+          deeplinkPath: "/daily",
+          tone: "violet",
+          actions: [
+            { actionId: "standup:open_draft", label: "초안으로 시작", value: dateKey, url: deeplink, style: "primary" },
+          ],
+        },
+      }));
+    return await enqueueAndSend(db, intents, now);
+  } catch (error) {
+    console.error("[que-notify] postStandupOpenPrompts 실패(무시)", error);
+    return empty;
+  }
+}
+
+/**
+ * 미제출 재촉 DM "지금 작성" — 10:40~11:00 창, 당일 체크인 없는 활성 유저에게만. Bot Token 게이트.
+ * dedup `standup_remind:<userId>:<KST날짜>`(유저·날짜당 1회). 버튼 url=/daily 딥링크. allowlist 존중.
+ */
+export async function postStandupReminders(db: MockQueDb, now: Date): Promise<DispatchCounts> {
+  const empty: DispatchCounts = { enqueued: 0, sent: 0, held: 0 };
+  if (!personalDigestEnabled()) return empty; // 개인 DM — Bot Token 게이트
+  const minute = kstMinute(now);
+  if (minute < STANDUP_REMIND_WINDOW_START_MIN || minute >= STANDUP_REMIND_WINDOW_END_MIN)
+    return empty;
+  try {
+    const dateKey = kstDateKey(now);
+    const submitted = new Set(db.standupEntriesByDate(dateKey).map((e) => e.userId));
+    const allow = digestRecipientAllowlist();
+    const deeplink = `${appBaseUrl()}/daily`;
+    const intents: NotificationIntent[] = db.users
+      .filter((u) => u.active !== false && !submitted.has(u.id))
+      .filter((u) => !allow || allow.includes(u.id))
+      .map((u) => ({
+        kind: "standup_remind",
+        entityType: "user",
+        entityId: u.id,
+        marker: dateKey,
+        recipient: u.id,
+        payload: {
+          title: "스탠드업 체크인 미제출",
+          text: "아직 오늘 스탠드업 체크인이 없습니다. 11시 팀 요약 전에 남겨 주세요.",
+          deeplinkPath: "/daily",
+          tone: "amber",
+          actions: [
+            { actionId: "standup:remind_write", label: "지금 작성", value: dateKey, url: deeplink, style: "primary" },
+          ],
+        },
+      }));
+    return await enqueueAndSend(db, intents, now);
+  } catch (error) {
+    console.error("[que-notify] postStandupReminders 실패(무시)", error);
+    return empty;
+  }
+}
+
+/**
+ * 팀채널 AI 팀 요약 게시(기획 §3②·§8-2) — **⑴전원 제출 즉시 ⑵11:00 컷오프 중 먼저 오는 쪽**.
+ * Webhook 게이트. dedup `standup_summary:team:<KST날짜>`로 날짜당 1회. 이미 게시했으면 스킵.
+ * 요약이 아직 없으면 generateTeamSummary(pro→flash)로 생성(admin 재생성분이 있으면 그대로 재사용해 게시).
+ * 최소 1명은 제출돼 있어야 생성한다(전무면 요약할 게 없어 스킵).
+ * @returns 게시 여부 + 생성에 쓴 모델(생성 없이 게시만 했으면 기존 요약 모델).
+ */
+export async function postStandupTeamSummary(
+  db: MockQueDb,
+  now: Date,
+): Promise<{ posted: boolean; model?: "flash" | "pro" }> {
+  if (!webhookEnabled()) return { posted: false }; // 팀채널 게시 — Webhook 게이트
+  const dateKey = kstDateKey(now);
+
+  // 이미 게시했으면(아웃박스 dedup 존재) 스킵 — 값비싼 AI 요약 생성/조회를 아낀다.
+  const probe: NotificationIntent = {
+    kind: "standup_summary",
+    entityType: "team",
+    entityId: "team",
+    marker: dateKey,
+    payload: { title: "", text: "", deeplinkPath: "/daily", tone: "violet" },
+  };
+  const key = dedupKeyFor(probe);
+  if (db.notificationOutbox.some((e) => e.dedupKey === key)) return { posted: false };
+
+  // 트리거: (전원 제출 & 스탠드업 오픈 이후) 또는 11:00 컷오프 도달 — 먼저 오는 쪽.
+  const activeUsers = db.users.filter((u) => u.active !== false);
+  const entries = db.standupEntriesByDate(dateKey);
+  if (entries.length === 0) return { posted: false }; // 제출 전무 — 요약할 게 없다
+  const allSubmitted =
+    activeUsers.length > 0 && activeUsers.every((u) => entries.some((e) => e.userId === u.id));
+  const hour = kstHour(now);
+  const cutoffReached = hour >= STANDUP_SUMMARY_HOUR_KST;
+  const earlyComplete = allSubmitted && hour >= STANDUP_HOUR_KST;
+  if (!earlyComplete && !cutoffReached) return { posted: false };
+
+  try {
+    // 요약이 아직 없으면 생성(admin 재생성분이 있으면 재사용). generateTeamSummary가 저장·persist까지 한다.
+    let summary = db.standupTeamSummaryByDate(dateKey);
+    if (!summary) {
+      summary = await generateTeamSummary(db, now);
+    }
+
+    const missing = activeUsers.filter(
+      (u) => !summary!.submittedUserIds.includes(u.id),
+    );
+    const header = missing.length > 0 ? `제출 ${entries.length}/${activeUsers.length} · ${missing.length}인 미제출` : `전원 제출(${activeUsers.length}인)`;
+    const intent: NotificationIntent = {
+      ...probe,
+      payload: {
+        title: "데일리 스탠드업 팀 요약",
+        text: header,
+        deeplinkPath: "/daily",
+        tone: "violet",
+        detail: summary.content,
+      },
+    };
+    const created = db.enqueueNotifications([intent]);
+    if (created.length === 0) return { posted: false, model: summary.model }; // 방금 적재됨
+    await db.persist();
+    await sendEntry(db, created[0]);
+    await db.persist();
+    return { posted: true, model: summary.model };
+  } catch (error) {
+    console.error("[que-notify] postStandupTeamSummary 실패(무시)", error);
+    return { posted: false };
+  }
 }
 
 /**
@@ -371,7 +557,7 @@ export interface PersonalDigestCounts {
 }
 
 /**
- * 개인 DM 데일리 브리핑 — active 유저별 하루 1회 아침(9:50~10:30 KST 창). Bot Token 게이트.
+ * 개인 DM 데일리 브리핑 — active 유저별 하루 1회 아침(9:30~10:00 KST 창, 기획 §5 재편). Bot Token 게이트.
  * dedup_key `personal_digest:<userId>:<YYYY-MM-DD(KST)>`로 유저·날짜당 1건. 10분 주기 크론 지연을
  * 분 단위 창으로 흡수하되, 창 안 첫 실행이 적재→발송하고 이후 실행은 dedup으로 no-op이 된다.
  * 8명 순차 발송이 함수 타임아웃에 걸리지 않게 Promise.allSettled로 병렬 발송한다.

@@ -23,6 +23,10 @@ export async function postToSlack(msg: SlackMessage): Promise<void> {
   if (!webhook) throw new Error("SLACK_WEBHOOK_URL 미설정 — Slack 발송 비활성");
 
   const url = `${appBaseUrl()}${msg.deeplinkPath}`;
+  // 요약 1줄(text) + (있으면) 상세 본문(detail — 팀 요약/브리핑 본문) + 딥링크. detail 미설정이면 기존 1줄 동작.
+  const body = msg.detail
+    ? `${msg.text}\n\n${msg.detail}\n\n<${url}|Que에서 열기>`
+    : `${msg.text}\n<${url}|Que에서 열기>`;
   const payload = {
     attachments: [
       {
@@ -30,7 +34,7 @@ export async function postToSlack(msg: SlackMessage): Promise<void> {
         blocks: [
           {
             type: "section",
-            text: { type: "mrkdwn", text: `${msg.text}\n<${url}|Que에서 열기>` },
+            text: { type: "mrkdwn", text: body },
           },
         ],
       },

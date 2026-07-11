@@ -17,6 +17,7 @@ import type {
   RevisionNote,
   RevisionNoteStatus,
   StandupEntry,
+  StandupTeamSummary,
   StatusDetail,
   StatusLog,
   Task,
@@ -80,6 +81,7 @@ export interface QueDb {
   recurringTemplates: RecurringTemplate[];
   revisionNotes: RevisionNote[];
   standupEntries: StandupEntry[];
+  standupTeamSummaries: StandupTeamSummary[];
 }
 
 interface ActorContext {
@@ -105,6 +107,7 @@ export class MockQueDb implements QueDb {
   recurringTemplates: RecurringTemplate[];
   revisionNotes: RevisionNote[];
   standupEntries: StandupEntry[];
+  standupTeamSummaries: StandupTeamSummary[];
   /** Slack 발송 원장(B-1). 시드에 없다 — mutation 훅이 enqueue로 채운다. Supabase 어댑터가 load에서 덮어쓴다. */
   notificationOutbox: NotificationOutboxEntry[] = [];
   /** 알림 읽음 표시(C-3a). 시드에 없다 — markAlertsRead가 채운다. Supabase 어댑터가 load에서 덮어쓴다. */
@@ -133,6 +136,7 @@ export class MockQueDb implements QueDb {
     this.recurringTemplates = seed.recurringTemplates;
     this.revisionNotes = seed.revisionNotes;
     this.standupEntries = seed.standupEntries;
+    this.standupTeamSummaries = seed.standupTeamSummaries;
   }
 
   // ---------- 조회 ----------
@@ -2120,6 +2124,47 @@ export class MockQueDb implements QueDb {
   /** 특정 날짜(KST YYYY-MM-DD)의 스탠드업 체크인 전체 — 조회는 전원 열람. */
   standupEntriesByDate(date: string): StandupEntry[] {
     return this.standupEntries.filter((e) => e.date === date);
+  }
+
+  /**
+   * AI 팀 요약 저장(date 유니크 덮어쓰기). **시스템(크론) 생성이라 권한은 호출부가 강제한다** —
+   * 최초 자동 생성은 크론, 재생성은 admin만(regeneratedBy에 그 actorId). AI 저장 관례의 의도적 예외(기획 §2).
+   * content/model/submittedUserIds를 받아 generatedAt=now로 upsert한다. ChangeLog는 남기지 않는다(운영 리듬 산출물).
+   */
+  saveStandupTeamSummary(input: {
+    date: string;
+    model: StandupTeamSummary["model"];
+    content: string;
+    submittedUserIds: string[];
+    regeneratedBy?: string;
+  }): StandupTeamSummary {
+    const nowIso = this.now();
+    const existing = this.standupTeamSummaries.find((s) => s.date === input.date);
+    if (existing) {
+      // 재생성 — 같은 행을 덮어쓴다(새 행 없이 generatedAt만 갱신).
+      existing.model = input.model;
+      existing.content = input.content;
+      existing.submittedUserIds = input.submittedUserIds;
+      existing.regeneratedBy = input.regeneratedBy;
+      existing.generatedAt = nowIso;
+      return existing;
+    }
+    const summary: StandupTeamSummary = {
+      id: this.nextId("stsum"),
+      date: input.date,
+      generatedAt: nowIso,
+      model: input.model,
+      content: input.content,
+      submittedUserIds: input.submittedUserIds,
+      regeneratedBy: input.regeneratedBy,
+    };
+    this.standupTeamSummaries.push(summary);
+    return summary;
+  }
+
+  /** 특정 날짜(KST YYYY-MM-DD)의 AI 팀 요약 — 없으면 undefined. 조회는 전원 열람. */
+  standupTeamSummaryByDate(date: string): StandupTeamSummary | undefined {
+    return this.standupTeamSummaries.find((s) => s.date === date);
   }
 
   // ---------- 내부 ----------

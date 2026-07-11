@@ -7,6 +7,7 @@ import { getCurrentUser } from "@/lib/current-user";
 import { getDailyData } from "@/lib/daily-data";
 import { getStandupData } from "@/lib/team-data";
 import { generateAnalysis } from "@/lib/ai/gemini";
+import { generateTeamSummary } from "@/lib/standup-summary";
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
 
@@ -130,6 +131,28 @@ export async function generateStandupDraftAction(): Promise<StandupDraftResult> 
     };
   } catch {
     return { ok: false };
+  }
+}
+
+/**
+ * AI 팀 요약 재생성(pro, flash 폴백) — **admin만**(3중 방어: 메뉴/UI 숨김 + 이 서버 액션 + 시스템 생성 관례).
+ * 오늘 날짜의 요약을 새로 만들어 date 유니크로 덮어쓴다(regeneratedBy=본인). 저장·persist는 generateTeamSummary가 한다.
+ * 실패(AI 키 미설정·생성 실패)면 { ok:false, error } — 보드는 기존 요약(있으면) 그대로 유지된다.
+ */
+export async function regenerateTeamSummaryAction(): Promise<ActionResult> {
+  const user = await getCurrentUser();
+  if (user.role !== "admin") {
+    return { ok: false, error: "팀 요약 재생성은 관리자만 할 수 있습니다." };
+  }
+  try {
+    const db = await getDb();
+    await generateTeamSummary(db, new Date(), user.id);
+    revalidatePath("/daily");
+    return { ok: true };
+  } catch (error) {
+    if (isQueRuleError(error)) return { ok: false, error: error.message };
+    const message = error instanceof Error ? error.message : "팀 요약 재생성에 실패했습니다.";
+    return { ok: false, error: message };
   }
 }
 

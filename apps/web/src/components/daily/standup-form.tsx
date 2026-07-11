@@ -1,7 +1,13 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { CheckCircle2, Pencil, Sparkles } from "lucide-react";
+import { useRef, useState, useSyncExternalStore } from "react";
+import {
+  CheckCircle2,
+  ClipboardList,
+  MessagesSquare,
+  Pencil,
+  Sparkles,
+} from "lucide-react";
 import type { TaskStatus } from "@que/core";
 import { format } from "date-fns";
 import {
@@ -10,12 +16,41 @@ import {
 } from "@/app/(app)/daily/actions";
 import { useSafeAction } from "@/components/app/use-safe-action";
 import { StatusBadge } from "@/components/app/status-badge";
+import { StandupChat } from "@/components/daily/standup-chat";
 import { Button } from "@/components/ui/button";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 
 const FOCUS_MAX = 200;
+
+/** 입력 방식 선택 기억(localStorage). 기본=폼. SSR 안전하게 useSyncExternalStore로 구독. */
+const MODE_KEY = "que:standup-input-mode";
+const MODE_EVENT = "que:standup-input-mode-change";
+type InputMode = "form" | "chat";
+
+function readMode(): InputMode {
+  if (typeof window === "undefined") return "form";
+  return window.localStorage.getItem(MODE_KEY) === "chat" ? "chat" : "form";
+}
+
+function subscribeMode(onChange: () => void): () => void {
+  window.addEventListener(MODE_EVENT, onChange);
+  window.addEventListener("storage", onChange);
+  return () => {
+    window.removeEventListener(MODE_EVENT, onChange);
+    window.removeEventListener("storage", onChange);
+  };
+}
+
+function useInputMode(): [InputMode, (next: InputMode) => void] {
+  const mode = useSyncExternalStore(subscribeMode, readMode, () => "form" as InputMode);
+  const switchMode = (next: InputMode) => {
+    window.localStorage.setItem(MODE_KEY, next);
+    window.dispatchEvent(new Event(MODE_EVENT));
+  };
+  return [mode, switchMode];
+}
 
 /** 막힘 후보 = 내 미완 작업 중 issue/on_hold. 서버(myStandup.blocked)에서 내려온다. */
 export interface BlockerCandidate {
@@ -48,6 +83,8 @@ export function StandupForm({ blockerCandidates, myEntry }: StandupFormProps) {
   const [drafting, setDrafting] = useState(false);
   // 제출됨 상태면 접어서 확정 표기 → "수정"으로 재오픈. 미제출이면 폼을 편다.
   const [editing, setEditing] = useState(!myEntry);
+  // 입력 방식: 폼 vs 대화형 체크인. 기본=폼, 선택은 localStorage에 기억(SSR 안전).
+  const [mode, switchMode] = useInputMode();
 
   const [focus, setFocus] = useState(myEntry?.focus ?? "");
   const [note, setNote] = useState(myEntry?.note ?? "");
@@ -91,6 +128,12 @@ export function StandupForm({ blockerCandidates, myEntry }: StandupFormProps) {
     } finally {
       setDrafting(false);
     }
+  };
+
+  // 대화형 체크인이 초안을 그대로 채택했을 때 — 폼과 동일한 draftEdited 기준선을 잡는다.
+  const handleDraftAdopted = (d: { focus: string; note: string; blocker: string }) => {
+    aiDrafted.current = true;
+    draftSnapshot.current = { focus: d.focus, note: d.note, blocker: d.blocker };
   };
 
   const submit = () => {
@@ -163,25 +206,65 @@ export function StandupForm({ blockerCandidates, myEntry }: StandupFormProps) {
       // 미제출 = 최상단 강조 카드(운영 도구 톤: 장식 없이 테두리 강조).
       className="rounded-xl border-2 border-primary/40 bg-card p-4"
     >
-      <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
-        <div>
-          <h2 className="text-base font-semibold">내 체크인</h2>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            오늘의 포커스 한마디면 충분합니다 — 어제·오늘 작업은 자동으로 붙습니다.
-          </p>
-        </div>
+      {/* 입력 방식 토글: 대화로 체크인 / 폼으로 입력 (기본=폼, localStorage 기억) */}
+      <div
+        role="group"
+        aria-label="입력 방식"
+        className="mb-3 flex w-fit gap-1 rounded-lg bg-muted p-1"
+      >
         <Button
-          variant="outline"
+          variant={mode === "chat" ? "default" : "ghost"}
+          size="sm"
           className="h-10"
-          onClick={applyDraft}
-          disabled={drafting || pending}
+          aria-pressed={mode === "chat"}
+          onClick={() => switchMode("chat")}
         >
-          <Sparkles className="size-4" aria-hidden />
-          {drafting ? "초안 작성 중…" : "AI 초안 받기"}
+          <MessagesSquare className="size-4" aria-hidden />
+          대화로 체크인
+        </Button>
+        <Button
+          variant={mode === "form" ? "default" : "ghost"}
+          size="sm"
+          className="h-10"
+          aria-pressed={mode === "form"}
+          onClick={() => switchMode("form")}
+        >
+          <ClipboardList className="size-4" aria-hidden />
+          폼으로 입력
         </Button>
       </div>
 
-      <div className="flex flex-col gap-3">
+      {mode === "chat" ? (
+        <StandupChat
+          setFocus={setFocus}
+          setNote={setNote}
+          setBlockerText={setBlockerText}
+          onDraftAdopted={handleDraftAdopted}
+          onSubmit={submit}
+          onSwitchToForm={() => switchMode("form")}
+          pending={pending}
+        />
+      ) : (
+        <>
+          <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
+            <div>
+              <h2 className="text-base font-semibold">내 체크인</h2>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                오늘의 포커스 한마디면 충분합니다 — 어제·오늘 작업은 자동으로 붙습니다.
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              className="h-10"
+              onClick={applyDraft}
+              disabled={drafting || pending}
+            >
+              <Sparkles className="size-4" aria-hidden />
+              {drafting ? "초안 작성 중…" : "AI 초안 받기"}
+            </Button>
+          </div>
+
+          <div className="flex flex-col gap-3">
         <Field data-invalid={focusError ? true : undefined}>
           <FieldLabel htmlFor="standup-focus">
             오늘의 포커스 <span className="text-destructive">*</span>
@@ -274,8 +357,10 @@ export function StandupForm({ blockerCandidates, myEntry }: StandupFormProps) {
               취소
             </Button>
           )}
+          </div>
         </div>
-      </div>
+        </>
+      )}
     </section>
   );
 }

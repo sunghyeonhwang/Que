@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 import { PageHeader } from "@/components/app/page-header";
@@ -9,7 +10,6 @@ import { AdminReport } from "@/components/team/admin-report";
 
 // AI 분석(report-actions)은 Gemini 응답까지 수십 초 걸릴 수 있다 — 함수 시간 명시(기본값 의존 금지).
 export const maxDuration = 60;
-import { StandupGrid } from "@/components/team/standup-grid";
 import { HomeCard } from "@/components/home/home-card";
 import { Badge } from "@/components/ui/badge";
 import { getClientFilter } from "@/lib/client-filter";
@@ -17,7 +17,7 @@ import { getCurrentUser } from "@/lib/current-user";
 import { getCommentViewsByTask } from "@/lib/comments";
 import { getRecentChangeLogs } from "@/lib/calendar-data";
 import { getAdminReportData, type ReportPeriod } from "@/lib/report-data";
-import { getStandupData, getTeamData, type AttentionEntry } from "@/lib/team-data";
+import { getTeamData, type AttentionEntry } from "@/lib/team-data";
 import { josa } from "@/lib/korean";
 import { cn } from "@/lib/utils";
 
@@ -29,17 +29,18 @@ export default async function TeamPage({
   searchParams: Promise<{ view?: string; period?: string }>;
 }) {
   const params = await searchParams;
+  // 스탠드업 뷰는 /daily로 완전 대체(기획 §8-4) — 동일 데이터 이중 화면 방지. getStandupData는 /daily 공급자로 존속.
+  if (params.view === "standup") redirect("/daily");
   const user = await getCurrentUser();
   const clientId = await getClientFilter();
   const now = new Date();
 
   // 리포트 뷰는 관리자 전용 — 비관리자가 URL로 접근하면 운영 보드로 되돌린다.
   const requestedReport = params.view === "report" && user.role === "admin";
-  const view = requestedReport ? "report" : params.view === "standup" ? "standup" : "board";
+  const view = requestedReport ? "report" : "board";
 
   const VIEWS = [
     { key: "board", label: "운영 보드" },
-    { key: "standup", label: "스탠드업" },
     ...(user.role === "admin" ? [{ key: "report", label: "리포트" }] : []),
   ] as const;
 
@@ -50,7 +51,6 @@ export default async function TeamPage({
   const data = await getTeamData(user, now, clientId);
   const logs = await getRecentChangeLogs(6);
   const commentsByTask = await getCommentViewsByTask();
-  const standupRows = view === "standup" ? await getStandupData(now, clientId) : [];
 
   // 요약칩 — 상태색 의미 고정(green=진행, red=문제, amber=주의/대기, violet=응답대기).
   // 0이면 중립으로 강등해 과한 색 노출을 막는다.
@@ -126,16 +126,6 @@ export default async function TeamPage({
           </Link>
         ))}
       </nav>
-
-      {view === "standup" && (
-        <>
-          <p className="mb-3 text-sm text-muted-foreground">
-            아침 회의용 — 멤버별 어제/오늘/막힘을 한 화면에서 돕니다. 상태 변경은 시간표나 오늘
-            화면에서.
-          </p>
-          <StandupGrid rows={standupRows} />
-        </>
-      )}
 
       {view === "report" && reportData && (
         <>

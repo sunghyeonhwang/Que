@@ -3,13 +3,20 @@ import { getDb } from "@/lib/db";
 import { notificationsEnabled } from "@/lib/notifications/config";
 import {
   drainOutbox,
+  isKstWeekend,
   postCheckinPrompts,
   postPersonalDigests,
   postStandupDigest,
+  postStandupOpenPrompts,
+  postStandupReminders,
+  postStandupTeamSummary,
   scanDeadlines,
 } from "@/lib/notifications/dispatch";
+import { postWeeklyPreview } from "@/lib/notifications/weekly-preview";
 
 export const dynamic = "force-dynamic";
+// 팀 요약(§3②)·주간 프리뷰(§1-d)가 pro(gemini)를 호출 — 수십 초 걸릴 수 있어 함수 시간 명시(기본값 의존 금지).
+export const maxDuration = 60;
 
 // 체크인·반복업무 스케줄러 Cron 진입점.
 // Vercel Cron이 주기적으로 GET 호출 → core 스케줄러를 실행해 정시에 체크인/반복 Task 생성.
@@ -49,7 +56,12 @@ export async function GET(request: Request) {
         released: number;
         drainedSent: number;
         drainedFailed: number;
+        weekend: boolean;
         standupSent: boolean;
+        standupOpenSent: number;
+        standupRemindSent: number;
+        standupSummaryPosted: boolean;
+        weeklyPreviewPosted: boolean;
         digestEnqueued: number;
         digestSent: number;
         digestFailed: number;
@@ -60,12 +72,29 @@ export async function GET(request: Request) {
     | { skipped: true } = { skipped: true };
   if (notificationsEnabled()) {
     try {
+      // 마감 임박·아웃박스 드레인은 요일 무관 상시(마감은 주말도 다가오고, 드레인은 held 방출을 막으면 안 됨).
       const deadline = await scanDeadlines(db, now);
       const drained = await drainOutbox(db, now);
-      const standupSent = await postStandupDigest(db, now);
-      // 개인 DM 브리핑 — Bot Token 게이트 + 9:50~10:30 KST 창. 자체 try/catch로 sync·팀채널과 격리.
-      const digest = await postPersonalDigests(db, now);
-      // 체크인 재촉 DM(C-2) — Bot Token+Signing Secret 게이트, dedup이 체크인·날짜당 1회로 제한.
+      // 주간 프리뷰는 금요일 16:00 자체 게이트 — 주말 게이트와 무관해 상시 호출(내부에서 요일·시각 판정).
+      const weeklyPreviewPosted = await postWeeklyPreview(db, now);
+      // 주말 게이트(§8-5): KST 토·일이면 스탠드업 리듬(오픈/재촉/요약)·개인 브리핑을 스킵한다.
+      // 마감 스캔·드레인·체크인 재촉(진행 중 작업 리듬)은 유지한다.
+      const weekend = isKstWeekend(now);
+      const standupSent = weekend ? false : await postStandupDigest(db, now); // 팀채널 오픈(10:00)
+      const standupOpen = weekend
+        ? { enqueued: 0, sent: 0, held: 0 }
+        : await postStandupOpenPrompts(db, now); // 개인 DM "초안으로 시작"(10:00)
+      const standupRemind = weekend
+        ? { enqueued: 0, sent: 0, held: 0 }
+        : await postStandupReminders(db, now); // 미제출 재촉(10:40~11:00)
+      const standupSummary = weekend
+        ? { posted: false }
+        : await postStandupTeamSummary(db, now); // 팀 요약(전원 제출/11:00 먼저 오는 쪽)
+      // 개인 DM 브리핑 — Bot Token 게이트 + 9:30~10:00 KST 창. 자체 try/catch로 sync·팀채널과 격리.
+      const digest = weekend
+        ? { enqueued: 0, sent: 0, failed: 0 }
+        : await postPersonalDigests(db, now);
+      // 체크인 재촉 DM(C-2) — Bot Token+Signing Secret 게이트, dedup이 체크인·날짜당 1회로 제한. 요일 무관.
       const checkinPrompt = await postCheckinPrompts(db, now);
       notifications = {
         deadlineEnqueued: deadline.enqueued,
@@ -73,7 +102,12 @@ export async function GET(request: Request) {
         released: drained.released,
         drainedSent: drained.sent,
         drainedFailed: drained.failed,
+        weekend,
         standupSent,
+        standupOpenSent: standupOpen.sent,
+        standupRemindSent: standupRemind.sent,
+        standupSummaryPosted: standupSummary.posted,
+        weeklyPreviewPosted,
         digestEnqueued: digest.enqueued,
         digestSent: digest.sent,
         digestFailed: digest.failed,

@@ -19,7 +19,15 @@ export type NotificationTone = "red" | "amber" | "violet" | "blue";
  *  task_created는 할일 생성 즉시 담당자에게 보내는 개인 DM(Phase 3) — recipient=assigneeId.
  *  dedup_key `task_created:<taskId>`로 **task 1건당 평생 1회**(재시도·중복 훅 방지, marker 무시).
  *  checkin_prompt는 미응답 체크인 재촉 DM(C-2) — recipient=assigneeId, 버튼(payload.actions)으로
- *  Slack에서 바로 응답한다. dedup_key `checkin_prompt:<checkInId>:<KST날짜>`로 체크인·날짜당 1회. */
+ *  Slack에서 바로 응답한다. dedup_key `checkin_prompt:<checkInId>:<KST날짜>`로 체크인·날짜당 1회.
+ *  standup_open은 10:00 스탠드업 오픈 개인 DM("초안으로 시작" 버튼) — recipient=userId,
+ *  dedup_key `standup_open:<userId>:<KST날짜>`. (팀채널 오픈 게시는 기존 "standup" kind로 유지.)
+ *  standup_remind는 10:40 미제출 재촉 DM("지금 작성" 버튼) — recipient=userId,
+ *  dedup_key `standup_remind:<userId>:<KST날짜>`로 유저·날짜당 1회.
+ *  standup_summary는 11:00(또는 전원 제출 즉시) 팀채널 AI 팀 요약 — entityId="team",
+ *  dedup_key `standup_summary:team:<KST날짜>`로 날짜당 1회.
+ *  weekly_preview는 금요일 16:00 팀채널 주간 프리뷰(pro) — entityId="team",
+ *  dedup_key `weekly_preview:team:<ISO주차>`로 주당 1회. */
 export type NotificationKind =
   | "issue"
   | "on_hold"
@@ -27,7 +35,11 @@ export type NotificationKind =
   | "standup"
   | "personal_digest"
   | "task_created"
-  | "checkin_prompt";
+  | "checkin_prompt"
+  | "standup_open"
+  | "standup_remind"
+  | "standup_summary"
+  | "weekly_preview";
 
 /** 아웃박스 status 컬럼. */
 export type NotificationStatus = "pending" | "held" | "sent" | "skipped" | "failed";
@@ -42,8 +54,16 @@ export interface NotificationPayload {
    *  아웃박스 payload(jsonb) 패스스루라 스키마/마이그레이션 무관. 없으면 기존 1줄 동작. */
   detail?: string;
   /** (선택) 인터랙티브 버튼(C-2 checkin_prompt). Slack actions block으로 렌더 — actionId가
-   *  응답 라우팅 키, value가 대상 id(체크인 id). jsonb 패스스루라 스키마/마이그레이션 무관. */
-  actions?: { actionId: string; label: string; value: string; style?: "primary" | "danger" }[];
+   *  응답 라우팅 키, value가 대상 id(체크인 id). jsonb 패스스루라 스키마/마이그레이션 무관.
+   *  url이 있으면 딥링크 버튼(URL 열기 — 스탠드업 오픈/재촉 DM). URL 버튼은 인터랙티브 수신
+   *  엔드포인트가 없어도 동작하므로 Bot Token만으로 발송한다(Signing Secret 불요). */
+  actions?: {
+    actionId: string;
+    label: string;
+    value: string;
+    style?: "primary" | "danger";
+    url?: string;
+  }[];
 }
 
 /**

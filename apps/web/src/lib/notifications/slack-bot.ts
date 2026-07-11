@@ -188,6 +188,9 @@ export async function postDmToSlack(slackUserId: string, msg: SlackMessage): Pro
         text: { type: "plain_text", text: a.label },
         value: a.value,
         ...(a.style ? { style: a.style } : {}),
+        // url 버튼(스탠드업 오픈/재촉 딥링크) — 클릭 시 URL을 연다. 인터랙티브 엔드포인트가 없어도
+        // 동작하며, 있으면 /api/slack/interactive가 모르는 action_id를 200으로 무시(죽은 버튼 아님).
+        ...(a.url ? { url: a.url } : {}),
       })),
     });
   }

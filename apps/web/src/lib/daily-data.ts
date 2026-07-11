@@ -1,4 +1,4 @@
-import type { StandupEntry, User } from "@que/core";
+import type { StandupEntry, StandupTeamSummary, User } from "@que/core";
 import { getDb } from "./db";
 import { getStandupData, type StandupRow } from "./team-data";
 
@@ -32,6 +32,8 @@ export interface DailyData {
   myStandup?: StandupRow;
   /** 내 오늘 체크인(제출 전이면 undefined). */
   myEntry?: StandupEntry;
+  /** 오늘 AI 팀 요약(생성 전이면 undefined). 생성 즉시 저장 예외 엔티티(기획 §2). */
+  teamSummary?: StandupTeamSummary;
 }
 
 /** 오늘 스탠드업 보드 데이터. 전사 대상(클라이언트 필터 무관). */
@@ -59,5 +61,6 @@ export async function getDailyData(user: User, now: Date = new Date()): Promise<
     totalCount: members.length,
     myStandup: rowByUser.get(user.id),
     myEntry: entryByUser.get(user.id),
+    teamSummary: db.standupTeamSummaryByDate(date),
   };
 }

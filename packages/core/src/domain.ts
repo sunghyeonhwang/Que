@@ -402,6 +402,32 @@ export const submitStandupEntryInputSchema = z.object({
 });
 export type SubmitStandupEntryInput = z.infer<typeof submitStandupEntryInputSchema>;
 
+// ---------- StandupTeamSummary (AI 팀 요약) ----------
+// 날짜당 1건의 AI 팀 요약. **AI 저장 관례("AI는 확인을 거쳐 저장")의 의도적 예외**(기획 §2):
+//  ⑴ Slack 게시·보드 표시 시점이 분리되고, ⑵ 하루 1회 pro 재생성 비용이 크며, ⑶ 과거 회고 재현이
+//  필요해 시스템이 생성 즉시 저장한다. 사람 확인 게이트가 없는 유일한 AI 산출물이다.
+// 권한: 시스템(크론) 생성 — 재생성만 admin(호출부가 강제). date 유니크 1건, 재생성은 덮어쓰기.
+// ChangeLog는 남기지 않는다(운영 리듬 산출물 — StandupEntry·RevisionNote 선례).
+
+export const standupTeamSummaryModelSchema = z.enum(["flash", "pro"]);
+export type StandupTeamSummaryModel = z.infer<typeof standupTeamSummaryModelSchema>;
+
+export const standupTeamSummarySchema = z.object({
+  id: z.string().min(1),
+  /** KST 날짜 키(YYYY-MM-DD). 유니크 1건 — 재생성은 덮어쓰기. */
+  date: isoDate,
+  generatedAt: isoDateTime,
+  /** 생성에 실제로 쓴 모델. pro 우선, 실패 시 flash 폴백. */
+  model: standupTeamSummaryModelSchema,
+  /** 구조화 텍스트 — (a)막힘 클러스터+도울 사람 (b)어제→오늘 흐름 (c)추천 액션 2~3개. */
+  content: z.string().min(1),
+  /** 요약 생성 시점에 제출돼 있던 유저 id들(지각 제출 미반영 판정·"n인 미제출" 근거). */
+  submittedUserIds: z.array(z.string()),
+  /** admin 재생성 시 그 actorId(최초 자동 생성이면 미설정). */
+  regeneratedBy: z.string().optional(),
+});
+export type StandupTeamSummary = z.infer<typeof standupTeamSummarySchema>;
+
 // ---------- PaymentRequest ----------
 
 export const paymentStatusSchema = z.enum(["waiting", "done", "cancelled"]);

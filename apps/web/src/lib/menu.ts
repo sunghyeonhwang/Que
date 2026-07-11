@@ -83,15 +83,15 @@ export const MENU_SECTIONS: MenuSection[] = [
       // Now 운영표(/now) — 회의 Action·캘린더 일정 연결 확인 팀 운영표. 운영 성격이라 팀 현황 옆에 둔다.
       // 2026-07-11 '작업 목록'과의 탭 병합에서 독립 메뉴로 승격(현행 접근 유지 — adminOnly 아님).
       { href: "/now", label: "Now", icon: Activity },
-      // 팀 현황(/team) — 스탠드업·[관리자]리포트·운영보드. 관리자·팀장 상시 사용 핵심 운영 화면.
-      // 하위: 뷰 스위처(운영 보드/스탠드업/리포트)를 사이드바에서도 펼침. 리포트는 관리자 전용.
+      // 팀 현황(/team) — 운영 보드/[관리자]리포트. 관리자·팀장 상시 사용 핵심 운영 화면.
+      // 하위: 뷰 스위처(운영 보드/리포트)를 사이드바에서도 펼침. 리포트는 관리자 전용.
+      // 스탠드업 뷰는 /daily로 완전 대체(기획 §8-4, Phase 2) — 데일리 메뉴가 이미 있어 하위에서 제거.
       {
         href: "/team",
         label: "팀 현황",
         icon: LayoutDashboard,
         children: [
           { label: "운영 보드", href: "/team" },
-          { label: "스탠드업", href: "/team?view=standup" },
           { label: "리포트", href: "/team?view=report", adminOnly: true },
         ],
       },

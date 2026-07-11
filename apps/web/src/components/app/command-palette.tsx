@@ -42,7 +42,7 @@ const NAV_ITEMS = MENU_SECTIONS.flatMap((s) => s.items).filter((i) => !i.href.st
 // 빠른 액션 — 자주 쓰는 화면으로 바로 이동(라벨과 목적지가 정확히 일치하는 것만 둔다).
 const QUICK_ACTIONS: { id: string; label: string; href: string; icon: LucideIcon }[] = [
   { id: "add-task", label: "작업 추가", href: "/today", icon: Plus },
-  { id: "standup", label: "스탠드업 보기", href: "/team?view=standup", icon: ClipboardCheck },
+  { id: "standup", label: "스탠드업 보기", href: "/daily", icon: ClipboardCheck },
   { id: "payment", label: "결제 요청", href: "/payments", icon: Receipt },
   { id: "meeting-note", label: "회의록 업로드", href: "/meeting-notes", icon: FileText },
   { id: "planning", label: "반복·마일스톤", href: "/planning", icon: Milestone },
