@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>에이전시 OKR 3종 — 화면 시안</title>
+<style>
+  :root{
+    --bg:#0e0f12; --bg-card:#16181d; --bg-muted:#1d2026; --border:#2a2e36;
+    --text:#e8eaed; --text2:#9aa0aa; --text3:#6b7280;
+    --brand:#7488ea; --green:#34d399; --amber:#fbbf24; --red:#f87171; --cyan:#22d3ee; --pink:#ec4899;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:"Pretendard","Apple SD Gothic Neo",system-ui,sans-serif;padding:32px 24px;line-height:1.5}
+  h1{font-size:22px;margin-bottom:6px}
+  .sub{color:var(--text2);font-size:13px;margin-bottom:28px}
+  h2{font-size:15px;margin:36px 0 6px;color:var(--brand)}
+  .desc{color:var(--text2);font-size:12.5px;margin-bottom:12px}
+  .card{background:var(--bg-card);border:1px solid var(--border);border-radius:14px;padding:18px;max-width:860px}
+  .row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .badge{display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:2px 8px;border-radius:999px;border:1px solid var(--border);color:var(--text2)}
+  .badge.state{color:var(--cyan);border-color:rgba(34,211,238,.4)}
+  .badge.admin{color:var(--amber);border-color:rgba(251,191,36,.4)}
+  .badge.ext{color:var(--red);border-color:rgba(248,113,113,.4)}
+  .badge.managed{color:var(--green);border-color:rgba(52,211,153,.4)}
+  .bar{height:8px;border-radius:999px;background:var(--bg-muted);overflow:hidden;flex:1;min-width:120px}
+  .bar>i{display:block;height:100%;background:var(--brand);border-radius:999px}
+  .pct{font-size:13px;font-weight:600;font-variant-numeric:tabular-nums}
+  .check{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:10px;margin-top:8px;font-size:13.5px}
+  .cb{width:20px;height:20px;border-radius:6px;border:1.5px solid var(--text3);display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
+  .cb.on{background:var(--green);border-color:var(--green);color:#06281c;font-weight:700}
+  .lock{margin-left:auto;display:flex;align-items:center;gap:6px}
+  .muted{color:var(--text3);font-size:11.5px}
+  .btn{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;padding:7px 14px;border-radius:8px;border:1px solid var(--border);background:var(--bg-muted);color:var(--text);cursor:default}
+  .btn.primary{background:var(--brand);border-color:var(--brand);color:#0b1030;font-weight:600}
+  .btn.ghost{background:transparent}
+  .seg{display:flex;gap:8px;margin:10px 0}
+  .seg .opt{flex:1;text-align:center;padding:10px;border:1px solid var(--border);border-radius:10px;font-size:13px;color:var(--text2)}
+  .seg .opt.sel{border-color:var(--red);color:var(--red);background:rgba(248,113,113,.08);font-weight:600}
+  select,input[type=text]{background:var(--bg-muted);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;padding:9px 12px;width:100%}
+  .steps{display:flex;align-items:center;gap:0;margin:14px 0 6px}
+  .step{display:flex;flex-direction:column;align-items:center;gap:6px;flex:1;position:relative;font-size:11.5px;color:var(--text3)}
+  .step .dot{width:26px;height:26px;border-radius:999px;border:2px solid var(--border);background:var(--bg-muted);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700}
+  .step.done .dot{background:var(--green);border-color:var(--green);color:#06281c}
+  .step.now .dot{border-color:var(--amber);color:var(--amber);box-shadow:0 0 0 4px rgba(251,191,36,.15)}
+  .step.done, .step.now{color:var(--text)}
+  .step:not(:last-child)::after{content:"";position:absolute;top:13px;left:calc(50% + 16px);width:calc(100% - 32px);height:2px;background:var(--border)}
+  .step.done:not(:last-child)::after{background:var(--green)}
+  .deadline{font-size:12px;color:var(--amber);font-weight:600}
+  .divider{border:none;border-top:1px dashed var(--border);margin:14px 0}
+  .note{font-size:12px;color:var(--text2);background:var(--bg-muted);border-radius:8px;padding:8px 12px;margin-top:10px}
+</style>
+</head>
+<body>
+
+<h1>에이전시 OKR 3종 세트 — 화면 시안</h1>
+<p class="sub">1차 통합 묶음(OS-1·OS-2a·OS-2b)의 목업입니다. 실제 구현은 Que 컴포넌트(shadcn)로 이 구조를 따릅니다.</p>
+
+<!-- ①  상태형 KR -->
+<h2>① 상태형 KR — OKR 탭의 KR 행 확장 (OS-1)</h2>
+<p class="desc">측정 방식 "상태 체크"인 KR을 펼쳤을 때. 진척 = 체크 완료 비율. 🔒 항목은 관리자만 체크할 수 있습니다.</p>
+<div class="card">
+  <div class="row">
+    <strong style="font-size:14.5px">언리얼 페스트 사이트를 일정 내 납품한다</strong>
+    <span class="badge state">상태 체크</span>
+    <span class="badge">2026-07</span>
+    <span class="badge">담당 승훈</span>
+    <span class="bar"><i style="width:60%"></i></span>
+    <span class="pct">60%</span>
+  </div>
+  <div class="check"><span class="cb on">✓</span> 사이트 런칭 완료 <span class="lock muted">7/10 승훈</span></div>
+  <div class="check"><span class="cb on">✓</span> D-14 QA 완료 <span class="lock muted">7/11 승훈</span></div>
+  <div class="check"><span class="cb on">✓</span> 페이지 성능 기준 만족 <span class="lock muted">7/11 승훈</span></div>
+  <div class="check"><span class="cb"></span> 클라이언트 최종 승인 <span class="lock"><span class="badge admin">🔒 관리자 확인</span></span></div>
+  <div class="check"><span class="cb"></span> 일정 내 오픈 <span class="lock muted">마감 7/18</span></div>
+  <p class="note">체크 항목은 <b>판정 기준</b>입니다 — Task가 자동 생성되지 않습니다(Task ≠ KR). 모든 체크는 기록(ChangeLog)에 남습니다.</p>
+</div>
+
+<!-- ② 실패 분류 -->
+<h2>② 실패 분류 확인 카드 — 마일스톤 종결 시 (OS-2a)</h2>
+<p class="desc">기한을 넘겨 종결되는 순간 1분짜리 카드가 뜹니다. 원인 2택 → 세부 유형 → 한 줄. 담당자 이름은 강조하지 않습니다.</p>
+<div class="card" style="max-width:560px">
+  <div class="row" style="margin-bottom:4px">
+    <strong style="font-size:14.5px">「결제 QA 완료」 가 기한을 지나 종결됐습니다</strong>
+  </div>
+  <p class="muted">에픽게임즈 · 결제 개선 · 기한 7/15 → 완료 7/17</p>
+  <div class="seg">
+    <div class="opt">내부 요인<br><span class="muted">우리가 통제 가능</span></div>
+    <div class="opt sel">외부 변경<br><span class="muted">클라이언트·환경</span></div>
+  </div>
+  <div style="margin:8px 0"><select><option>세부 유형: 클라이언트 방향 변경</option></select></div>
+  <div style="margin:8px 0"><input type="text" value="런칭 범위가 접수 후 2회 변경 — 대응 프로세스로 재협의 완료"></div>
+  <div class="row" style="margin-top:6px">
+    <span class="badge managed">✓ 관리된 대응 (변경 접수 프로세스를 탔음)</span>
+  </div>
+  <div class="row" style="margin-top:14px;justify-content:flex-end">
+    <span class="btn ghost">나중에</span><span class="btn primary">회고 저장</span>
+  </div>
+</div>
+<p class="desc" style="margin-top:10px">→ 주간 통합 회의 섹션 ⑴에 <b>“지난주 실패 분류: 내부 1 · 외부 2 (관리됨 2)”</b>로 집계되고, 분기에는 <b>내부 실패 비율</b> 추이가 남습니다.</p>
+
+<!-- ③ 외부 변경 접수 -->
+<h2>③ 외부 변경 대응 카드 — /daily 상단 (OS-2b)</h2>
+<p class="desc">PM이 "외부 변경 접수"를 누르면 생기는 카드. 24시간 SLA 카운트다운과 단계 프로그레스가 핵심입니다.</p>
+<div class="card">
+  <div class="row">
+    <span class="badge ext">외부 변경</span>
+    <strong style="font-size:14.5px">에픽게임즈 — 런칭 페이지 범위 변경 요청</strong>
+    <span class="deadline" style="margin-left:auto">영향 분석 마감까지 14시간 20분</span>
+  </div>
+  <div class="steps">
+    <div class="step done"><span class="dot">✓</span>접수<br><span class="muted">7/11 10:20 승훈</span></div>
+    <div class="step now"><span class="dot">2</span>영향 분석<br><span class="muted">24h SLA</span></div>
+    <div class="step"><span class="dot">3</span>재협의</div>
+    <div class="step"><span class="dot">4</span>승인<br><span class="muted">관리자</span></div>
+    <div class="step"><span class="dot">5</span>종결</div>
+  </div>
+  <hr class="divider">
+  <div class="row">
+    <span class="muted">연결: 마일스톤 「프로모션 오픈」 · 관련 작업 4건</span>
+    <span style="margin-left:auto" class="row">
+      <span class="btn">영향 분석 완료로</span>
+      <span class="btn ghost">상세</span>
+    </span>
+  </div>
+  <p class="note">마감을 넘기면 12시간 재촉 → 24시간에 관리자·대표 에스컬레이션(긴급 결정과 같은 경로). <b>종결하면 회고(외부·관리됨 ✓)가 자동으로 남습니다</b> — “대응을 탔다”는 사실이 기록됩니다.</p>
+</div>
+
+<p class="sub" style="margin-top:36px">— 시안 끝 · 구현 시 shadcn 컴포넌트·Que 토큰(--que-*)으로 동일 구조 —</p>
+</body>
+</html>
