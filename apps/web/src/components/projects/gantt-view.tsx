@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { TriangleAlert, Check, ChevronLeft, ChevronRight, LocateFixed } from "lucide-react";
-import type { ProjectGantt } from "@/lib/projects-data";
+import type { GanttMilestone, ProjectGantt } from "@/lib/projects-data";
+import { updateMilestoneAction } from "@/app/(app)/planning/actions";
+import { useOptimisticAction } from "@/components/app/use-optimistic-action";
 import { TONE_STYLE, type StatusTone } from "@/lib/pm-columns";
 import type { TaskStatus } from "@que/core";
 import { MilestoneChip } from "@/components/milestones/milestone-chip";
@@ -20,7 +22,8 @@ import { cn } from "@/lib/utils";
 // - 마일스톤은 최상단 전용 레인의 다이아(위험 상태색 반영).
 // - 시간은 무시하고 일 단위 스냅. 일정 없는 작업은 하단 칩(잊히지 않게 날짜 지정 유도).
 
-const COL_W = 46; // 일 컬럼 폭(px)
+const DEFAULT_COL_W = 46; // 일 컬럼 폭 기본(px) — 4주 상세. 줌(분기 조망)은 colWidth prop으로 좁힌다.
+const DRAG_THRESHOLD = 5; // 클릭(Popover 수정)과 드래그(기한 이동)를 가르는 px 임계값
 const ROW_H = 48; // 행 높이(px) — 터치 40px+ 여유
 const HEADER_H = 52;
 const NAME_W = 232; // 좌측 고정 열 폭
@@ -64,15 +67,46 @@ export function GanttView({
   data,
   taskHref,
   showProject,
+  colWidth = DEFAULT_COL_W,
 }: {
   data: ProjectGantt;
   taskHref: (taskId: string) => string;
   showProject: boolean;
+  /** 일 컬럼 폭(px). 줌 전환용 — 46=4주 상세, 22=분기 조망. 기본 46. */
+  colWidth?: number;
 }) {
+  const COL_W = colWidth;
   const days = useMemo(() => buildDays(data.rangeStart, data.rangeEnd), [data.rangeStart, data.rangeEnd]);
   const idx = (day: string) => Math.min(Math.max(dayDiff(data.rangeStart, day), 0), days.length - 1);
   const todayIdx = days.findIndex((d) => d.key === data.today);
   const hasMilestoneLane = data.milestones.length > 0;
+
+  // 마일스톤 드래그 낙관 반영 — id → 덮어쓴 day(yyyy-MM-dd). 서버 확정 전까지 새 위치를 유지한다.
+  const [dayOverride, setDayOverride] = useState<Record<string, string>>({});
+  const { run: runMilestone } = useOptimisticAction();
+  const milestoneDay = (m: GanttMilestone) => dayOverride[m.id] ?? m.day;
+
+  // 드롭 → 기한 이동: 원래 시각(H:M:S)은 보존하고 날짜만 바꿔 updateMilestoneAction 낙관 호출.
+  const commitMilestoneMove = (m: GanttMilestone, targetIdx: number) => {
+    const key = days[Math.min(Math.max(targetIdx, 0), days.length - 1)]?.key;
+    if (!key || key === milestoneDay(m)) return;
+    const [y, mo, d] = key.split("-").map(Number);
+    const next = new Date(m.dueAt);
+    next.setFullYear(y, mo - 1, d);
+    const prev = dayOverride[m.id];
+    runMilestone(() => updateMilestoneAction({ milestoneId: m.id, dueAt: next.toISOString() }), {
+      apply: () => setDayOverride((o) => ({ ...o, [m.id]: key })),
+      rollback: () =>
+        setDayOverride((o) => {
+          const copy = { ...o };
+          if (prev === undefined) delete copy[m.id];
+          else copy[m.id] = prev;
+          return copy;
+        }),
+      success: "마일스톤 기한을 옮겼습니다.",
+      source: "gantt-milestone-drag",
+    });
+  };
   // 행 y 오프셋: (마일스톤 레인) + 작업 행들
   const rowY = (taskRow: number) => (hasMilestoneLane ? ROW_H : 0) + taskRow * ROW_H;
   const bodyH = rowY(data.tasks.length);
@@ -88,7 +122,8 @@ export function GanttView({
     const el = scrollRef.current;
     if (!el || todayIdx < 0) return;
     el.scrollLeft = Math.max(0, NAME_W + todayIdx * COL_W - (el.clientWidth - NAME_W) / 3 - NAME_W);
-  }, [todayIdx]);
+    // COL_W(줌) 변경 시에도 오늘이 다시 뷰포트 앞쪽에 오도록 재정렬.
+  }, [todayIdx, COL_W]);
 
   if (data.tasks.length === 0 && data.milestones.length === 0 && data.unscheduled.length === 0) {
     return <GanttEmptyPrimer />;
@@ -265,13 +300,15 @@ export function GanttView({
                   기한 날짜 컬럼 위치에 칩 왼쪽 끝(다이아 마커)을 맞춘다. */}
               {hasMilestoneLane &&
                 data.milestones.map((m) => (
-                  <div
+                  <DraggableMilestone
                     key={m.id}
-                    className="absolute z-10"
-                    style={{ left: idx(m.day) * COL_W + 2, top: ROW_H / 2 - 14 }}
-                  >
-                    <MilestoneChip milestone={m} size="sm" truncate={false} />
-                  </div>
+                    milestone={m}
+                    baseIdx={idx(milestoneDay(m))}
+                    colWidth={COL_W}
+                    top={ROW_H / 2 - 14}
+                    daysLen={days.length}
+                    onCommit={(targetIdx) => commitMilestoneMove(m, targetIdx)}
+                  />
                 ))}
 
               {/* 선행 화살표(SVG 오버레이) — 시각 보조라 aria-hidden, 의미는 막대 라벨·툴팁이 전달 */}
@@ -411,6 +448,84 @@ export function GanttView({
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * 마일스톤 레인 칩 + 가로 드래그(기한 이동). 관리 권한(canManage)이 있을 때만 드래그.
+ * - 클릭(수정 Popover)과 공존: 이동 거리가 DRAG_THRESHOLD 미만이면 드래그로 보지 않아
+ *   MilestoneChip의 클릭(Popover)이 그대로 열린다. 임계값을 넘으면 pointer capture로
+ *   칩 클릭을 가로채(Popover 안 열림) 컬럼 스냅 미리보기를 그리고, 드롭 때 onCommit.
+ * - canManage=false면 드래그 비활성(커서 기본 · 이동 핸들러 없음) — 조회 전용 칩으로만 동작.
+ */
+function DraggableMilestone({
+  milestone: m,
+  baseIdx,
+  colWidth,
+  top,
+  daysLen,
+  onCommit,
+}: {
+  milestone: GanttMilestone;
+  baseIdx: number;
+  colWidth: number;
+  top: number;
+  daysLen: number;
+  onCommit: (targetIdx: number) => void;
+}) {
+  const [drag, setDrag] = useState<{ startX: number; dx: number; active: boolean } | null>(null);
+  const canDrag = m.canManage;
+
+  // 스냅된 미리보기 오프셋(컬럼 단위) — 드래그 중에만 칩을 옮겨 그린다.
+  const snappedSteps = drag?.active ? Math.round(drag.dx / colWidth) : 0;
+  const clampedSteps = Math.min(Math.max(baseIdx + snappedSteps, 0), daysLen - 1) - baseIdx;
+  const left = baseIdx * colWidth + 2 + clampedSteps * colWidth;
+
+  const onPointerDown = (e: ReactPointerEvent) => {
+    if (!canDrag) return;
+    setDrag({ startX: e.clientX, dx: 0, active: false });
+  };
+  const onPointerMove = (e: ReactPointerEvent) => {
+    setDrag((s) => {
+      if (!s) return s;
+      const dx = e.clientX - s.startX;
+      if (!s.active && Math.abs(dx) < DRAG_THRESHOLD) return { ...s, dx };
+      // 임계값 초과 → 드래그 확정. 칩 클릭(Popover)이 안 열리도록 pointer를 캡처한다.
+      if (!s.active) {
+        try {
+          (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+        } catch {
+          /* 캡처 미지원 환경 무시 */
+        }
+      }
+      return { ...s, dx, active: true };
+    });
+  };
+  const onPointerUp = (e: ReactPointerEvent) => {
+    setDrag((s) => {
+      if (s?.active) {
+        try {
+          (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+        } catch {
+          /* noop */
+        }
+        const steps = Math.round(s.dx / colWidth);
+        if (steps !== 0) onCommit(baseIdx + steps);
+      }
+      return null;
+    });
+  };
+
+  return (
+    <div
+      className={cn("absolute z-10", canDrag && "cursor-grab", drag?.active && "cursor-grabbing")}
+      style={{ left, top, touchAction: canDrag ? "none" : undefined }}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+    >
+      <MilestoneChip milestone={m} size="sm" truncate={false} />
     </div>
   );
 }

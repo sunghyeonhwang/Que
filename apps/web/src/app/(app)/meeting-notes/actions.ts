@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { isQueRuleError, type MeetingNote } from "@que/core";
 import { getDb } from "@/lib/db";
 import { getCurrentUser } from "@/lib/current-user";
+import { draftMeetingMinutes } from "@/lib/meeting-minutes";
+import { verifyTranscript, type TranscriptVerification } from "@/lib/minutes-verify";
 import type { ActionResult } from "@/app/(app)/today/actions";
 
 type Db = Awaited<ReturnType<typeof getDb>>;
@@ -24,6 +26,11 @@ async function toResult(fn: (db: Db) => Promise<unknown> | unknown): Promise<Act
   }
 }
 
+/** 업로드 결과 — 성공 시 Plaud 전사 대조 검증 플래그를 함께 첨부한다(저장·병합 안 함, 검증 게이트). */
+export type UploadNoteResult =
+  | { ok: true; verification?: TranscriptVerification }
+  | { ok: false; error: string };
+
 export async function uploadMeetingNoteAction(input: {
   title: string;
   projectId?: string;
@@ -35,7 +42,9 @@ export async function uploadMeetingNoteAction(input: {
   markdownBody: string;
   visibility?: MeetingNote["visibility"];
   restrictedUserIds?: string[];
-}): Promise<ActionResult> {
+  /** 회의 종류(주간/마일스톤/일반). 미지정은 general. weekly·milestone은 전사 대조 검증을 시도한다. */
+  kind?: MeetingNote["kind"];
+}): Promise<UploadNoteResult> {
   // 새 입력: 날짜+시간(datetime-local). 옛 형식(날짜만)은 시간 미지정 시 10:00 기본.
   const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(input.meetingDateTime);
   const dateTime = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/.test(input.meetingDateTime);
@@ -48,7 +57,7 @@ export async function uploadMeetingNoteAction(input: {
   }
 
   const user = await getCurrentUser();
-  return toResult((db) =>
+  const saved = await toResult((db) =>
     db.createMeetingNote(
       { actorId: user.id, via: "web" },
       {
@@ -61,12 +70,57 @@ export async function uploadMeetingNoteAction(input: {
         markdownBody: input.markdownBody,
         visibility: input.visibility,
         restrictedUserIds: input.restrictedUserIds,
+        kind: input.kind,
       },
     ),
   );
+  if (!saved.ok) return saved;
+
+  // 검증 게이트: weekly·milestone 회의록만 그날 시스템 행동과 대조(자동 병합 없음, 플래그만).
+  let verification: TranscriptVerification | undefined;
+  if (input.kind === "weekly" || input.kind === "milestone") {
+    try {
+      const db = await getDb();
+      verification = await verifyTranscript(db, input.markdownBody, meetingAt);
+    } catch (error) {
+      console.error("[que-minutes] 업로드 후 전사 대조 실패(무시)", error);
+    }
+  }
+  return { ok: true, verification };
 }
 
 export async function extractActionsAction(meetingNoteId: string): Promise<ActionResult> {
   const user = await getCurrentUser();
   return toResult((db) => db.extractActionItems({ actorId: user.id, via: "web" }, meetingNoteId));
+}
+
+/**
+ * 행동 기반 회의록 초안 저장(기획 §1-f "회의 후") — **admin만**. 오늘 시스템에 남은 결정을
+ * 결정적 템플릿(draftMeetingMinutes)으로 묶어 kind(weekly|milestone) 회의록으로 저장한다.
+ * 기존 createMeetingNote 재사용(kind 파라미터). AI 불요 — 초안은 시간순 행동 로그의 재구성이다.
+ */
+export async function createMeetingMinutesAction(
+  kind: "weekly" | "milestone",
+): Promise<ActionResult> {
+  const user = await getCurrentUser();
+  if (user.role !== "admin") {
+    return { ok: false, error: "회의록 초안 저장은 관리자만 할 수 있습니다." };
+  }
+  const now = new Date();
+  return toResult((db) => {
+    const draft = draftMeetingMinutes(db, now, kind);
+    return db.createMeetingNote(
+      { actorId: user.id, via: "web" },
+      {
+        title: draft.title,
+        meetingAt: now.toISOString(),
+        // 참석자는 활성 전원(주간·마일스톤 회의는 전사 리듬).
+        attendeeIds: db.users.filter((u) => u.active !== false).map((u) => u.id),
+        fileName: draft.fileName,
+        markdownBody: draft.markdownBody,
+        visibility: "team",
+        kind: draft.kind,
+      },
+    );
+  });
 }

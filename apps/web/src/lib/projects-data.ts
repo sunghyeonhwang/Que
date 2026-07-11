@@ -798,13 +798,20 @@ export function computeGanttRisk(
   return reasons;
 }
 
-/** 간트 뷰 데이터 — 보드와 같은 스코프(취소/병합 제외), 상태색·권한 규칙 공유. */
-export async function getProjectGantt(actor: User, projectIds: string[]): Promise<ProjectGantt> {
+/**
+ * 간트 뷰 데이터 — 보드와 같은 스코프(취소/병합 제외), 상태색·권한 규칙 공유.
+ * @param now 오늘 라인·과거 판정 기준 시각. 기본 현재. 통합 간트가 서버 시각을 주입한다(하위호환 옵션).
+ */
+export async function getProjectGantt(
+  actor: User,
+  projectIds: string[],
+  now: Date = new Date(),
+): Promise<ProjectGantt> {
   const db = await getDb();
   const projectById = projectByIdMap(db);
   const tasks = boardTasksOf(db, projectIds);
   const taskById = new Map(db.tasks.map((t) => [t.id, t]));
-  const todayIso = new Date().toISOString();
+  const todayIso = now.toISOString();
   const today = toDay(todayIso);
   const risks = computeGanttRisk(tasks, taskById, todayIso);
 
@@ -866,4 +873,67 @@ export async function getProjectGantt(actor: User, projectIds: string[]): Promis
     rangeEnd,
     today,
   };
+}
+
+/**
+ * 전 프로젝트 통합 간트 — gant.griff.co.kr(회의용 조망)의 데이터 공급자.
+ * 활성(active) 프로젝트 전부의 작업·마일스톤을 한 ProjectGantt로 합산한다.
+ * clientId가 있으면 그 클라이언트 소속 프로젝트로 스코프를 좁힌다(상단 클라이언트 필터).
+ * getProjectGantt를 그대로 재사용하므로 상태색·권한(canManage)·위험 판정이 /projects와 동일하다.
+ * showProject=true로 렌더하면 각 행에 소속 프로젝트명이 붙는다(통합 화면 구분 라벨).
+ */
+export async function getUnifiedGantt(
+  actor: User,
+  now: Date = new Date(),
+  clientId?: string,
+): Promise<ProjectGantt> {
+  const db = await getDb();
+  const projectIds = db.projects
+    .filter((p) => p.status === "active")
+    .filter((p) => (clientId ? p.clientId === clientId : true))
+    .map((p) => p.id);
+  return getProjectGantt(actor, projectIds, now);
+}
+
+/** 오늘 조정된 마일스톤 1건(하단 요약 바 · 회의록 초안 후보). 읽기 전용. */
+export interface GanttAdjustment {
+  id: string;
+  milestoneTitle: string;
+  projectName: string | null;
+  actorName: string;
+  createdAt: string;
+  changeType: ChangeLog["changeType"];
+}
+
+/**
+ * 오늘(now 기준 날짜) 발생한 마일스톤 ChangeLog를 최신순으로. 회의 중 조정 요약 → 회의록 초안 후보.
+ * getProjectGantt의 today와 같은 날짜 계산(format(now))을 써 "오늘 라인"과 집계 기준을 일치시킨다.
+ */
+export async function getTodayMilestoneAdjustments(
+  now: Date = new Date(),
+): Promise<GanttAdjustment[]> {
+  const db = await getDb();
+  const today = format(now, "yyyy-MM-dd");
+  const userById = new Map(db.users.map((u) => [u.id, u]));
+  const msById = new Map(db.milestones.map((m) => [m.id, m]));
+  const projectById = projectByIdMap(db);
+  return db.changeLogs
+    .filter(
+      (log) =>
+        log.entityType === "milestone" &&
+        format(new Date(log.createdAt), "yyyy-MM-dd") === today,
+    )
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .map((log) => {
+      const ms = msById.get(log.entityId);
+      const project = ms ? projectById.get(ms.projectId) : undefined;
+      return {
+        id: log.id,
+        milestoneTitle: ms?.title ?? log.afterValue ?? log.entityId,
+        projectName: project?.name ?? null,
+        actorName: userById.get(log.actorId)?.name ?? log.actorId,
+        createdAt: log.createdAt,
+        changeType: log.changeType,
+      };
+    });
 }

@@ -1196,6 +1196,8 @@ export class MockQueDb implements QueDb {
       title?: string;
       dueAt?: string;
       riskStatus?: Milestone["riskStatus"];
+      /** 위험 상태 변경 등 결정 사유(선택) — ChangeLog afterValue에 남긴다("사유는 남기는 것"). */
+      reason?: string;
     },
   ): Milestone {
     const actor = this.requireUser(ctx.actorId);
@@ -1231,7 +1233,9 @@ export class MockQueDb implements QueDb {
       entityType: "milestone",
       entityId: milestone.id,
       changeType: "update",
-      afterValue: milestone.title,
+      afterValue: input.reason?.trim()
+        ? `${milestone.title} — 사유: ${input.reason.trim()}`
+        : milestone.title,
     });
     return milestone;
   }

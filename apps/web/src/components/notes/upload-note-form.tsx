@@ -1,11 +1,13 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Paperclip, X } from "lucide-react";
+import { CheckCircle2, Paperclip, TriangleAlert, X } from "lucide-react";
+import { toast } from "sonner";
 import { extractMeetingDateTime } from "@que/core";
 import { uploadMeetingNoteAction } from "@/app/(app)/meeting-notes/actions";
 import { useRoster } from "@/components/app/roster-provider";
 import { useSafeAction } from "@/components/app/use-safe-action";
+import { reportError } from "@/lib/report-error";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Field, FieldLabel } from "@/components/ui/field";
@@ -25,10 +27,19 @@ export interface UploadNoteProjectOption {
 }
 
 /** Plaud Note MD 업로드 폼. 파일 내용은 클라이언트에서 읽어 서버 액션으로 넘긴다. */
+/** Plaud 전사 대조 결과(업로드 응답 첨부 — 저장·병합 안 함, 검증 게이트). */
+interface VerificationView {
+  missing: string[];
+  mismatch: string[];
+}
+
 export function UploadNoteForm({ projects }: { projects: UploadNoteProjectOption[] }) {
   const roster = useRoster();
   const fileRef = useRef<HTMLInputElement>(null);
-  const { run, pending } = useSafeAction();
+  const { pending, startTransition } = useSafeAction();
+  // weekly·milestone 업로드 성공 시 전사 대조 결과를 이 패널에 표시한다(자동 반영 없음).
+  const [verified, setVerified] = useState(false);
+  const [verification, setVerification] = useState<VerificationView | null>(null);
   const [title, setTitle] = useState("");
   // 다중 프로젝트(주간회의 등 여러 건 걸침) — 드롭다운에서 골라 칩으로 쌓고 X로 제거.
   const [projectIds, setProjectIds] = useState<string[]>([]);
@@ -45,6 +56,8 @@ export function UploadNoteForm({ projects }: { projects: UploadNoteProjectOption
     "team",
   );
   const [restrictedUserIds, setRestrictedUserIds] = useState<string[]>([]);
+  // 회의 종류 — weekly·milestone은 업로드 시 그날 시스템 행동과 전사 대조 검증을 시도한다(§1-f).
+  const [kind, setKind] = useState<"general" | "weekly" | "milestone">("general");
 
   const onFileChange = async (file: File | undefined) => {
     if (!file) return;
@@ -66,9 +79,11 @@ export function UploadNoteForm({ projects }: { projects: UploadNoteProjectOption
   const canSubmit = missing.length === 0 && !pending;
 
   const submit = () => {
-    run(
-      () =>
-        uploadMeetingNoteAction({
+    const noteTitle = title;
+    const noteKind = kind;
+    startTransition(async () => {
+      try {
+        const result = await uploadMeetingNoteAction({
           title,
           projectIds: projectIds.length ? projectIds : undefined,
           meetingDateTime,
@@ -77,21 +92,35 @@ export function UploadNoteForm({ projects }: { projects: UploadNoteProjectOption
           markdownBody,
           visibility,
           restrictedUserIds: visibility === "restricted" ? restrictedUserIds : undefined,
-        }),
-      {
-        success: `"${title}" 회의록이 업로드됐습니다. Action 추출 대기 상태입니다.`,
-        onSuccess: () => {
-          setTitle("");
-          setProjectIds([]);
-          setFileName("");
-          setMarkdownBody("");
-          setAttendeeIds([]);
-          setVisibility("team");
-          setRestrictedUserIds([]);
-          if (fileRef.current) fileRef.current.value = "";
-        },
-      },
-    );
+          kind,
+        });
+        if (!result.ok) {
+          toast.error(result.error);
+          return;
+        }
+        toast.success(`"${noteTitle}" 회의록이 업로드됐습니다. Action 추출 대기 상태입니다.`);
+        // weekly·milestone은 전사 대조 결과를 패널로 남긴다(일반 회의록은 검증 없음).
+        if (noteKind === "weekly" || noteKind === "milestone") {
+          setVerified(true);
+          setVerification(result.verification ?? { missing: [], mismatch: [] });
+        } else {
+          setVerified(false);
+          setVerification(null);
+        }
+        setTitle("");
+        setProjectIds([]);
+        setFileName("");
+        setMarkdownBody("");
+        setAttendeeIds([]);
+        setVisibility("team");
+        setRestrictedUserIds([]);
+        setKind("general");
+        if (fileRef.current) fileRef.current.value = "";
+      } catch (error) {
+        reportError(error, { source: "server-action" });
+        toast.error("회의록 업로드 중 오류가 발생했습니다.");
+      }
+    });
   };
 
   return (
@@ -100,6 +129,15 @@ export function UploadNoteForm({ projects }: { projects: UploadNoteProjectOption
         <h2 className="text-base font-semibold text-[var(--que-text)]">회의록 업로드</h2>
       </header>
       <div className="flex flex-col gap-3 p-4">
+        {verified && verification && (
+          <VerificationPanel
+            verification={verification}
+            onDismiss={() => {
+              setVerified(false);
+              setVerification(null);
+            }}
+          />
+        )}
         <Field>
           <FieldLabel htmlFor="note-file">
             Markdown 파일 (Plaud Note 내보내기) <span className="text-[var(--que-error)]">*</span>
@@ -262,6 +300,34 @@ export function UploadNoteForm({ projects }: { projects: UploadNoteProjectOption
           </div>
         </Field>
         <Field>
+          <FieldLabel>회의 종류</FieldLabel>
+          <Select
+            items={{
+              general: "일반",
+              weekly: "주간 통합 회의",
+              milestone: "마일스톤 회의",
+            }}
+            value={kind}
+            onValueChange={(v) => {
+              if (v) setKind(v as typeof kind);
+            }}
+          >
+            <SelectTrigger aria-label="회의 종류 선택">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="general">일반</SelectItem>
+              <SelectItem value="weekly">주간 통합 회의</SelectItem>
+              <SelectItem value="milestone">마일스톤 회의</SelectItem>
+            </SelectContent>
+          </Select>
+          {kind !== "general" && (
+            <p className="text-xs text-muted-foreground">
+              업로드 시 그날 시스템 기록과 전사를 대조해 누락·불일치를 표시합니다.
+            </p>
+          )}
+        </Field>
+        <Field>
           <FieldLabel>공개 범위</FieldLabel>
           <Select
             items={{
@@ -325,6 +391,81 @@ export function UploadNoteForm({ projects }: { projects: UploadNoteProjectOption
           )}
         </div>
       </div>
+    </section>
+  );
+}
+
+/**
+ * Plaud 전사 대조 결과 패널(기획 §1-f 캡처 방식 ⑵ · 검증 게이트). 자동 반영 버튼은 두지 않는다 —
+ * missing(누락) amber · mismatch(불일치) red · 둘 다 없으면 green "일치". 사람이 확인·반영한다.
+ */
+function VerificationPanel({
+  verification,
+  onDismiss,
+}: {
+  verification: VerificationView;
+  onDismiss: () => void;
+}) {
+  const clean = verification.missing.length === 0 && verification.mismatch.length === 0;
+  return (
+    <section
+      aria-label="전사 대조 결과"
+      className="rounded-lg border border-[var(--que-border)] bg-[var(--que-bg-muted)] p-3"
+    >
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="text-sm font-semibold text-[var(--que-text)]">전사 대조 결과</h3>
+        <button
+          type="button"
+          aria-label="대조 결과 닫기"
+          className="grid size-7 place-items-center rounded-md hover:bg-[var(--que-bg)]"
+          onClick={onDismiss}
+        >
+          <X className="size-4" aria-hidden />
+        </button>
+      </div>
+
+      {clean ? (
+        <p className="mt-2 flex items-center gap-2 text-sm text-[var(--que-success)]">
+          <CheckCircle2 className="size-4" aria-hidden />
+          행동 기록과 일치합니다.
+        </p>
+      ) : (
+        <div className="mt-2 flex flex-col gap-3">
+          {verification.missing.length > 0 && (
+            <div>
+              <p className="flex items-center gap-1.5 text-sm font-medium text-[var(--que-warning)]">
+                <TriangleAlert className="size-4" aria-hidden />
+                시스템에 없는 결정 (누락) {verification.missing.length}건
+              </p>
+              <ul className="mt-1 flex flex-col gap-1 pl-1">
+                {verification.missing.map((m) => (
+                  <li key={m} className="text-sm text-[var(--que-text-secondary)]">
+                    · {m}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {verification.mismatch.length > 0 && (
+            <div>
+              <p className="flex items-center gap-1.5 text-sm font-medium text-[var(--que-error)]">
+                <TriangleAlert className="size-4" aria-hidden />
+                어긋나는 내용 (불일치) {verification.mismatch.length}건
+              </p>
+              <ul className="mt-1 flex flex-col gap-1 pl-1">
+                {verification.mismatch.map((m) => (
+                  <li key={m} className="text-sm text-[var(--que-text-secondary)]">
+                    · {m}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          <p className="text-xs text-[var(--que-text-tertiary)]">
+            행동 기반 회의록이 정본입니다. 확인 후 필요한 항목만 직접 반영하세요.
+          </p>
+        </div>
+      )}
     </section>
   );
 }

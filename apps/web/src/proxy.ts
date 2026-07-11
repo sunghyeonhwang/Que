@@ -2,19 +2,30 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { corsHeadersFor, resolveAllowedOrigin } from "@/lib/api/cors";
 
-// Next.js 16: middleware는 proxy로 개명(파일 규약 proxy.ts, 프로젝트당 1개). 두 관심사를 함께 처리한다.
+// Next.js 16: middleware는 proxy로 개명(파일 규약 proxy.ts, 프로젝트당 1개). 세 관심사를 함께 처리한다.
 // (1) 공개 읽기전용 현황판 호스트 라우팅 — view 호스트면 모든 경로를 /view로 rewrite + noindex.
-// (2) /api/* CORS — DayBlocks(todo.griff.co.kr) 등 브라우저 앱이 Que REST API를 호출하도록
+// (2) 회의용 통합 간트 호스트 라우팅 — gant 호스트면 루트(/)를 /gantt로 rewrite + noindex.
+//     view와 달리 인증이 필요하므로(관리자·대표 전용) 루트만 rewrite하고 /login·/gantt 등 다른
+//     경로는 그대로 통과시킨다 → getCurrentUser의 로그인 리다이렉트·재로그인 흐름이 정상 동작한다.
+// (3) /api/* CORS — DayBlocks(todo.griff.co.kr) 등 브라우저 앱이 Que REST API를 호출하도록
 //     화이트리스트 origin에만 ACAO를 에코. Bearer(PAT) 인증이라 쿠키 credentials 불필요 → ACA-Credentials 없음.
 //     인증·도메인 규칙은 각 라우트(withApi)가 그대로 강제 — 여기선 CORS 헤더만 다룬다.
 
 const VIEW_HOSTS = new Set(["view.griff.co.kr", "view.localhost"]);
+const GANTT_HOSTS = new Set(["gant.griff.co.kr", "gant.localhost"]);
+
+/** Host 헤더(:port 제거) 소문자. NextRequest.headers 우선, 없으면 nextUrl.host. */
+function hostnameOf(request: NextRequest): string {
+  const raw = request.headers.get("host") ?? request.nextUrl.host;
+  return raw.split(":")[0].toLowerCase();
+}
 
 function isViewHost(request: NextRequest): boolean {
-  // Host 헤더(:port 제거)로 판정. NextRequest.headers 우선, 없으면 nextUrl.hostname.
-  const raw = request.headers.get("host") ?? request.nextUrl.host;
-  const host = raw.split(":")[0].toLowerCase();
-  return VIEW_HOSTS.has(host);
+  return VIEW_HOSTS.has(hostnameOf(request));
+}
+
+function isGanttHost(request: NextRequest): boolean {
+  return GANTT_HOSTS.has(hostnameOf(request));
 }
 
 /** /api/* 요청에 CORS를 붙인다(프리플라이트 포함). */
@@ -45,8 +56,23 @@ export function proxy(request: NextRequest): NextResponse {
     return handleApiCors(request);
   }
 
+  if (isGanttHost(request)) {
+    // 회의용 간트 호스트: 루트만 /gantt로 rewrite. 그 외 경로(/gantt·/login·/change-password 등)는
+    // 그대로 통과 → 인증 게이트(getCurrentUser)의 로그인 리다이렉트 루프를 피한다.
+    if (request.nextUrl.pathname === "/") {
+      const url = request.nextUrl.clone();
+      url.pathname = "/gantt";
+      const response = NextResponse.rewrite(url);
+      response.headers.set("X-Robots-Tag", "noindex, nofollow");
+      return response;
+    }
+    const response = NextResponse.next();
+    response.headers.set("X-Robots-Tag", "noindex, nofollow");
+    return response;
+  }
+
   if (!isViewHost(request)) {
-    // view 호스트가 아니면 아무것도 하지 않는다.
+    // view·gant 어느 호스트도 아니면 아무것도 하지 않는다.
     return NextResponse.next();
   }
 

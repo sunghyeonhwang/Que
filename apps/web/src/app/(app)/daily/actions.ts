@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { isQueRuleError, latestStatusLog } from "@que/core";
+import { formatProjectLabel, isQueRuleError, latestStatusLog, parseTaskInput } from "@que/core";
 import { getDb } from "@/lib/db";
 import { getCurrentUser } from "@/lib/current-user";
 import { getDailyData } from "@/lib/daily-data";
@@ -154,6 +154,190 @@ export async function regenerateTeamSummaryAction(): Promise<ActionResult> {
     const message = error instanceof Error ? error.message : "팀 요약 재생성에 실패했습니다.";
     return { ok: false, error: message };
   }
+}
+
+/** 회의 LLM 채팅 입력 파서(기획 §1-f) 확인 카드용 draft. 저장하지 않는다. */
+export type MeetingCommandDraft =
+  | {
+      ok: true;
+      intent: "create_milestone";
+      title: string;
+      dueAt?: string;
+      projectId?: string;
+      projectName?: string;
+      /** 프로젝트 해석 실패·모호 시 후보 목록(선택). */
+      projectCandidates?: { id: string; name: string }[];
+      questions: string[];
+    }
+  | {
+      ok: true;
+      intent: "create_task";
+      title: string;
+      assigneeId?: string;
+      assigneeName?: string;
+      dueAt?: string;
+      /** 담당자 해석 실패·모호 시 후보 목록(선택). */
+      assigneeCandidates?: { id: string; name: string }[];
+      questions: string[];
+    }
+  | { ok: false; error: string };
+
+const MEETING_CMD_SYSTEM = [
+  "너는 8명 규모 한국 회사의 회의 진행 액션 콘솔이다. 회의 중 진행자가 자연어로 말한 '신규 등록'을",
+  "구조화한다. 지원 인텐트는 딱 둘: create_milestone(마일스톤 신규) · create_task(작업 신규).",
+  "규칙:",
+  "- 반드시 아래 JSON 스키마로만 답한다(코드펜스·설명 없이 JSON 객체 하나만):",
+  '  {"intent": "create_milestone" | "create_task", "title": "제목", "projectName": "프로젝트명(마일스톤일 때)", "assigneeName": "담당자명(작업일 때, 없으면 빈 문자열)", "dueAt": "YYYY-MM-DDTHH:mm 또는 빈 문자열"}',
+  "- 마일스톤이면 projectName을, 작업이면 assigneeName을 최대한 뽑는다. 불확실하면 빈 문자열.",
+  "- dueAt은 날짜·시간이 분명할 때만 채운다(예: '8월 7일'→해당 연도 YYYY-08-07T10:00). 애매하면 빈 문자열.",
+  "- 데이터에 없는 사실을 지어내지 않는다.",
+].join("\n");
+
+/** 이름/공백/대소문자를 무시한 느슨한 포함 매칭 키. */
+function normKey(s: string): string {
+  return s.replace(/\s+/g, "").toLowerCase();
+}
+
+/**
+ * 회의 LLM 채팅 입력을 구조화한다(flash). 확인 카드용 draft를 반환하며 **저장하지 않는다**.
+ * create_milestone(프로젝트 해석) · create_task(담당자 해석) 2종만 지원한다(과설계 금지).
+ * 프로젝트/담당자 해석 실패 시 후보 목록을 함께 돌려준다. AI 실패 시 규칙 기반 parseTaskInput 폴백(작업).
+ * 확정 실행은 기존 core mutation(createMilestoneAction·createTaskAction)이 담당한다 — 신규 실행 경로 없음.
+ */
+export async function parseMeetingCommandAction(text: string): Promise<MeetingCommandDraft> {
+  const trimmed = text?.trim();
+  if (!trimmed) return { ok: false, error: "입력이 비어 있습니다." };
+  const user = await getCurrentUser();
+  const now = new Date();
+  const db = await getDb();
+
+  const activeUsers = db.users.filter((u) => u.active !== false);
+  const clientById = new Map(db.clients.map((c) => [c.id, c]));
+  const activeProjects = db.projects.filter((p) => p.status === "active");
+  const projectOptions = activeProjects.map((p) => ({
+    id: p.id,
+    name: formatProjectLabel(p, p.clientId ? clientById.get(p.clientId) : undefined),
+    rawName: p.name,
+    clientName: p.clientId ? clientById.get(p.clientId)?.name ?? "" : "",
+  }));
+
+  // 규칙 기반 작업 폴백(AI 실패 시 create_task로 강등).
+  const taskFallback = (): MeetingCommandDraft => {
+    const draft = parseTaskInput({ text: trimmed, users: activeUsers, now });
+    return {
+      ok: true,
+      intent: "create_task",
+      title: draft.title,
+      assigneeId: draft.assigneeId ?? user.id,
+      assigneeName: draft.assigneeName ?? user.name,
+      dueAt: draft.startAt,
+      questions: draft.questions,
+    };
+  };
+
+  type ParsedCommand = {
+    intent?: string;
+    title?: string;
+    projectName?: string;
+    assigneeName?: string;
+    dueAt?: string;
+  };
+  let parsed: ParsedCommand | null = null;
+  try {
+    const aiText = await generateAnalysis(
+      MEETING_CMD_SYSTEM,
+      JSON.stringify(
+        {
+          입력: trimmed,
+          기준시각: now.toISOString(),
+          "프로젝트 목록": projectOptions.map((p) => p.name),
+          "담당자 목록": activeUsers.map((u) => u.name),
+        },
+        null,
+        1,
+      ),
+      { model: "flash" },
+    );
+    const start = aiText.indexOf("{");
+    const end = aiText.lastIndexOf("}");
+    if (start !== -1 && end > start) {
+      parsed = JSON.parse(aiText.slice(start, end + 1)) as ParsedCommand;
+    }
+  } catch {
+    return taskFallback();
+  }
+  if (!parsed || !parsed.title?.trim()) return taskFallback();
+
+  const title = parsed.title.trim().slice(0, 200);
+  const dueAt = parsed.dueAt?.trim() || undefined;
+  const questions: string[] = [];
+
+  if (parsed.intent === "create_milestone") {
+    // 프로젝트 해석 — 느슨한 포함 매칭(라벨·원제·클라이언트명).
+    const wanted = normKey(parsed.projectName ?? "");
+    let match = wanted
+      ? projectOptions.find(
+          (p) =>
+            normKey(p.name).includes(wanted) ||
+            normKey(p.rawName).includes(wanted) ||
+            (p.clientName && normKey(p.clientName).includes(wanted)),
+        )
+      : undefined;
+    // 역방향(입력이 프로젝트명을 포함) 백업 매칭.
+    if (!match && wanted) {
+      match = projectOptions.find((p) => wanted.includes(normKey(p.rawName)));
+    }
+    if (!dueAt) questions.push("마감일이 분명하지 않습니다 — 날짜를 확인해 주세요.");
+    if (!match) {
+      questions.push("프로젝트를 확정할 수 없습니다 — 후보에서 선택해 주세요.");
+      return {
+        ok: true,
+        intent: "create_milestone",
+        title,
+        dueAt,
+        projectName: parsed.projectName?.trim() || undefined,
+        projectCandidates: projectOptions.map((p) => ({ id: p.id, name: p.name })),
+        questions,
+      };
+    }
+    return {
+      ok: true,
+      intent: "create_milestone",
+      title,
+      dueAt,
+      projectId: match.id,
+      projectName: match.name,
+      questions,
+    };
+  }
+
+  // create_task(기본).
+  const wantedName = normKey(parsed.assigneeName ?? "");
+  const assignee = wantedName
+    ? activeUsers.find((u) => normKey(u.name).includes(wantedName) || wantedName.includes(normKey(u.name)))
+    : undefined;
+  if (!assignee && parsed.assigneeName?.trim()) {
+    questions.push("담당자를 확정할 수 없습니다 — 후보에서 선택해 주세요.");
+    return {
+      ok: true,
+      intent: "create_task",
+      title,
+      dueAt,
+      assigneeName: parsed.assigneeName.trim(),
+      assigneeCandidates: activeUsers.map((u) => ({ id: u.id, name: u.name })),
+      questions,
+    };
+  }
+  return {
+    ok: true,
+    intent: "create_task",
+    title,
+    dueAt,
+    // 담당자 미지정이면 본인 작업(parseTaskInput 관례 정합).
+    assigneeId: assignee?.id ?? user.id,
+    assigneeName: assignee?.name ?? user.name,
+    questions,
+  };
 }
 
 /** AI 응답에서 JSON 객체를 관대하게 추출·파싱한다(코드펜스·잡텍스트 방어). 실패 시 null. */

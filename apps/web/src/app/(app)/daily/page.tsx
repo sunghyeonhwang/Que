@@ -1,9 +1,17 @@
+import Link from "next/link";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
+import { Presentation } from "lucide-react";
+import { canManageMilestone } from "@que/core";
 import { PageHeader } from "@/components/app/page-header";
 import { StandupForm, type BlockerCandidate } from "@/components/daily/standup-form";
 import { StandupBoard, type BoardMember } from "@/components/daily/standup-board";
 import { TeamSummaryPanel } from "@/components/daily/team-summary-panel";
+import {
+  CrisisDecisionCards,
+  type CrisisCard,
+} from "@/components/daily/crisis-decision-cards";
+import { detectCrisisTriggers } from "@/lib/notifications/crisis";
 import { getCurrentUser } from "@/lib/current-user";
 import { getDailyData } from "@/lib/daily-data";
 import { getDb } from "@/lib/db";
@@ -16,6 +24,23 @@ export default async function DailyPage() {
   const user = await getCurrentUser();
   const now = new Date();
   const [data, db] = await Promise.all([getDailyData(user, now), getDb()]);
+
+  // 긴급 결정 대기(기획 §1-e) — 판정은 서버 detectCrisisTriggers 재사용(이중 로직 금지).
+  // 담당자·관리자만 결정 버튼을 노출(canManageMilestone). 서버 액션이 최종 강제한다.
+  const crisisCards: CrisisCard[] = detectCrisisTriggers(db, now).map((t) => {
+    const project = db.projects.find((p) => p.id === t.projectId);
+    return {
+      milestoneId: t.milestoneId,
+      title: t.title,
+      projectName: t.projectName,
+      dueDateKey: t.dueDateKey,
+      reasonText: t.reasonText,
+      progress: t.progress,
+      doneCount: t.doneCount,
+      totalCount: t.totalCount,
+      canManage: canManageMilestone(user, project),
+    };
+  });
 
   // 다른 멤버의 막힘 작업 제목 해석용(제출자 카드 표시). 파생 개수는 개수만 쓰므로 제목은 여기서만.
   const titleById = new Map(db.tasks.map((t) => [t.id, t.title] as const));
@@ -80,7 +105,19 @@ export default async function DailyPage() {
       <PageHeader
         title="데일리"
         subtitle={`매일 10시, 어제·오늘·막힘을 팀과 맞춥니다 · ${format(now, "M월 d일 (EEE)", { locale: ko })}`}
+        actions={
+          <Link
+            href="/daily/meeting"
+            className="inline-flex h-10 items-center gap-2 rounded-lg border border-[var(--que-border)] px-3 text-sm font-medium text-[var(--que-text-secondary)] hover:bg-[var(--que-bg-muted)]"
+          >
+            <Presentation className="size-4" aria-hidden />
+            회의 진행 모드
+          </Link>
+        }
       />
+
+      {/* 긴급 결정 대기 — 트리거가 있을 때만 상단 red 섹션 */}
+      <CrisisDecisionCards cards={crisisCards} />
 
       {/* ⑴ 내 체크인 폼 — 미제출이면 최상단 강조, 제출 후엔 확정 표기+수정 */}
       <StandupForm blockerCandidates={blockerCandidates} myEntry={myEntry} />

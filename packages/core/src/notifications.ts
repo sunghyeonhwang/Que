@@ -27,7 +27,14 @@ export type NotificationTone = "red" | "amber" | "violet" | "blue";
  *  standup_summary는 11:00(또는 전원 제출 즉시) 팀채널 AI 팀 요약 — entityId="team",
  *  dedup_key `standup_summary:team:<KST날짜>`로 날짜당 1회.
  *  weekly_preview는 금요일 16:00 팀채널 주간 프리뷰(pro) — entityId="team",
- *  dedup_key `weekly_preview:team:<ISO주차>`로 주당 1회. */
+ *  dedup_key `weekly_preview:team:<ISO주차>`로 주당 1회.
+ *  weekly_agenda는 월요일 09:00~09:30 팀채널 주간 통합 회의 아젠다(§1-f) — entityId="team",
+ *  dedup_key `weekly_agenda:team:<KST날짜>`로 날짜당 1회.
+ *  crisis는 긴급 결정 카드(§1-e) 개인 DM — recipient=수신자, entityId=milestoneId,
+ *  dedup_key `crisis:<milestoneId>:<KST날짜>:<recipientId>` — 수신자별 개별 행(마일스톤·날짜·수신자당 1회),
+ *  하루 최대 3건 상한은 web dispatch가 distinct 마일스톤 기준으로 강제.
+ *  crisis_remind는 2h 미해결 재촉 DM — dedup_key `crisis_remind:<milestoneId>:<KST날짜>:<recipientId>`.
+ *  crisis_esc는 4h 미해결 관리자·대표 에스컬레이션 DM — dedup_key `crisis_esc:<milestoneId>:<KST날짜>:<recipientId>`. */
 export type NotificationKind =
   | "issue"
   | "on_hold"
@@ -39,7 +46,11 @@ export type NotificationKind =
   | "standup_open"
   | "standup_remind"
   | "standup_summary"
-  | "weekly_preview";
+  | "weekly_preview"
+  | "weekly_agenda"
+  | "crisis"
+  | "crisis_remind"
+  | "crisis_esc";
 
 /** 아웃박스 status 컬럼. */
 export type NotificationStatus = "pending" | "held" | "sent" | "skipped" | "failed";

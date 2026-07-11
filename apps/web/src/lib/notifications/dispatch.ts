@@ -16,6 +16,7 @@ import {
 } from "@que/core";
 import { getStandupData } from "@/lib/team-data";
 import { generateTeamSummary } from "@/lib/standup-summary";
+import { buildWeeklyAgenda } from "@/lib/meeting-agenda";
 import {
   appBaseUrl,
   deadlineThresholdHours,
@@ -54,6 +55,10 @@ const STANDUP_REMIND_WINDOW_START_MIN = 10 * 60 + 40; // 10:40
 const STANDUP_REMIND_WINDOW_END_MIN = 11 * 60; // 11:00
 // 팀 요약 컷오프 시각(KST 시). 이 시각 도달 시 미제출자가 있어도 생성(전원 제출 즉시와 '먼저 오는 쪽' §8-2).
 const STANDUP_SUMMARY_HOUR_KST = 11;
+// 주간 통합 회의 아젠다 게시 창(KST 분). 월요일 09:00~09:30 — 회의(10:00) 전에 팀채널에 아젠다 예고(기획 §1-f).
+const WEEKLY_AGENDA_DAY_KST = 1; // 월요일(0=일)
+const WEEKLY_AGENDA_WINDOW_START_MIN = 9 * 60; // 09:00
+const WEEKLY_AGENDA_WINDOW_END_MIN = 9 * 60 + 30; // 09:30
 
 /** 발송 결과 요약(크론 응답·호출부 로깅용). */
 export interface DispatchCounts {
@@ -87,6 +92,11 @@ function kstDateKey(now: Date): string {
 export function isKstWeekend(now: Date): boolean {
   const day = new Date(now.getTime() + KST_OFFSET_MS).getUTCDay(); // 0=일, 6=토
   return day === 0 || day === 6;
+}
+
+/** now의 KST 요일(0=일..6=토). 주간 아젠다 월요일 게이트용. */
+function kstDayOfWeek(now: Date): number {
+  return new Date(now.getTime() + KST_OFFSET_MS).getUTCDay();
 }
 
 /** now의 KST 분(자정 이후 누적 분, 0-1439). 재촉 창 판정용(kstMinuteOfDay 재사용). */
@@ -527,6 +537,60 @@ export async function postStandupTeamSummary(
   } catch (error) {
     console.error("[que-notify] postStandupTeamSummary 실패(무시)", error);
     return { posted: false };
+  }
+}
+
+/**
+ * 팀채널 주간 통합 회의 아젠다 게시(기획 §1-f "회의 전") — 월요일 09:00~09:30 창, 하루 1회.
+ * Webhook 게이트. dedup `weekly_agenda:team:<KST날짜>`. 주말 게이트와 무관(월요일 자체 게이트).
+ * buildWeeklyAgenda(withSummary)로 pro 요약문을 만들고, 실패해도 데이터 5섹션 헤더는 게시한다.
+ * 요약문(있으면)을 detail로, 딥링크는 /daily(오늘 보드에서 회의 진행).
+ */
+export async function postWeeklyAgenda(db: MockQueDb, now: Date): Promise<boolean> {
+  if (!webhookEnabled()) return false; // 팀채널 게시 — Webhook 게이트
+  if (kstDayOfWeek(now) !== WEEKLY_AGENDA_DAY_KST) return false;
+  const minute = kstMinuteOfDay(now);
+  if (minute < WEEKLY_AGENDA_WINDOW_START_MIN || minute >= WEEKLY_AGENDA_WINDOW_END_MIN) return false;
+
+  const dateKey = kstDateKey(now);
+  const probe: NotificationIntent = {
+    kind: "weekly_agenda",
+    entityType: "team",
+    entityId: "team",
+    marker: dateKey,
+    payload: { title: "", text: "", deeplinkPath: "/daily", tone: "violet" },
+  };
+  const key = dedupKeyFor(probe);
+  if (db.notificationOutbox.some((e) => e.dedupKey === key)) return false;
+
+  try {
+    const agenda = await buildWeeklyAgenda(db, now, { withSummary: true });
+    // 요약 실패 시 5섹션 건수 헤더로 폴백(데이터 섹션은 항상 동작).
+    const counts = [
+      `마감 마일스톤 ${agenda.thisWeek.dueMilestones.length}`,
+      `위험 ${agenda.milestoneAgenda.risky.length}`,
+      `결정 필요 ${agenda.decisions.length}`,
+      `팀 라운드 ${agenda.teamRound.length}인`,
+    ].join(" · ");
+    const intent: NotificationIntent = {
+      ...probe,
+      payload: {
+        title: "주간 통합 회의 아젠다",
+        text: "오늘 10시 주간 회의 사전 아젠다입니다.",
+        deeplinkPath: "/daily",
+        tone: "violet",
+        detail: agenda.summary ?? counts,
+      },
+    };
+    const created = db.enqueueNotifications([intent]);
+    if (created.length === 0) return false;
+    await db.persist();
+    await sendEntry(db, created[0]);
+    await db.persist();
+    return true;
+  } catch (error) {
+    console.error("[que-notify] postWeeklyAgenda 실패(무시)", error);
+    return false;
   }
 }
 
