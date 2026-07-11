@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { ArrowLeft, CornerDownLeft, RotateCw, Sparkles } from "lucide-react";
+import { ArrowLeft, CornerDownLeft, Maximize2, RotateCw, Sparkles } from "lucide-react";
 import {
   askCopilotAction,
   executeCopilotDraftAction,
@@ -11,6 +11,7 @@ import type { CopilotDraft, CopilotDraftLabels, CopilotReply } from "@/lib/ai/co
 import type { CopilotSource } from "@/lib/ai/copilot-tools";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { cn } from "@/lib/utils";
 
 // Que Copilot 채팅 뷰(기획 모듈 D — ⌘K 공존 설계 D-4). 커맨드 팔레트가 chat 모드일 때 본문을 이 컴포넌트로
 // 교체한다. 대화 이력은 세션 로컬(저장 안 함 — 기록되는 것은 확정 실행뿐). 조회 답변은 실데이터 도구 결과로만
@@ -111,20 +112,41 @@ interface ChatMessage {
   draftLabels?: CopilotDraftLabels;
 }
 
+/** 예시 질문 칩(page 빈 화면 전용). 클릭 즉시 send로 전송된다. */
+const PAGE_EXAMPLES = [
+  "오늘 나 뭐 해야 해?",
+  "이번 주 팀에서 막힌 것 요약해줘",
+  "다가오는 마일스톤 알려줘",
+  "내일 오전 10시에 작업 하나 잡아줘",
+];
+
 interface CopilotChatProps {
   /** 팔레트 열림 시 seed된 첫 질문(있으면 마운트 즉시 전송). */
   seedQuestion?: string;
   /** 출처 칩·내부 이동 — 부모(팔레트)가 닫고 router.push 한다. */
   onNavigate: (href: string) => void;
-  /** "← 검색으로" · Esc — 검색 모드로 복귀. */
-  onBackToSearch: () => void;
+  /** "← 검색으로" · Esc — 검색 모드로 복귀. page 변형에서는 없어도 된다(optional). */
+  onBackToSearch?: () => void;
+  /**
+   * 표시 형태.
+   * - "palette"(기본): ⌘K 팔레트 안 — 고정 높이 h-[min(70vh,32rem)], "← 검색으로" 헤더·Esc 캡처.
+   * - "page": /copilot 풀 페이지 — 높이는 부모가 결정(h-full), 헤더·Esc 없음, 빈 화면 시작 카드, 중앙 max-w-3xl.
+   */
+  variant?: "palette" | "page";
 }
 
 /**
- * 커맨드 팔레트 채팅 뷰. 세션 로컬 messages로 1턴씩 askCopilotAction을 호출하고,
+ * Que Copilot 채팅 뷰. 세션 로컬 messages로 1턴씩 askCopilotAction을 호출하고,
  * 확인 카드(draft)는 [실행]으로 executeCopilotDraftAction을 돈다(core 거부 사유가 그대로 사용자 문구).
+ * variant로 ⌘K 팔레트와 /copilot 풀 페이지를 공유한다(palette 동작은 기본값으로 회귀 없이 보존).
  */
-export function CopilotChat({ seedQuestion, onNavigate, onBackToSearch }: CopilotChatProps) {
+export function CopilotChat({
+  seedQuestion,
+  onNavigate,
+  onBackToSearch,
+  variant = "palette",
+}: CopilotChatProps) {
+  const isPage = variant === "page";
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [pending, setPending] = useState(false);
@@ -212,8 +234,10 @@ export function CopilotChat({ seedQuestion, onNavigate, onBackToSearch }: Copilo
   }, []);
 
   // 채팅 컨테이너에서 Escape를 캡처해 검색으로 복귀(다이얼로그 닫힘보다 우선 — capture + stopPropagation).
+  // page 변형에는 복귀 대상이 없으므로 캡처하지 않는다(브라우저 기본 Esc 유지).
   const onContainerKeyDownCapture = useCallback(
     (e: React.KeyboardEvent) => {
+      if (!onBackToSearch) return;
       if (e.key === "Escape") {
         e.preventDefault();
         e.stopPropagation();
@@ -223,44 +247,12 @@ export function CopilotChat({ seedQuestion, onNavigate, onBackToSearch }: Copilo
     [onBackToSearch],
   );
 
-  return (
-    <div
-      className="flex h-[min(70vh,32rem)] flex-col"
-      onKeyDownCapture={onContainerKeyDownCapture}
-    >
-      {/* 상단 바 — 검색으로 복귀 */}
-      <div className="flex items-center justify-between gap-2 border-b border-[var(--que-border)] px-2 py-1.5">
-        <Button
-          variant="ghost"
-          className="h-10 gap-1.5 px-2 text-sm text-[var(--que-text-secondary)]"
-          onClick={onBackToSearch}
-        >
-          <ArrowLeft className="size-4" aria-hidden />
-          검색으로
-        </Button>
-        <span className="flex items-center gap-1.5 pr-1 text-xs font-medium text-[var(--que-brand)]">
-          <Sparkles className="size-3.5" aria-hidden />
-          Que Copilot
-          <kbd className="ml-1 rounded border border-[var(--que-border)] px-1 text-[10px] text-[var(--que-text-tertiary)]">
-            Esc
-          </kbd>
-        </span>
-      </div>
+  const empty = messages.length === 0 && !pending && !turnError;
 
-      {/* 대화 로그 — 새 말풍선을 스크린리더가 읽도록 polite live region. 이 영역만 내부 스크롤. */}
-      <div
-        ref={logRef}
-        aria-live="polite"
-        aria-label="Que Copilot 대화"
-        className="flex flex-1 flex-col gap-3 overflow-y-auto px-3 py-3"
-      >
-        {messages.length === 0 && !pending && (
-          <p className="m-auto max-w-[85%] text-center text-sm text-[var(--que-text-tertiary)]">
-            무엇이든 물어보세요. 오늘 할 일·막힌 작업·프로젝트 진행을 실데이터로 정리해 드립니다.
-          </p>
-        )}
-
-        {messages.map((m) =>
+  // 대화 본문(말풍선·출처·확인 카드·로딩·오류) — palette/page가 공유한다.
+  const conversation = (
+    <>
+      {messages.map((m) =>
           m.role === "assistant" ? (
             <div key={m.id} className="flex items-start gap-2">
               <span
@@ -348,37 +340,146 @@ export function CopilotChat({ seedQuestion, onNavigate, onBackToSearch }: Copilo
             </div>
           </div>
         )}
+    </>
+  );
+
+  return (
+    <div
+      className={cn("flex flex-col", isPage ? "h-full" : "h-[min(70vh,32rem)]")}
+      onKeyDownCapture={onContainerKeyDownCapture}
+    >
+      {/* 상단 바 — 검색으로 복귀(palette 전용). page는 페이지 헤더가 대신한다. */}
+      {!isPage && (
+        <div className="flex items-center justify-between gap-2 border-b border-[var(--que-border)] px-2 py-1.5">
+          <Button
+            variant="ghost"
+            className="h-10 gap-1.5 px-2 text-sm text-[var(--que-text-secondary)]"
+            onClick={onBackToSearch}
+          >
+            <ArrowLeft className="size-4" aria-hidden />
+            검색으로
+          </Button>
+          <div className="flex items-center gap-1.5 pr-1">
+            {/* 전체 화면 — 팔레트 좁을 때 /copilot 풀 페이지로. 현재 대화는 이관하지 않는다(단순 이동). */}
+            <Button
+              variant="ghost"
+              size="sm"
+              aria-label="전체 화면으로 열기"
+              className="h-8 gap-1 px-2 text-xs text-[var(--que-text-secondary)]"
+              onClick={() => onNavigate("/copilot")}
+            >
+              <Maximize2 className="size-3.5" aria-hidden />
+              전체 화면
+            </Button>
+            <span className="flex items-center gap-1.5 text-xs font-medium text-[var(--que-brand)]">
+              <Sparkles className="size-3.5" aria-hidden />
+              Que Copilot
+              <kbd className="ml-1 rounded border border-[var(--que-border)] px-1 text-[10px] text-[var(--que-text-tertiary)]">
+                Esc
+              </kbd>
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* 대화 로그 — 새 말풍선을 스크린리더가 읽도록 polite live region. 이 영역만 내부 스크롤. */}
+      <div
+        ref={logRef}
+        aria-live="polite"
+        aria-label="Que Copilot 대화"
+        className={cn(
+          "flex flex-1 flex-col overflow-y-auto",
+          isPage ? "px-4 py-6" : "gap-3 px-3 py-3",
+        )}
+      >
+        {isPage ? (
+          <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-3">
+            {empty ? (
+              <PageStartScreen onPick={send} />
+            ) : (
+              conversation
+            )}
+          </div>
+        ) : (
+          <>
+            {empty && (
+              <p className="m-auto max-w-[85%] text-center text-sm text-[var(--que-text-tertiary)]">
+                무엇이든 물어보세요. 오늘 할 일·막힌 작업·프로젝트 진행을 실데이터로 정리해 드립니다.
+              </p>
+            )}
+            {conversation}
+          </>
+        )}
       </div>
 
       {/* 입력창 — 하단 고정. Enter 전송·Shift+Enter 줄바꿈 */}
-      <div className="border-t border-[var(--que-border)] px-3 py-2.5">
-        <div className="flex items-end gap-2">
-          <Textarea
-            rows={1}
-            value={input}
-            aria-label="Que Copilot에게 보낼 메시지"
-            placeholder="무엇이든 물어보세요 — 예: 오늘 나 뭐 해야 해?"
-            className="max-h-28 min-h-10 resize-none"
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                send(input);
-              }
-            }}
-          />
-          <Button
-            className="h-10 shrink-0 gap-1.5"
-            onClick={() => send(input)}
-            disabled={pending || !input.trim()}
-          >
-            <CornerDownLeft className="size-4" aria-hidden />
-            전송
-          </Button>
+      <div
+        className={cn(
+          "border-t border-[var(--que-border)]",
+          isPage ? "px-4 py-3" : "px-3 py-2.5",
+        )}
+      >
+        <div className={cn(isPage && "mx-auto w-full max-w-3xl")}>
+          <div className="flex items-end gap-2">
+            <Textarea
+              rows={1}
+              value={input}
+              aria-label="Que Copilot에게 보낼 메시지"
+              placeholder="무엇이든 물어보세요 — 예: 오늘 나 뭐 해야 해?"
+              className="max-h-28 min-h-10 resize-none"
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  send(input);
+                }
+              }}
+            />
+            <Button
+              className="h-10 shrink-0 gap-1.5"
+              onClick={() => send(input)}
+              disabled={pending || !input.trim()}
+            >
+              <CornerDownLeft className="size-4" aria-hidden />
+              전송
+            </Button>
+          </div>
+          <p className="mt-1.5 text-center text-[11px] text-[var(--que-text-tertiary)]">
+            답변은 실제 데이터에서만 가져오며, 변경은 확인 후에만 실행됩니다.
+          </p>
         </div>
-        <p className="mt-1.5 text-center text-[11px] text-[var(--que-text-tertiary)]">
-          답변은 실제 데이터에서만 가져오며, 변경은 확인 후에만 실행됩니다.
+      </div>
+    </div>
+  );
+}
+
+/** /copilot 빈 대화 시작 화면 — 중앙 타이틀 + 신뢰 문구 + 예시 질문 칩 4개(클릭=즉시 전송). */
+function PageStartScreen({ onPick }: { onPick: (q: string) => void }) {
+  return (
+    <div className="m-auto flex max-w-xl flex-col items-center gap-5 py-10 text-center">
+      <span
+        className="flex size-14 items-center justify-center rounded-2xl bg-[var(--que-brand-subtle)] text-[var(--que-brand)]"
+        aria-hidden
+      >
+        <Sparkles className="size-7" />
+      </span>
+      <div className="flex flex-col gap-1.5">
+        <h2 className="text-xl font-semibold text-[var(--que-text)]">Que Copilot</h2>
+        <p className="text-sm text-[var(--que-text-secondary)]">
+          실제 데이터로 답하고, 변경은 확인 후에만 실행합니다.
         </p>
+      </div>
+      <div className="flex flex-wrap justify-center gap-2">
+        {PAGE_EXAMPLES.map((q) => (
+          <button
+            key={q}
+            type="button"
+            onClick={() => onPick(q)}
+            className="inline-flex min-h-10 items-center rounded-full border border-[var(--que-border)] bg-[var(--que-bg)] px-3.5 py-2 text-sm text-[var(--que-text-secondary)] transition-colors hover:bg-[var(--que-bg-muted)] hover:text-[var(--que-text)]"
+          >
+            {q}
+          </button>
+        ))}
       </div>
     </div>
   );
