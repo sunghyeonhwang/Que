@@ -1,7 +1,7 @@
 # Griff Q — Company Operating System 초기 기획
 
 > 작성: 2026-07-11 · 근거: 같은 날 대화록 메모("Griff Q Operating System 설계 메모")
-> 상태: **초기 기획(구현 미착수)**. 기존 기획 정본 `que+/daily-standup-okr-plan.md`(데일리·OKR — Phase 1~4 라이브)의 **다음 층**이다.
+> 상태: **초기 기획(구현 미착수)** · 2026-07-11 메모 전문 수신으로 모듈 C 완성. 철학·프레임워크는 `que+/griff-os-whitepaper-v1.md` 참조. 기존 기획 정본 `que+/daily-standup-okr-plan.md`(데일리·OKR — Phase 1~4 라이브)의 **다음 층**이다.
 
 ---
 
@@ -105,9 +105,40 @@ Que의 "감시 도구 아님" 원칙과 정합시키기 위한 설계 제약:
 
 ---
 
-## 모듈 C — 나머지 OS 구성 (미완)
+## 모듈 C — Griff OS 전체 구조 (2026-07-11 메모 전문 반영으로 완성)
 
-원 메모가 "Company OS 구성" 절에서 끊겼다. Finance 확장(예산·정산·프로젝트 수익성)·Product OS·Governance 심화는 **후속 대화로 이어서 기획**한다. 이 문서에 이어 붙일 것.
+### C-1. 권장 구조 — Griff Q Plus 원칙
+
+> **기존 Griff Q는 그대로 유지한다(Project Core). 모듈을 Plus로 추가한다.**
+
+```
+Griff OS
+├── Griff Q (Project Core — 현재 라이브: Project·Workflow·Task·Schedule·Approval)
+├── HR        — Role · Arena · Evaluation · Skill Matrix
+├── Finance   — Budget · Cost(외주비·인건비·장비비) · Profit(마진) · Resource
+├── Knowledge — Wiki · Template · SOP · Lessons Learned(회고·노하우·사례)
+├── Governance— Decision · Approval · Policy · Authority(R&R)
+└── Product   — Vision · Roadmap · Release · Feedback · Growth
+```
+
+핵심 인사이트: **프로젝트는 Task만으로 움직이지 않는다** — Decision Rule · Change Management · Quality Gate · Risk · Finance가 함께 존재해야 한다.
+
+### C-2. 모듈별 착수 판단 (현재 Que 자산 기준)
+
+| 모듈 | 메모의 구성 | 현재 자산 | 착수 판단 |
+|---|---|---|---|
+| **Risk** | 리스크·변경관리·일정 영향도 | ◐ 긴급 결정·간트 선행 위험·마일스톤 위험 상태 | **모듈 A-3(외부 변경 대응)이 곧 Risk의 시작** — 변경관리부터 |
+| **Quality** | QA·체크리스트·Gate·승인 기준 | ◐ 상태형 KR 체크리스트(A-1)·글래도스식 게이트 문화 | **A-1이 Quality Gate의 데이터 모델을 겸한다** — KR 체크가 곧 Gate |
+| **Knowledge** | 회고·템플릿·노하우·사례 | ◐ 회의록(kind)·반복 템플릿·A-2 실패 회고·도움말 | 회고(A-2)가 쌓이면 Lessons Learned로 승격 — Wiki/SOP는 후순위 |
+| **Governance** | 승인·의사결정·권한·R&R | ◐ ChangeLog·결제 승인·권한 3중·회의 결정 기록 | R&R이 곧 Role&Arena(B) — Decision Rule 명문화는 화이트페이퍼 몫 |
+| **Finance** | 손익·외주비·인건비·장비비·마진·예산 | ◐ 결제요청(비용 지출)만 | **프로젝트 손익이 첫 단추**: 프로젝트에 예산·외주비 필드 → 결제요청과 연결 → 마진 파생. 인건비 배분은 민감(부하 데이터와 결합 시 감시 우려) — 원칙 검토 후 |
+| **Product** | Vision·Roadmap·Backlog·Feedback·Release·Growth | ✖ (자체 제품: DayBlocks·Que 자신) | Agency(납품)와 운영 방식이 다름 — **별도 OS로 분리**. Que의 수정사항(/revisions)이 Feedback의 씨앗. 자체 제품이 커질 때 착수 |
+
+### C-3. Product OS — Agency와의 분리 원칙
+
+- **Agency**: 남의 문제를 해결한다 → 성과 = 납품 (모듈 A의 상태형 KR·대응 프로세스가 담당)
+- **Product**: 우리의 문제를 해결한다 → 성과 = 제품 성장 (Vision·Roadmap·Feedback·Release·Growth·Revenue)
+- 같은 화면·같은 지표로 섞지 않는다. Product OS는 자체 제품(DayBlocks, Que 자신)이 운영 단계에 들어갈 때 별도 트랙으로 기획한다.
 
 ---
 
@@ -119,7 +150,9 @@ Que의 "감시 도구 아님" 원칙과 정합시키기 위한 설계 제약:
 | **OS-2. 실패 분류+대응** | A-2 회고 레코드 + A-3 외부 변경 접수(crisis 인프라 재사용) | 중 | 주간 회의 섹션 ⑴ 집계 포함 |
 | **OS-3. Role & Arena 기반** | B-3 모델 + 멤버 카드 확장 + Task.arenaId | 중 | 점수화 없음 원칙 고정 |
 | **OS-4. 배치 뷰** | B-4 관리자 매트릭스 + 재배분 추천 연결 + 부하 Arena 축 | 중 | OS-3 후 |
-| **OS-5. Finance/Product** | 모듈 C — 후속 대화로 범위 확정 | ? | 메모 미완 구간 |
+| **OS-5. Finance 첫 단추** | 프로젝트 예산·외주비 필드 + 결제요청 연결 + 마진 파생(손익 카드) | 중 | 인건비 배분은 원칙 검토 후 |
+| **OS-6. Knowledge 승격** | A-2 회고 축적 → Lessons Learned 화면(사례 검색) | 소~중 | 데이터가 쌓인 뒤 |
+| **OS-W. Whitepaper** | 「Griff OS Whitepaper v1.0」 — 운영 철학·프레임워크 문서(기능 명세 아님) | 문서 | `que+/griff-os-whitepaper-v1.md` |
 
 ---
 
@@ -129,4 +162,6 @@ Que의 "감시 도구 아님" 원칙과 정합시키기 위한 설계 제약:
 2. **jobRole 초기값** — 8인 각자의 직무 배정표(PM/Designer/Developer/AE/Producer)를 주시면 시드에 반영.
 3. **외부 변경 대응 SLA** — 영향 분석 24h가 기본인가, 프로젝트별 차등인가? (추천: 전사 24h 고정으로 시작)
 4. **Arena 커스텀** — 기본 4종 외에 지금 필요한 Arena가 있는가?
-5. **모듈 C 범위** — 끊긴 메모의 "Company OS 구성" 뒷부분(Finance·Product·Governance)을 이어서 논의.
+5. ~~모듈 C 범위~~ → **해소(2026-07-11)**: 메모 전문 수신 — C-1~C-3으로 반영 완료.
+6. **Finance 인건비 배분** — 부하 데이터와 결합하면 감시 도구로 비칠 위험. 프로젝트 손익에 인건비를 포함할지, 포함한다면 산정 방식(고정 단가? 시간 추적은 안 함)을 별도 논의.
+7. **Evaluation(평가)** — 메모의 HR 구성에 있으나 Que 원칙(점수화 없음)과 긴장 관계. 화이트페이퍼에서 "평가가 아니라 배치·성장"으로 재정의할지 결정.
