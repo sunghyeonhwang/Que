@@ -389,7 +389,7 @@ export function CopilotChat({
         aria-label="Que Copilot 대화"
         className={cn(
           "flex flex-1 flex-col overflow-y-auto",
-          isPage ? "px-4 py-6" : "gap-3 px-3 py-3",
+          isPage ? "px-4 py-6 max-md:px-3 max-md:py-4" : "gap-3 px-3 py-3",
         )}
       >
         {isPage ? (
@@ -416,7 +416,7 @@ export function CopilotChat({
       <div
         className={cn(
           "border-t border-[var(--que-border)]",
-          isPage ? "px-4 py-3" : "px-3 py-2.5",
+          isPage ? "px-4 py-3 max-md:px-3" : "px-3 py-2.5",
         )}
       >
         <div className={cn(isPage && "mx-auto w-full max-w-3xl")}>

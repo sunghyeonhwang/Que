@@ -14,9 +14,11 @@ import { CopilotChat } from "@/components/app/copilot-chat";
 export function CopilotPageClient() {
   const router = useRouter();
   return (
-    <div className="flex h-full flex-col">
+    // 폰(<md)에서는 main의 p-4를 음수 마진으로 상쇄해 대화를 화면 가장자리까지 채운다(입력 집중 화면).
+    // 높이도 패딩만큼 키워 입력창이 뷰포트 하단(키보드 위)에 붙게 한다. ≥md는 기존 레이아웃 그대로.
+    <div className="flex h-full flex-col max-md:-m-4 max-md:h-[calc(100%+2rem)]">
       {/* 얇은 헤더 — 채팅 앱 스타일로 화면 대부분을 대화가 채운다. */}
-      <div className="flex shrink-0 items-center gap-2 border-b border-[var(--que-border)] pb-3">
+      <div className="flex shrink-0 items-center gap-2 border-b border-[var(--que-border)] pb-3 max-md:px-3 max-md:pt-3">
         <span
           className="flex size-8 items-center justify-center rounded-lg bg-[var(--que-brand-subtle)] text-[var(--que-brand)]"
           aria-hidden

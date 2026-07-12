@@ -16,6 +16,7 @@ import { UserSwitcher } from "@/components/app/user-switcher";
 import { FullscreenButton } from "@/components/app/fullscreen-button";
 import { ThemeToggle } from "@/components/app/theme-toggle";
 import { MobileNav } from "@/components/app/mobile-nav";
+import { MobileTabbar } from "@/components/app/mobile-tabbar";
 import { GlobalSearch } from "@/components/app/global-search";
 import { CommandPalette } from "@/components/app/command-palette";
 import { TodoAppDialog } from "@/components/app/todo-app-dialog";
@@ -108,9 +109,14 @@ export default async function AppLayout({
 
           <div className="ml-auto flex items-center gap-1 sm:gap-2">
             <AddTaskDialog currentUserId={user.id} />
-            <NotificationsBell alerts={alerts} />
+            {/* 폰(<md)은 하단 탭바 '알림'이 대신하므로 헤더 종·전체화면은 숨겨 밀도를 낮춘다 */}
+            <div className="hidden md:contents">
+              <NotificationsBell alerts={alerts} />
+            </div>
             <UserSwitcher current={user} rank={rank} />
-            <FullscreenButton />
+            <div className="hidden md:contents">
+              <FullscreenButton />
+            </div>
             <ThemeToggle initialTheme={initialTheme} />
           </div>
         </header>
@@ -118,6 +124,9 @@ export default async function AppLayout({
         <main className="min-h-0 min-w-0 flex-1 overflow-y-auto bg-[var(--que-canvas)] p-4 md:p-5 xl:p-6">
           {children}
         </main>
+
+        {/* 폰(<md) 전용 하단 탭바 — in-flow 최하단(fixed 아님). ≥md는 md:hidden으로 미렌더 */}
+        <MobileTabbar badges={menuBadges} isAdmin={isAdmin} unreadCount={alerts.unreadCount} />
       </div>
     </div>
     </RosterProvider>

@@ -116,10 +116,10 @@ export default async function TodayPage({
       ) : (
         /* 현황 탭: KPI 요약(상단 1줄) + 접이식 현황 상세 + 풀폭 작업 리스트(목록 중심) */
         <div className="flex flex-col gap-4">
-          {/* 현황 KPI 5개 — 상단 가로 1줄. 좁은 화면은 가로 스크롤, md+는 5등분 그리드. */}
+          {/* 현황 KPI 5개 — 폰(<md)은 2열 그리드, md+는 기존 5등분 가로 1줄(회귀 없음). */}
           <section
             aria-label="오늘 요약"
-            className="grid auto-cols-[minmax(140px,1fr)] grid-flow-col gap-2 overflow-x-auto pb-1 md:auto-cols-fr md:overflow-visible"
+            className="grid grid-flow-row grid-cols-2 gap-2 md:grid-flow-col md:grid-cols-none md:auto-cols-fr md:overflow-visible"
           >
             {metrics.map((metric) => (
               <Card key={metric.label} className="py-3">

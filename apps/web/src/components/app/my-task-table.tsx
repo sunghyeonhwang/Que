@@ -87,8 +87,8 @@ export function MyTaskTable({
                 <span className="sr-only">{item.title} 상세 열기</span>
               </TaskStatusSheet>
 
-              {/* 이름 */}
-              <div className="flex min-w-0 items-center">
+              {/* 이름 — 폰(<md)에서는 마감일 컬럼이 없으므로 제목 아래에 마감을 보조 줄로 노출 */}
+              <div className="flex min-w-0 flex-col justify-center">
                 <span
                   className={cn(
                     "min-w-0 truncate text-[15px] font-medium transition-colors",
@@ -98,6 +98,11 @@ export function MyTaskTable({
                   )}
                 >
                   {item.title}
+                </span>
+                <span className="pointer-events-none mt-0.5 truncate text-xs text-[var(--que-text-tertiary)] md:hidden">
+                  {item.dueAt
+                    ? `마감 ${format(new Date(item.dueAt), "M월 d일 (EEE)", { locale: ko })}`
+                    : "마감 없음"}
                 </span>
               </div>
 

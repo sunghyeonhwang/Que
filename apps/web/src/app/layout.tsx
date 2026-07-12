@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter_Tight, Noto_Sans_KR, Geist_Mono } from "next/font/google";
 import localFont from "next/font/local";
 import { cookies } from "next/headers";
@@ -42,6 +42,14 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Que",
   description: "캘린더 UI를 가진 팀 작업 상태 관리 도구",
+};
+
+// 모바일 키보드 대응 — interactiveWidget=resizes-content로 키보드가 뜨면 뷰포트(및 dvh)가 줄어들어
+// Copilot·데일리 등 하단 고정 입력창이 키보드 위로 보인다. width/initialScale은 Next 기본값을 유지한다.
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  interactiveWidget: "resizes-content",
 };
 
 export default async function RootLayout({
