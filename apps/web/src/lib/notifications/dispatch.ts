@@ -55,10 +55,12 @@ const STANDUP_REMIND_WINDOW_START_MIN = 10 * 60 + 40; // 10:40
 const STANDUP_REMIND_WINDOW_END_MIN = 11 * 60; // 11:00
 // 팀 요약 컷오프 시각(KST 시). 이 시각 도달 시 미제출자가 있어도 생성(전원 제출 즉시와 '먼저 오는 쪽' §8-2).
 const STANDUP_SUMMARY_HOUR_KST = 11;
-// 주간 통합 회의 아젠다 게시 창(KST 분). 월요일 09:00~09:30 — 회의(10:00) 전에 팀채널에 아젠다 예고(기획 §1-f).
+// 주간 통합 회의 아젠다 게시 창(KST 분). 월요일 10:10~10:30 — 회의(10:40) 전에 팀채널에 아젠다 예고.
+// (2026-07-13 사용자 확정 리듬: 10:00 스탠드업 오픈 → 10:10 아젠다 → 10:40 회의. 창 끝을 회의에 붙이지
+//  않는 이유: 크론 지연 시 회의 직전 발송을 막고 최소 10분 리드타임을 확보한다 — 글래도스 판정.)
 const WEEKLY_AGENDA_DAY_KST = 1; // 월요일(0=일)
-const WEEKLY_AGENDA_WINDOW_START_MIN = 9 * 60; // 09:00
-const WEEKLY_AGENDA_WINDOW_END_MIN = 9 * 60 + 30; // 09:30
+const WEEKLY_AGENDA_WINDOW_START_MIN = 10 * 60 + 10; // 10:10
+const WEEKLY_AGENDA_WINDOW_END_MIN = 10 * 60 + 30; // 10:30
 
 /** 발송 결과 요약(크론 응답·호출부 로깅용). */
 export interface DispatchCounts {

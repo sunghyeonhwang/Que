@@ -84,7 +84,7 @@ export async function GET(request: Request) {
       const drained = await drainOutbox(db, now);
       // 주간 프리뷰는 금요일 16:00 자체 게이트 — 주말 게이트와 무관해 상시 호출(내부에서 요일·시각 판정).
       const weeklyPreviewPosted = await postWeeklyPreview(db, now);
-      // 주간 통합 회의 아젠다는 월요일 09:00~09:30 자체 게이트 — 상시 호출(내부에서 요일·시각·dedup 판정).
+      // 주간 통합 회의 아젠다는 월요일 10:10~10:30 자체 게이트 — 상시 호출(내부에서 요일·시각·dedup 판정).
       const weeklyAgendaPosted = await postWeeklyAgenda(db, now);
       // 긴급 결정 감지·발송·에스컬레이션 — 평일 게이트·dedup·하루 3건 상한은 함수 내부. 시각 무관 상시 스캔.
       const crisis = await scanCrisisTriggers(db, now);
