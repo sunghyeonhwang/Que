@@ -308,6 +308,11 @@ async function getOkrProgress(user: User): Promise<ToolResult> {
           progressPct: kr.progress,
         })),
       })),
+      // 빈 결과는 "찾지 못했습니다"로 끝나면 막다른 답이 된다(2026-07-12 실사용 리포트) —
+      // 모델이 다음 행동(어디서 만드는지)을 안내하도록 힌트를 데이터에 싣는다.
+      ...(okr.objectives.length === 0 && {
+        hint: "아직 등록된 OKR이 없다. '데일리' 메뉴의 OKR 탭(/daily?tab=okr)에서 관리자가 분기 목표(Objective)를 만들고, 그 아래에 월 핵심결과(KR)를 추가하면 여기서 진척률을 조회할 수 있다 — 이 안내를 사용자에게 전하라.",
+      }),
     },
     sources: [{ label: "OKR", href: "/daily?tab=okr" }],
   };
