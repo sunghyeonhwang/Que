@@ -1406,10 +1406,8 @@ export class MockQueDb implements QueDb {
     },
   ): Project {
     const actor = this.requireUser(ctx.actorId);
-    // 생성은 관리자만 (project 미지정 canManageProject 경로).
-    if (!canManageProject(actor)) {
-      throw new QueRuleError("NOT_AUTHORIZED", "프로젝트는 관리자만 만들 수 있다");
-    }
+    // 생성은 전원 허용(2026-07-12 사용자 결정 — Copilot 대화 중 즉석 생성 필요).
+    // 편집·보관·클라이언트 재배정은 여전히 관리자·담당자만(updateProject 경로 유지).
     const name = input.name.trim();
     if (!name) throw new QueRuleError("INVALID_INPUT", "프로젝트명은 필수다");
     if (name.length > 200) throw new QueRuleError("INVALID_INPUT", "프로젝트명은 200자 이내다");

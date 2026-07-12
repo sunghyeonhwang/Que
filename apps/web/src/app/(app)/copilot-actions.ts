@@ -129,6 +129,16 @@ export async function executeCopilotDraftAction(draft: CopilotDraft): Promise<Ac
       return result;
     }
 
+    case "create_project":
+      return toResult((db) =>
+        void db.createProject(ctx, {
+          name: d.name,
+          clientId: d.clientId,
+          ownerId: d.ownerId,
+          description: d.description,
+        }),
+      );
+
     case "create_milestone":
       return toResult((db) =>
         void db.createMilestone(ctx, {

@@ -88,6 +88,12 @@ export const COPILOT_READ_TOOL_DECLARATIONS: GeminiFunctionDeclaration[] = [
     parameters: { type: "object", properties: {} },
   },
   {
+    name: "list_clients",
+    description:
+      "활성 클라이언트(거래처) 목록 {id, name}. 프로젝트를 만들거나 클라이언트를 지정할 때 id를 얻는 용도.",
+    parameters: { type: "object", properties: {} },
+  },
+  {
     name: "search_items",
     description:
       "워크스페이스 전역 검색(작업·회의록·Action·결제·팀원). 특정 이름/키워드로 항목을 찾을 때 쓴다. 열람 권한과 민감정보 마스킹은 이미 적용된다.",
@@ -132,6 +138,8 @@ export async function runCopilotReadTool(
       return getOkrProgress(user);
     case "get_workload":
       return getWorkload(user, now);
+    case "list_clients":
+      return listClients();
     case "search_items":
       return searchItems(user, str(args.query) ?? "");
     default:
@@ -344,5 +352,18 @@ async function searchItems(user: User, query: string): Promise<ToolResult> {
       .flatMap((g) => g.hits.slice(0, 2))
       .slice(0, 6)
       .map((h) => ({ label: h.title, href: h.href })),
+  };
+}
+
+/** 활성 클라이언트 목록 — 프로젝트 생성 제안 시 clientId 해석용(2026-07-12). */
+async function listClients(): Promise<ToolResult> {
+  const db = await getDb();
+  return {
+    data: {
+      clients: db.clients
+        .filter((c) => c.status !== "archived")
+        .map((c) => ({ id: c.id, name: c.name })),
+    },
+    sources: [{ label: "클라이언트", href: "/clients" }],
   };
 }

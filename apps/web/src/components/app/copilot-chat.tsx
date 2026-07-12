@@ -60,6 +60,15 @@ function draftSummary(
           { label: "기한", value: formatWhen(draft.endAt) },
         ],
       };
+    case "create_project":
+      return {
+        heading: "프로젝트 생성",
+        rows: [
+          { label: "이름", value: draft.name },
+          { label: "클라이언트", value: draft.clientId ? (labels?.projectName ?? draft.clientId) : "없음" },
+          { label: "담당", value: labels?.assigneeName ?? (draft.ownerId ?? "본인") },
+        ],
+      };
     case "create_milestone":
       return {
         heading: "마일스톤 생성",
