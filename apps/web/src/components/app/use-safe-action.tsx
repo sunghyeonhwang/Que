@@ -18,15 +18,28 @@ export function useSafeAction() {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
 
-  const run = (
-    action: () => Promise<ActionResult>,
-    options: { success: string; onSuccess?: () => void; refresh?: boolean },
+  const run = <R extends ActionResult>(
+    action: () => Promise<R>,
+    options: {
+      success: string;
+      onSuccess?: () => void;
+      refresh?: boolean;
+      /** 성공 토스트에 [실행 취소] 버튼을 붙인다 — 결과(이전 값 포함)를 받아 되돌리기 액션을 돌려준다.
+       *  undefined를 돌려주면 버튼 없음(되돌릴 것이 없는 경우). */
+      undo?: (result: R & { ok: true }) => { label?: string; onClick: () => void } | undefined;
+    },
   ) => {
     startTransition(async () => {
       try {
         const result = await action();
         if (result.ok) {
-          toast.success(options.success);
+          const undoAction = options.undo?.(result as R & { ok: true });
+          toast.success(
+            options.success,
+            undoAction
+              ? { action: { label: undoAction.label ?? "실행 취소", onClick: undoAction.onClick } }
+              : undefined,
+          );
           options.onSuccess?.();
           if (options.refresh !== false) router.refresh();
         } else {

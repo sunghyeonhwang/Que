@@ -132,11 +132,16 @@ export async function moveTaskAction(input: {
   taskId: string;
   to: TaskStatus;
   detail?: StatusDetail;
-}): Promise<ActionResult> {
+}): Promise<
+  | { ok: true; previousStatus?: TaskStatus; previousStatusDetail?: StatusDetail }
+  | { ok: false; error: string }
+> {
   const user = await getCurrentUser();
   try {
     const db = await getDb();
-    const from = db.tasks.find((t) => t.id === input.taskId)?.status; // 변경 전 status(알림 훅용)
+    const from = db.tasks.find((t) => t.id === input.taskId)?.status; // 변경 전 status(알림 훅 + 실행취소용)
+    // 이전 상태가 issue/on_hold였다면 되돌릴 때 detail(사유)이 필수 — 변경 전에 스냅샷을 잡아 반환한다.
+    const fromDetail = from ? db.statusDetailSnapshot(input.taskId, from) : undefined;
     db.changeTaskStatus(
       { actorId: user.id, via: "web" },
       { taskId: input.taskId, to: input.to, detail: input.detail },
@@ -145,7 +150,7 @@ export async function moveTaskAction(input: {
     revalidatePath("/projects");
     // 홀드·문제 열로 이동하면 알림 발송(core 규칙). 발송 실패해도 이동은 유지된다.
     if (from) await notifyTaskStatusChanged(db, input.taskId, from, input.detail);
-    return { ok: true };
+    return { ok: true, previousStatus: from, previousStatusDetail: fromDetail };
   } catch (error) {
     if (isQueRuleError(error)) return { ok: false, error: error.message };
     throw error;

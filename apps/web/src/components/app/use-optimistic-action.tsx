@@ -31,13 +31,18 @@ import { UNEXPECTED_ERROR_MESSAGE } from "./use-safe-action";
 /** run에 넘기는 서버 액션의 결과 형태 (ActionResult·AlertActionResult 모두 호환). */
 type OptimisticResult = { ok: boolean; error?: string };
 
-export interface OptimisticRunOptions {
+export interface OptimisticRunOptions<R extends OptimisticResult = OptimisticResult> {
   /** 클릭 즉시 실행 — 로컬 상태를 낙관적으로 반영한다(setState 등). */
   apply: () => void;
   /** 실패 시 apply를 되돌린다. */
   rollback: () => void;
   /** 성공 토스트 문구. 조용한 토글은 생략 가능. */
   success?: string;
+  /** 성공 토스트에 [실행 취소] 버튼을 붙인다(success가 있을 때만 표시).
+   *  서버 결과(변경 전 값 포함)를 받아 되돌리기 액션을 돌려준다 — 클라이언트 prop은 revalidate
+   *  경로에 따라 stale일 수 있으므로(연속 조작), 이전 값은 서버 반환을 신뢰한다.
+   *  undefined를 돌려주면 버튼 없음. */
+  undo?: (result: R & { ok: true }) => { label?: string; onClick: () => void } | undefined;
   /** true일 때만 router.refresh — 다른 화면 데이터 정합이 필요한 경우. 기본 false. */
   refresh?: boolean;
   /** reportError 태그(예외 추적용). 기본 "optimistic-action". */
@@ -48,7 +53,10 @@ export function useOptimisticAction() {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
 
-  const run = (action: () => Promise<OptimisticResult>, options: OptimisticRunOptions) => {
+  const run = <R extends OptimisticResult>(
+    action: () => Promise<R>,
+    options: OptimisticRunOptions<R>,
+  ) => {
     options.apply(); // 낙관적 즉시 반영
     startTransition(async () => {
       try {
@@ -58,7 +66,15 @@ export function useOptimisticAction() {
           toast.error(result.error ?? UNEXPECTED_ERROR_MESSAGE);
           return;
         }
-        if (options.success) toast.success(options.success);
+        if (options.success) {
+          const undoAction = options.undo?.(result as R & { ok: true });
+          toast.success(
+            options.success,
+            undoAction
+              ? { action: { label: undoAction.label ?? "실행 취소", onClick: undoAction.onClick } }
+              : undefined,
+          );
+        }
         if (options.refresh) router.refresh();
       } catch (error) {
         options.rollback();

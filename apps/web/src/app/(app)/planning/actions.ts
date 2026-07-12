@@ -49,9 +49,16 @@ export async function updateMilestoneAction(input: {
   title?: string;
   dueAt?: string;
   riskStatus?: Milestone["riskStatus"];
-}): Promise<ActionResult> {
+}): Promise<{ ok: true; previousDueAt?: string } | { ok: false; error: string }> {
   const user = await getCurrentUser();
-  return toResult((db) => db.updateMilestone({ actorId: user.id, via: "web" }, input));
+  // 변경 전 dueAt을 서버에서 떠서 반환한다 — 간트 드래그 토스트의 [실행 취소]가 이 값으로 복원한다.
+  // 클라이언트 prop은 revalidate 경로에 따라 stale일 수 있어(연속 드래그) 이전 값의 권위는 서버다.
+  let previousDueAt: string | undefined;
+  const result = await toResult((db) => {
+    previousDueAt = db.milestones.find((m) => m.id === input.milestoneId)?.dueAt;
+    return db.updateMilestone({ actorId: user.id, via: "web" }, input);
+  });
+  return result.ok ? { ok: true, previousDueAt } : result;
 }
 
 /**

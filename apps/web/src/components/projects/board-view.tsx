@@ -4,7 +4,7 @@ import { useState, type DragEvent } from "react";
 import { LayoutGroup, motion } from "motion/react";
 import Link from "next/link";
 import { Plus, CalendarDays, MessageSquare, Lock, AlertTriangle } from "lucide-react";
-import { TASK_STATUS_LABELS, type StatusDetail } from "@que/core";
+import { TASK_STATUS_LABELS, type StatusDetail, type TaskStatus } from "@que/core";
 import type { BoardColumn, TaskCard, BoardColumnKey } from "@/lib/projects-data";
 import { SIMPLE_COLUMN_STATUS, TONE_STYLE, COLUMN_TONE } from "@/lib/pm-columns";
 import { moveTaskAction } from "@/app/(app)/projects/pm-actions";
@@ -46,14 +46,34 @@ export function BoardView({
   const [drag, setDrag] = useState<DragState>(null);
   const [blocked, setBlocked] = useState<BlockedTarget>(null);
 
+  // 이동 성공 토스트의 [실행 취소] — 서버가 돌려준 이전 상태(+issue/on_hold였다면 원래 사유 detail)로
+  // 복원한다. 되돌리기에는 undo를 다시 붙이지 않는다(무한 체인 방지).
+  const undoMove = (taskId: string, to: TaskStatus) =>
+    (result: { ok: true; previousStatus?: TaskStatus; previousStatusDetail?: StatusDetail }) => {
+      const prev = result.previousStatus;
+      if (!prev || prev === to) return undefined;
+      // 이전 상태가 홀드·문제인데 원래 사유 스냅샷이 없으면(레거시 데이터) 복원이 core에서
+      // 거부된다(STATUS_DETAIL_REQUIRED) — 눌러도 실패할 버튼은 아예 내보내지 않는다.
+      if ((prev === "issue" || prev === "on_hold") && !result.previousStatusDetail) return undefined;
+      return {
+        onClick: () =>
+          run(
+            () => moveTaskAction({ taskId, to: prev, detail: result.previousStatusDetail }),
+            { success: "이동을 되돌렸습니다." },
+          ),
+      };
+    };
+
   // 예정/진행중/완료로 즉시 이동. 홀드·문제 열은 사유 Dialog로 위임.
   const moveTo = (card: { taskId: string; taskTitle: string }, key: BoardColumnKey) => {
     if (key === "blocked") {
       setBlocked({ taskId: card.taskId, taskTitle: card.taskTitle });
       return;
     }
-    run(() => moveTaskAction({ taskId: card.taskId, to: SIMPLE_COLUMN_STATUS[key] }), {
+    const to = SIMPLE_COLUMN_STATUS[key];
+    run(() => moveTaskAction({ taskId: card.taskId, to }), {
       success: `"${card.taskTitle}" 이동됨`,
+      undo: undoMove(card.taskId, to),
     });
   };
 
@@ -62,6 +82,7 @@ export function BoardView({
     const target = blocked;
     run(() => moveTaskAction({ taskId: target.taskId, to, detail }), {
       success: `"${target.taskTitle}" 이동됨`,
+      undo: undoMove(target.taskId, to),
       onSuccess: () => setBlocked(null),
     });
   };

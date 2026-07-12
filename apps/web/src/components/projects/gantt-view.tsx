@@ -105,6 +105,24 @@ export function GanttView({
           return copy;
         }),
       success: "마일스톤 기한을 옮겼습니다.",
+      // [실행 취소] — 서버가 mutation 직전에 뜬 previousDueAt으로 복원한다. m.dueAt(prop)은 이 화면의
+      // revalidate 경로(/planning만) 밖이라 연속 드래그 후 stale — 클라이언트 스냅샷은 신뢰 불가(게이트 High).
+      // 되돌리기에는 undo를 다시 붙이지 않는다(무한 체인 방지).
+      undo: (result) => {
+        const prevDueAt = result.previousDueAt;
+        if (!prevDueAt) return undefined;
+        const pd = new Date(prevDueAt);
+        const prevDayKey = `${pd.getFullYear()}-${String(pd.getMonth() + 1).padStart(2, "0")}-${String(pd.getDate()).padStart(2, "0")}`;
+        return {
+          onClick: () =>
+            runMilestone(() => updateMilestoneAction({ milestoneId: m.id, dueAt: prevDueAt }), {
+              apply: () => setDayOverride((o) => ({ ...o, [m.id]: prevDayKey })),
+              rollback: () => setDayOverride((o) => ({ ...o, [m.id]: key })),
+              success: "기한을 되돌렸습니다.",
+              source: "gantt-milestone-undo",
+            }),
+        };
+      },
       source: "gantt-milestone-drag",
     });
   };

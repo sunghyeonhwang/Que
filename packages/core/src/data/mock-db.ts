@@ -436,21 +436,7 @@ export class MockQueDb implements QueDb {
       throw new QueRuleError("INVALID_INPUT", "이미 취소된 작업이다");
     }
     const previousStatus = task.status;
-    // issue/on_hold는 복구 시 detail(사유 등)이 필수다. 취소 전 최신 StatusLog에서 detail을
-    // 스냅샷으로 잡아 반환한다 — 이게 없으면 실행취소가 STATUS_DETAIL_REQUIRED로 거부된다.
-    let previousStatusDetail: StatusDetail | undefined;
-    if (previousStatus === "issue" || previousStatus === "on_hold") {
-      const log = latestStatusLog(this.statusLogs, task.id, previousStatus);
-      if (log?.reason) {
-        const helpIds = helpUserIdsOf(log);
-        previousStatusDetail = {
-          reason: log.reason,
-          nextAction: log.nextAction,
-          helpUserIds: helpIds.length > 0 ? helpIds : undefined,
-          recheckAt: log.nextCheckAt,
-        };
-      }
-    }
+    const previousStatusDetail = this.statusDetailSnapshot(task.id, previousStatus);
     const reason = input.reason?.trim();
     const updated = this.changeTaskStatus(ctx, {
       taskId: task.id,
@@ -459,6 +445,24 @@ export class MockQueDb implements QueDb {
       detail: reason ? { reason } : undefined,
     });
     return { task: updated, previousStatus, previousStatusDetail };
+  }
+
+  /**
+   * 해당 status의 최신 StatusLog에서 detail(사유·다음 액션·도움·재확인) 스냅샷을 만든다 — 조회 전용.
+   * issue/on_hold로 "되돌리는" 실행취소는 detail이 필수라(STATUS_DETAIL_REQUIRED), 되돌리기 전
+   * 원래 detail을 이걸로 잡아 함께 보낸다. issue/on_hold 외 상태는 undefined.
+   */
+  statusDetailSnapshot(taskId: string, status: TaskStatus): StatusDetail | undefined {
+    if (status !== "issue" && status !== "on_hold") return undefined;
+    const log = latestStatusLog(this.statusLogs, taskId, status);
+    if (!log?.reason) return undefined;
+    const helpIds = helpUserIdsOf(log);
+    return {
+      reason: log.reason,
+      nextAction: log.nextAction,
+      helpUserIds: helpIds.length > 0 ? helpIds : undefined,
+      recheckAt: log.nextCheckAt,
+    };
   }
 
   /** 작업 일정 이동 (드래그 이동과 동일 규칙). 입력 날짜는 파싱을 통과해야 한다. */
