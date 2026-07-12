@@ -1,16 +1,47 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useState, useSyncExternalStore } from "react";
 import { Eye, EyeOff } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { loginAction, type LoginState } from "./actions";
 
 const initial: LoginState = {};
+
+/** '아이디 기억하기' 저장 키 — 이메일만 저장한다(비밀번호는 절대 저장 금지). */
+const REMEMBER_EMAIL_KEY = "que-remembered-email";
+
+// localStorage를 외부 스토어로 구독(standup-form의 useInputMode 선례) — effect 내 setState 없이
+// SSR(서버 스냅샷 "")과 hydration이 안전하다.
+function subscribeStorage(onChange: () => void): () => void {
+  window.addEventListener("storage", onChange);
+  return () => window.removeEventListener("storage", onChange);
+}
+
+function useRememberedEmail(): string {
+  return useSyncExternalStore(
+    subscribeStorage,
+    () => window.localStorage.getItem(REMEMBER_EMAIL_KEY) ?? "",
+    () => "",
+  );
+}
 
 // 디자인(Figma QUE_All_Pages / 0 1 0 - Login) 기준 로그인 폼.
 // 소셜 로그인·비밀번호 재설정·회원가입은 범위 밖(보류/미도입)이라 뺐다.
 export function LoginForm({ notice }: { notice?: string }) {
   const [state, formAction, pending] = useActionState(loginAction, initial);
   const [showPw, setShowPw] = useState(false);
+  // 저장값은 초깃값일 뿐 — 사용자가 편집하면(null이 아니면) 편집값이 우선한다.
+  const savedEmail = useRememberedEmail();
+  const [emailEdit, setEmailEdit] = useState<string | null>(null);
+  const [rememberEdit, setRememberEdit] = useState<boolean | null>(null);
+  const email = emailEdit ?? savedEmail;
+  const remember = rememberEdit ?? savedEmail !== "";
+
+  // 제출 시점에 저장/삭제 — 로그인 성공 시 signIn이 redirect를 던져 이후 훅이 없으므로 여기서 처리.
+  const persistEmail = () => {
+    if (remember && email.trim()) localStorage.setItem(REMEMBER_EMAIL_KEY, email.trim());
+    else localStorage.removeItem(REMEMBER_EMAIL_KEY);
+  };
 
   return (
     <div className="flex w-full max-w-[385px] flex-col items-center gap-5">
@@ -30,7 +61,7 @@ export function LoginForm({ notice }: { notice?: string }) {
         </p>
       )}
 
-      <form action={formAction} className="flex w-full flex-col gap-5">
+      <form action={formAction} onSubmit={persistEmail} className="flex w-full flex-col gap-5">
         <div className="flex flex-col gap-1.5">
           <label htmlFor="email" className="text-sm font-medium text-[var(--que-text)]">
             이메일
@@ -42,6 +73,8 @@ export function LoginForm({ notice }: { notice?: string }) {
             autoComplete="username"
             required
             placeholder="이메일 주소 입력"
+            value={email}
+            onChange={(e) => setEmailEdit(e.target.value)}
             className="h-11 rounded-[10px] border border-[var(--que-border-strong)] bg-[var(--que-bg)] px-3 text-sm text-[var(--que-text)] outline-none placeholder:text-[var(--que-placeholder)] focus:border-[var(--que-brand)] focus:ring-2 focus:ring-[var(--que-brand)]/20"
           />
         </div>
@@ -70,6 +103,16 @@ export function LoginForm({ notice }: { notice?: string }) {
             </button>
           </div>
         </div>
+
+        {/* 아이디 기억하기 — 체크하면 다음 접속에도 이메일이 채워진다(localStorage, 이메일만). */}
+        <label className="-mt-1 flex w-fit cursor-pointer items-center gap-2 text-sm text-[var(--que-text-secondary)]">
+          <Checkbox
+            checked={remember}
+            onCheckedChange={(v) => setRememberEdit(v === true)}
+            aria-label="아이디 기억하기"
+          />
+          아이디 기억하기
+        </label>
 
         {state.error && (
           <p role="alert" className="-mt-2 text-center text-sm text-[var(--que-error)]">
