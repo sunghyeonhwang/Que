@@ -180,8 +180,8 @@ export function UploadNoteForm({ projects }: { projects: UploadNoteProjectOption
             <Input
               id="note-date"
               type="datetime-local"
-              // 다크모드에서 네이티브 달력 아이콘이 검정으로 안 보이는 문제 — color-scheme:dark로 밝게 렌더.
-              className="dark:[color-scheme:dark]"
+              // 다크 네이티브 위젯은 전역 color-scheme(globals.css)이 처리한다.
+              className=""
               value={meetingDateTime}
               onChange={(e) => setMeetingDateTime(e.target.value)}
             />

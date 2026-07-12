@@ -87,6 +87,15 @@ export async function resolveMilestoneAgendaAction(input: {
   if (input.decision === "defer" && !input.newDueAt) {
     return { ok: false, error: "기한 연기는 새 마감일이 필요합니다." };
   }
+  // datetime-local 값("YYYY-MM-DDTHH:mm", offset 없음)이 그대로 오면 core isoDateTime이
+  // 거부한다("Invalid ISO datetime" — 2026-07-12 실사용 버그). 로컬 기준 ISO로 정규화.
+  if (input.decision === "defer" && input.newDueAt && !/[Zz]|[+-]\d{2}:\d{2}$/.test(input.newDueAt)) {
+    const parsed = new Date(input.newDueAt);
+    if (Number.isNaN(parsed.getTime())) {
+      return { ok: false, error: "새 마감일 형식이 올바르지 않습니다." };
+    }
+    input = { ...input, newDueAt: parsed.toISOString() };
+  }
   if (input.decision === "hold" && !input.reason?.trim()) {
     return { ok: false, error: "보류는 사유가 필요합니다." };
   }

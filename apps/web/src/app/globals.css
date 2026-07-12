@@ -408,19 +408,30 @@
   }
 }
 
-/* 날짜·시간 입력의 네이티브 피커 아이콘(시계·달력) — 값 앞(왼쪽)에 배치하고,
- * 다크 모드에선 퓨어블랙 기본 아이콘이 배경에 묻혀 안 보이므로 흰색으로 반전한다.
+/* 다크 모드 네이티브 위젯 — color-scheme으로 브라우저가 직접 다크 렌더(달력·시계 인디케이터가
+ * 흰색으로 나옴). ⚠️ invert(1) 핵은 쓰지 않는다: 개별 color-scheme과 겹치면 이중 반전으로
+ * 다시 검정이 되는 회귀가 실제로 발생했다(2026-07-12 피드백 — "전체 페이지에서 안 보임"). */
+:root {
+  color-scheme: light;
+}
+.dark {
+  color-scheme: dark;
+}
+
+/* 날짜·시간 입력의 네이티브 피커 아이콘(시계·달력) — 값 앞(왼쪽)에 배치.
  * (::-webkit-calendar-picker-indicator는 Chrome/Edge/Safari 계열 전용 — 팀 표준 브라우저 기준) */
 input[type="date"],
 input[type="time"],
-input[type="datetime-local"] {
+input[type="datetime-local"],
+input[type="month"] {
   position: relative;
   /* 아이콘 폭+간격만 확보 — 여유가 크면 좁은 3컬럼 폼에서 값이 잘린다(2026-07-11 피드백). */
   padding-left: 1.875rem;
 }
 input[type="date"]::-webkit-calendar-picker-indicator,
 input[type="time"]::-webkit-calendar-picker-indicator,
-input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+input[type="datetime-local"]::-webkit-calendar-picker-indicator,
+input[type="month"]::-webkit-calendar-picker-indicator {
   position: absolute;
   left: 0.5rem;
   /* 시계/달력 아이콘의 기본 크기·마진이 서로 달라 텍스트 간격이 어긋난다 — 크기·마진을 통일. */
@@ -430,9 +441,4 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   padding: 0;
   opacity: 0.75;
   cursor: pointer;
-}
-.dark input[type="date"]::-webkit-calendar-picker-indicator,
-.dark input[type="time"]::-webkit-calendar-picker-indicator,
-.dark input[type="datetime-local"]::-webkit-calendar-picker-indicator {
-  filter: invert(1);
 }

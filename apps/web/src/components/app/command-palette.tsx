@@ -173,6 +173,34 @@ export function CommandPalette() {
           onValueChange={setQuery}
         />
         <CommandList className="max-h-[60vh]">
+        {/* 항상 노출되는 AI 진입 — **맨 위 고정**(2026-07-12 사용자 피드백: 첫 항목=Enter 한 번).
+            shouldFilter=false라 검색어와 무관하게 유지된다. 기획 D-4의 "질문이면 자연히 첫 번째"를
+            상시 첫 번째로 승격 — 검색 히트는 그 아래 그룹들로 여전히 접근 가능. */}
+        <CommandGroup heading="Que Copilot">
+          <CommandItem
+            value="ai:ask"
+            onSelect={() => openChat(query)}
+            className="min-h-11 gap-2.5"
+          >
+            <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-[var(--que-brand-subtle)] text-[var(--que-brand)]">
+              <Sparkles className="size-4" aria-hidden />
+            </span>
+            <span className="min-w-0 flex-1 truncate text-sm text-[var(--que-text)]">
+              {hasQuery ? (
+                <>
+                  ✨ AI에게 묻기: <span className="font-medium">“{query.trim()}”</span>
+                </>
+              ) : (
+                "✨ AI에게 물어보기"
+              )}
+            </span>
+            <CornerDownLeft
+              className="size-3.5 shrink-0 opacity-0 text-[var(--que-text-tertiary)] group-data-selected/command-item:opacity-100"
+              aria-hidden
+            />
+          </CommandItem>
+        </CommandGroup>
+
         {!hasQuery && (
           <>
             <CommandGroup heading="이동">
@@ -267,31 +295,6 @@ export function CommandPalette() {
             );
           })}
 
-        {/* 항상 노출되는 AI 진입(shouldFilter=false라 검색어와 무관하게 맨 아래 고정). 기획 D-4. */}
-        <CommandGroup heading="Que Copilot">
-          <CommandItem
-            value="ai:ask"
-            onSelect={() => openChat(query)}
-            className="min-h-11 gap-2.5"
-          >
-            <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-[var(--que-brand-subtle)] text-[var(--que-brand)]">
-              <Sparkles className="size-4" aria-hidden />
-            </span>
-            <span className="min-w-0 flex-1 truncate text-sm text-[var(--que-text)]">
-              {hasQuery ? (
-                <>
-                  ✨ AI에게 묻기: <span className="font-medium">“{query.trim()}”</span>
-                </>
-              ) : (
-                "✨ AI에게 물어보기"
-              )}
-            </span>
-            <CornerDownLeft
-              className="size-3.5 shrink-0 opacity-0 text-[var(--que-text-tertiary)] group-data-selected/command-item:opacity-100"
-              aria-hidden
-            />
-          </CommandItem>
-        </CommandGroup>
         </CommandList>
       </Command>
       )}

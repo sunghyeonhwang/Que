@@ -67,7 +67,7 @@ export function MilestoneDecision({
           <Input
             id={`due-${milestoneId}`}
             type="datetime-local"
-            className="h-10 w-[13.5rem] dark:[color-scheme:dark]"
+            className="h-10 w-[13.5rem]"
             value={newDueAt}
             onChange={(e) => setNewDueAt(e.target.value)}
           />

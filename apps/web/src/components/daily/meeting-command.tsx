@@ -219,7 +219,7 @@ export function MeetingCommand() {
                 <Input
                   type="datetime-local"
                   aria-label="기한"
-                  className="h-10 w-[13.5rem] dark:[color-scheme:dark]"
+                  className="h-10 w-[13.5rem]"
                   value={dueAt}
                   onChange={(e) => setDueAt(e.target.value)}
                 />
