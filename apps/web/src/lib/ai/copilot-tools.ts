@@ -215,8 +215,9 @@ async function getProjectStatus(user: User, query: string): Promise<ToolResult> 
     return {
       data: {
         found: false,
-        note: "이름이 일치하는 프로젝트를 찾지 못했습니다.",
-        candidates: projects.slice(0, 10).map((p) => p.name),
+        note: "이름이 일치하는 프로젝트를 찾지 못했습니다. 아래 후보 중에서 고르거나 사용자에게 물어보세요.",
+        // id를 함께 줘야 모델이 propose_* 에 projectId를 채울 수 있다(2026-07-12 — 프로젝트 미질문 회귀).
+        candidates: projects.slice(0, 10).map((p) => ({ id: p.id, name: p.name })),
       },
       sources: [{ label: "프로젝트", href: "/projects" }],
     };

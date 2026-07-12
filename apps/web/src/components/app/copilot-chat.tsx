@@ -55,9 +55,8 @@ function draftSummary(
         rows: [
           { label: "제목", value: draft.title },
           { label: "담당", value: labels?.assigneeName ?? (draft.assigneeId ?? "본인") },
-          ...(draft.projectId
-            ? [{ label: "프로젝트", value: labels?.projectName ?? draft.projectId }]
-            : []),
+          // 프로젝트 행은 항상 표시 — 비어 있으면 "없음"을 드러내야 사람이 카드에서 알아챈다(2026-07-12).
+          { label: "프로젝트", value: draft.projectId ? (labels?.projectName ?? draft.projectId) : "없음" },
           { label: "기한", value: formatWhen(draft.endAt) },
         ],
       };
@@ -108,8 +107,9 @@ interface ChatMessage {
   role: "user" | "assistant";
   text: string;
   sources?: CopilotSource[];
-  draft?: CopilotDraft;
-  draftLabels?: CopilotDraftLabels;
+  /** 확인 카드들 — 나열 요청이면 여러 장(2026-07-12 복수화). */
+  drafts?: CopilotDraft[];
+  draftLabelsList?: CopilotDraftLabels[];
 }
 
 /** 예시 질문 칩(page 빈 화면 전용). 클릭 즉시 send로 전송된다. */
@@ -180,8 +180,8 @@ export function CopilotChat({
         role: "assistant",
         text: reply.text,
         sources: reply.sources.length > 0 ? reply.sources : undefined,
-        draft: reply.draft,
-        draftLabels: reply.draftLabels,
+        drafts: reply.drafts,
+        draftLabelsList: reply.draftLabelsList,
       },
     ]);
   }, []);
@@ -283,16 +283,20 @@ export function CopilotChat({
                   </div>
                 )}
 
-                {/* 확인 카드 — 쓰기는 사람이 확정 */}
-                {m.draft && (
-                  <DraftCard
-                    draft={m.draft}
-                    labels={m.draftLabels}
-                    state={draftStates[m.id] ?? { status: "idle" }}
-                    onExecute={() => m.draft && execute(m.id, m.draft)}
-                    onCancel={() => cancelDraft(m.id)}
-                  />
-                )}
+                {/* 확인 카드(들) — 쓰기는 사람이 확정. 나열 요청이면 항목 수만큼. */}
+                {m.drafts?.map((draft, di) => {
+                  const key = m.id * 100 + di; // 메시지·카드별 상태 키(카드 ≤ 수 개 — 충돌 없음)
+                  return (
+                    <DraftCard
+                      key={key}
+                      draft={draft}
+                      labels={m.draftLabelsList?.[di]}
+                      state={draftStates[key] ?? { status: "idle" }}
+                      onExecute={() => execute(key, draft)}
+                      onCancel={() => cancelDraft(key)}
+                    />
+                  );
+                })}
               </div>
             </div>
           ) : (
