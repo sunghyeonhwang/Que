@@ -859,6 +859,28 @@ describe("회의록 업로드와 Action 추출", () => {
     expect(d.meetingNotes.find((n) => n.id === note.id)!.extractionStatus).toBe("done");
   });
 
+  it("추출 제목에서 마크다운 잔재(체크박스·볼드·밑줄)를 벗긴다 — 알림·목록 노출 방지", () => {
+    const d = db();
+    const note = d.createMeetingNote(
+      { actorId: "oh-seunghoon", via: "web" },
+      {
+        title: "정리 회의",
+        meetingAt: NOW.toISOString(),
+        attendeeIds: [],
+        fileName: "정리.md",
+        markdownBody: [
+          "- [ ] **의자 및 좌석 배치**: 조달 방안 검토",
+          "- __발표자 안내__ 메일 발송",
+        ].join("\n"),
+      },
+    );
+    const items = d.extractActionItems({ actorId: "oh-seunghoon", via: "web" }, note.id);
+    expect(items[0].title).toBe("의자 및 좌석 배치: 조달 방안 검토");
+    expect(items[1].title).toBe("발표자 안내 메일 발송");
+    // 원문(sourceText)은 마커 포함 그대로 보존된다
+    expect(items[0].sourceText).toContain("**의자");
+  });
+
   it("이미 추출된 회의록의 재추출은 거부된다", () => {
     const d = db();
     expect(() =>

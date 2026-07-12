@@ -1037,8 +1037,13 @@ export class MockQueDb implements QueDb {
 
       // "(담당: 이름 ...)" 패턴에서 담당자 추출
       const assignee = this.users.find((u) => bullet.includes(`담당: ${u.name}`));
-      // 제목은 200자 상한(DB check 제약과 동일)으로 절단 — 원문은 sourceText에 그대로 보존된다
+      // 제목은 200자 상한(DB check 제약과 동일)으로 절단 — 원문은 sourceText에 그대로 보존된다.
+      // 마크다운 잔재(체크박스 "[ ]"·**굵게**·__밑줄__)는 벗긴다 — 남기면 알림·목록에 그대로 노출된다
+      // (2026-07-13 실데이터 발견 — 온보딩 영상 검수에서 지적).
       const title = bullet
+        .replace(/^\[[ xX]?\]\s*/, "")
+        .replace(/\*\*([^*]+)\*\*/g, "$1")
+        .replace(/__([^_]+)__/g, "$1")
         .replace(/\s*\(담당:[^)]*\)\s*/, "")
         .replace(/[.。]\s*$/, "")
         .trim()
