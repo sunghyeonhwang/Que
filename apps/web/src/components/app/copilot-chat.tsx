@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { motion } from "motion/react";
 import { toast } from "sonner";
 import { ArrowLeft, CornerDownLeft, Maximize2, RotateCw, Sparkles } from "lucide-react";
 import {
@@ -299,6 +300,7 @@ export function CopilotChat({
                     <DraftCard
                       key={key}
                       draft={draft}
+                      index={di}
                       labels={m.draftLabelsList?.[di]}
                       state={draftStates[key] ?? { status: "idle" }}
                       onExecute={() => execute(key, draft)}
@@ -501,12 +503,15 @@ function PageStartScreen({ onPick }: { onPick: (q: string) => void }) {
 /** 쓰기 확인 카드. [실행]/[취소]. 실행 결과는 카드 안에서 상태로 표시. */
 function DraftCard({
   draft,
+  index,
   labels,
   state,
   onExecute,
   onCancel,
 }: {
   draft: CopilotDraft;
+  /** 한 메시지 내 카드 순번 — 복수 draft 등장 시 stagger delay 계산에 쓴다. */
+  index: number;
   labels?: CopilotDraftLabels;
   state: DraftState;
   onExecute: () => void;
@@ -517,7 +522,12 @@ function DraftCard({
   const executing = state.status === "executing";
 
   return (
-    <div className="flex flex-col gap-2.5 rounded-lg border border-[var(--que-border)] bg-[var(--que-bg)] p-3">
+    // 등장 팝인 — 최초 마운트 시에만(initial→animate). 복수 카드는 index로 stagger(한꺼번에 튀지 않게).
+    <motion.div
+      initial={{ opacity: 0, y: 8, scale: 0.98 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ type: "spring", visualDuration: 0.25, bounce: 0.2, delay: 0.06 * index }}
+      className="flex flex-col gap-2.5 rounded-lg border border-[var(--que-border)] bg-[var(--que-bg)] p-3">
       <span className="flex items-center gap-1.5 text-xs font-semibold text-[var(--que-text-secondary)]">
         <Sparkles className="size-3.5 text-[var(--que-brand)]" aria-hidden />
         {heading} 확인
@@ -560,6 +570,6 @@ function DraftCard({
           </Button>
         </div>
       )}
-    </div>
+    </motion.div>
   );
 }

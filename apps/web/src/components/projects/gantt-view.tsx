@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useAnimate } from "motion/react";
 import { TriangleAlert, Check, ChevronLeft, ChevronRight, LocateFixed } from "lucide-react";
 import type { GanttMilestone, ProjectGantt } from "@/lib/projects-data";
 import { updateMilestoneAction } from "@/app/(app)/planning/actions";
@@ -476,6 +477,8 @@ function DraggableMilestone({
 }) {
   const [drag, setDrag] = useState<{ startX: number; dx: number; active: boolean } | null>(null);
   const canDrag = m.canManage;
+  // 드롭 세틀 모션 전용 — 위치 계산/스냅/onCommit과 독립. transform(scale)만 스프링으로 잠깐 튕긴다.
+  const [scope, animate] = useAnimate();
 
   // 스냅된 미리보기 오프셋(컬럼 단위) — 드래그 중에만 칩을 옮겨 그린다.
   const snappedSteps = drag?.active ? Math.round(drag.dx / colWidth) : 0;
@@ -511,7 +514,18 @@ function DraggableMilestone({
           /* noop */
         }
         const steps = Math.round(s.dx / colWidth);
-        if (steps !== 0) onCommit(baseIdx + steps);
+        if (steps !== 0) {
+          onCommit(baseIdx + steps);
+          // 드롭 순간 칩이 스냅 위치에 "물리로 안착"하는 피드백 — 살짝 오버슈트 후 스프링으로 1로.
+          // 위치(left)는 이미 스냅돼 있으므로 scale만 튕겨 "내가 놓은 게 반영됐다"를 전한다.
+          if (scope.current) {
+            animate(
+              scope.current,
+              { scale: [1.08, 1] },
+              { type: "spring", visualDuration: 0.25, bounce: 0.45 },
+            );
+          }
+        }
       }
       return null;
     });
@@ -519,6 +533,7 @@ function DraggableMilestone({
 
   return (
     <div
+      ref={scope}
       className={cn("absolute z-10", canDrag && "cursor-grab", drag?.active && "cursor-grabbing")}
       style={{ left, top, touchAction: canDrag ? "none" : undefined }}
       onPointerDown={onPointerDown}

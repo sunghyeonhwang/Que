@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useAnimate } from "motion/react";
 import { format } from "date-fns";
 import { ChevronDown, ListChecks, Lock, Plus } from "lucide-react";
 import type { ObjectiveStatus, StateCheck } from "@que/core";
@@ -347,62 +348,17 @@ function StateChecklist({
   }
   return (
     <div className="flex flex-col gap-2">
-      {checks.map((c) => {
-        const adminLocked = c.requiresAdminConfirm && !isAdmin;
-        const disabled = pending || !canToggle || adminLocked;
-        const confirmerName = c.confirmedBy
-          ? (memberById.get(c.confirmedBy)?.name ?? c.confirmedBy)
-          : undefined;
-        const checkbox = (
-          <Checkbox
-            checked={c.done}
-            disabled={disabled}
-            onCheckedChange={(v) => onToggle(c.id, v === true)}
-            aria-label={`${c.label} ${c.done ? "체크 해제" : "체크"}`}
-          />
-        );
-        return (
-          <div
-            key={c.id}
-            className="flex min-h-10 items-center gap-2.5 rounded-lg border border-[var(--que-border)] px-3 py-2"
-          >
-            {adminLocked ? (
-              <Tooltip>
-                <TooltipTrigger
-                  render={<span className="inline-flex" tabIndex={0} />}
-                >
-                  {checkbox}
-                </TooltipTrigger>
-                <TooltipContent>관리자만 확인할 수 있는 항목입니다.</TooltipContent>
-              </Tooltip>
-            ) : (
-              checkbox
-            )}
-            <span
-              className={cn(
-                "flex-1 text-sm",
-                c.done
-                  ? "text-[var(--que-text-secondary)] line-through"
-                  : "text-[var(--que-text)]",
-              )}
-            >
-              {c.label}
-            </span>
-            {c.requiresAdminConfirm ? (
-              <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-[var(--que-warning)]/40 px-2 py-0.5 text-[11px] font-medium text-[var(--que-warning)]">
-                <Lock className="size-3" aria-hidden />
-                관리자 확인
-              </span>
-            ) : null}
-            {c.done && (c.doneAt || confirmerName) ? (
-              <span className="shrink-0 text-[11px] tabular-nums text-[var(--que-text-tertiary)]">
-                {c.doneAt ? format(new Date(c.doneAt), "M/d") : ""}
-                {confirmerName ? ` ${confirmerName}` : ""}
-              </span>
-            ) : null}
-          </div>
-        );
-      })}
+      {checks.map((c) => (
+        <StateCheckRow
+          key={c.id}
+          check={c}
+          canToggle={canToggle}
+          isAdmin={isAdmin}
+          pending={pending}
+          memberById={memberById}
+          onToggle={onToggle}
+        />
+      ))}
       <p className="mt-1 rounded-md bg-[var(--que-bg-muted)] px-3 py-2 text-xs leading-relaxed text-[var(--que-text-secondary)]">
         체크 항목은 <b className="font-medium text-[var(--que-text)]">판정 기준</b>입니다 — 작업이
         자동 생성되지 않습니다. 모든 체크는 기록으로 남습니다.
@@ -411,6 +367,98 @@ function StateChecklist({
         <p className="text-xs text-[var(--que-text-tertiary)]">
           체크는 핵심결과 소유자 본인 또는 관리자만 할 수 있습니다.
         </p>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * 상태형 KR 체크 한 줄. 체크를 켜는 순간 체크마크가 살짝 바운스(scale 0→오버슈트→1 스프링),
+ * 끌 때는 단순 fade. 애니메이션은 체크박스를 감싼 span의 transform/opacity만 건드리므로
+ * 토글 서버 액션·낙관 없음 로직과 완전히 분리된다(체크박스는 리마운트하지 않아 포커스도 유지).
+ */
+function StateCheckRow({
+  check: c,
+  canToggle,
+  isAdmin,
+  pending,
+  memberById,
+  onToggle,
+}: {
+  check: StateCheck;
+  canToggle: boolean;
+  isAdmin: boolean;
+  pending: boolean;
+  memberById: Map<string, OkrMember>;
+  onToggle: (checkId: string, done: boolean) => void;
+}) {
+  const [scope, animate] = useAnimate();
+  const prevDone = useRef(c.done);
+
+  useEffect(() => {
+    if (prevDone.current === c.done) return;
+    prevDone.current = c.done;
+    if (!scope.current) return;
+    if (c.done) {
+      // 켤 때 — 0 근처에서 스프링으로 튀어 오르며 안착(살짝 오버슈트).
+      animate(
+        scope.current,
+        { scale: [0.4, 1] },
+        { type: "spring", visualDuration: 0.25, bounce: 0.5 },
+      );
+    } else {
+      // 끌 때 — 담백하게 fade만.
+      animate(scope.current, { scale: 1, opacity: [0.4, 1] }, { duration: 0.15 });
+    }
+  }, [c.done, animate, scope]);
+
+  const adminLocked = c.requiresAdminConfirm && !isAdmin;
+  const disabled = pending || !canToggle || adminLocked;
+  const confirmerName = c.confirmedBy
+    ? (memberById.get(c.confirmedBy)?.name ?? c.confirmedBy)
+    : undefined;
+  const checkbox = (
+    <span ref={scope} className="inline-flex">
+      <Checkbox
+        checked={c.done}
+        disabled={disabled}
+        onCheckedChange={(v) => onToggle(c.id, v === true)}
+        aria-label={`${c.label} ${c.done ? "체크 해제" : "체크"}`}
+      />
+    </span>
+  );
+
+  return (
+    <div className="flex min-h-10 items-center gap-2.5 rounded-lg border border-[var(--que-border)] px-3 py-2">
+      {adminLocked ? (
+        <Tooltip>
+          <TooltipTrigger render={<span className="inline-flex" tabIndex={0} />}>
+            {checkbox}
+          </TooltipTrigger>
+          <TooltipContent>관리자만 확인할 수 있는 항목입니다.</TooltipContent>
+        </Tooltip>
+      ) : (
+        checkbox
+      )}
+      <span
+        className={cn(
+          "flex-1 text-sm",
+          c.done ? "text-[var(--que-text-secondary)] line-through" : "text-[var(--que-text)]",
+        )}
+      >
+        {c.label}
+      </span>
+      {c.requiresAdminConfirm ? (
+        <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-[var(--que-warning)]/40 px-2 py-0.5 text-[11px] font-medium text-[var(--que-warning)]">
+          <Lock className="size-3" aria-hidden />
+          관리자 확인
+        </span>
+      ) : null}
+      {c.done && (c.doneAt || confirmerName) ? (
+        <span className="shrink-0 text-[11px] tabular-nums text-[var(--que-text-tertiary)]">
+          {c.doneAt ? format(new Date(c.doneAt), "M/d") : ""}
+          {confirmerName ? ` ${confirmerName}` : ""}
+        </span>
       ) : null}
     </div>
   );

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type DragEvent } from "react";
+import { LayoutGroup, motion } from "motion/react";
 import Link from "next/link";
 import { Plus, CalendarDays, MessageSquare, Lock, AlertTriangle } from "lucide-react";
 import { TASK_STATUS_LABELS, type StatusDetail } from "@que/core";
@@ -67,23 +68,26 @@ export function BoardView({
 
   return (
     <div className="-mx-4 min-h-0 flex-1 overflow-x-auto px-4 pt-3 md:-mx-5 md:px-5 xl:-mx-6 xl:px-6">
-      <div className="flex h-full min-h-0 gap-4">
-        {columns.map((column) => (
-          <Column
-            key={column.key}
-            column={column}
-            projectId={projectId}
-            taskHref={taskHref}
-            showProject={showProject}
-            allowCreate={allowCreate}
-            drag={drag}
-            onDragStart={setDrag}
-            onDragEnd={() => setDrag(null)}
-            onDropTask={(card) => moveTo(card, column.key)}
-            onBlocked={(card) => setBlocked(card)}
-          />
-        ))}
-      </div>
+      {/* LayoutGroup — 4열이 같은 layoutId 공간을 공유해, 열 이동 시 카드가 순간이동 대신 보간된다. */}
+      <LayoutGroup>
+        <div className="flex h-full min-h-0 gap-4">
+          {columns.map((column) => (
+            <Column
+              key={column.key}
+              column={column}
+              projectId={projectId}
+              taskHref={taskHref}
+              showProject={showProject}
+              allowCreate={allowCreate}
+              drag={drag}
+              onDragStart={setDrag}
+              onDragEnd={() => setDrag(null)}
+              onDropTask={(card) => moveTo(card, column.key)}
+              onBlocked={(card) => setBlocked(card)}
+            />
+          ))}
+        </div>
+      </LayoutGroup>
 
       <BlockedStatusDialog
         open={blocked !== null}
@@ -252,102 +256,111 @@ function BoardCard({
   };
 
   return (
-    <div
-      draggable={editable}
-      onDragStart={handleDragStart}
-      onDragEnd={handleDragEnd}
-      className={cn(
-        "relative rounded-xl border border-[var(--que-border)] bg-[var(--que-bg)] p-3.5 shadow-sm transition-shadow hover:shadow-md",
-        editable ? (dragging ? "cursor-grabbing opacity-50" : "cursor-grab") : "cursor-default",
-      )}
+    // motion.div는 layout 래퍼 전용 — 4열 공유 layoutId로 changeTaskStatus 후 서버 리렌더 시
+    // 카드가 옛 위치에서 새 위치로 스프링 보간된다(이동 시에만 동작). 네이티브 HTML5 드래그
+    // 핸들러는 motion이 재정의하는 onDragStart/End와 타입이 충돌하므로 안쪽 일반 div에 둔다.
+    <motion.div
+      layout
+      layoutId={card.taskId}
+      transition={{ type: "spring", visualDuration: 0.25, bounce: 0.2 }}
     >
-      {/* 카드 전체 클릭 → 상세 드로어. 링크는 native drag 비활성(카드 컨테이너 draggable 우선). */}
-      <Link
-        href={href}
-        scroll={false}
-        draggable={false}
-        aria-label={`${card.title} 상세 열기`}
-        className="absolute inset-0 z-10 rounded-xl focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--que-brand)]"
-      />
-
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex items-center gap-2">
-          {/* 완료 버튼 — 카드 클릭 Link(z-10) 위(z-20)에서 전파 차단(DoneCircle 내장). 읽기전용 카드는 미노출. */}
-          {editable && (
-            <PmDoneCircle
-              taskId={card.taskId}
-              taskTitle={card.title}
-              done={card.status === "done"}
-              className="relative z-20 -my-1.5 -ml-1.5"
-            />
-          )}
-          <PriorityBadge priority={card.priority} />
-        </div>
-        {editable ? (
-          <TaskCardMenu
-            taskId={card.taskId}
-            taskTitle={card.title}
-            currentColumn={card.columnKey}
-            onBlocked={() => onBlocked({ taskId: card.taskId, taskTitle: card.title })}
-            className="-mt-1.5 -mr-1.5"
-          />
-        ) : (
-          <span
-            className="relative z-20 flex size-6 items-center justify-center text-[var(--que-text-tertiary)]"
-            title="읽기 전용"
-            aria-label="읽기 전용"
-          >
-            <Lock className="size-3.5" aria-hidden />
-          </span>
-        )}
-      </div>
-      <h3 className="mt-1.5 text-sm leading-snug font-semibold text-[var(--que-text)]">
-        {card.title}
-      </h3>
-
-      {/* 전체 보기: 이 카드가 어느 프로젝트 소속인지 소형 라벨로 밝힌다(단일 보기는 중복이라 생략). */}
-      {showProject && card.projectName ? (
-        <span className="mt-1.5 inline-flex max-w-full items-center truncate rounded border border-[var(--que-border)] px-1.5 py-0.5 text-xs text-[var(--que-text-tertiary)]">
-          {card.projectName}
-        </span>
-      ) : null}
-
-      {/* 상태: 컬럼이 애매한 경우만 시각 뱃지, 그 외엔 색맹·스크린리더용 sr-only 텍스트. */}
-      {columnConveysStatus ? (
-        <span className="sr-only">상태: {TASK_STATUS_LABELS[card.status]}</span>
-      ) : (
-        <div className="mt-2">
-          <StatusBadge status={card.status} />
-        </div>
-      )}
-
       <div
+        draggable={editable}
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
         className={cn(
-          "mt-3 flex items-center gap-1.5 text-xs",
-          card.isOverdue
-            ? "font-medium text-[var(--que-error)]"
-            : "text-[var(--que-text-tertiary)]",
+          "relative rounded-xl border border-[var(--que-border)] bg-[var(--que-bg)] p-3.5 shadow-sm transition-shadow hover:shadow-md",
+          editable ? (dragging ? "cursor-grabbing opacity-50" : "cursor-grab") : "cursor-default",
         )}
       >
-        {card.isOverdue ? (
-          <AlertTriangle className="size-3.5 shrink-0" aria-hidden />
-        ) : (
-          <CalendarDays className="size-3.5 shrink-0" aria-hidden />
-        )}
-        <span>{card.dueLabel ?? "마감일 미정"}</span>
-        {card.isOverdue ? <span className="sr-only">(기한 초과)</span> : null}
-      </div>
+        {/* 카드 전체 클릭 → 상세 드로어. 링크는 native drag 비활성(카드 컨테이너 draggable 우선). */}
+        <Link
+          href={href}
+          scroll={false}
+          draggable={false}
+          aria-label={`${card.title} 상세 열기`}
+          className="absolute inset-0 z-10 rounded-xl focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--que-brand)]"
+        />
 
-      <div className="mt-3 flex items-center justify-between gap-2">
-        <MemberAvatars members={card.assignee ? [card.assignee] : []} size={26} />
-        <span
-          className="flex items-center gap-1 text-xs text-[var(--que-text-tertiary)]"
-          aria-label={`댓글 ${card.commentCount}개`}
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex items-center gap-2">
+            {/* 완료 버튼 — 카드 클릭 Link(z-10) 위(z-20)에서 전파 차단(DoneCircle 내장). 읽기전용 카드는 미노출. */}
+            {editable && (
+              <PmDoneCircle
+                taskId={card.taskId}
+                taskTitle={card.title}
+                done={card.status === "done"}
+                className="relative z-20 -my-1.5 -ml-1.5"
+              />
+            )}
+            <PriorityBadge priority={card.priority} />
+          </div>
+          {editable ? (
+            <TaskCardMenu
+              taskId={card.taskId}
+              taskTitle={card.title}
+              currentColumn={card.columnKey}
+              onBlocked={() => onBlocked({ taskId: card.taskId, taskTitle: card.title })}
+              className="-mt-1.5 -mr-1.5"
+            />
+          ) : (
+            <span
+              className="relative z-20 flex size-6 items-center justify-center text-[var(--que-text-tertiary)]"
+              title="읽기 전용"
+              aria-label="읽기 전용"
+            >
+              <Lock className="size-3.5" aria-hidden />
+            </span>
+          )}
+        </div>
+        <h3 className="mt-1.5 text-sm leading-snug font-semibold text-[var(--que-text)]">
+          {card.title}
+        </h3>
+
+        {/* 전체 보기: 이 카드가 어느 프로젝트 소속인지 소형 라벨로 밝힌다(단일 보기는 중복이라 생략). */}
+        {showProject && card.projectName ? (
+          <span className="mt-1.5 inline-flex max-w-full items-center truncate rounded border border-[var(--que-border)] px-1.5 py-0.5 text-xs text-[var(--que-text-tertiary)]">
+            {card.projectName}
+          </span>
+        ) : null}
+
+        {/* 상태: 컬럼이 애매한 경우만 시각 뱃지, 그 외엔 색맹·스크린리더용 sr-only 텍스트. */}
+        {columnConveysStatus ? (
+          <span className="sr-only">상태: {TASK_STATUS_LABELS[card.status]}</span>
+        ) : (
+          <div className="mt-2">
+            <StatusBadge status={card.status} />
+          </div>
+        )}
+
+        <div
+          className={cn(
+            "mt-3 flex items-center gap-1.5 text-xs",
+            card.isOverdue
+              ? "font-medium text-[var(--que-error)]"
+              : "text-[var(--que-text-tertiary)]",
+          )}
         >
-          <MessageSquare className="size-3.5 shrink-0" aria-hidden />
-          {card.commentCount}
-        </span>
+          {card.isOverdue ? (
+            <AlertTriangle className="size-3.5 shrink-0" aria-hidden />
+          ) : (
+            <CalendarDays className="size-3.5 shrink-0" aria-hidden />
+          )}
+          <span>{card.dueLabel ?? "마감일 미정"}</span>
+          {card.isOverdue ? <span className="sr-only">(기한 초과)</span> : null}
+        </div>
+
+        <div className="mt-3 flex items-center justify-between gap-2">
+          <MemberAvatars members={card.assignee ? [card.assignee] : []} size={26} />
+          <span
+            className="flex items-center gap-1 text-xs text-[var(--que-text-tertiary)]"
+            aria-label={`댓글 ${card.commentCount}개`}
+          >
+            <MessageSquare className="size-3.5 shrink-0" aria-hidden />
+            {card.commentCount}
+          </span>
+        </div>
       </div>
-    </div>
+    </motion.div>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState, useSyncExternalStore } from "react";
+import { AnimatePresence, motion } from "motion/react";
 import {
   CheckCircle2,
   ClipboardList,
@@ -168,14 +169,21 @@ export function StandupForm({ blockerCandidates, myEntry }: StandupFormProps) {
     );
   };
 
-  // 제출됨 확정 표기(접힌 상태) — 수정 버튼으로 재오픈.
-  if (!editing && myEntry) {
-    return (
-      <section
-        aria-label="내 체크인"
-        className="rounded-xl border bg-card p-4"
-      >
-        <div className="flex items-start justify-between gap-3">
+  // 제출↔수정 전환: 폼은 fade+collapse로 퇴장, 확정 카드는 팝인으로 등장(반대도 동일). mode="wait"로 순차 재생.
+  return (
+    <AnimatePresence mode="wait" initial={false}>
+      {!editing && myEntry ? (
+        // 제출됨 확정 표기(접힌 상태) — 수정 버튼으로 재오픈.
+        <motion.section
+          key="submitted"
+          aria-label="내 체크인"
+          className="overflow-hidden rounded-xl border bg-card p-4"
+          initial={{ opacity: 0, y: 8, scale: 0.98 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, height: 0, marginTop: 0, marginBottom: 0, paddingTop: 0, paddingBottom: 0 }}
+          transition={{ type: "spring", visualDuration: 0.25, bounce: 0.2 }}
+        >
+          <div className="flex items-start justify-between gap-3">
           <div className="flex min-w-0 items-center gap-2">
             <CheckCircle2 className="size-5 shrink-0 text-emerald-600" aria-hidden />
             <div className="min-w-0">
@@ -196,16 +204,18 @@ export function StandupForm({ blockerCandidates, myEntry }: StandupFormProps) {
           </Button>
         </div>
         {note && <p className="mt-2 text-sm text-muted-foreground">{note}</p>}
-      </section>
-    );
-  }
-
-  return (
-    <section
-      aria-label="내 체크인 입력"
-      // 미제출 = 최상단 강조 카드(운영 도구 톤: 장식 없이 테두리 강조).
-      className="rounded-xl border-2 border-primary/40 bg-card p-4"
-    >
+        </motion.section>
+      ) : (
+        <motion.section
+          key="editing"
+          aria-label="내 체크인 입력"
+          // 미제출 = 최상단 강조 카드(운영 도구 톤: 장식 없이 테두리 강조).
+          className="overflow-hidden rounded-xl border-2 border-primary/40 bg-card p-4"
+          initial={{ opacity: 0, y: 8, scale: 0.98 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, height: 0, marginTop: 0, marginBottom: 0, paddingTop: 0, paddingBottom: 0 }}
+          transition={{ type: "spring", visualDuration: 0.25, bounce: 0.2 }}
+        >
       {/* 입력 방식 토글: 대화로 체크인 / 폼으로 입력 (기본=폼, localStorage 기억) */}
       <div
         role="group"
@@ -361,6 +371,8 @@ export function StandupForm({ blockerCandidates, myEntry }: StandupFormProps) {
         </div>
         </>
       )}
-    </section>
+        </motion.section>
+      )}
+    </AnimatePresence>
   );
 }

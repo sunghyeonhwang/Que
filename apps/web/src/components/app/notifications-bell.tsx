@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useAnimate } from "motion/react";
 import { Bell } from "lucide-react";
 import type { AlertsData, AlertItem, AlertTone } from "@/lib/alerts-data";
 import { markAlertsReadAction } from "@/app/(app)/notifications/actions";
@@ -26,6 +27,21 @@ export function NotificationsBell({ alerts }: { alerts: AlertsData }) {
   // 항목 클릭 즉시 강조 제거·뱃지 감소(로컬). 서버 읽음 커밋은 백그라운드, 실패 시 롤백.
   const [readIds, setReadIds] = useState<Set<string>>(new Set());
   const [localUnread, setLocalUnread] = useState(unreadCount);
+
+  // 미읽음 수가 "증가"할 때만 뱃지를 한 번 펄스(새 알림 도착 신호). 최초 마운트·감소(읽음 처리)에는
+  // 튀지 않게 이전 값과 비교한다. 상시 반복 애니메이션은 두지 않는다(소음 방지).
+  const [badgeScope, animateBadge] = useAnimate<HTMLSpanElement>();
+  const prevUnread = useRef(localUnread);
+  useEffect(() => {
+    if (localUnread > prevUnread.current && badgeScope.current) {
+      animateBadge(
+        badgeScope.current,
+        { scale: [1, 1.3, 1] },
+        { duration: 0.32, times: [0, 0.45, 1], ease: "easeOut" },
+      );
+    }
+    prevUnread.current = localUnread;
+  }, [localUnread, animateBadge, badgeScope]);
 
   const isRead = (alert: AlertItem) => alert.read || readIds.has(alert.id);
 
@@ -62,7 +78,10 @@ export function NotificationsBell({ alerts }: { alerts: AlertsData }) {
       >
         <Bell className="size-5" aria-hidden />
         {localUnread > 0 && (
-          <span className="absolute top-1.5 right-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--que-error)] px-1 text-[10px] font-semibold text-white tabular-nums">
+          <span
+            ref={badgeScope}
+            className="absolute top-1.5 right-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--que-error)] px-1 text-[10px] font-semibold text-white tabular-nums"
+          >
             {localUnread > 9 ? "9+" : localUnread}
           </span>
         )}

@@ -22,6 +22,7 @@ import { CommandPalette } from "@/components/app/command-palette";
 import { TodoAppDialog } from "@/components/app/todo-app-dialog";
 import { KeyboardShortcuts } from "@/components/app/keyboard-shortcuts";
 import { NotificationsBell } from "@/components/app/notifications-bell";
+import { MotionProvider } from "@/components/app/motion-provider";
 import { AddTaskDialog } from "@/components/app/add-task-dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
@@ -60,6 +61,7 @@ export default async function AppLayout({
 
   return (
     <RosterProvider roster={roster}>
+    <MotionProvider>
     <div className="flex h-dvh w-full overflow-hidden bg-[var(--que-bg)] text-[var(--que-text)]">
       <CommandPalette />
       <TodoAppDialog />
@@ -129,6 +131,7 @@ export default async function AppLayout({
         <MobileTabbar badges={menuBadges} isAdmin={isAdmin} unreadCount={alerts.unreadCount} />
       </div>
     </div>
+    </MotionProvider>
     </RosterProvider>
   );
 }

@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { motion, useAnimate } from "motion/react";
 import { Home, CalendarCheck, Sparkles, Bell, Menu, type LucideIcon } from "lucide-react";
 import {
   Sheet,
@@ -54,6 +55,20 @@ export function MobileTabbar({
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
 
+  // 알림 탭 뱃지 — 미읽음 수가 "증가"할 때만 한 번 펄스(새 알림 도착 신호). 최초 마운트에는 펄스 금지.
+  const [badgeScope, animateBadge] = useAnimate<HTMLSpanElement>();
+  const prevUnread = useRef(unreadCount);
+  useEffect(() => {
+    if (unreadCount > prevUnread.current && badgeScope.current) {
+      animateBadge(
+        badgeScope.current,
+        { scale: [1, 1.3, 1] },
+        { duration: 0.32, times: [0, 0.45, 1], ease: "easeOut" },
+      );
+    }
+    prevUnread.current = unreadCount;
+  }, [unreadCount, animateBadge, badgeScope]);
+
   // 입력 집중 화면(Copilot)에서는 탭바를 숨겨 입력창·키보드와 겹치지 않게 한다.
   // 이때 네비는 상단바 햄버거(시트)가 대신한다.
   if (pathname.startsWith("/copilot")) return null;
@@ -86,10 +101,20 @@ export function MobileTabbar({
             }
             className={itemClass(active)}
           >
+            {/* 활성 탭 상단 인디케이터 — layoutId로 이전 탭에서 새 탭으로 위치를 보간(미끄러짐) */}
+            {active && (
+              <motion.span
+                layoutId="tabbar-indicator"
+                aria-hidden
+                className="pointer-events-none absolute inset-x-2 top-0 h-0.5 rounded-full bg-[var(--que-brand)]"
+                transition={{ type: "spring", stiffness: 500, damping: 40 }}
+              />
+            )}
             <span className="relative">
               <Icon className="size-[22px]" aria-hidden />
               {showBadge && (
                 <span
+                  ref={badgeScope}
                   className="absolute -top-1.5 -right-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--que-error)] px-1 text-[10px] font-semibold text-white tabular-nums"
                   aria-hidden
                 >
