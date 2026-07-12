@@ -88,9 +88,10 @@ export function MilestoneChip({
         title={`${m.critical ? "중요 마일스톤" : "마일스톤"} · ${risk.label} · ${m.title} (${m.projectName})`}
         className={cn(
           "que-shimmer-btn flex items-center rounded font-semibold outline-none",
-          // 중요(critical) = 붉은 그라데이션(최종 런칭일 등) / 일반 = 시안→옐로(마일스톤 정체성).
+          // 중요(critical) = 옐로→오렌지 그라데이션(최종 런칭일 등 — 2026-07-13 사용자 지정 색) /
+          // 일반 = 시안→옐로(마일스톤 정체성).
           m.critical
-            ? "bg-[linear-gradient(144deg,rgba(255,59,72,1)_0%,rgba(255,166,63,1)_100%)] text-[#4c0a10]"
+            ? "bg-[linear-gradient(90deg,rgba(253,227,29,1)_0%,rgba(252,176,69,1)_100%)] text-[#5b2c00]"
             : "bg-[linear-gradient(144deg,rgba(0,242,255,1)_0%,rgba(255,247,0,1)_100%)] text-[#004466]",
           "focus-visible:ring-2 focus-visible:ring-[var(--que-brand)] focus-visible:ring-offset-1",
           truncate ? "truncate" : "w-max whitespace-nowrap",

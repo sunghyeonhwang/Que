@@ -105,9 +105,9 @@ function MilestoneRowItem({ milestone: m }: { milestone: MilestoneRow }) {
             {m.projectName} · 기한 {format(new Date(m.dueAt), "M월 d일 (E) HH:mm", { locale: ko })}
           </p>
         </div>
-        {/* 중요 마일스톤(최종 런칭일 등) — 칩과 같은 붉은 그라데이션 미니 뱃지. */}
+        {/* 중요 마일스톤(최종 런칭일 등) — 칩과 같은 옐로→오렌지 그라데이션 미니 뱃지. */}
         {m.critical && (
-          <span className="rounded bg-[linear-gradient(144deg,rgba(255,59,72,1)_0%,rgba(255,166,63,1)_100%)] px-1.5 py-0.5 text-xs font-semibold text-[#4c0a10]">
+          <span className="rounded bg-[linear-gradient(90deg,rgba(253,227,29,1)_0%,rgba(252,176,69,1)_100%)] px-1.5 py-0.5 text-xs font-semibold text-[#5b2c00]">
             중요
           </span>
         )}

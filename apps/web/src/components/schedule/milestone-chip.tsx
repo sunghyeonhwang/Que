@@ -14,6 +14,9 @@ export function MilestoneChip({ milestone }: { milestone: CalendarMilestone }) {
         title: milestone.title,
         dueAt: milestone.dueAt,
         riskStatus: milestone.riskStatus,
+        // 중요 표시 — 이 래퍼가 필드를 골라 넘기므로 새 필드는 여기도 함께 추가해야 한다
+        // (2026-07-13 실사용 버그: critical 누락으로 일정 화면만 일반 그라데이션으로 보임).
+        critical: milestone.critical,
         projectName: milestone.projectName,
         canManage: milestone.canManage,
       }}
