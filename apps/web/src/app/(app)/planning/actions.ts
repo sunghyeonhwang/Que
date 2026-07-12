@@ -39,6 +39,8 @@ export async function createMilestoneAction(input: {
   projectId: string;
   title: string;
   dueAt: string;
+  /** 중요 마일스톤(최종 런칭일 등) — 붉은 그라데이션 표기. */
+  critical?: boolean;
 }): Promise<ActionResult> {
   const user = await getCurrentUser();
   return toResult((db) => db.createMilestone({ actorId: user.id, via: "web" }, input));
@@ -49,6 +51,7 @@ export async function updateMilestoneAction(input: {
   title?: string;
   dueAt?: string;
   riskStatus?: Milestone["riskStatus"];
+  critical?: boolean;
 }): Promise<{ ok: true; previousDueAt?: string } | { ok: false; error: string }> {
   const user = await getCurrentUser();
   // 변경 전 dueAt을 서버에서 떠서 반환한다 — 간트 드래그 토스트의 [실행 취소]가 이 값으로 복원한다.

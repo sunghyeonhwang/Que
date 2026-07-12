@@ -162,6 +162,8 @@ export interface ProjectMilestone {
   day: string;
   projectName: string;
   riskStatus: "on_track" | "at_risk" | "late";
+  /** 중요 마일스톤(최종 런칭일 등) — 칩이 붉은 그라데이션으로 표기된다. */
+  critical?: boolean;
   canManage: boolean;
 }
 
@@ -378,6 +380,7 @@ function buildProjectMilestones(
         day: format(new Date(m.dueAt), "yyyy-MM-dd"),
         projectName: project?.name ?? m.projectId,
         riskStatus: m.riskStatus,
+        critical: m.critical,
         canManage: canManageMilestone(actor, project),
       };
     })

@@ -199,6 +199,8 @@ export const milestoneSchema = z.object({
   title: z.string().min(1),
   dueAt: isoDateTime,
   riskStatus: z.enum(["on_track", "at_risk", "late"]),
+  /** 중요 마일스톤(최종 런칭일 등) — 켜면 전 화면 칩이 붉은 그라데이션으로 표기된다. */
+  critical: z.boolean().optional(),
   lastChangedBy: z.string().optional(),
   lastChangedAt: isoDateTime.optional(),
   /** 마지막 안건 결정(유지/연기/보류) — 긴급 결정 카드·재촉 DM의 당일 억제 근거.

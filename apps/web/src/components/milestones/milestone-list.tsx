@@ -9,6 +9,7 @@ import { useSafeAction } from "@/components/app/use-safe-action";
 import { ToneBadge, type BadgeTone } from "@/components/app/tone-badge";
 import { MilestoneRetroDialog } from "@/components/retro/milestone-retro-dialog";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -69,6 +70,7 @@ function MilestoneRowItem({ milestone: m }: { milestone: MilestoneRow }) {
   const [retroOpen, setRetroOpen] = useState(false);
   const [title, setTitle] = useState(m.title);
   const [dueAt, setDueAt] = useState(toLocalInput(m.dueAt));
+  const [critical, setCritical] = useState(m.critical === true);
 
   // 기한이 지났는데 리스크가 아직 '지연'이 아니면 시각 힌트만 덧붙인다(리스크 값 자동 변경 안 함).
   const overdue = new Date(m.dueAt) < new Date() && m.riskStatus !== "late";
@@ -88,6 +90,7 @@ function MilestoneRowItem({ milestone: m }: { milestone: MilestoneRow }) {
           milestoneId: m.id,
           title,
           dueAt: new Date(dueAt).toISOString(),
+          critical,
         }),
       { success: "마일스톤을 수정했습니다.", onSuccess: () => setEditing(false) },
     );
@@ -102,6 +105,12 @@ function MilestoneRowItem({ milestone: m }: { milestone: MilestoneRow }) {
             {m.projectName} · 기한 {format(new Date(m.dueAt), "M월 d일 (E) HH:mm", { locale: ko })}
           </p>
         </div>
+        {/* 중요 마일스톤(최종 런칭일 등) — 칩과 같은 붉은 그라데이션 미니 뱃지. */}
+        {m.critical && (
+          <span className="rounded bg-[linear-gradient(144deg,rgba(255,59,72,1)_0%,rgba(255,166,63,1)_100%)] px-1.5 py-0.5 text-xs font-semibold text-[#4c0a10]">
+            중요
+          </span>
+        )}
         <ToneBadge tone={RISK[m.riskStatus].tone}>{RISK[m.riskStatus].label}</ToneBadge>
         {overdue && (
           <span className="flex items-center gap-1 text-xs font-medium text-[var(--que-error)]">
@@ -177,6 +186,14 @@ function MilestoneRowItem({ milestone: m }: { milestone: MilestoneRow }) {
               value={dueAt}
               onChange={(e) => setDueAt(e.target.value)}
             />
+          </label>
+          <label className="flex h-10 cursor-pointer items-center gap-2 text-xs text-[var(--que-text-secondary)]">
+            <Checkbox
+              checked={critical}
+              onCheckedChange={(v) => setCritical(v === true)}
+              aria-label="중요 마일스톤"
+            />
+            중요
           </label>
           <Button className="h-10" disabled={pending || !title.trim() || !dueAt} onClick={saveEdit}>
             {pending ? "저장 중…" : "저장"}

@@ -57,6 +57,8 @@ create table if not exists milestones (
   title           text not null check (char_length(title) <= 200),
   due_at          timestamptz not null,
   risk_status     text not null check (risk_status in ('on_track', 'at_risk', 'late')),
+  -- 중요 마일스톤(최종 런칭일 등) — 붉은 그라데이션 표기 (add-milestone-critical.sql)
+  critical        boolean,
   last_changed_by text references users(id),
   last_changed_at timestamptz,
   -- 안건 결정 기록(유지/연기/보류) — 긴급 결정 카드·재촉 DM의 당일 종결 근거 (add-milestone-decision.sql)

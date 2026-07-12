@@ -1140,6 +1140,37 @@ describe("마일스톤 생성·수정", () => {
   });
 });
 
+describe("마일스톤 중요 표시(critical)", () => {
+  it("생성 시 critical을 켤 수 있고, 수정으로 켜고 끌 수 있다", () => {
+    const d = db();
+    const m = d.createMilestone(
+      { actorId: "hwang-sunghyeon", via: "web" },
+      { projectId: "prj-payment", title: "최종 런칭", dueAt: "2026-08-30T09:00:00.000Z", critical: true },
+    );
+    expect(m.critical).toBe(true);
+    const off = d.updateMilestone(
+      { actorId: "hwang-sunghyeon", via: "web" },
+      { milestoneId: m.id, critical: false },
+    );
+    expect(off.critical).toBeUndefined(); // false는 저장하지 않는다(미표시=undefined)
+    const on = d.updateMilestone(
+      { actorId: "hwang-sunghyeon", via: "web" },
+      { milestoneId: m.id, critical: true },
+    );
+    expect(on.critical).toBe(true);
+  });
+
+  it("[우회 공격] critical에 boolean 외 값을 주입하면 수정이 거부된다", () => {
+    const d = db();
+    expect(() =>
+      d.updateMilestone(
+        { actorId: "hwang-sunghyeon", via: "web" },
+        { milestoneId: "ms-payment-qa", critical: "true" as never },
+      ),
+    ).toThrowError(/참\/거짓/);
+  });
+});
+
 describe("마일스톤 안건 결정 기록", () => {
   it("keep은 데이터를 바꾸지 않지만 결정 기록과 ChangeLog를 남긴다", () => {
     const d = db();

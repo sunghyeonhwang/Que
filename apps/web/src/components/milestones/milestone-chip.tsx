@@ -8,6 +8,7 @@ import { updateMilestoneAction } from "@/app/(app)/planning/actions";
 import { useSafeAction } from "@/components/app/use-safe-action";
 import { ToneBadge, type BadgeTone } from "@/components/app/tone-badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import {
   Popover,
@@ -38,6 +39,8 @@ export interface MilestoneChipData {
   /** 기한 ISO datetime. */
   dueAt: string;
   riskStatus: MilestoneRisk;
+  /** 중요 마일스톤(최종 런칭일 등) — 붉은 그라데이션으로 표기. */
+  critical?: boolean;
   projectName: string;
   /** 현재 사용자가 이 마일스톤을 수정할 수 있는지(canManageMilestone). false면 조회 전용. */
   canManage: boolean;
@@ -81,19 +84,22 @@ export function MilestoneChip({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
-        aria-label={`마일스톤 ${m.title} · ${risk.label}${m.canManage ? " · 눌러서 수정" : ""}`}
-        title={`마일스톤 · ${risk.label} · ${m.title} (${m.projectName})`}
+        aria-label={`${m.critical ? "중요 마일스톤" : "마일스톤"} ${m.title} · ${risk.label}${m.canManage ? " · 눌러서 수정" : ""}`}
+        title={`${m.critical ? "중요 마일스톤" : "마일스톤"} · ${risk.label} · ${m.title} (${m.projectName})`}
         className={cn(
           "que-shimmer-btn flex items-center rounded font-semibold outline-none",
-          "bg-[linear-gradient(144deg,rgba(0,242,255,1)_0%,rgba(255,247,0,1)_100%)] text-[#004466]",
+          // 중요(critical) = 붉은 그라데이션(최종 런칭일 등) / 일반 = 시안→옐로(마일스톤 정체성).
+          m.critical
+            ? "bg-[linear-gradient(144deg,rgba(255,59,72,1)_0%,rgba(255,166,63,1)_100%)] text-[#4c0a10]"
+            : "bg-[linear-gradient(144deg,rgba(0,242,255,1)_0%,rgba(255,247,0,1)_100%)] text-[#004466]",
           "focus-visible:ring-2 focus-visible:ring-[var(--que-brand)] focus-visible:ring-offset-1",
           truncate ? "truncate" : "w-max whitespace-nowrap",
           SIZE_CLASS[size],
           className,
         )}
       >
-        <Diamond className="size-3 shrink-0" aria-hidden />
-        <span className="sr-only">마일스톤 {risk.label}: </span>
+        <Diamond className={cn("size-3 shrink-0", m.critical && "fill-current")} aria-hidden />
+        <span className="sr-only">{m.critical ? "중요 마일스톤" : "마일스톤"} {risk.label}: </span>
         <span className={truncate ? "truncate" : undefined}>{m.title}</span>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-80">
@@ -149,6 +155,7 @@ function MilestoneEditForm({
   const [title, setTitle] = useState(m.title);
   const [dueAt, setDueAt] = useState(toLocalInput(m.dueAt));
   const [risk, setRisk] = useState<MilestoneRisk>(m.riskStatus);
+  const [critical, setCritical] = useState(m.critical === true);
 
   const save = () => {
     run(
@@ -158,6 +165,7 @@ function MilestoneEditForm({
           title: title.trim(),
           dueAt: new Date(dueAt).toISOString(),
           riskStatus: risk,
+          critical,
         }),
       { success: "마일스톤을 수정했습니다.", onSuccess: onDone },
     );
@@ -202,6 +210,14 @@ function MilestoneEditForm({
             ))}
           </SelectContent>
         </Select>
+      </label>
+      <label className="flex w-fit cursor-pointer items-center gap-2 text-xs text-[var(--que-text-secondary)]">
+        <Checkbox
+          checked={critical}
+          onCheckedChange={(v) => setCritical(v === true)}
+          aria-label="중요 마일스톤"
+        />
+        중요 마일스톤 (붉은 표시 — 최종 런칭일 등)
       </label>
       <div className="flex justify-end gap-2 pt-0.5">
         <Button variant="outline" size="sm" className="h-10" disabled={pending} onClick={onDone}>

@@ -1198,6 +1198,8 @@ export class MockQueDb implements QueDb {
       title: string;
       dueAt: string;
       riskStatus?: Milestone["riskStatus"];
+      /** 중요 마일스톤(최종 런칭일 등) — 붉은 그라데이션 표기. */
+      critical?: boolean;
     },
   ): Milestone {
     const actor = this.requireUser(ctx.actorId);
@@ -1226,6 +1228,7 @@ export class MockQueDb implements QueDb {
       title: input.title.trim(),
       dueAt: range.startAt,
       riskStatus,
+      critical: input.critical === true || undefined,
       lastChangedBy: actor.id,
       lastChangedAt: this.now(),
     };
@@ -1247,6 +1250,8 @@ export class MockQueDb implements QueDb {
       title?: string;
       dueAt?: string;
       riskStatus?: Milestone["riskStatus"];
+      /** 중요 마일스톤 토글(최종 런칭일 등) — 붉은 그라데이션 표기. */
+      critical?: boolean;
       /** 위험 상태 변경 등 결정 사유(선택) — ChangeLog afterValue에 남긴다("사유는 남기는 것"). */
       reason?: string;
     },
@@ -1277,6 +1282,13 @@ export class MockQueDb implements QueDb {
         throw new QueRuleError("INVALID_INPUT", "잘못된 위험 상태다");
       }
       milestone.riskStatus = input.riskStatus;
+    }
+    if (input.critical !== undefined) {
+      // 서버 액션 인자는 직렬화값 — boolean 외 값(문자열 "true" 등)은 거부한다.
+      if (typeof input.critical !== "boolean") {
+        throw new QueRuleError("INVALID_INPUT", "중요 표시는 참/거짓이어야 한다");
+      }
+      milestone.critical = input.critical || undefined;
     }
     milestone.lastChangedBy = actor.id;
     milestone.lastChangedAt = this.now();

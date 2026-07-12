@@ -5,6 +5,7 @@ import { createMilestoneAction } from "@/app/(app)/planning/actions";
 import { useSafeAction } from "@/components/app/use-safe-action";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import {
@@ -25,6 +26,7 @@ export function CreateMilestoneForm({
   const [projectId, setProjectId] = useState(projects[0]?.id ?? "");
   const [title, setTitle] = useState("");
   const [dueAt, setDueAt] = useState("");
+  const [critical, setCritical] = useState(false);
 
   const canSubmit = projectId && title.trim() && dueAt && !pending;
 
@@ -35,12 +37,14 @@ export function CreateMilestoneForm({
           projectId,
           title,
           dueAt: new Date(dueAt).toISOString(),
+          critical,
         }),
       {
         success: `"${title}" 마일스톤을 등록했습니다.`,
         onSuccess: () => {
           setTitle("");
           setDueAt("");
+          setCritical(false);
         },
       },
     );
@@ -106,6 +110,15 @@ export function CreateMilestoneForm({
             onChange={(e) => setDueAt(e.target.value)}
           />
         </Field>
+        {/* 중요 마일스톤 — 최종 런칭일 등. 켜면 전 화면 칩이 붉은 그라데이션으로 표기된다. */}
+        <label className="flex w-fit cursor-pointer items-center gap-2 text-sm text-[var(--que-text-secondary)]">
+          <Checkbox
+            checked={critical}
+            onCheckedChange={(v) => setCritical(v === true)}
+            aria-label="중요 마일스톤"
+          />
+          중요 마일스톤 (붉은 표시 — 최종 런칭일 등)
+        </label>
         <Button
           className="h-10 bg-[var(--que-brand)] text-[var(--que-on-brand)] hover:bg-[var(--que-brand-hover)]"
           disabled={!canSubmit}
