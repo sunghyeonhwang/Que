@@ -58,7 +58,10 @@ create table if not exists milestones (
   due_at          timestamptz not null,
   risk_status     text not null check (risk_status in ('on_track', 'at_risk', 'late')),
   last_changed_by text references users(id),
-  last_changed_at timestamptz
+  last_changed_at timestamptz,
+  -- 안건 결정 기록(유지/연기/보류) — 긴급 결정 카드·재촉 DM의 당일 종결 근거 (add-milestone-decision.sql)
+  last_decision   text check (last_decision in ('keep', 'defer', 'hold')),
+  last_decision_at timestamptz
 );
 
 -- OKR — 분기 목표(기획 §2). tasks보다 먼저 정의(tasks.key_result_id → key_results FK 참조).

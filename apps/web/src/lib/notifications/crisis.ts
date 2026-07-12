@@ -99,6 +99,9 @@ export function detectCrisisTriggers(db: MockQueDb, now: Date = new Date()): Cri
 
   const triggers: CrisisTrigger[] = [];
   for (const m of db.milestones) {
+    // 오늘 이미 결정(유지/연기/보류)된 마일스톤은 재감지하지 않는다 — 결정 직후에도 카드·DM이
+    // 남아 "눌러도 그대로"로 보이던 실사용 버그(2026-07-12). 내일 여전히 위험하면 다시 뜬다.
+    if (m.lastDecisionAt && dateKeyOfIso(m.lastDecisionAt) === today) continue;
     const project = db.projects.find((p) => p.id === m.projectId);
     const projTasks = db.tasks.filter(
       (t) => t.projectId === m.projectId && t.status !== "cancelled" && t.status !== "merged",

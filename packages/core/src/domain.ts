@@ -201,6 +201,10 @@ export const milestoneSchema = z.object({
   riskStatus: z.enum(["on_track", "at_risk", "late"]),
   lastChangedBy: z.string().optional(),
   lastChangedAt: isoDateTime.optional(),
+  /** 마지막 안건 결정(유지/연기/보류) — 긴급 결정 카드·재촉 DM의 당일 억제 근거.
+   *  keep은 데이터를 바꾸지 않으므로 이 기록이 없으면 '미결정'으로 오판된다. */
+  lastDecision: z.enum(["keep", "defer", "hold"]).optional(),
+  lastDecisionAt: isoDateTime.optional(),
 });
 export type Milestone = z.infer<typeof milestoneSchema>;
 

@@ -1287,6 +1287,64 @@ export class MockQueDb implements QueDb {
     return milestone;
   }
 
+  /**
+   * 마일스톤 안건 결정(유지/연기/보류) — 회의 진행 모드 ⑶·/daily 긴급 결정 카드의 결정 경로.
+   * keep은 데이터를 바꾸지 않지만 결정 사실(lastDecision*)과 ChangeLog를 반드시 남긴다 —
+   * 기록이 없으면 긴급 결정 카드·재촉 DM이 '미결정'으로 오판한다(2026-07-12 실사용 버그).
+   * keep은 lastChangedAt을 갱신하지 않는다(갱신하면 '오늘 late 전환' 트리거를 되레 켠다).
+   */
+  recordMilestoneDecision(
+    ctx: ActorContext,
+    input: {
+      milestoneId: string;
+      decision: "keep" | "defer" | "hold";
+      newDueAt?: string;
+      reason?: string;
+    },
+  ): Milestone {
+    const actor = this.requireUser(ctx.actorId);
+    const milestone = this.milestones.find((m) => m.id === input.milestoneId);
+    if (!milestone) {
+      throw new QueRuleError("NOT_FOUND", `마일스톤 없음: ${input.milestoneId}`);
+    }
+    const project = this.projects.find((p) => p.id === milestone.projectId);
+    if (actor.role !== "admin" && project?.ownerId !== actor.id) {
+      throw new QueRuleError(
+        "NOT_AUTHORIZED",
+        "마일스톤은 프로젝트 담당자 또는 관리자만 수정할 수 있다",
+      );
+    }
+    if (input.decision === "defer") {
+      if (!input.newDueAt) {
+        throw new QueRuleError("INVALID_INPUT", "기한 연기는 새 마감일이 필요하다");
+      }
+      milestone.dueAt = parseScheduleRange({ startAt: input.newDueAt, endAt: input.newDueAt }).startAt;
+    }
+    if (input.decision === "hold") {
+      if (!input.reason?.trim()) {
+        throw new QueRuleError("INVALID_INPUT", "보류는 사유가 필요하다");
+      }
+      milestone.riskStatus = "at_risk";
+    }
+    if (input.decision !== "keep") {
+      milestone.lastChangedBy = actor.id;
+      milestone.lastChangedAt = this.now();
+    }
+    milestone.lastDecision = input.decision;
+    milestone.lastDecisionAt = this.now();
+    const label =
+      input.decision === "keep" ? "기한 유지" : input.decision === "defer" ? "기한 연기" : "보류(주의)";
+    this.logChange(ctx, {
+      entityType: "milestone",
+      entityId: milestone.id,
+      changeType: "update",
+      afterValue: input.reason?.trim()
+        ? `${milestone.title} — 결정: ${label} · 사유: ${input.reason.trim()}`
+        : `${milestone.title} — 결정: ${label}`,
+    });
+    return milestone;
+  }
+
   /** 클라이언트(거래처) 생성 — 관리자만. 이름은 200자 이내로 검증한다. */
   createClient(
     ctx: ActorContext,

@@ -1140,6 +1140,70 @@ describe("마일스톤 생성·수정", () => {
   });
 });
 
+describe("마일스톤 안건 결정 기록", () => {
+  it("keep은 데이터를 바꾸지 않지만 결정 기록과 ChangeLog를 남긴다", () => {
+    const d = db();
+    const before = d.milestones.find((m) => m.id === "ms-payment-qa")!;
+    const dueBefore = before.dueAt;
+    const riskBefore = before.riskStatus;
+    const changedAtBefore = before.lastChangedAt;
+    const m = d.recordMilestoneDecision(
+      { actorId: "hwang-sunghyeon", via: "web" },
+      { milestoneId: "ms-payment-qa", decision: "keep" },
+    );
+    expect(m.dueAt).toBe(dueBefore);
+    expect(m.riskStatus).toBe(riskBefore);
+    expect(m.lastChangedAt).toBe(changedAtBefore); // keep은 '오늘 late 전환' 트리거를 켜지 않는다
+    expect(m.lastDecision).toBe("keep");
+    expect(m.lastDecisionAt).toBeTruthy();
+    const clog = d.changeLogs.at(-1)!;
+    expect(clog.entityType).toBe("milestone");
+    expect(clog.afterValue).toContain("결정: 기한 유지");
+  });
+
+  it("defer는 새 마감일이 필수이고 dueAt이 바뀐다", () => {
+    const d = db();
+    expect(() =>
+      d.recordMilestoneDecision(
+        { actorId: "hwang-sunghyeon", via: "web" },
+        { milestoneId: "ms-payment-qa", decision: "defer" },
+      ),
+    ).toThrowError(/새 마감일/);
+    const m = d.recordMilestoneDecision(
+      { actorId: "hwang-sunghyeon", via: "web" },
+      { milestoneId: "ms-payment-qa", decision: "defer", newDueAt: "2026-07-20T09:00:00.000Z" },
+    );
+    expect(m.dueAt).toBe("2026-07-20T09:00:00.000Z");
+    expect(m.lastDecision).toBe("defer");
+  });
+
+  it("hold는 사유가 필수이고 riskStatus가 at_risk로 오른다", () => {
+    const d = db();
+    expect(() =>
+      d.recordMilestoneDecision(
+        { actorId: "hwang-sunghyeon", via: "web" },
+        { milestoneId: "ms-payment-qa", decision: "hold" },
+      ),
+    ).toThrowError(/사유/);
+    const m = d.recordMilestoneDecision(
+      { actorId: "hwang-sunghyeon", via: "web" },
+      { milestoneId: "ms-payment-qa", decision: "hold", reason: "외주 지연" },
+    );
+    expect(m.riskStatus).toBe("at_risk");
+    expect(d.changeLogs.at(-1)!.afterValue).toContain("사유: 외주 지연");
+  });
+
+  it("무관한 팀원은 결정을 기록할 수 없다", () => {
+    const d = db();
+    expect(() =>
+      d.recordMilestoneDecision(
+        { actorId: "lee-hyejin", via: "web" },
+        { milestoneId: "ms-payment-qa", decision: "keep" },
+      ),
+    ).toThrowError(/프로젝트 담당자 또는 관리자만/);
+  });
+});
+
 describe("자연어 요일 파싱", () => {
   it("'금요일'은 다가오는 금요일, '다음주 화요일'은 다음 주로 해석된다", async () => {
     const { parseTaskInput } = await import("./parse-task");

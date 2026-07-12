@@ -3,7 +3,6 @@
 import { revalidatePath } from "next/cache";
 import { format } from "date-fns";
 import {
-  canManageMilestone,
   isQueRuleError,
   type Milestone,
   type RetroCause,
@@ -72,10 +71,11 @@ export async function createMilestoneRetroAction(input: {
 
 /**
  * 마일스톤 안건 결정(기획 §1-c 원격 진행 · §1-e 긴급 결정의 웹 결정 경로).
- * - keep(기한 유지): 변경 없음. 권한만 확인하고 종결(위험 상태 확인 성격).
- * - defer(기한 연기): newDueAt 필수 → updateMilestone(dueAt) 재사용.
- * - hold(보류): 사유 필수 → riskStatus를 '주의(at_risk)'로 변경(updateMilestone 재사용).
- * 권한은 core canManageMilestone/updateMilestone이 강제(담당자·관리자). 신규 실행 경로를 만들지 않는다.
+ * - keep(기한 유지): 데이터 무변경. 단 결정 사실(lastDecision*)+ChangeLog는 남는다.
+ * - defer(기한 연기): newDueAt 필수 → dueAt 변경.
+ * - hold(보류): 사유 필수 → riskStatus를 '주의(at_risk)'로 변경.
+ * 세 경로 모두 core recordMilestoneDecision 하나로 처리(권한·필수값 core 강제 — 담당자·관리자).
+ * 결정된 마일스톤은 당일 긴급 결정 카드·크라이시스 DM에서 빠진다(detectCrisisTriggers 억제).
  */
 export async function resolveMilestoneAgendaAction(input: {
   milestoneId: string;
@@ -100,29 +100,17 @@ export async function resolveMilestoneAgendaAction(input: {
     return { ok: false, error: "보류는 사유가 필요합니다." };
   }
   return toResult((db) => {
-    const milestone = db.milestones.find((m) => m.id === input.milestoneId);
-    if (!milestone) {
-      // core mutation과 동일한 오류 계약을 따르도록 rule error를 던진다.
-      return db.updateMilestone({ actorId: user.id, via: "web" }, { milestoneId: input.milestoneId });
-    }
-    if (input.decision === "keep") {
-      // 변경 없음 — 권한만 확인하고 종결(위험 상태 확인). 클라이언트를 신뢰하지 않는다.
-      const project = db.projects.find((p) => p.id === milestone.projectId);
-      if (!canManageMilestone(db.requireUser(user.id), project)) {
-        return db.updateMilestone({ actorId: user.id, via: "web" }, { milestoneId: input.milestoneId });
-      }
-      return milestone;
-    }
-    if (input.decision === "defer") {
-      return db.updateMilestone(
-        { actorId: user.id, via: "web" },
-        { milestoneId: input.milestoneId, dueAt: input.newDueAt },
-      );
-    }
-    // hold — 위험 상태를 '주의'로 올리고 사유를 ChangeLog에 남긴다(사유는 남기는 것 — 게이트 M1).
-    return db.updateMilestone(
+    // 결정 3종(유지/연기/보류)은 core recordMilestoneDecision 하나로 처리한다 —
+    // keep도 결정 기록(lastDecision*)+ChangeLog를 남겨 긴급 카드·재촉 DM이 당일 종결을 인식한다.
+    // 권한·필수값(연기=새 마감일, 보류=사유)은 core가 최종 강제.
+    return db.recordMilestoneDecision(
       { actorId: user.id, via: "web" },
-      { milestoneId: input.milestoneId, riskStatus: "at_risk", reason: input.reason },
+      {
+        milestoneId: input.milestoneId,
+        decision: input.decision,
+        newDueAt: input.newDueAt,
+        reason: input.reason,
+      },
     );
   }, async (db) => {
     // 커밋 성공 직후 팀채널에 결정 공유(§1-e — "결정 내역 팀채널 공유"). 실패해도 결정을 되돌리지 않는다.
