@@ -30,16 +30,17 @@ function useRememberedEmail(): string {
 export function LoginForm({ notice }: { notice?: string }) {
   const [state, formAction, pending] = useActionState(loginAction, initial);
   const [showPw, setShowPw] = useState(false);
-  // 저장값은 초깃값일 뿐 — 사용자가 편집하면(null이 아니면) 편집값이 우선한다.
+  // 저장값은 초깃값일 뿐 — 체크박스는 사용자가 토글하면(null이 아니면) 그 값이 우선한다.
   const savedEmail = useRememberedEmail();
-  const [emailEdit, setEmailEdit] = useState<string | null>(null);
   const [rememberEdit, setRememberEdit] = useState<boolean | null>(null);
-  const email = emailEdit ?? savedEmail;
   const remember = rememberEdit ?? savedEmail !== "";
 
   // 제출 시점에 저장/삭제 — 로그인 성공 시 signIn이 redirect를 던져 이후 훅이 없으므로 여기서 처리.
-  const persistEmail = () => {
-    if (remember && email.trim()) localStorage.setItem(REMEMBER_EMAIL_KEY, email.trim());
+  // 값은 state가 아니라 폼 DOM에서 읽는다 — 브라우저 자동완성(autofill)은 onChange를 안 태워
+  // state에 없을 수 있다(실측 발견). 실제 제출되는 값과 저장 값을 일치시킨다.
+  const persistEmail = (e: React.FormEvent<HTMLFormElement>) => {
+    const submitted = String(new FormData(e.currentTarget).get("email") ?? "").trim();
+    if (remember && submitted) localStorage.setItem(REMEMBER_EMAIL_KEY, submitted);
     else localStorage.removeItem(REMEMBER_EMAIL_KEY);
   };
 
@@ -66,15 +67,17 @@ export function LoginForm({ notice }: { notice?: string }) {
           <label htmlFor="email" className="text-sm font-medium text-[var(--que-text)]">
             이메일
           </label>
+          {/* uncontrolled + key 리마운트: hydration 후 savedEmail이 로드되면 defaultValue가 반영되고,
+              브라우저 자동완성 값이 리렌더에 지워지지 않는다(controlled였다면 state로 덮임). */}
           <input
+            key={savedEmail}
             id="email"
             name="email"
             type="email"
             autoComplete="username"
             required
             placeholder="이메일 주소 입력"
-            value={email}
-            onChange={(e) => setEmailEdit(e.target.value)}
+            defaultValue={savedEmail}
             className="h-11 rounded-[10px] border border-[var(--que-border-strong)] bg-[var(--que-bg)] px-3 text-sm text-[var(--que-text)] outline-none placeholder:text-[var(--que-placeholder)] focus:border-[var(--que-brand)] focus:ring-2 focus:ring-[var(--que-brand)]/20"
           />
         </div>
