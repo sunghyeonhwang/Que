@@ -7,6 +7,8 @@ import { AddTaskDialog } from "@/components/app/add-task-dialog";
 import { StaffHome } from "@/components/home/staff-home";
 import { ManagerHome } from "@/components/home/manager-home";
 import { CeoHome } from "@/components/home/ceo-home";
+import { OnboardingCard } from "@/components/home/onboarding-card";
+import { getOnboardingData, isOnboardingActive } from "@/lib/onboarding-data";
 
 export const dynamic = "force-dynamic";
 // AI 브리핑(generateHomeBriefingAction)이 Gemini를 호출하므로 팀 리포트와 같은 상한을 둔다
@@ -48,6 +50,9 @@ export default async function HomePage({
 
   const data = await getGradeHomeData(user, now, { hm, wf, clientId });
 
+  // 온보딩 카드: 노출 기간(KST 오늘 <= 종료일)에만 서버에서 판정·렌더한다. 기간 종료 후엔 미렌더.
+  const onboarding = isOnboardingActive(now) ? await getOnboardingData(user, now) : null;
+
   // 화면 제목·helper text는 명세 §0 표를 정본으로 한다.
   const heading =
     data.grade === "manager"
@@ -78,6 +83,8 @@ export default async function HomePage({
           <AddTaskDialog currentUserId={user.id} />
         </div>
       </header>
+
+      {onboarding && <OnboardingCard data={onboarding} />}
 
       {data.grade === "staff" && <StaffHome data={data} />}
       {data.grade === "manager" && (
