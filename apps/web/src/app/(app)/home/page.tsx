@@ -85,8 +85,10 @@ export default async function HomePage({
       )}
       {data.grade === "ceo" && <CeoHome data={data} month={hm} canManage={user.role === "admin"} />}
 
-      {/* 우하단 플로팅 작업 추가(FAB) — 상단바 버튼과 같은 자연어 모달을 연다. */}
-      <div className="pointer-events-none fixed right-5 bottom-5 z-30 md:right-8 md:bottom-8">
+      {/* 우하단 플로팅 작업 추가(FAB) — 상단바 버튼과 같은 자연어 모달을 연다.
+          폰(<md)에서는 in-flow 하단 탭바(약 53px + safe-area) 위로 여백만큼 띄워 겹치지 않게 한다.
+          ≥md는 탭바가 없어(md:hidden) 기존 bottom-8 위치 그대로. */}
+      <div className="pointer-events-none fixed right-5 bottom-[calc(53px+1rem+env(safe-area-inset-bottom))] z-30 md:right-8 md:bottom-8">
         <div className="pointer-events-auto">
           <AddTaskDialog currentUserId={user.id} variant="fab" />
         </div>

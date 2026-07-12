@@ -1,7 +1,7 @@
 import "server-only";
 
 import type { ChangeLog, MeetingNote, MockQueDb } from "@que/core";
-import { kstDateKey } from "@/lib/daily-data";
+import { dateKeyOfIso, kstDateKey } from "@/lib/daily-data";
 
 // 행동 기반 회의록 초안(기획 §1-f "회의 후" · 캡처 방식 ⑴ 행동 기반 회의록 = 정본).
 // 회의 중 시스템 행동(마일스톤 조정·담당 변경·상태 변경·결제 승인·도움 요청·신규 마일스톤/Task)이
@@ -34,13 +34,6 @@ export interface CollectedAction {
   text: string;
   /** 행위자 이름(도움 요청은 작성자). */
   actorName: string;
-}
-
-/** ISO의 KST 날짜 키(TZ 고정 하 로컬 기준). */
-function dateKeyOfIso(iso: string): string {
-  const ms = Date.parse(iso);
-  if (Number.isNaN(ms)) return "";
-  return kstDateKey(new Date(ms));
 }
 
 /** ISO → "HH:mm"(KST 로컬). */

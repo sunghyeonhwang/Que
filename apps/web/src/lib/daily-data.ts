@@ -16,6 +16,14 @@ export function kstDateKey(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
+/** ISO datetime의 KST 날짜 키('yyyy-MM-dd', TZ 고정 하 로컬 기준). 파싱 실패 시 "".
+ *  crisis·meeting-agenda·meeting-minutes·milestone-agenda가 공유한다(4중 복제 통합 — 글래도스 이월). */
+export function dateKeyOfIso(iso: string): string {
+  const ms = Date.parse(iso);
+  if (Number.isNaN(ms)) return "";
+  return kstDateKey(new Date(ms));
+}
+
 /** 스탠드업 카드 하단 KR 진척 칩(기획 §7 Phase 4). */
 export interface DailyKrChip {
   title: string;

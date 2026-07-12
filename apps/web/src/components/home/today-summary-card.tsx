@@ -35,8 +35,10 @@ export function TodaySummaryCard({ title, lines }: { title: string; lines: strin
   return (
     <section className="flex min-w-0 flex-col rounded-xl border border-[var(--que-border)] bg-[var(--que-bg)] p-4 shadow-[var(--que-shadow-sm)]">
       <div className="flex flex-col gap-3">
-        {/* Figma 계약: 좌 = 제목+규칙 기반 요약(항상 표시 · AI 폴백), 우 = 그라데이션 생성 버튼(카드 세로 중앙). */}
-        <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+        {/* Figma 계약: 좌 = 제목+규칙 기반 요약(항상 표시 · AI 폴백), 우 = 그라데이션 생성 버튼(카드 세로 중앙).
+            폰(<md)에서는 세로 적층 + 버튼 풀폭 — flex-wrap 시 min-w 264px 버튼이 텍스트를 좁은 세로줄로
+            찌그러뜨리는 오버플로를 막는다. ≥md는 기존 가로 레이아웃 그대로. */}
+        <div className="flex flex-col items-stretch gap-3 md:flex-row md:flex-wrap md:items-center md:gap-x-6 md:gap-y-3">
           <div className="min-w-0 flex-1">
             <h2 className="text-base font-semibold text-[var(--que-text)]">{title}</h2>
             <p className="mt-1.5 text-sm leading-relaxed text-[var(--que-text-secondary)]">
@@ -46,7 +48,7 @@ export function TodaySummaryCard({ title, lines }: { title: string; lines: strin
           {/* Figma 확정 스타일: 인디고→시안 그라데이션 + 남색 텍스트 + shimmer, 아이콘 없음.
               그라데이션·애니메이션은 글로벌 토큰이 아니라 AI 기능 시그니처 버튼 한정. */}
           <Button
-            className="que-shimmer-btn h-11 min-w-[16.5rem] shrink-0 self-center rounded-lg border-0 bg-[linear-gradient(90deg,#7488EA,#00B3FF)] font-medium text-[#001043] hover:opacity-90"
+            className="que-shimmer-btn h-11 w-full shrink-0 self-center rounded-lg border-0 bg-[linear-gradient(90deg,#7488EA,#00B3FF)] font-medium text-[#001043] hover:opacity-90 md:w-auto md:min-w-[16.5rem]"
             onClick={generate}
             disabled={pending}
           >

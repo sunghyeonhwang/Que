@@ -24,7 +24,9 @@ import { cn } from "@/lib/utils";
  *   main만 내부 스크롤하고 탭바는 항상 뷰포트 하단에 고정된 것처럼 보인다 → 콘텐츠를 가리는
  *   overlap·safe-area 패딩 계산이 필요 없다. 하단 safe-area만 자체 패딩으로 확보한다.
  * - 탭 4개(홈·데일리·Copilot·알림) + 다섯 번째 메뉴 탭(≡)은 기존 SidebarNav를 Sheet로 연다.
- * - Copilot(/copilot)은 입력 집중 화면이라 탭바를 숨긴다(키보드/입력창과 겹치지 않게).
+ * - Copilot(/copilot)에서도 탭바를 노출한다(2026-07-13 사용자 요청). 탭바는 셸 우측 컬럼의 in-flow
+ *   최하단 요소라 main(및 Copilot 입력창)이 그만큼 줄어 자연스럽게 위로 쌓인다(겹침 없음).
+ *   키보드가 뜨면 interactiveWidget=resizes-content로 dvh가 줄어 입력창·탭바가 키보드 위로 올라온다.
  */
 
 interface TabDef {
@@ -68,10 +70,6 @@ export function MobileTabbar({
     }
     prevUnread.current = unreadCount;
   }, [unreadCount, animateBadge, badgeScope]);
-
-  // 입력 집중 화면(Copilot)에서는 탭바를 숨겨 입력창·키보드와 겹치지 않게 한다.
-  // 이때 네비는 상단바 햄버거(시트)가 대신한다.
-  if (pathname.startsWith("/copilot")) return null;
 
   const itemClass = (active: boolean) =>
     cn(

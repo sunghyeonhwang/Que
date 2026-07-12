@@ -5,7 +5,7 @@ import { computeHomeLoad } from "@/lib/home-load";
 import { retroWeekSummary } from "@/lib/retro-data";
 import { getAdminReportData } from "@/lib/report-data";
 import { generateAnalysis } from "@/lib/ai/gemini";
-import { kstDateKey } from "@/lib/daily-data";
+import { dateKeyOfIso, kstDateKey } from "@/lib/daily-data";
 
 // AI 주간 아젠다(기획 §1-f "회의 전") — 월요일 주간 통합 회의의 5섹션 데이터를 수집한다. server-only.
 // 조회형(저장하지 않음). 회의 화면(다음 에이전트)·팀채널 게시(dispatch.postWeeklyAgenda)가 재사용한다.
@@ -103,13 +103,6 @@ function thisWeekRange(now: Date): { start: string; end: string } {
   const end = new Date(start);
   end.setDate(end.getDate() + 6);
   return { start: kstDateKey(start), end: kstDateKey(end) };
-}
-
-/** ISO(마일스톤 dueAt)의 KST 날짜 키(YYYY-MM-DD). TZ 고정(instrumentation) 하 로컬 기준. */
-function dateKeyOfIso(iso: string): string {
-  const ms = Date.parse(iso);
-  if (Number.isNaN(ms)) return "";
-  return kstDateKey(new Date(ms));
 }
 
 /** 프로젝트 공유 진행률(취소/병합 제외 done/전체). weekly-preview와 같은 술어. */

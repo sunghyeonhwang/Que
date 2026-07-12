@@ -27,7 +27,7 @@ function useRememberedEmail(): string {
 
 // 디자인(Figma QUE_All_Pages / 0 1 0 - Login) 기준 로그인 폼.
 // 소셜 로그인·비밀번호 재설정·회원가입은 범위 밖(보류/미도입)이라 뺐다.
-export function LoginForm({ notice }: { notice?: string }) {
+export function LoginForm({ notice, callbackUrl }: { notice?: string; callbackUrl?: string }) {
   const [state, formAction, pending] = useActionState(loginAction, initial);
   const [showPw, setShowPw] = useState(false);
   // 저장값은 초깃값일 뿐 — 체크박스는 사용자가 토글하면(null이 아니면) 그 값이 우선한다.
@@ -63,6 +63,8 @@ export function LoginForm({ notice }: { notice?: string }) {
       )}
 
       <form action={formAction} onSubmit={persistEmail} className="flex w-full flex-col gap-5">
+        {/* 로그인 후 복귀 경로(간트 등 (app) 밖 화면) — 서버에서 내부 경로만 허용 */}
+        {callbackUrl && <input type="hidden" name="callbackUrl" value={callbackUrl} />}
         <div className="flex flex-col gap-1.5">
           <label htmlFor="email" className="text-sm font-medium text-[var(--que-text)]">
             이메일

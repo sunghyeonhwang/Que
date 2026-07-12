@@ -1,7 +1,7 @@
 import "server-only";
 
 import type { Milestone, MockQueDb } from "@que/core";
-import { kstDateKey } from "@/lib/daily-data";
+import { dateKeyOfIso, kstDateKey } from "@/lib/daily-data";
 
 // 마일스톤 안건 원격 진행(기획 §1-c) — AI가 사회자로 안건을 하나씩 제시하는 비동기 진행의 안건 큐.
 // 순수 조회(저장 안 함). 진행 화면(다음 에이전트)·긴급 결정 감지가 재사용한다. server-only.
@@ -35,13 +35,6 @@ export interface MilestoneAgendaItem {
   blockedCount: number;
   /** 막힌 작업 제목(최대 3). */
   blockedTitles: string[];
-}
-
-/** ISO의 KST 날짜 키(TZ 고정 하 로컬 기준). */
-function dateKeyOfIso(iso: string): string {
-  const ms = Date.parse(iso);
-  if (Number.isNaN(ms)) return "";
-  return kstDateKey(new Date(ms));
 }
 
 function agendaItem(

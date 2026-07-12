@@ -7,11 +7,11 @@ import { LoginForm } from "./login-form";
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ changed?: string }>;
+  searchParams: Promise<{ changed?: string; callbackUrl?: string }>;
 }) {
   const session = await auth();
   if (session?.user?.id) redirect("/");
-  const { changed } = await searchParams;
+  const { changed, callbackUrl } = await searchParams;
 
   return (
     <main className="flex min-h-svh bg-[var(--que-bg)]">
@@ -46,6 +46,7 @@ export default async function LoginPage({
       >
         <LoginForm
           notice={changed ? "비밀번호를 바꿨어요. 새 비밀번호로 로그인해주세요." : undefined}
+          callbackUrl={callbackUrl}
         />
       </div>
     </main>

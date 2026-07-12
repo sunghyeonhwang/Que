@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
+import { auth } from "@/auth";
 import { getCurrentUser } from "@/lib/current-user";
 import { getClientOptions } from "@/lib/client-filter";
 import { getTodayMilestoneAdjustments, getUnifiedGantt } from "@/lib/projects-data";
@@ -25,6 +27,10 @@ export default async function GanttPage({
 }: {
   searchParams: Promise<{ client?: string; risk?: string; zoom?: string }>;
 }) {
+  // 미로그인이면 로그인 후 이 화면으로 복귀(callbackUrl) — 기본 게이트는 /home으로 보내 회의실
+  // 화면에서 로그인하면 간트로 못 돌아오던 문제(글래도스 이월)의 해소.
+  const session = await auth();
+  if (!session?.user?.id) redirect("/login?callbackUrl=/gantt");
   const user = await getCurrentUser();
   if (user.role !== "admin") return <GanttDenied name={user.name} />;
 

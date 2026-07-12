@@ -95,7 +95,8 @@ export function GanttView({
     const next = new Date(m.dueAt);
     next.setFullYear(y, mo - 1, d);
     const prev = dayOverride[m.id];
-    runMilestone(() => updateMilestoneAction({ milestoneId: m.id, dueAt: next.toISOString() }), {
+    // asDecision: 드래그 기한 조정을 결정(연기)으로 기록 — 긴급 결정 카드가 당일 종결을 인식한다.
+    runMilestone(() => updateMilestoneAction({ milestoneId: m.id, dueAt: next.toISOString(), asDecision: true }), {
       apply: () => setDayOverride((o) => ({ ...o, [m.id]: key })),
       rollback: () =>
         setDayOverride((o) => {
@@ -115,7 +116,7 @@ export function GanttView({
         const prevDayKey = `${pd.getFullYear()}-${String(pd.getMonth() + 1).padStart(2, "0")}-${String(pd.getDate()).padStart(2, "0")}`;
         return {
           onClick: () =>
-            runMilestone(() => updateMilestoneAction({ milestoneId: m.id, dueAt: prevDueAt }), {
+            runMilestone(() => updateMilestoneAction({ milestoneId: m.id, dueAt: prevDueAt, asDecision: true }), {
               apply: () => setDayOverride((o) => ({ ...o, [m.id]: prevDayKey })),
               rollback: () => setDayOverride((o) => ({ ...o, [m.id]: key })),
               success: "기한을 되돌렸습니다.",

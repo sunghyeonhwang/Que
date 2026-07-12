@@ -2606,8 +2606,12 @@ export class MockQueDb implements QueDb {
           kr.unit = unit;
         }
       }
-      // manual로 바뀌면 state 체크는 정리한다.
-      if (kr.stateChecks !== undefined) kr.stateChecks = undefined;
+      // manual로 바뀌면 state 체크는 정리한다 — 소거되는 값은 ChangeLog에 남긴다(복원 근거).
+      if (kr.stateChecks !== undefined) {
+        before.push(`체크: ${kr.stateChecks.map((c) => c.label).join("/")}`);
+        changes.push("체크: (측정 전환으로 제거)");
+        kr.stateChecks = undefined;
+      }
     } else if (nextMetricType === "state") {
       // 체크 항목 정의를 새로 받으면 교체(id 재부여). 같은 label의 done/confirmedBy/doneAt는 보존한다.
       if (input.stateChecks !== undefined) {
@@ -2639,20 +2643,30 @@ export class MockQueDb implements QueDb {
         // state로 전환하는데 기존/입력 체크가 없으면 거부(1개 이상 필수).
         throw new QueRuleError("INVALID_INPUT", "state KR은 체크 항목이 1개 이상 필요하다");
       }
-      // state로 바뀌면 manual 필드는 정리한다.
+      // state로 바뀌면 manual 필드는 정리한다 — 소거되는 진척 값은 ChangeLog에 남긴다(복원 근거).
       if (kr.targetValue !== undefined || kr.currentValue !== undefined || kr.unit !== undefined) {
+        before.push(`진척: ${kr.currentValue ?? 0}/${kr.targetValue ?? "-"}${kr.unit ?? ""}`);
+        changes.push("진척: (측정 전환으로 제거)");
         kr.targetValue = undefined;
         kr.currentValue = undefined;
         kr.unit = undefined;
       }
     } else if (nextMetricType === "task_auto") {
       // task_auto로 바뀌면 manual·state 필드는 의미가 없다 — 정리한다(진척은 연결 Task로 계산).
+      // 소거되는 값은 ChangeLog에 남긴다 — 전환 로그에 "측정: task_auto"만 남고 진척 이력이
+      // 증발하던 공백(글래도스 이월 Low)의 해소.
       if (kr.targetValue !== undefined || kr.currentValue !== undefined || kr.unit !== undefined) {
+        before.push(`진척: ${kr.currentValue ?? 0}/${kr.targetValue ?? "-"}${kr.unit ?? ""}`);
+        changes.push("진척: (측정 전환으로 제거)");
         kr.targetValue = undefined;
         kr.currentValue = undefined;
         kr.unit = undefined;
       }
-      if (kr.stateChecks !== undefined) kr.stateChecks = undefined;
+      if (kr.stateChecks !== undefined) {
+        before.push(`체크: ${kr.stateChecks.map((c) => c.label).join("/")}`);
+        changes.push("체크: (측정 전환으로 제거)");
+        kr.stateChecks = undefined;
+      }
     }
 
     if (changes.length === 0) return kr; // no-op ChangeLog 방지

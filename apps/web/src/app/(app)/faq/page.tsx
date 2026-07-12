@@ -1,29 +1,30 @@
 import Link from "next/link";
-import { Terminal } from "lucide-react";
+import { CircleHelp } from "lucide-react";
 import { PageHeader } from "@/components/app/page-header";
-import { HELP_SECTIONS } from "./help-content";
-import { mdToHtml } from "./help-markdown";
-import { HelpToc } from "./help-toc";
+import { mdToHtml } from "../help/help-markdown";
+import { HelpToc } from "../help/help-toc";
+import { FAQ_SECTIONS } from "./faq-content";
 
 export const dynamic = "force-dynamic";
 
-// 기타 > 도움말 — 비개발 팀원용 사용 설명서. 콘텐츠는 help-content.ts, 렌더는 help-markdown.ts.
-export default function HelpPage() {
-  const sections = HELP_SECTIONS.map((s) => ({ ...s, html: mdToHtml(s.md) }));
+// 기타 > 설계 FAQ — "왜 이렇게 만들었나" 류 질문 모음. 콘텐츠는 faq-content.ts,
+// 렌더러(mdToHtml)와 목차(HelpToc)는 도움말 것을 재사용한다(복제 금지). 구조·스타일은 /help와 동일.
+export default function FaqPage() {
+  const sections = FAQ_SECTIONS.map((s) => ({ ...s, html: mdToHtml(s.md) }));
   const toc = sections.map(({ id, title }) => ({ id, title }));
 
   return (
     <div>
       <PageHeader
-        title="도움말"
-        subtitle="Que를 처음 쓰는 분도 바로 따라 할 수 있게 정리했어요. 궁금할 때 언제든 여기로 오세요."
+        title="설계 FAQ"
+        subtitle="Que가 왜 이렇게 만들어졌는지 — 규칙 뒤의 이유를 설명합니다."
         actions={
           <Link
-            href="/tools"
+            href="/help"
             className="flex h-10 items-center gap-1.5 rounded-lg border border-[var(--que-border)] px-3 text-sm font-medium text-[var(--que-text-secondary)] hover:bg-[var(--que-bg-muted)]"
           >
-            <Terminal className="size-4" aria-hidden />
-            AI · 터미널로 쓰기
+            <CircleHelp className="size-4" aria-hidden />
+            사용법은 도움말
           </Link>
         }
       />
@@ -51,15 +52,11 @@ export default function HelpPage() {
           ))}
 
           <p className="px-1 pb-2 text-center text-sm text-[var(--que-text-tertiary)]">
-            더 궁금한 점이 있으면 팀 관리자에게 물어보세요. AI·터미널로 Que를 쓰는 방법은{" "}
-            <Link href="/tools" className="text-[var(--que-brand)] hover:underline">
-              MCP · CLI
+            화면별 사용법·자주 하는 일이 궁금하면{" "}
+            <Link href="/help" className="text-[var(--que-brand)] hover:underline">
+              도움말
             </Link>{" "}
-            화면을 참고하세요. Que가 왜 이렇게 만들어졌는지 궁금하면{" "}
-            <Link href="/faq" className="text-[var(--que-brand)] hover:underline">
-              설계 FAQ
-            </Link>
-            를 보세요.
+            화면을 참고하세요.
           </p>
         </div>
       </div>

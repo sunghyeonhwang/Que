@@ -12,6 +12,7 @@ import {
   Settings,
   Terminal,
   CircleHelp,
+  MessageCircleQuestion,
   Milestone,
   Building2,
   FolderKanban,
@@ -199,6 +200,9 @@ export const MENU_SECTIONS: MenuSection[] = [
       { href: "/revisions", label: "수정사항", icon: Bug },
       { href: "/tools", label: "MCP · CLI", icon: Terminal },
       { href: "/help", label: "도움말", icon: CircleHelp },
+      // 설계 FAQ(/faq) — "왜 이렇게 만들었나" 류 질문 모음. 도움말이 '사용법'이면 이곳은 '이유'다.
+      // 도움말과 아이콘 혼동 방지로 MessageCircleQuestion 사용(도움말=CircleHelp).
+      { href: "/faq", label: "설계 FAQ", icon: MessageCircleQuestion },
       { href: "/settings", label: "설정", icon: Settings },
     ],
   },

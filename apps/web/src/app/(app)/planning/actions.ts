@@ -52,6 +52,9 @@ export async function updateMilestoneAction(input: {
   dueAt?: string;
   riskStatus?: Milestone["riskStatus"];
   critical?: boolean;
+  /** true면 기한 변경을 '결정(연기)'으로 기록한다(recordMilestoneDecision defer) — 간트 드래그 전용.
+   *  결정 기록이 없으면 긴급 결정 카드가 드래그 조정을 인식하지 못해 당일 내내 잔존한다(글래도스 이월). */
+  asDecision?: boolean;
 }): Promise<{ ok: true; previousDueAt?: string } | { ok: false; error: string }> {
   const user = await getCurrentUser();
   // 변경 전 dueAt을 서버에서 떠서 반환한다 — 간트 드래그 토스트의 [실행 취소]가 이 값으로 복원한다.
@@ -59,6 +62,19 @@ export async function updateMilestoneAction(input: {
   let previousDueAt: string | undefined;
   const result = await toResult((db) => {
     previousDueAt = db.milestones.find((m) => m.id === input.milestoneId)?.dueAt;
+    // asDecision은 dueAt만 바꾸는 드래그 경로에서만 유효 — 다른 필드가 섞이면 일반 수정으로 처리.
+    if (
+      input.asDecision &&
+      input.dueAt &&
+      input.title === undefined &&
+      input.riskStatus === undefined &&
+      input.critical === undefined
+    ) {
+      return db.recordMilestoneDecision(
+        { actorId: user.id, via: "web" },
+        { milestoneId: input.milestoneId, decision: "defer", newDueAt: input.dueAt },
+      );
+    }
     return db.updateMilestone({ actorId: user.id, via: "web" }, input);
   });
   return result.ok ? { ok: true, previousDueAt } : result;

@@ -3,7 +3,7 @@ import "server-only";
 import type { MockQueDb, NotificationIntent } from "@que/core";
 import { computeGanttRisk } from "@/lib/projects-data";
 import { changeRequestSlaState } from "@que/core";
-import { kstDateKey } from "@/lib/daily-data";
+import { dateKeyOfIso, kstDateKey } from "@/lib/daily-data";
 import { appBaseUrl, personalDigestEnabled } from "./config";
 import { enqueueAndSend, type DispatchCounts } from "./dispatch";
 
@@ -42,13 +42,6 @@ export interface CrisisTrigger {
   totalCount: number;
   /** 결정 카드 수신자(마일스톤 담당/PM + admin). */
   recipientIds: string[];
-}
-
-/** ISO의 KST 날짜 키. */
-function dateKeyOfIso(iso: string): string {
-  const ms = Date.parse(iso);
-  if (Number.isNaN(ms)) return "";
-  return kstDateKey(new Date(ms));
 }
 
 /** now의 KST 날짜 키. */

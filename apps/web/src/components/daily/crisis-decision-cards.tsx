@@ -1,6 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "motion/react";
+import { useState } from "react";
 import { TriangleAlert } from "lucide-react";
 import { MilestoneDecision } from "@/components/daily/milestone-decision";
 
@@ -19,7 +20,14 @@ export interface CrisisCard {
   canManage: boolean;
 }
 
+/** 처음 펼쳐 보이는 카드 수 상한 — 카드 남발이 곧 무시로 이어진다(DM 하루 3건 상한과 같은 취지).
+ *  초과분은 "나머지 N건 보기"로 접어 둔다(글래도스 이월 Low — 무상한 해소). */
+const VISIBLE_CAP = 5;
+
 export function CrisisDecisionCards({ cards }: { cards: CrisisCard[] }) {
+  const [showAll, setShowAll] = useState(false);
+  const visible = showAll ? cards : cards.slice(0, VISIBLE_CAP);
+  const hiddenCount = cards.length - visible.length;
   // AnimatePresence를 항상 마운트해 두어야 마지막 카드가 빠질 때 섹션 퇴장이 재생된다.
   // (RSC 리렌더는 이 클라이언트 컴포넌트를 언마운트하지 않고 props만 갱신하므로 exit가 동작한다.)
   return (
@@ -41,7 +49,7 @@ export function CrisisDecisionCards({ cards }: { cards: CrisisCard[] }) {
           <ul className="flex flex-col gap-3">
             {/* 카드 하나가 빠질 때(다른 카드는 남음)는 해당 li만 접히며 퇴장. */}
             <AnimatePresence initial={false}>
-              {cards.map((c) => (
+              {visible.map((c) => (
                 <motion.li
                   key={c.milestoneId}
                   layout
@@ -68,6 +76,15 @@ export function CrisisDecisionCards({ cards }: { cards: CrisisCard[] }) {
               ))}
             </AnimatePresence>
           </ul>
+          {hiddenCount > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowAll(true)}
+              className="mt-3 flex h-10 w-full items-center justify-center rounded-lg border border-[var(--que-error)]/30 text-sm font-medium text-[var(--que-error)] hover:bg-[var(--que-bg)]"
+            >
+              나머지 {hiddenCount}건 보기
+            </button>
+          )}
         </motion.section>
       )}
     </AnimatePresence>
