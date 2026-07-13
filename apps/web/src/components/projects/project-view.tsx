@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import type {
   ProjectBoard,
@@ -68,6 +68,25 @@ export function ProjectView({
   const searchParams = useSearchParams();
   const view = resolveView(viewRaw);
 
+  // 미완료만 보기 — 4개 뷰(보드·목록·캘린더·간트) 공통 클라 필터(2026-07-14 사용자 요청:
+  // 간트 전용에서 프로젝트 전체로 승격). 보드·목록은 완료 열 자체를 숨기고, 캘린더는 완료 카드만 거른다.
+  const [hideDone, setHideDone] = useState(false);
+  const boardColumns = useMemo(
+    () => (hideDone ? board.columns.filter((c) => c.key !== "done") : board.columns),
+    [hideDone, board.columns],
+  );
+  const listColumns = useMemo(
+    () => (hideDone ? list.columns.filter((c) => c.key !== "done") : list.columns),
+    [hideDone, list.columns],
+  );
+  const calendarView = useMemo(
+    () =>
+      hideDone
+        ? { ...calendar, days: calendar.days.map((d) => ({ ...d, cards: d.cards.filter((c) => c.status !== "done") })) }
+        : calendar,
+    [hideDone, calendar],
+  );
+
   // 전체 보기 스코프 요약용 집계. 특정 클라이언트 스코프면 클라이언트명을 함께 표시.
   const totalTaskCount = projects.reduce((sum, p) => sum + p.taskCount, 0);
   const scopeClientName =
@@ -111,6 +130,20 @@ export function ProjectView({
       <div className="mt-4 flex shrink-0 flex-wrap items-end justify-between gap-2 border-b border-[var(--que-border)]">
         <ViewTabs current={view} />
         <div className="flex items-center gap-2 pb-2">
+          {/* 미완료만 보기 — 전 뷰 공통. 완료를 걷어 남은 일에 집중한다(즉시 반응). */}
+          <button
+            type="button"
+            onClick={() => setHideDone((v) => !v)}
+            aria-pressed={hideDone}
+            className={
+              "inline-flex min-h-10 items-center gap-1.5 rounded-lg border px-3 text-xs font-medium transition-colors " +
+              (hideDone
+                ? "border-[var(--que-brand)] bg-[var(--que-brand-subtle)] text-[var(--que-brand)]"
+                : "border-[var(--que-border)] text-[var(--que-text-secondary)] hover:bg-[var(--que-bg-muted)]")
+            }
+          >
+            미완료만 보기
+          </button>
           {/* AI 연결 제안은 간트 + 단일 프로젝트에서만 — 선행 연결은 같은 프로젝트 안에서만 가능하다. */}
           {view === "gantt" && !isAllProjects && meta ? (
             <GanttSuggestDialog projectId={viewProjectId} />
@@ -132,19 +165,19 @@ export function ProjectView({
 
       {view === "board" ? (
         <BoardView
-          columns={board.columns}
+          columns={boardColumns}
           projectId={viewProjectId}
           taskHref={taskHref}
           showProject={isAllProjects}
           allowCreate={!isAllProjects}
         />
       ) : view === "calendar" ? (
-        <ProjectCalendarView data={calendar} taskHref={taskHref} showProject={isAllProjects} />
+        <ProjectCalendarView data={calendarView} taskHref={taskHref} showProject={isAllProjects} />
       ) : view === "gantt" ? (
-        <GanttView data={gantt} taskHref={taskHref} showProject={isAllProjects} />
+        <GanttView data={gantt} taskHref={taskHref} showProject={isAllProjects} hideDone={hideDone} />
       ) : (
         <ListView
-          columns={list.columns}
+          columns={listColumns}
           projectId={viewProjectId}
           taskHref={taskHref}
           showProject={isAllProjects}

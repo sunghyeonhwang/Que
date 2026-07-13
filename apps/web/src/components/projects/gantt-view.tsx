@@ -69,12 +69,16 @@ export function GanttView({
   taskHref,
   showProject,
   colWidth = DEFAULT_COL_W,
+  hideDone: hideDoneProp,
 }: {
   data: ProjectGantt;
   taskHref: (taskId: string) => string;
   showProject: boolean;
   /** 일 컬럼 폭(px). 줌 전환용 — 46=4주 상세, 22=분기 조망. 기본 46. */
   colWidth?: number;
+  /** 미완료만 보기(제어형). 상위(프로젝트 화면 공통 토글)가 주면 그 값을 쓰고 내부 버튼은 숨긴다.
+   *  미지정이면 기존처럼 내부 토글(회의용 통합 간트 경로). */
+  hideDone?: boolean;
 }) {
   const COL_W = colWidth;
   const days = useMemo(() => buildDays(data.rangeStart, data.rangeEnd), [data.rangeStart, data.rangeEnd]);
@@ -84,7 +88,8 @@ export function GanttView({
 
   // 미완료만 보기 — 완료(done) 작업 행을 숨긴다(2026-07-14 사용자 요청). 받은 데이터를 클라에서
   // 거르기만 하므로 즉시 반응. 선행 화살표는 rowIndexByTask 미스 가드가 있어 필터에 안전하다.
-  const [hideDone, setHideDone] = useState(false);
+  const [hideDoneLocal, setHideDoneLocal] = useState(false);
+  const hideDone = hideDoneProp ?? hideDoneLocal;
   const visibleTasks = useMemo(
     () => (hideDone ? data.tasks.filter((t) => t.status !== "done") : data.tasks),
     [hideDone, data.tasks],
@@ -183,10 +188,12 @@ export function GanttView({
           <TriangleAlert className="size-3.5" aria-hidden />
           일정 주의
         </span>
-        {/* 미완료만 보기 — 완료 행을 숨겨 남은 일에 집중(즉시 반응, 클라 필터). */}
+        {/* 미완료만 보기 — 완료 행을 숨겨 남은 일에 집중(즉시 반응, 클라 필터).
+            상위 공통 토글(hideDone prop)이 있으면 중복이라 렌더하지 않는다. */}
+        {hideDoneProp === undefined && (
         <button
           type="button"
-          onClick={() => setHideDone((v) => !v)}
+          onClick={() => setHideDoneLocal((v) => !v)}
           aria-pressed={hideDone}
           className={
             "ml-auto inline-flex min-h-10 items-center gap-1.5 rounded-lg border px-3 text-xs font-medium transition-colors " +
@@ -198,6 +205,7 @@ export function GanttView({
           <Check className={"size-3.5 " + (hideDone ? "" : "opacity-30")} aria-hidden />
           미완료만 보기
         </button>
+        )}
 
         {/* 차트 좌우 이동(2026-07-11 요청) — 한 번에 7일치, '오늘'로 즉시 복귀 버튼 포함. */}
         <span className="ml-auto inline-flex items-center gap-1">
