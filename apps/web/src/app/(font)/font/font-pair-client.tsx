@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 
 import {
+  ADOBE_KIT,
   CURATED_PAIRS,
   FONTS,
   MOOD_LABEL,
@@ -80,11 +81,15 @@ function defaultTuning(): TuningState {
 }
 
 // ── 폰트 로딩(선택된 것만 head에 주입 · 중복 방지) ─────────────────────
+// 여러 폰트가 같은 stylesheet(Adobe kit)를 공유하므로 href 단위로도 dedup한다.
 const loadedFonts = new Set<string>();
+const loadedHrefs = new Set<string>();
 function ensureFont(f: FontDef | null | undefined) {
   if (!f || typeof document === "undefined" || loadedFonts.has(f.family)) return;
   loadedFonts.add(f.family);
   if (f.stylesheet) {
+    if (loadedHrefs.has(f.stylesheet)) return;
+    loadedHrefs.add(f.stylesheet);
     const link = document.createElement("link");
     link.rel = "stylesheet";
     link.href = f.stylesheet;
@@ -113,9 +118,10 @@ function pick<T>(arr: T[]): T {
 function infoLabel(f: FontDef) {
   return f.infoUrl.includes("noonnu") ? "눈누" : "구글 폰트";
 }
-/** 부제 풀 = 역할 무관 · 무드 필터만. free는 전체. */
+/** 부제 풀 = 역할 무관 · 무드 필터만. free는 전체. 라틴 전용은 셔플 제외. */
 function subPool(mood: MoodKey): FontDef[] {
-  return mood === "free" ? FONTS : FONTS.filter((f) => f.moods.includes(mood));
+  const base = FONTS.filter((f) => !f.latinOnly);
+  return mood === "free" ? base : base.filter((f) => f.moods.includes(mood));
 }
 
 /** 슬롯 튜닝을 CSS 변수(calc)로 참조하는 텍스트 스타일. base=기준 폰트 크기(clamp 등). */
@@ -130,21 +136,34 @@ function slot(font: FontDef, key: SlotKey, base: string): React.CSSProperties {
   return s as React.CSSProperties;
 }
 
-/** 실사용 CSS 코드 문자열 — stylesheet=link, woff=@font-face + 튜닝 반영 사용 예시. */
+/** 실사용 CSS 코드 문자열 — stylesheet=link, woff=@font-face, adobe=kit 안내 + 튜닝 반영 사용 예시. */
 function buildCss(h: FontDef, s: FontDef, b: FontDef, t: TuningState) {
   const seen = new Set<string>();
   const links: string[] = [];
   const faces: string[] = [];
+  const adobe: FontDef[] = [];
   for (const f of [h, s, b]) {
     if (seen.has(f.family)) continue;
     seen.add(f.family);
-    if (f.stylesheet) {
+    if (f.adobe) {
+      adobe.push(f);
+    } else if (f.stylesheet) {
       links.push(`<link rel="stylesheet" href="${f.stylesheet}">`);
     } else if (f.woff) {
       faces.push(
         `@font-face {\n  font-family: '${f.family}';\n  src: url('${f.woff}') format('woff');\n  font-display: swap;\n}`,
       );
     }
+  }
+  let adobeBlock = "";
+  if (adobe.length) {
+    const infos = [...new Set(adobe.map((f) => f.infoUrl))];
+    adobeBlock = [
+      "/* Adobe Fonts는 kit 도메인 제한이 있어 이 링크는 등록된 도메인에서만 동작합니다.",
+      "   본인 프로젝트에서는 fonts.adobe.com에서 웹 프로젝트를 만들어 자신의 kit 코드를 사용하세요. */",
+      `<link rel="stylesheet" href="${ADOBE_KIT}">`,
+      ...infos.map((u) => `/* ${u} */`),
+    ].join("\n");
   }
   const rule = (sel: string, f: FontDef, tune: SlotTune) =>
     `${sel} {\n  font-family: '${f.family}';\n  letter-spacing: ${tune.ls}em;\n  line-height: ${tune.lh};\n  font-weight: ${tune.weight};\n} /* 크기 스케일 ${tune.scale.toFixed(2)}× */`;
@@ -153,7 +172,7 @@ function buildCss(h: FontDef, s: FontDef, b: FontDef, t: TuningState) {
     rule("h2", s, t.s),
     rule("body", b, t.b),
   ].join("\n");
-  return [links.join("\n"), faces.join("\n\n"), usage]
+  return [links.join("\n"), adobeBlock, faces.join("\n\n"), usage]
     .filter(Boolean)
     .join("\n\n");
 }
@@ -280,6 +299,7 @@ export function FontPairClient() {
   const [tuning, setTuning] = useState<TuningState>(defaultTuning);
   const [brand, setBrand] = useState("그리프");
   const [slogan, setSlogan] = useState("우리는 화면 너머를 만든다");
+  const [eyebrow, setEyebrow] = useState("EST. 2019 · SEOUL");
   const [listOpen, setListOpen] = useState(false);
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [tuneOpen, setTuneOpen] = useState(false);
@@ -358,6 +378,14 @@ export function FontPairClient() {
     },
     [],
   );
+
+  const assignSlot = (f: FontDef, key: SlotKey) => {
+    if (key === "h") setHeading(f);
+    else if (key === "s") setSub(f);
+    else setBody(f);
+  };
+
+  const hasLatinOnly = [heading, sub, body].some((f) => f.latinOnly);
 
   const handleCopyCss = async () => {
     try {
@@ -548,7 +576,17 @@ export function FontPairClient() {
       {/* ── 쇼케이스 본문 ── */}
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 pb-64 pt-8 sm:px-6 sm:pb-40">
         {/* 커스텀 문구 입력 */}
-        <div className="mb-8 grid gap-3 sm:grid-cols-2">
+        <div className="mb-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <label className="flex flex-col gap-1.5">
+            <span className="text-xs font-medium text-[var(--fp-muted)]">상단 문구</span>
+            <input
+              value={eyebrow}
+              onChange={(e) => setEyebrow(e.target.value)}
+              maxLength={40}
+              className="h-11 rounded-lg border border-[var(--fp-border)] bg-[var(--fp-surface)] px-3.5 text-sm outline-none focus:border-[var(--fp-accent)]"
+              placeholder="EST. 2019 · SEOUL"
+            />
+          </label>
           <label className="flex flex-col gap-1.5">
             <span className="text-xs font-medium text-[var(--fp-muted)]">브랜드명</span>
             <input
@@ -559,7 +597,7 @@ export function FontPairClient() {
               placeholder="브랜드명"
             />
           </label>
-          <label className="flex flex-col gap-1.5">
+          <label className="flex flex-col gap-1.5 sm:col-span-2 lg:col-span-1">
             <span className="text-xs font-medium text-[var(--fp-muted)]">슬로건</span>
             <input
               value={slogan}
@@ -571,6 +609,21 @@ export function FontPairClient() {
           </label>
         </div>
 
+        {/* 라틴 전용 폰트 안내 */}
+        {hasLatinOnly && (
+          <div className="mb-8 flex items-start gap-2 rounded-lg border border-[var(--fp-border)] bg-[var(--fp-surface-2)] px-4 py-3 text-sm text-[var(--fp-muted)]">
+            <span
+              className="mt-0.5 shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold"
+              style={{ background: "var(--fp-accent)", color: "var(--fp-accent-fg)" }}
+            >
+              라틴 전용
+            </span>
+            <span className="break-keep">
+              선택한 페어에 라틴 전용(Adobe) 폰트가 포함되어 있습니다. 영문·숫자만 해당 폰트로 표시되고, 한글은 대체 글꼴로 렌더됩니다.
+            </span>
+          </div>
+        )}
+
         {/* ① 브랜드 아이덴티티 */}
         <Section n="01" title="브랜드 아이덴티티">
           <div className="rounded-xl border border-[var(--fp-border)] bg-[var(--fp-surface)] px-6 py-14 text-center sm:px-10 sm:py-20">
@@ -578,7 +631,7 @@ export function FontPairClient() {
               className="text-[11px] font-semibold uppercase tracking-[0.35em] text-[var(--fp-muted)]"
               style={{ fontFamily: ff(sub) }}
             >
-              EST. 2019 · SEOUL
+              {eyebrow || "EST. 2019 · SEOUL"}
             </p>
             <h1
               className="mt-4 break-keep"
@@ -805,7 +858,15 @@ export function FontPairClient() {
       </div>
 
       {/* ── 오버레이 ── */}
-      {listOpen && <FontListOverlay onClose={() => setListOpen(false)} />}
+      {listOpen && (
+        <FontListOverlay
+          onAssign={(f, key) => {
+            assignSlot(f, key);
+            setListOpen(false);
+          }}
+          onClose={() => setListOpen(false)}
+        />
+      )}
       {galleryOpen && (
         <GalleryOverlay
           saved={saved}
@@ -1022,6 +1083,15 @@ function PairSlot({
         <span className="truncate">{font.label}</span>
         <ExternalLink className="h-3 w-3 shrink-0 text-[var(--fp-muted)]" aria-hidden />
       </a>
+      {font.latinOnly && (
+        <span
+          className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold"
+          style={{ background: "var(--fp-accent)", color: "var(--fp-accent-fg)" }}
+          title="라틴 전용 — 한글은 대체 글꼴로 표시됩니다"
+        >
+          라틴
+        </span>
+      )}
       <button
         type="button"
         onClick={onToggleLock}
@@ -1048,31 +1118,80 @@ function PairSlot({
   );
 }
 
-// ── 폰트 목록 오버레이 ──────────────────────────────────────────────────
-function FontListOverlay({ onClose }: { onClose: () => void }) {
+// ── 폰트 목록 오버레이(수동 슬롯 지정) ──────────────────────────────────
+function FontListOverlay({
+  onAssign,
+  onClose,
+}: {
+  onAssign: (f: FontDef, key: SlotKey) => void;
+  onClose: () => void;
+}) {
   useEscClose(onClose);
+  // 라틴 전용 폰트도 목록에 노출(수동 선택 허용). 오버레이가 열리면 전체 lazy 로드.
+  useEffect(() => {
+    FONTS.forEach(ensureFont);
+  }, []);
   return (
     <OverlayShell title={`폰트 목록 · ${FONTS.length}종`} onClose={onClose}>
+      <p className="mx-auto mb-4 max-w-6xl text-sm text-[var(--fp-muted)]">
+        폰트를 골라 [제목]·[부제]·[본문] 슬롯에 직접 넣을 수 있습니다.
+      </p>
       <div className="mx-auto grid max-w-6xl gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {FONTS.map((f) => (
-          <a
+          <div
             key={f.family}
-            href={f.infoUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="group rounded-xl border border-[var(--fp-border)] bg-[var(--fp-surface)] p-4 transition hover:border-[var(--fp-accent)]"
+            className="flex flex-col rounded-xl border border-[var(--fp-border)] bg-[var(--fp-surface)] p-4"
           >
             <div className="flex items-center justify-between gap-2">
-              <span className="text-xs text-[var(--fp-muted)]">{f.label}</span>
-              <RoleBadges font={f} />
+              <span className="truncate text-xs text-[var(--fp-muted)]">{f.label}</span>
+              <div className="flex shrink-0 items-center gap-1">
+                {f.latinOnly ? (
+                  <span
+                    className="rounded-full px-1.5 py-0.5 text-[10px] font-semibold"
+                    style={{ background: "var(--fp-accent)", color: "var(--fp-accent-fg)" }}
+                  >
+                    Adobe · 라틴 전용
+                  </span>
+                ) : (
+                  <RoleBadges font={f} />
+                )}
+              </div>
             </div>
             <p
-              className="mt-3 break-keep text-2xl leading-snug"
+              className="mt-3 min-h-[2.5rem] break-keep text-2xl leading-snug"
               style={{ fontFamily: ff(f) }}
             >
-              {f.label}
+              {f.latinOnly ? "Aa Bb Cc 123" : f.label}
             </p>
-          </a>
+            <div className="mt-4 flex items-center gap-1.5">
+              {(
+                [
+                  ["h", "제목"],
+                  ["s", "부제"],
+                  ["b", "본문"],
+                ] as const
+              ).map(([key, label]) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => onAssign(f, key)}
+                  aria-label={`${f.label}을 ${label} 슬롯에 넣기`}
+                  className="inline-flex h-10 flex-1 items-center justify-center rounded-lg border border-[var(--fp-border)] text-sm font-medium hover:border-[var(--fp-accent)] hover:text-[var(--fp-accent)]"
+                >
+                  {label}
+                </button>
+              ))}
+              <a
+                href={f.infoUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={`${f.label} 정보 열기`}
+                className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-[var(--fp-border)] text-[var(--fp-muted)] hover:text-[var(--fp-text)]"
+              >
+                <ExternalLink className="h-4 w-4" aria-hidden />
+              </a>
+            </div>
+          </div>
         ))}
       </div>
     </OverlayShell>

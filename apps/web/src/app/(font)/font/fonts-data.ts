@@ -23,7 +23,14 @@ export interface FontDef {
   infoUrl: string;
   /** 본문 렌더 보정용 기본 굵기(없으면 400). */
   weight?: number;
+  /** 라틴 전용(한글 미지원) — 무드 셔플 풀에서 제외, 폰트 목록에서 수동 선택만 허용. */
+  latinOnly?: boolean;
+  /** Adobe Fonts kit 소스 — CSS 복사 시 @font-face 대신 kit 안내로 처리(도메인 제한). */
+  adobe?: boolean;
 }
+
+/** Adobe Fonts kit(도메인 제한). 5종이 같은 stylesheet URL을 공유 — 삽입 시 dedup 필요. */
+export const ADOBE_KIT = "https://use.typekit.net/pow5jnk.css";
 
 const g = (family: string, extra = "") =>
   `https://fonts.googleapis.com/css2?family=${family.replace(/ /g, "+")}${extra}&display=swap`;
@@ -200,6 +207,32 @@ export const FONTS: FontDef[] = [
     stylesheet: g("Single Day"),
     moods: ["warm", "retro"], roles: ["heading"], infoUrl: google("Single Day"),
   },
+  // ── Adobe Fonts kit(라틴 전용 · 한글 미지원) — 무드 셔플 제외, 목록에서 수동 선택 ──
+  {
+    family: "halyard-display", label: "Halyard Display",
+    stylesheet: ADOBE_KIT, adobe: true, latinOnly: true, weight: 700,
+    moods: ["minimal"], roles: ["heading"], infoUrl: "https://fonts.adobe.com/fonts/halyard",
+  },
+  {
+    family: "halyard-micro", label: "Halyard Micro",
+    stylesheet: ADOBE_KIT, adobe: true, latinOnly: true, weight: 400,
+    moods: ["minimal"], roles: ["body"], infoUrl: "https://fonts.adobe.com/fonts/halyard",
+  },
+  {
+    family: "halyard-text", label: "Halyard Text",
+    stylesheet: ADOBE_KIT, adobe: true, latinOnly: true, weight: 400,
+    moods: ["minimal"], roles: ["body"], infoUrl: "https://fonts.adobe.com/fonts/halyard",
+  },
+  {
+    family: "objektiv-mk1", label: "Objektiv Mk1",
+    stylesheet: ADOBE_KIT, adobe: true, latinOnly: true, weight: 400,
+    moods: ["minimal"], roles: ["heading", "body"], infoUrl: "https://fonts.adobe.com/fonts/objektiv",
+  },
+  {
+    family: "urw-din", label: "URW DIN",
+    stylesheet: ADOBE_KIT, adobe: true, latinOnly: true, weight: 400,
+    moods: ["minimal", "bold"], roles: ["heading", "body"], infoUrl: "https://fonts.adobe.com/fonts/urw-din",
+  },
 ];
 
 export const MOOD_LABEL: Record<Mood | "free", string> = {
@@ -211,9 +244,9 @@ export const MOOD_LABEL: Record<Mood | "free", string> = {
   elegant: "우아함 · 세리프",
 };
 
-/** 무드별 역할 후보 풀. free는 전체. body는 roles에 body가 있는 폰트만. */
+/** 무드별 역할 후보 풀. free는 전체. body는 roles에 body가 있는 폰트만. 라틴 전용은 셔플 제외. */
 export function poolFor(mood: Mood | "free", role: Role): FontDef[] {
-  const base = FONTS.filter((f) => f.roles.includes(role));
+  const base = FONTS.filter((f) => !f.latinOnly && f.roles.includes(role));
   if (mood === "free") return base;
   return base.filter((f) => f.moods.includes(mood));
 }
