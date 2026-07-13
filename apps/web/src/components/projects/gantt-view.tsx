@@ -82,6 +82,13 @@ export function GanttView({
   const todayIdx = days.findIndex((d) => d.key === data.today);
   const hasMilestoneLane = data.milestones.length > 0;
 
+  // 미완료만 보기 — 완료(done) 작업 행을 숨긴다(2026-07-14 사용자 요청). 받은 데이터를 클라에서
+  // 거르기만 하므로 즉시 반응. 선행 화살표는 rowIndexByTask 미스 가드가 있어 필터에 안전하다.
+  const [hideDone, setHideDone] = useState(false);
+  const visibleTasks = useMemo(
+    () => (hideDone ? data.tasks.filter((t) => t.status !== "done") : data.tasks),
+    [hideDone, data.tasks],
+  );
   // 마일스톤 드래그 낙관 반영 — id → 덮어쓴 day(yyyy-MM-dd). 서버 확정 전까지 새 위치를 유지한다.
   const [dayOverride, setDayOverride] = useState<Record<string, string>>({});
   const { run: runMilestone } = useOptimisticAction();
@@ -129,11 +136,11 @@ export function GanttView({
   };
   // 행 y 오프셋: (마일스톤 레인) + 작업 행들
   const rowY = (taskRow: number) => (hasMilestoneLane ? ROW_H : 0) + taskRow * ROW_H;
-  const bodyH = rowY(data.tasks.length);
+  const bodyH = rowY(visibleTasks.length);
   const gridW = days.length * COL_W;
   const rowIndexByTask = useMemo(
-    () => new Map(data.tasks.map((t, i) => [t.taskId, i])),
-    [data.tasks],
+    () => new Map(visibleTasks.map((t, i) => [t.taskId, i])),
+    [visibleTasks],
   );
 
   // 첫 렌더에 오늘이 보이도록 스크롤(오늘 x가 뷰포트 앞 1/3쯤 오게) — DayBlocks scroll-to-now 관례.
@@ -176,6 +183,21 @@ export function GanttView({
           <TriangleAlert className="size-3.5" aria-hidden />
           일정 주의
         </span>
+        {/* 미완료만 보기 — 완료 행을 숨겨 남은 일에 집중(즉시 반응, 클라 필터). */}
+        <button
+          type="button"
+          onClick={() => setHideDone((v) => !v)}
+          aria-pressed={hideDone}
+          className={
+            "ml-auto inline-flex min-h-10 items-center gap-1.5 rounded-lg border px-3 text-xs font-medium transition-colors " +
+            (hideDone
+              ? "border-[var(--que-brand)] bg-[var(--que-brand-subtle)] text-[var(--que-brand)]"
+              : "border-[var(--que-border)] text-[var(--que-text-secondary)] hover:bg-[var(--que-bg-muted)]")
+          }
+        >
+          <Check className={"size-3.5 " + (hideDone ? "" : "opacity-30")} aria-hidden />
+          미완료만 보기
+        </button>
 
         {/* 차트 좌우 이동(2026-07-11 요청) — 한 번에 7일치, '오늘'로 즉시 복귀 버튼 포함. */}
         <span className="ml-auto inline-flex items-center gap-1">
@@ -230,7 +252,7 @@ export function GanttView({
                 <span className="text-xs font-medium text-[var(--que-text-tertiary)]">◆ 마일스톤</span>
               </div>
             )}
-            {data.tasks.map((t) => (
+            {visibleTasks.map((t) => (
               <Link
                 key={t.taskId}
                 href={taskHref(t.taskId)}
@@ -307,7 +329,7 @@ export function GanttView({
                 }}
               />
               {/* 행 구분선 */}
-              {Array.from({ length: data.tasks.length + (hasMilestoneLane ? 1 : 0) }, (_, r) => (
+              {Array.from({ length: visibleTasks.length + (hasMilestoneLane ? 1 : 0) }, (_, r) => (
                 <div
                   key={r}
                   aria-hidden
@@ -341,11 +363,11 @@ export function GanttView({
                     <path d="M0,0 L7,3.5 L0,7 z" fill="var(--que-warning)" />
                   </marker>
                 </defs>
-                {data.tasks.flatMap((t, row) =>
+                {visibleTasks.flatMap((t, row) =>
                   t.predecessorIds.map((pid) => {
                     const pRow = rowIndexByTask.get(pid);
                     if (pRow === undefined) return null; // 선행이 화면 밖(일정 없음 등)이면 생략
-                    const p = data.tasks[pRow];
+                    const p = visibleTasks[pRow];
                     const x1 = (idx(p.endDay) + 1) * COL_W - 4;
                     const y1 = rowY(pRow) + ROW_H / 2;
                     const x2 = idx(t.startDay) * COL_W + 2;
@@ -368,7 +390,7 @@ export function GanttView({
               </svg>
 
               {/* 작업 막대 */}
-              {data.tasks.map((t, row) => {
+              {visibleTasks.map((t, row) => {
                 const s = idx(t.startDay);
                 const e = idx(t.endDay);
                 const tone = TONE_STYLE[toneOf(t.status)];

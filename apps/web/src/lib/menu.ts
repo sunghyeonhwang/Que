@@ -17,6 +17,7 @@ import {
   Building2,
   FolderKanban,
   Bug,
+  Rocket,
   GanttChart,
   Eye,
   ListTodo,
@@ -199,6 +200,8 @@ export const MENU_SECTIONS: MenuSection[] = [
       // 수정사항(이슈/피드백) 트래커 — 테스트 중 발견한 수정사항 팀 공용 목록. 전원 접근(adminOnly 아님).
       { href: "/revisions", label: "수정사항", icon: Bug },
       { href: "/tools", label: "MCP · CLI", icon: Terminal },
+      // 온보딩(/onboard) — Que를 처음 쓰는 팀원용 시작 가이드(정적 안내). 도움말 위에 둔다.
+      { href: "/onboard", label: "온보딩", icon: Rocket },
       { href: "/help", label: "도움말", icon: CircleHelp },
       // 설계 FAQ(/faq) — "왜 이렇게 만들었나" 류 질문 모음. 도움말이 '사용법'이면 이곳은 '이유'다.
       // 도움말과 아이콘 혼동 방지로 MessageCircleQuestion 사용(도움말=CircleHelp).
