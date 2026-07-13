@@ -217,3 +217,36 @@ export function poolFor(mood: Mood | "free", role: Role): FontDef[] {
   if (mood === "free") return base;
   return base.filter((f) => f.moods.includes(mood));
 }
+
+// ── 추천 페어 갤러리 — 큐레이션(제목/부제/본문 family는 FONTS에 실재해야 한다) ──
+export interface CuratedPair {
+  name: string;
+  desc: string;
+  mood: Mood | "free";
+  h: string; // heading family
+  s: string; // subtitle family
+  b: string; // body family
+}
+
+export const CURATED_PAIRS: CuratedPair[] = [
+  { name: "프로덕트 기본기", desc: "군더더기 없는 SaaS·대시보드 조합", mood: "minimal",
+    h: "S-CoreDream-6Bold", s: "Pretendard Variable", b: "Pretendard Variable" },
+  { name: "테크 브랜딩", desc: "각진 제목과 부드러운 본문의 균형", mood: "minimal",
+    h: "GmarketSansMedium", s: "SUIT Variable", b: "SUIT Variable" },
+  { name: "포근한 브런치", desc: "손글씨 감성과 명조 본문", mood: "warm",
+    h: "Nanum Pen Script", s: "MaruBuri", b: "Gowun Batang" },
+  { name: "동네 카페 메뉴판", desc: "동글동글한 제목과 담백한 본문", mood: "warm",
+    h: "Cafe24Ssurround", s: "Gowun Dodum", b: "Gowun Dodum" },
+  { name: "이벤트 포스터", desc: "시선을 붙잡는 초고딕 헤드라인", mood: "bold",
+    h: "Black Han Sans", s: "Noto Sans KR", b: "Noto Sans KR" },
+  { name: "프로모션 배너", desc: "잘난체의 존재감 + 중립 본문", mood: "bold",
+    h: "yg-jalnan", s: "Pretendard Variable", b: "Pretendard Variable" },
+  { name: "옛날 간판", desc: "레트로 디스플레이와 명조의 온도차", mood: "retro",
+    h: "Do Hyeon", s: "MaruBuri", b: "Nanum Myeongjo" },
+  { name: "쎄한 골목 감성", desc: "붓맛 제목과 바탕 본문", mood: "retro",
+    h: "BMKIRANGHAERANG", s: "Gowun Batang", b: "Gowun Batang" },
+  { name: "매거진 에디토리얼", desc: "명조 헤드라인의 정석", mood: "elegant",
+    h: "Noto Serif KR", s: "Noto Sans KR", b: "Noto Sans KR" },
+  { name: "북 커버", desc: "함렛의 클래식함과 마루부리 리드", mood: "elegant",
+    h: "Hahmlet", s: "MaruBuri", b: "Pretendard Variable" },
+];
