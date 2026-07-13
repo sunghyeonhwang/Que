@@ -126,7 +126,7 @@ export const FONTS: FontDef[] = [
   },
   {
     family: "yg-jalnan", label: "여기어때 잘난체",
-    woff: "https://fastly.jsdelivr.net/gh/projectnoonnu/noonfonts_two@1.0/JalnanOTF00.woff",
+    woff: "https://fastly.jsdelivr.net/gh/projectnoonnu/noonfonts_four@1.2/JalnanOTF00.woff",
     moods: ["bold"], roles: ["heading"], infoUrl: noonnu("잘난체"),
   },
   {
@@ -140,18 +140,18 @@ export const FONTS: FontDef[] = [
     moods: ["bold", "retro"], roles: ["heading"], infoUrl: google("Do Hyeon"),
   },
   {
-    family: "BMHANNAPro", label: "한나체 Pro",
-    woff: "https://fastly.jsdelivr.net/gh/projectnoonnu/noonfonts_four@1.2/BMHANNAPro.woff",
+    family: "BMHANNAAir", label: "한나체 Air",
+    woff: "https://fastly.jsdelivr.net/gh/projectnoonnu/noonfonts_four@1.2/BMHANNAAir.woff",
     moods: ["retro", "bold"], roles: ["heading"], infoUrl: noonnu("한나체"),
   },
   {
-    family: "BMEuljiro10yearslater", label: "을지로10년후체",
-    woff: "https://fastly.jsdelivr.net/gh/projectnoonnu/noonfonts_2002@1.1/BMEuljiro10yearslater.woff",
-    moods: ["retro"], roles: ["heading"], infoUrl: noonnu("을지로"),
+    family: "BMKIRANGHAERANG", label: "기랑해랑체",
+    woff: "https://fastly.jsdelivr.net/gh/projectnoonnu/noonfonts_one@1.0/BMKIRANGHAERANG.woff",
+    moods: ["retro"], roles: ["heading"], infoUrl: noonnu("기랑해랑"),
   },
   {
     family: "BMYEONSUNG", label: "연성체",
-    woff: "https://fastly.jsdelivr.net/gh/projectnoonnu/noonfonts_yeonsung@1.0/BMYEONSUNG.woff",
+    woff: "https://fastly.jsdelivr.net/gh/projectnoonnu/noonfonts_one@1.0/BMYEONSUNG.woff",
     moods: ["retro", "warm"], roles: ["heading"], infoUrl: noonnu("연성체"),
   },
   {
