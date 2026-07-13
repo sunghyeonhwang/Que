@@ -39,6 +39,7 @@ import {
 // ── 상수 ────────────────────────────────────────────────────────────────
 type MoodKey = Mood | "free";
 type SlotKey = "h" | "s" | "b";
+type Lang = "ko" | "en";
 const MOOD_ORDER: MoodKey[] = [
   "free",
   "warm",
@@ -47,18 +48,78 @@ const MOOD_ORDER: MoodKey[] = [
   "retro",
   "elegant",
 ];
-const GLYPHS = "가나다라마바사 아자차카타파하 1234567890 AaBbCc";
 const BY_FAMILY = new Map(FONTS.map((f) => [f.family, f]));
 const DEFAULT_HEADING = BY_FAMILY.get("S-CoreDream-6Bold") ?? FONTS[0];
 const DEFAULT_SUB = BY_FAMILY.get("GmarketSansMedium") ?? FONTS[0];
 const DEFAULT_BODY = BY_FAMILY.get("Pretendard Variable") ?? FONTS[0];
 const SAVE_KEY = "fontpair-saved";
 
-// 에디토리얼 샘플(자체 작성 · 저작권 없음).
-const ESSAY_1 =
-  "좋은 글자는 소리 없이 말을 건다. 획의 두께와 여백의 간격만으로도 문장은 서두르거나 천천히 걷는다. 우리는 내용을 읽기 전에 먼저 분위기를 읽는다. 같은 문장이라도 어떤 글자에 담기느냐에 따라 다른 온도를 갖는다.";
-const ESSAY_2 =
-  "제목이 목청을 높이면 본문은 한 발 물러서 균형을 잡는다. 두 글자가 서로를 밀어내지 않고 자리를 나눌 때 화면은 비로소 숨을 쉰다. 페어링은 취향이 아니라 배려다. 읽는 사람의 눈이 지치지 않도록, 글자는 서로의 자리를 지킨다.";
+// 커스텀 문구 언어별 기본값(사용자가 고치기 전).
+const TEXT_DEFAULTS: Record<Lang, { eyebrow: string; brand: string; slogan: string }> = {
+  ko: { eyebrow: "EST. 2019 · SEOUL", brand: "그리프", slogan: "우리는 화면 너머를 만든다" },
+  en: { eyebrow: "EST. 2019 · SEOUL", brand: "Griff", slogan: "We build beyond the screen" },
+};
+
+// 쇼케이스 고정 카피(한글/영문). 자체 작성 · 저작권 없음. 영문은 번역이 아닌 타이포 시연용 카피.
+interface ShowcaseCopy {
+  edHead: string;
+  edLead: string;
+  essay1: string;
+  essay2: string;
+  uiBadge: string;
+  uiTitle: string;
+  uiDesc: string;
+  uiBtn: string;
+  uiSummary: string;
+  uiSummaryDesc: string;
+  rows: [string, string][];
+  glyph: string;
+}
+const COPY: Record<Lang, ShowcaseCopy> = {
+  ko: {
+    edHead: "글자는 목소리를 갖는다",
+    edLead: "타이포그래피는 정보를 넘어 감정을 전달하는 첫 번째 인터페이스다.",
+    essay1:
+      "좋은 글자는 소리 없이 말을 건다. 획의 두께와 여백의 간격만으로도 문장은 서두르거나 천천히 걷는다. 우리는 내용을 읽기 전에 먼저 분위기를 읽는다. 같은 문장이라도 어떤 글자에 담기느냐에 따라 다른 온도를 갖는다.",
+    essay2:
+      "제목이 목청을 높이면 본문은 한 발 물러서 균형을 잡는다. 두 글자가 서로를 밀어내지 않고 자리를 나눌 때 화면은 비로소 숨을 쉰다. 페어링은 취향이 아니라 배려다. 읽는 사람의 눈이 지치지 않도록, 글자는 서로의 자리를 지킨다.",
+    uiBadge: "신규",
+    uiTitle: "새 프로젝트 시작",
+    uiDesc:
+      "아이디어를 화면으로 옮기는 첫 단계입니다. 팀을 초대하고 목표를 정하면 준비가 끝납니다.",
+    uiBtn: "지금 만들기",
+    uiSummary: "이번 주 요약",
+    uiSummaryDesc: "예정된 작업 대부분이 순조롭게 진행되고 있습니다.",
+    rows: [
+      ["완료된 작업", "18건"],
+      ["진행 중", "5건"],
+      ["대기", "2건"],
+    ],
+    glyph: "가나다라마바사 아자차카타파하 1234567890 AaBbCc",
+  },
+  en: {
+    edHead: "Type has a voice",
+    edLead:
+      "Typography is the first interface — it carries a feeling before it carries a fact.",
+    essay1:
+      "Good type speaks before it is read. The weight of a stroke and the space between letters set the pace, so a sentence can rush or stroll. We sense a mood long before we grasp a meaning.",
+    essay2:
+      "When a headline raises its voice, the body text steps back to keep the balance. Pairing is not about taste; it is about care. Letters hold their ground so the reader's eye never tires.",
+    uiBadge: "New",
+    uiTitle: "Start a new project",
+    uiDesc:
+      "The first step to turn an idea into a screen. Invite your team, set a goal, and you are ready to go.",
+    uiBtn: "Create now",
+    uiSummary: "This week",
+    uiSummaryDesc: "Most of the scheduled work is on track.",
+    rows: [
+      ["Completed", "18"],
+      ["In progress", "5"],
+      ["Waiting", "2"],
+    ],
+    glyph: "Handgloves AaBbCc 1234567890 The quick brown fox",
+  },
+};
 
 // ── 파인튜닝 ────────────────────────────────────────────────────────────
 interface SlotTune {
@@ -118,9 +179,9 @@ function pick<T>(arr: T[]): T {
 function infoLabel(f: FontDef) {
   return f.infoUrl.includes("noonnu") ? "눈누" : "구글 폰트";
 }
-/** 부제 풀 = 역할 무관 · 무드 필터만. free는 전체. 라틴 전용은 셔플 제외. */
-function subPool(mood: MoodKey): FontDef[] {
-  const base = FONTS.filter((f) => !f.latinOnly);
+/** 부제 풀 = 역할 무관 · 무드 필터만. free는 전체. 라틴 전용은 기본 제외(영문 모드면 합류). */
+function subPool(mood: MoodKey, includeLatin: boolean): FontDef[] {
+  const base = FONTS.filter((f) => includeLatin || !f.latinOnly);
   return mood === "free" ? base : base.filter((f) => f.moods.includes(mood));
 }
 
@@ -297,9 +358,16 @@ export function FontPairClient() {
   const [subLocked, setSubLocked] = useState(false);
   const [bodyLocked, setBodyLocked] = useState(false);
   const [tuning, setTuning] = useState<TuningState>(defaultTuning);
-  const [brand, setBrand] = useState("그리프");
-  const [slogan, setSlogan] = useState("우리는 화면 너머를 만든다");
-  const [eyebrow, setEyebrow] = useState("EST. 2019 · SEOUL");
+  const [lang, setLang] = useState<Lang>(() =>
+    params.get("lang") === "en" ? "en" : "ko",
+  );
+  // 커스텀 문구: 사용자가 직접 고치기 전에는 언어별 기본값을 따라간다(고치면 유지).
+  const [brand, setBrand] = useState("");
+  const [brandEdited, setBrandEdited] = useState(false);
+  const [slogan, setSlogan] = useState("");
+  const [sloganEdited, setSloganEdited] = useState(false);
+  const [eyebrow, setEyebrow] = useState("");
+  const [eyebrowEdited, setEyebrowEdited] = useState(false);
   const [listOpen, setListOpen] = useState(false);
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [tuneOpen, setTuneOpen] = useState(false);
@@ -308,15 +376,16 @@ export function FontPairClient() {
 
   const saved = useSavedPairs();
 
-  // 현재 페어/무드를 공유용 URL에 반영(튜닝은 파라미터 과다로 제외).
+  // 현재 페어/무드/언어를 공유용 URL에 반영(튜닝은 파라미터 과다로 제외).
   useEffect(() => {
     const sp = new URLSearchParams();
     sp.set("h", heading.family);
     sp.set("s", sub.family);
     sp.set("b", body.family);
     sp.set("m", mood);
+    if (lang === "en") sp.set("lang", "en");
     window.history.replaceState(null, "", `?${sp.toString()}`);
-  }, [heading, sub, body, mood]);
+  }, [heading, sub, body, mood, lang]);
 
   // 현재 페어 3종 폰트 로드.
   useEffect(() => {
@@ -333,10 +402,11 @@ export function FontPairClient() {
   // 페어링 롤(3슬롯 · 잠금 유지 · 서로 다른 family · body 풀 없으면 free 폴백).
   const rollTriple = useCallback(
     (moodArg: MoodKey) => {
-      const hPool = poolFor(moodArg, "heading");
-      let bPool = poolFor(moodArg, "body");
-      if (bPool.length === 0) bPool = poolFor("free", "body");
-      const sPoolBase = subPool(moodArg);
+      const withLatin = lang === "en";
+      const hPool = poolFor(moodArg, "heading", withLatin);
+      let bPool = poolFor(moodArg, "body", withLatin);
+      if (bPool.length === 0) bPool = poolFor("free", "body", withLatin);
+      const sPoolBase = subPool(moodArg, withLatin);
       const sPool = sPoolBase.length ? sPoolBase : FONTS;
 
       const nextH = headingLocked ? heading : pick(hPool.length ? hPool : FONTS);
@@ -357,7 +427,7 @@ export function FontPairClient() {
       setSub(nextS);
       setBody(nextB);
     },
-    [headingLocked, subLocked, bodyLocked, heading, sub, body],
+    [lang, headingLocked, subLocked, bodyLocked, heading, sub, body],
   );
 
   const handleMood = (m: MoodKey) => {
@@ -385,7 +455,15 @@ export function FontPairClient() {
     else setBody(f);
   };
 
-  const hasLatinOnly = [heading, sub, body].some((f) => f.latinOnly);
+  // 언어 모드 파생값.
+  const def = TEXT_DEFAULTS[lang];
+  const c = COPY[lang];
+  const eyebrowVal = eyebrowEdited ? eyebrow : def.eyebrow;
+  const brandVal = brandEdited ? brand : def.brand;
+  const sloganVal = sloganEdited ? slogan : def.slogan;
+  // 한글 모드에서만 라틴 폴백 안내(영문 모드는 폴백 오해가 없어 숨김).
+  const showLatinNotice =
+    lang === "ko" && [heading, sub, body].some((f) => f.latinOnly);
 
   const handleCopyCss = async () => {
     try {
@@ -509,6 +587,35 @@ export function FontPairClient() {
               <Shuffle className="h-4 w-4" aria-hidden />
               페어링
             </button>
+            <div
+              className="flex h-10 items-center rounded-lg border border-[var(--fp-border)] p-0.5"
+              role="group"
+              aria-label="쇼케이스 언어"
+            >
+              {(["ko", "en"] as const).map((l) => {
+                const active = lang === l;
+                return (
+                  <button
+                    key={l}
+                    type="button"
+                    onClick={() => setLang(l)}
+                    aria-pressed={active}
+                    aria-label={l === "ko" ? "한글 쇼케이스" : "영문 쇼케이스"}
+                    className="h-9 rounded-md px-2.5 text-xs font-semibold transition"
+                    style={
+                      active
+                        ? {
+                            background: "var(--fp-accent)",
+                            color: "var(--fp-accent-fg)",
+                          }
+                        : { color: "var(--fp-muted)" }
+                    }
+                  >
+                    {l === "ko" ? "한글" : "EN"}
+                  </button>
+                );
+              })}
+            </div>
             <button
               type="button"
               onClick={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}
@@ -580,8 +687,11 @@ export function FontPairClient() {
           <label className="flex flex-col gap-1.5">
             <span className="text-xs font-medium text-[var(--fp-muted)]">상단 문구</span>
             <input
-              value={eyebrow}
-              onChange={(e) => setEyebrow(e.target.value)}
+              value={eyebrowVal}
+              onChange={(e) => {
+                setEyebrowEdited(true);
+                setEyebrow(e.target.value);
+              }}
               maxLength={40}
               className="h-11 rounded-lg border border-[var(--fp-border)] bg-[var(--fp-surface)] px-3.5 text-sm outline-none focus:border-[var(--fp-accent)]"
               placeholder="EST. 2019 · SEOUL"
@@ -590,8 +700,11 @@ export function FontPairClient() {
           <label className="flex flex-col gap-1.5">
             <span className="text-xs font-medium text-[var(--fp-muted)]">브랜드명</span>
             <input
-              value={brand}
-              onChange={(e) => setBrand(e.target.value)}
+              value={brandVal}
+              onChange={(e) => {
+                setBrandEdited(true);
+                setBrand(e.target.value);
+              }}
               maxLength={24}
               className="h-11 rounded-lg border border-[var(--fp-border)] bg-[var(--fp-surface)] px-3.5 text-sm outline-none focus:border-[var(--fp-accent)]"
               placeholder="브랜드명"
@@ -600,8 +713,11 @@ export function FontPairClient() {
           <label className="flex flex-col gap-1.5 sm:col-span-2 lg:col-span-1">
             <span className="text-xs font-medium text-[var(--fp-muted)]">슬로건</span>
             <input
-              value={slogan}
-              onChange={(e) => setSlogan(e.target.value)}
+              value={sloganVal}
+              onChange={(e) => {
+                setSloganEdited(true);
+                setSlogan(e.target.value);
+              }}
               maxLength={60}
               className="h-11 rounded-lg border border-[var(--fp-border)] bg-[var(--fp-surface)] px-3.5 text-sm outline-none focus:border-[var(--fp-accent)]"
               placeholder="슬로건"
@@ -609,8 +725,8 @@ export function FontPairClient() {
           </label>
         </div>
 
-        {/* 라틴 전용 폰트 안내 */}
-        {hasLatinOnly && (
+        {/* 라틴 전용 폰트 안내(한글 모드에서만) */}
+        {showLatinNotice && (
           <div className="mb-8 flex items-start gap-2 rounded-lg border border-[var(--fp-border)] bg-[var(--fp-surface-2)] px-4 py-3 text-sm text-[var(--fp-muted)]">
             <span
               className="mt-0.5 shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold"
@@ -631,19 +747,19 @@ export function FontPairClient() {
               className="text-[11px] font-semibold uppercase tracking-[0.35em] text-[var(--fp-muted)]"
               style={{ fontFamily: ff(sub) }}
             >
-              {eyebrow || "EST. 2019 · SEOUL"}
+              {eyebrowVal || def.eyebrow}
             </p>
             <h1
               className="mt-4 break-keep"
               style={slot(heading, "h", "clamp(3rem, 9vw, 4.5rem)")}
             >
-              {brand || "브랜드명"}
+              {brandVal || def.brand}
             </h1>
             <p
               className="mx-auto mt-5 max-w-xl break-keep text-[var(--fp-muted)]"
               style={slot(sub, "s", "clamp(1.125rem, 3.5vw, 1.5rem)")}
             >
-              {slogan || "슬로건을 입력하세요"}
+              {sloganVal || def.slogan}
             </p>
           </div>
         </Section>
@@ -661,20 +777,20 @@ export function FontPairClient() {
               className="mt-3 break-keep"
               style={slot(heading, "h", "clamp(1.875rem, 5vw, 3rem)")}
             >
-              글자는 목소리를 갖는다
+              {c.edHead}
             </h2>
             <p
               className="mt-4 break-keep text-[var(--fp-muted)]"
               style={slot(sub, "s", "clamp(1.125rem, 3.5vw, 1.5rem)")}
             >
-              타이포그래피는 정보를 넘어 감정을 전달하는 첫 번째 인터페이스다.
+              {c.edLead}
             </p>
             <div className="mt-6 grid gap-5 break-keep sm:grid-cols-2">
               <p style={slot(body, "b", "clamp(0.9375rem, 2vw, 1rem)")}>
-                {ESSAY_1}
+                {c.essay1}
               </p>
               <p style={slot(body, "b", "clamp(0.9375rem, 2vw, 1rem)")}>
-                {ESSAY_2}
+                {c.essay2}
               </p>
             </div>
           </article>
@@ -688,19 +804,19 @@ export function FontPairClient() {
                 className="inline-block rounded-full px-2.5 py-1 text-xs font-semibold"
                 style={{ background: "var(--fp-surface-2)", fontFamily: ff(body) }}
               >
-                신규
+                {c.uiBadge}
               </span>
               <h3
                 className="mt-3 break-keep"
                 style={slot(heading, "h", "1.5rem")}
               >
-                새 프로젝트 시작
+                {c.uiTitle}
               </h3>
               <p
                 className="mt-2 break-keep text-[var(--fp-muted)]"
                 style={slot(body, "b", "0.875rem")}
               >
-                아이디어를 화면으로 옮기는 첫 단계입니다. 팀을 초대하고 목표를 정하면 준비가 끝납니다.
+                {c.uiDesc}
               </p>
               <button
                 type="button"
@@ -711,13 +827,13 @@ export function FontPairClient() {
                   fontFamily: ff(body),
                 }}
               >
-                지금 만들기
+                {c.uiBtn}
               </button>
             </div>
             <div className="rounded-xl border border-[var(--fp-border)] bg-[var(--fp-surface)] p-5">
               <div className="flex items-baseline justify-between gap-3">
                 <h3 className="break-keep" style={slot(heading, "h", "1.5rem")}>
-                  이번 주 요약
+                  {c.uiSummary}
                 </h3>
                 <span
                   style={{
@@ -732,14 +848,10 @@ export function FontPairClient() {
                 className="mt-2 break-keep text-[var(--fp-muted)]"
                 style={slot(body, "b", "0.875rem")}
               >
-                예정된 작업 대부분이 순조롭게 진행되고 있습니다.
+                {c.uiSummaryDesc}
               </p>
               <div className="mt-4 space-y-2" style={slot(body, "b", "0.875rem")}>
-                {[
-                  ["완료된 작업", "18건"],
-                  ["진행 중", "5건"],
-                  ["대기", "2건"],
-                ].map(([k, v]) => (
+                {c.rows.map(([k, v]) => (
                   <div
                     key={k}
                     className="flex items-center justify-between border-b border-[var(--fp-border)] pb-2 last:border-0"
@@ -790,7 +902,7 @@ export function FontPairClient() {
                   className="mt-4 break-keep"
                   style={slot(font, key, "clamp(1.25rem, 3vw, 1.5rem)")}
                 >
-                  {GLYPHS}
+                  {c.glyph}
                 </p>
               </div>
             ))}
@@ -816,18 +928,21 @@ export function FontPairClient() {
               role="제목"
               font={heading}
               locked={headingLocked}
+              showLatinBadge={lang === "ko"}
               onToggleLock={() => setHeadingLocked((v) => !v)}
             />
             <PairSlot
               role="부제"
               font={sub}
               locked={subLocked}
+              showLatinBadge={lang === "ko"}
               onToggleLock={() => setSubLocked((v) => !v)}
             />
             <PairSlot
               role="본문"
               font={body}
               locked={bodyLocked}
+              showLatinBadge={lang === "ko"}
               onToggleLock={() => setBodyLocked((v) => !v)}
             />
           </div>
@@ -1061,11 +1176,13 @@ function PairSlot({
   role,
   font,
   locked,
+  showLatinBadge,
   onToggleLock,
 }: {
   role: string;
   font: FontDef;
   locked: boolean;
+  showLatinBadge: boolean;
   onToggleLock: () => void;
 }) {
   return (
@@ -1083,7 +1200,7 @@ function PairSlot({
         <span className="truncate">{font.label}</span>
         <ExternalLink className="h-3 w-3 shrink-0 text-[var(--fp-muted)]" aria-hidden />
       </a>
-      {font.latinOnly && (
+      {showLatinBadge && font.latinOnly && (
         <span
           className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold"
           style={{ background: "var(--fp-accent)", color: "var(--fp-accent-fg)" }}
@@ -1150,7 +1267,7 @@ function FontListOverlay({
                     className="rounded-full px-1.5 py-0.5 text-[10px] font-semibold"
                     style={{ background: "var(--fp-accent)", color: "var(--fp-accent-fg)" }}
                   >
-                    Adobe · 라틴 전용
+                    {f.adobe ? "Adobe · 라틴 전용" : "Google · 라틴 전용"}
                   </span>
                 ) : (
                   <RoleBadges font={f} />

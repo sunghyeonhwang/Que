@@ -233,6 +233,47 @@ export const FONTS: FontDef[] = [
     stylesheet: ADOBE_KIT, adobe: true, latinOnly: true, weight: 400,
     moods: ["minimal", "bold"], roles: ["heading", "body"], infoUrl: "https://fonts.adobe.com/fonts/urw-din",
   },
+  // ── 구글 인기 라틴 폰트(라틴 전용) — 영문 모드에서 셔플 합류, 한글 모드는 목록에서 수동 선택 ──
+  {
+    family: "Poppins", label: "Poppins",
+    stylesheet: g("Poppins", ":wght@400;700"), latinOnly: true, weight: 400,
+    moods: ["minimal", "bold"], roles: ["heading", "body"], infoUrl: google("Poppins"),
+  },
+  {
+    family: "Inter Tight", label: "Inter Tight",
+    stylesheet: g("Inter Tight", ":wght@400;700"), latinOnly: true, weight: 400,
+    moods: ["minimal"], roles: ["heading", "body"], infoUrl: google("Inter Tight"),
+  },
+  {
+    family: "Montserrat", label: "Montserrat",
+    stylesheet: g("Montserrat", ":wght@400;700"), latinOnly: true, weight: 400,
+    moods: ["minimal", "bold"], roles: ["heading", "body"], infoUrl: google("Montserrat"),
+  },
+  {
+    family: "Playfair Display", label: "Playfair Display",
+    stylesheet: g("Playfair Display", ":wght@400;700"), latinOnly: true, weight: 700,
+    moods: ["elegant"], roles: ["heading"], infoUrl: google("Playfair Display"),
+  },
+  {
+    family: "Space Grotesk", label: "Space Grotesk",
+    stylesheet: g("Space Grotesk", ":wght@400;700"), latinOnly: true, weight: 400,
+    moods: ["minimal", "bold"], roles: ["heading", "body"], infoUrl: google("Space Grotesk"),
+  },
+  {
+    family: "Bebas Neue", label: "Bebas Neue",
+    stylesheet: g("Bebas Neue"), latinOnly: true, weight: 400,
+    moods: ["bold"], roles: ["heading"], infoUrl: google("Bebas Neue"),
+  },
+  {
+    family: "DM Sans", label: "DM Sans",
+    stylesheet: g("DM Sans", ":wght@400;700"), latinOnly: true, weight: 400,
+    moods: ["minimal"], roles: ["heading", "body"], infoUrl: google("DM Sans"),
+  },
+  {
+    family: "Lora", label: "Lora",
+    stylesheet: g("Lora", ":wght@400;700"), latinOnly: true, weight: 400,
+    moods: ["elegant"], roles: ["heading", "body"], infoUrl: google("Lora"),
+  },
 ];
 
 export const MOOD_LABEL: Record<Mood | "free", string> = {
@@ -244,9 +285,16 @@ export const MOOD_LABEL: Record<Mood | "free", string> = {
   elegant: "우아함 · 세리프",
 };
 
-/** 무드별 역할 후보 풀. free는 전체. body는 roles에 body가 있는 폰트만. 라틴 전용은 셔플 제외. */
-export function poolFor(mood: Mood | "free", role: Role): FontDef[] {
-  const base = FONTS.filter((f) => !f.latinOnly && f.roles.includes(role));
+/** 무드별 역할 후보 풀. free는 전체. body는 roles에 body가 있는 폰트만.
+ *  라틴 전용은 기본 제외(한글 모드), includeLatin=true면 합류(영문 모드). */
+export function poolFor(
+  mood: Mood | "free",
+  role: Role,
+  includeLatin = false,
+): FontDef[] {
+  const base = FONTS.filter(
+    (f) => (includeLatin || !f.latinOnly) && f.roles.includes(role),
+  );
   if (mood === "free") return base;
   return base.filter((f) => f.moods.includes(mood));
 }
