@@ -31,6 +31,15 @@ if (pw) dbUrl = dbUrl.replace(/\[YOUR-PASSWORD\]/gi, encodeURIComponent(pw));
 // 시드 기준 시각: 결정론적으로 고정하지 않고 "지금"을 쓴다 — mock과 동일하게 오늘 화면에 데이터가 걸리도록.
 const seed = createSeed(new Date());
 
+// jsonb 컬럼은 pg가 JS 배열을 Postgres 배열 리터럴로 보내 "invalid input syntax for type json"이
+// 난다 — 명시적으로 JSON.stringify해서 바인딩한다(테이블.컬럼 목록은 information_schema 기준).
+const JSONB_COLS = new Set([
+  "change_requests.stage_log",
+  "key_results.state_checks",
+  "notification_outbox.payload",
+  "standup_entries.snapshot_task_ids",
+]);
+
 /** 한 테이블에 rows를 파라미터 바인딩으로 일괄 삽입 */
 async function insertRows(client: pg.Client, table: string, rows: Record<string, unknown>[]) {
   if (rows.length === 0) return 0;
@@ -39,7 +48,10 @@ async function insertRows(client: pg.Client, table: string, rows: Record<string,
   const values: unknown[] = [];
   const tuples = rows.map((r, ri) => {
     const ph = cols.map((c, ci) => {
-      values.push(c in r ? r[c] : null);
+      const raw = c in r ? r[c] : null;
+      values.push(
+        raw !== null && JSONB_COLS.has(`${table}.${c}`) ? JSON.stringify(raw) : raw,
+      );
       return `$${ri * cols.length + ci + 1}`;
     });
     return `(${ph.join(",")})`;
