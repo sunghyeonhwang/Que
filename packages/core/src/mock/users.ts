@@ -125,9 +125,10 @@ export function personScopeForGrade(
   return [viewer.id];
 }
 
-/** 로컬 mock 개발 + 초기 배포용 공용 임시 비밀번호. 실 운영에선 사용자별 변경이 후속(강제 변경 플로우 = B2). */
-export const DEV_PASSWORD = "que-2026!";
+/** 로컬 mock 개발 + 초기 배포용 공용 임시 비밀번호. 실 운영에선 사용자별 변경이 후속(강제 변경 플로우 = B2).
+ *  2026-07-14 사용자 확정: 실 운영 공용 비번(good121930)과 통일 — 재시드가 비밀번호를 몰래 바꾸던 함정 제거. */
+export const DEV_PASSWORD = "good121930";
 
 /** DEV_PASSWORD의 bcrypt(10) 해시 — 시드가 8명에 동일하게 넣는다(재시드 시 auth 컬럼 유지용). */
 export const SEED_PASSWORD_HASH =
-  "$2b$10$vaQFbujUi6Adz/jWcHknH.PcIbImnBo6s67oWsVkDkx8y.NxDbvcW";
+  "$2b$10$lnqc71f7Vq2Wy5ztzaNeI.0vS4P5XTz22/oz4np1tO1PY4iYFsBPi";
