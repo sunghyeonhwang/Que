@@ -28,6 +28,7 @@ import {
 import {
   ADOBE_KIT,
   CURATED_PAIRS,
+  CURATED_PAIRS_EN,
   FONTS,
   MOOD_LABEL,
   poolFor,
@@ -436,7 +437,14 @@ export function FontPairClient() {
   };
 
   const applyPair = useCallback(
-    (h: string, s: string, b: string, m: MoodKey, tune?: TuningState) => {
+    (
+      h: string,
+      s: string,
+      b: string,
+      m: MoodKey,
+      tune?: TuningState,
+      langTarget?: Lang,
+    ) => {
       const hf = BY_FAMILY.get(h);
       const sf = BY_FAMILY.get(s);
       const bf = BY_FAMILY.get(b);
@@ -445,6 +453,7 @@ export function FontPairClient() {
       if (bf) setBody(bf);
       if ((MOOD_ORDER as string[]).includes(m)) setMood(m);
       setTuning(tune ?? defaultTuning());
+      if (langTarget) setLang(langTarget);
     },
     [],
   );
@@ -984,6 +993,7 @@ export function FontPairClient() {
       )}
       {galleryOpen && (
         <GalleryOverlay
+          lang={lang}
           saved={saved}
           onApply={applyPair}
           onDelete={handleDelete}
@@ -1317,11 +1327,13 @@ function FontListOverlay({
 
 // ── 추천/저장 갤러리 오버레이 ───────────────────────────────────────────
 function GalleryOverlay({
+  lang,
   saved,
   onApply,
   onDelete,
   onClose,
 }: {
+  lang: Lang;
   saved: SavedPair[];
   onApply: (
     h: string,
@@ -1329,21 +1341,21 @@ function GalleryOverlay({
     b: string,
     m: MoodKey,
     tune?: TuningState,
+    langTarget?: Lang,
   ) => void;
   onDelete: (savedAt: number) => void;
   onClose: () => void;
 }) {
   const [tab, setTab] = useState<"curated" | "saved">("curated");
+  // 추천 탭의 언어는 현재 쇼케이스 언어로 시작(ko 모드에서도 영문 페어 열람 가능).
+  const [curatedLang, setCuratedLang] = useState<Lang>(lang);
   useEscClose(onClose);
 
-  // 오버레이가 열리면 표시 대상 페어의 폰트를 lazy 로드.
+  const curatedList = curatedLang === "en" ? CURATED_PAIRS_EN : CURATED_PAIRS;
+
+  // 오버레이가 열리면 표시 대상 페어의 폰트를 lazy 로드(한글·영문 큐레이션·저장 모두).
   useEffect(() => {
-    CURATED_PAIRS.forEach((p) => {
-      ensureFamily(p.h);
-      ensureFamily(p.s);
-      ensureFamily(p.b);
-    });
-    saved.forEach((p) => {
+    [...CURATED_PAIRS, ...CURATED_PAIRS_EN, ...saved].forEach((p) => {
       ensureFamily(p.h);
       ensureFamily(p.s);
       ensureFamily(p.b);
@@ -1351,7 +1363,9 @@ function GalleryOverlay({
   }, [saved]);
 
   const applyCurated = (p: CuratedPair) => {
-    onApply(p.h, p.s, p.b, p.mood);
+    // 라틴 큐레이션 적용 시 lang=en 전환(한글 카피 위 라틴 폰트 어색함 방지).
+    if (curatedLang === "en") onApply(p.h, p.s, p.b, p.mood, undefined, "en");
+    else onApply(p.h, p.s, p.b, p.mood);
     onClose();
   };
   const applySaved = (p: SavedPair) => {
@@ -1366,7 +1380,7 @@ function GalleryOverlay({
         <div className="mb-5 inline-flex rounded-lg border border-[var(--fp-border)] p-1">
           {(
             [
-              ["curated", `추천 · ${CURATED_PAIRS.length}`],
+              ["curated", `추천 · ${curatedList.length}`],
               ["saved", `저장한 페어 · ${saved.length}`],
             ] as const
           ).map(([key, label]) => {
@@ -1391,11 +1405,50 @@ function GalleryOverlay({
         </div>
 
         {tab === "curated" ? (
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {CURATED_PAIRS.map((p) => (
-              <CuratedCard key={p.name} pair={p} onClick={() => applyCurated(p)} />
-            ))}
-          </div>
+          <>
+            {/* 큐레이션 언어 스위치 */}
+            <div className="mb-4 inline-flex rounded-lg border border-[var(--fp-border)] p-0.5">
+              {(
+                [
+                  ["ko", "한글 페어"],
+                  ["en", "영문 페어"],
+                ] as const
+              ).map(([l, label]) => {
+                const active = curatedLang === l;
+                return (
+                  <button
+                    key={l}
+                    type="button"
+                    onClick={() => setCuratedLang(l)}
+                    aria-pressed={active}
+                    className="h-9 rounded-md px-3 text-sm font-medium transition"
+                    style={
+                      active
+                        ? { background: "var(--fp-accent)", color: "var(--fp-accent-fg)" }
+                        : { color: "var(--fp-muted)" }
+                    }
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+              {curatedLang === "en" && (
+                <span className="ml-2 inline-flex items-center text-xs text-[var(--fp-muted)]">
+                  적용 시 영문 모드로 전환됩니다
+                </span>
+              )}
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {curatedList.map((p) => (
+                <CuratedCard
+                  key={p.name}
+                  pair={p}
+                  latin={curatedLang === "en"}
+                  onClick={() => applyCurated(p)}
+                />
+              ))}
+            </div>
+          </>
         ) : saved.length === 0 ? (
           <div className="rounded-xl border border-dashed border-[var(--fp-border)] p-10 text-center text-sm text-[var(--fp-muted)]">
             아직 저장한 페어가 없습니다. 하단 바의 [저장] 버튼으로 현재 조합을 담아 보세요.
@@ -1419,11 +1472,47 @@ function GalleryOverlay({
 
 function CuratedCard({
   pair,
+  latin,
   onClick,
 }: {
   pair: CuratedPair;
+  latin: boolean;
   onClick: () => void;
 }) {
+  // 라틴 페어: name·desc는 기본 UI 폰트(한국어)로, 실폰트 시연은 라틴 텍스트로 분리한다.
+  if (latin) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        className="flex flex-col rounded-xl border border-[var(--fp-border)] bg-[var(--fp-surface)] p-5 text-left transition hover:border-[var(--fp-accent)]"
+      >
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <MoodBadge mood={pair.mood} />
+          <span className="text-xs text-[var(--fp-muted)]">적용 →</span>
+        </div>
+        <p className="break-keep text-sm font-semibold">{pair.name}</p>
+        <p className="mt-1 break-keep text-xs text-[var(--fp-muted)]">{pair.desc}</p>
+        <div className="mt-3 space-y-1 border-t border-[var(--fp-border)] pt-3">
+          <p
+            className="text-2xl leading-tight"
+            style={{ fontFamily: ffName(pair.h), fontWeight: 700 }}
+          >
+            Typography
+          </p>
+          <p className="text-base" style={{ fontFamily: ffName(pair.s) }}>
+            Subhead · Aa Bb 123
+          </p>
+          <p
+            className="text-sm text-[var(--fp-muted)]"
+            style={{ fontFamily: ffName(pair.b) }}
+          >
+            The quick brown fox jumps over.
+          </p>
+        </div>
+      </button>
+    );
+  }
   return (
     <button
       type="button"

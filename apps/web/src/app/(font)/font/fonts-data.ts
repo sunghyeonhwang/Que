@@ -331,3 +331,27 @@ export const CURATED_PAIRS: CuratedPair[] = [
   { name: "북 커버", desc: "함렛의 클래식함과 마루부리 리드", mood: "elegant",
     h: "Hahmlet", s: "MaruBuri", b: "Pretendard Variable" },
 ];
+
+// ── 라틴 페어 큐레이션(영문 모드) — 라틴 13종 조합. name·desc는 한국어 UI 유지 ──
+export const CURATED_PAIRS_EN: CuratedPair[] = [
+  { name: "매거진 클래식", desc: "세리프 헤드라인 + 중립 UI 산스", mood: "elegant",
+    h: "Playfair Display", s: "Inter Tight", b: "Inter Tight" },
+  { name: "포스터 & 리드", desc: "컨덴스드 임팩트 제목 + 세리프 본문", mood: "bold",
+    h: "Bebas Neue", s: "Lora", b: "Lora" },
+  { name: "테크 프로덕트", desc: "기하 그로테스크 + 담백한 제품 산스", mood: "minimal",
+    h: "Space Grotesk", s: "DM Sans", b: "DM Sans" },
+  { name: "핼야드 패밀리", desc: "한 가족 슈퍼패밀리 페어", mood: "minimal",
+    h: "halyard-display", s: "halyard-micro", b: "halyard-text" },
+  { name: "브랜드 & 에디토리얼", desc: "기하 산스 제목 + 세리프 본문", mood: "elegant",
+    h: "Montserrat", s: "Lora", b: "Lora" },
+  { name: "친근한 랜딩", desc: "둥근 기하 제목 + 읽기 좋은 본문", mood: "minimal",
+    h: "Poppins", s: "Poppins", b: "Inter Tight" },
+  { name: "인더스트리얼 UI", desc: "DIN 헤드라인 + 중립 그로테스크", mood: "bold",
+    h: "urw-din", s: "objektiv-mk1", b: "objektiv-mk1" },
+  { name: "럭셔리 부티크", desc: "디스플레이 세리프 + 산스 서브 + 세리프 본문", mood: "elegant",
+    h: "Playfair Display", s: "Montserrat", b: "Lora" },
+  { name: "스포츠 & 스트리트", desc: "임팩트 제목 + 테크 서브 + 제품 본문", mood: "bold",
+    h: "Bebas Neue", s: "Space Grotesk", b: "DM Sans" },
+  { name: "스위스 미니멀", desc: "중립 그로테스크 슈퍼패밀리 조합", mood: "minimal",
+    h: "objektiv-mk1", s: "halyard-micro", b: "halyard-text" },
+];
