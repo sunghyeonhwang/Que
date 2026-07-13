@@ -14,7 +14,9 @@ import {
   Lock,
   LayoutGrid,
   Moon,
+  RotateCcw,
   Shuffle,
+  SlidersHorizontal,
   Sparkles,
   Star,
   Sun,
@@ -35,6 +37,7 @@ import {
 
 // ── 상수 ────────────────────────────────────────────────────────────────
 type MoodKey = Mood | "free";
+type SlotKey = "h" | "s" | "b";
 const MOOD_ORDER: MoodKey[] = [
   "free",
   "warm",
@@ -55,6 +58,26 @@ const ESSAY_1 =
   "좋은 글자는 소리 없이 말을 건다. 획의 두께와 여백의 간격만으로도 문장은 서두르거나 천천히 걷는다. 우리는 내용을 읽기 전에 먼저 분위기를 읽는다. 같은 문장이라도 어떤 글자에 담기느냐에 따라 다른 온도를 갖는다.";
 const ESSAY_2 =
   "제목이 목청을 높이면 본문은 한 발 물러서 균형을 잡는다. 두 글자가 서로를 밀어내지 않고 자리를 나눌 때 화면은 비로소 숨을 쉰다. 페어링은 취향이 아니라 배려다. 읽는 사람의 눈이 지치지 않도록, 글자는 서로의 자리를 지킨다.";
+
+// ── 파인튜닝 ────────────────────────────────────────────────────────────
+interface SlotTune {
+  scale: number; // 0.7~1.5
+  ls: number; // letter-spacing em, -0.05~0.1
+  lh: number; // line-height, 1.0~2.2
+  weight: number; // 100~900 step 100
+}
+interface TuningState {
+  h: SlotTune;
+  s: SlotTune;
+  b: SlotTune;
+}
+function defaultTuning(): TuningState {
+  return {
+    h: { scale: 1, ls: 0, lh: 1.2, weight: 700 },
+    s: { scale: 1, ls: 0, lh: 1.4, weight: 500 },
+    b: { scale: 1, ls: 0, lh: 1.7, weight: 400 },
+  };
+}
 
 // ── 폰트 로딩(선택된 것만 head에 주입 · 중복 방지) ─────────────────────
 const loadedFonts = new Set<string>();
@@ -95,8 +118,20 @@ function subPool(mood: MoodKey): FontDef[] {
   return mood === "free" ? FONTS : FONTS.filter((f) => f.moods.includes(mood));
 }
 
-/** 실사용 CSS 코드 문자열(stylesheet=link, woff=@font-face) + 사용 예시. */
-function buildCss(h: FontDef, s: FontDef, b: FontDef) {
+/** 슬롯 튜닝을 CSS 변수(calc)로 참조하는 텍스트 스타일. base=기준 폰트 크기(clamp 등). */
+function slot(font: FontDef, key: SlotKey, base: string): React.CSSProperties {
+  const s: Record<string, string> = {
+    fontFamily: ff(font),
+    fontSize: `calc(${base} * var(--fp-${key}-scale))`,
+    letterSpacing: `var(--fp-${key}-ls)`,
+    lineHeight: `var(--fp-${key}-lh)`,
+    fontWeight: `var(--fp-${key}-w)`,
+  };
+  return s as React.CSSProperties;
+}
+
+/** 실사용 CSS 코드 문자열 — stylesheet=link, woff=@font-face + 튜닝 반영 사용 예시. */
+function buildCss(h: FontDef, s: FontDef, b: FontDef, t: TuningState) {
   const seen = new Set<string>();
   const links: string[] = [];
   const faces: string[] = [];
@@ -111,7 +146,13 @@ function buildCss(h: FontDef, s: FontDef, b: FontDef) {
       );
     }
   }
-  const usage = `h1 { font-family: '${h.family}'; }\nh2 { font-family: '${s.family}'; }\nbody { font-family: '${b.family}'; }`;
+  const rule = (sel: string, f: FontDef, tune: SlotTune) =>
+    `${sel} {\n  font-family: '${f.family}';\n  letter-spacing: ${tune.ls}em;\n  line-height: ${tune.lh};\n  font-weight: ${tune.weight};\n} /* 크기 스케일 ${tune.scale.toFixed(2)}× */`;
+  const usage = [
+    rule("h1", h, t.h),
+    rule("h2", s, t.s),
+    rule("body", b, t.b),
+  ].join("\n");
   return [links.join("\n"), faces.join("\n\n"), usage]
     .filter(Boolean)
     .join("\n\n");
@@ -124,6 +165,7 @@ interface SavedPair {
   b: string;
   mood: MoodKey;
   savedAt: number;
+  tuning?: TuningState; // 하위호환: 없으면 기본값
 }
 const EMPTY_SAVED: SavedPair[] = [];
 let savedCache: { raw: string; val: SavedPair[] } | null = null;
@@ -162,28 +204,28 @@ function useSavedPairs() {
 }
 const pairKey = (h: string, s: string, b: string) => `${h}|${s}|${b}`;
 
-// ── 테마 토큰 ───────────────────────────────────────────────────────────
-// 포인트 컬러 = 버밀리언 코럴(#ec5a29 / 라이트 #d94a1c). Que 상태색·금지된 인디고/퍼플과 구분.
+// ── 테마 토큰 — Que 디자인 시스템과 일치(전역 --que-*에 의존하지 않고 값만 복사) ──
+// 포인트 = Que 브랜드 인디고(다크 #7488ea / 라이트 #4e6cde). 상태색(green/amber/red)은 미사용.
 const DARK_VARS = {
-  "--fp-bg": "#0d0d0f",
-  "--fp-surface": "#161619",
-  "--fp-surface-2": "#1f1f24",
-  "--fp-border": "#2a2a31",
-  "--fp-text": "#f3f3f5",
-  "--fp-muted": "#9c9ca6",
-  "--fp-accent": "#ec5a29",
-  "--fp-accent-fg": "#ffffff",
-} as React.CSSProperties;
+  "--fp-bg": "#0e0f12",
+  "--fp-surface": "#16181d",
+  "--fp-surface-2": "#202127",
+  "--fp-border": "#2a2d35",
+  "--fp-text": "#e8eaed",
+  "--fp-muted": "#9aa0a6",
+  "--fp-accent": "#7488ea",
+  "--fp-accent-fg": "#10121a",
+} as Record<string, string>;
 const LIGHT_VARS = {
-  "--fp-bg": "#f6f5f2",
+  "--fp-bg": "#f7f7f8",
   "--fp-surface": "#ffffff",
-  "--fp-surface-2": "#eeece6",
-  "--fp-border": "#e2dfd7",
-  "--fp-text": "#18181b",
-  "--fp-muted": "#6b6b73",
-  "--fp-accent": "#d94a1c",
+  "--fp-surface-2": "#f2f2f4",
+  "--fp-border": "#ececee",
+  "--fp-text": "#14151a",
+  "--fp-muted": "#5b5d66",
+  "--fp-accent": "#4e6cde",
   "--fp-accent-fg": "#ffffff",
-} as React.CSSProperties;
+} as Record<string, string>;
 
 // ── 역할 뱃지 ───────────────────────────────────────────────────────────
 function RoleBadges({ font }: { font: FontDef }) {
@@ -235,16 +277,18 @@ export function FontPairClient() {
   const [headingLocked, setHeadingLocked] = useState(false);
   const [subLocked, setSubLocked] = useState(false);
   const [bodyLocked, setBodyLocked] = useState(false);
+  const [tuning, setTuning] = useState<TuningState>(defaultTuning);
   const [brand, setBrand] = useState("그리프");
   const [slogan, setSlogan] = useState("우리는 화면 너머를 만든다");
   const [listOpen, setListOpen] = useState(false);
   const [galleryOpen, setGalleryOpen] = useState(false);
+  const [tuneOpen, setTuneOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
 
   const saved = useSavedPairs();
 
-  // 현재 페어/무드를 공유용 URL에 반영(replaceState — history 오염 없음, setState 아님).
+  // 현재 페어/무드를 공유용 URL에 반영(튜닝은 파라미터 과다로 제외).
   useEffect(() => {
     const sp = new URLSearchParams();
     sp.set("h", heading.family);
@@ -302,7 +346,7 @@ export function FontPairClient() {
   };
 
   const applyPair = useCallback(
-    (h: string, s: string, b: string, m: MoodKey) => {
+    (h: string, s: string, b: string, m: MoodKey, tune?: TuningState) => {
       const hf = BY_FAMILY.get(h);
       const sf = BY_FAMILY.get(s);
       const bf = BY_FAMILY.get(b);
@@ -310,13 +354,14 @@ export function FontPairClient() {
       if (sf) setSub(sf);
       if (bf) setBody(bf);
       if ((MOOD_ORDER as string[]).includes(m)) setMood(m);
+      setTuning(tune ?? defaultTuning());
     },
     [],
   );
 
   const handleCopyCss = async () => {
     try {
-      await navigator.clipboard.writeText(buildCss(heading, sub, body));
+      await navigator.clipboard.writeText(buildCss(heading, sub, body, tuning));
       setCopied(true);
       window.setTimeout(() => setCopied(false), 2000);
     } catch {
@@ -340,6 +385,7 @@ export function FontPairClient() {
         b: body.family,
         mood,
         savedAt: Date.now(),
+        tuning,
       },
       ...cur,
     ]);
@@ -351,7 +397,22 @@ export function FontPairClient() {
     writeSaved(readSaved().filter((p) => p.savedAt !== savedAt));
   };
 
-  const vars = theme === "dark" ? DARK_VARS : LIGHT_VARS;
+  // 테마 토큰 + 슬롯 튜닝 CSS 변수 병합.
+  const vars = {
+    ...(theme === "dark" ? DARK_VARS : LIGHT_VARS),
+    "--fp-h-scale": String(tuning.h.scale),
+    "--fp-h-ls": `${tuning.h.ls}em`,
+    "--fp-h-lh": String(tuning.h.lh),
+    "--fp-h-w": String(tuning.h.weight),
+    "--fp-s-scale": String(tuning.s.scale),
+    "--fp-s-ls": `${tuning.s.ls}em`,
+    "--fp-s-lh": String(tuning.s.lh),
+    "--fp-s-w": String(tuning.s.weight),
+    "--fp-b-scale": String(tuning.b.scale),
+    "--fp-b-ls": `${tuning.b.ls}em`,
+    "--fp-b-lh": String(tuning.b.lh),
+    "--fp-b-w": String(tuning.b.weight),
+  } as React.CSSProperties;
 
   return (
     <div
@@ -360,17 +421,18 @@ export function FontPairClient() {
     >
       {/* ── 헤더 ── */}
       <header className="sticky top-0 z-30 border-b border-[var(--fp-border)] bg-[var(--fp-bg)]/95 backdrop-blur supports-[backdrop-filter]:bg-[var(--fp-bg)]/80">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-4 gap-y-3 px-4 py-3 sm:px-6">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-3 gap-y-3 px-4 py-3 sm:px-6">
           <div className="flex items-center gap-2">
             <span
-              className="grid h-8 w-8 place-items-center rounded-md text-sm font-black"
+              className="grid h-7 w-7 place-items-center rounded-md text-xs font-black tracking-tight"
               style={{ background: "var(--fp-accent)", color: "var(--fp-accent-fg)" }}
               aria-hidden
             >
-              F
+              Fp
             </span>
             <span className="text-[15px] font-semibold tracking-tight">
-              폰트페어 <span className="text-[var(--fp-muted)]">· GRIFF</span>
+              폰트페어{" "}
+              <span className="font-normal text-[var(--fp-muted)]">· GRIFF</span>
             </span>
           </div>
 
@@ -378,7 +440,7 @@ export function FontPairClient() {
             <button
               type="button"
               onClick={() => setGalleryOpen(true)}
-              className="hidden h-10 items-center gap-1.5 rounded-full border border-[var(--fp-border)] px-4 text-sm font-medium hover:bg-[var(--fp-surface-2)] sm:inline-flex"
+              className="hidden h-10 items-center gap-1.5 rounded-lg border border-[var(--fp-border)] px-3.5 text-sm font-medium hover:bg-[var(--fp-surface-2)] md:inline-flex"
             >
               <Sparkles className="h-4 w-4" aria-hidden />
               추천 페어
@@ -386,16 +448,34 @@ export function FontPairClient() {
             <button
               type="button"
               onClick={() => setListOpen(true)}
-              className="hidden h-10 items-center gap-1.5 rounded-full border border-[var(--fp-border)] px-4 text-sm font-medium hover:bg-[var(--fp-surface-2)] sm:inline-flex"
+              className="hidden h-10 items-center gap-1.5 rounded-lg border border-[var(--fp-border)] px-3.5 text-sm font-medium hover:bg-[var(--fp-surface-2)] md:inline-flex"
             >
               <LayoutGrid className="h-4 w-4" aria-hidden />
               폰트 목록
             </button>
             <button
               type="button"
+              onClick={() => setTuneOpen((v) => !v)}
+              aria-pressed={tuneOpen}
+              className="inline-flex h-10 items-center gap-1.5 rounded-lg border px-3.5 text-sm font-medium transition"
+              style={
+                tuneOpen
+                  ? {
+                      background: "var(--fp-accent)",
+                      color: "var(--fp-accent-fg)",
+                      borderColor: "var(--fp-accent)",
+                    }
+                  : { borderColor: "var(--fp-border)" }
+              }
+            >
+              <SlidersHorizontal className="h-4 w-4" aria-hidden />
+              <span className="hidden sm:inline">파인튜닝</span>
+            </button>
+            <button
+              type="button"
               onClick={() => rollTriple(mood)}
               aria-label="폰트 페어 셔플"
-              className="inline-flex h-10 items-center gap-2 rounded-full px-5 text-sm font-bold shadow-sm transition active:scale-95"
+              className="inline-flex h-10 items-center gap-2 rounded-lg px-4 text-sm font-semibold transition active:scale-95"
               style={{ background: "var(--fp-accent)", color: "var(--fp-accent-fg)" }}
             >
               <Shuffle className="h-4 w-4" aria-hidden />
@@ -405,7 +485,7 @@ export function FontPairClient() {
               type="button"
               onClick={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}
               aria-label={theme === "dark" ? "라이트 모드로 전환" : "다크 모드로 전환"}
-              className="grid h-10 w-10 place-items-center rounded-full border border-[var(--fp-border)] hover:bg-[var(--fp-surface-2)]"
+              className="grid h-10 w-10 place-items-center rounded-lg border border-[var(--fp-border)] hover:bg-[var(--fp-surface-2)]"
             >
               {theme === "dark" ? (
                 <Sun className="h-4 w-4" aria-hidden />
@@ -426,7 +506,7 @@ export function FontPairClient() {
                     type="button"
                     onClick={() => handleMood(m)}
                     aria-pressed={active}
-                    className="h-10 whitespace-nowrap rounded-full border px-4 text-sm font-medium transition"
+                    className="h-10 whitespace-nowrap rounded-lg border px-3.5 text-sm font-medium transition"
                     style={
                       active
                         ? {
@@ -447,7 +527,7 @@ export function FontPairClient() {
               <button
                 type="button"
                 onClick={() => setGalleryOpen(true)}
-                className="inline-flex h-10 items-center gap-1.5 whitespace-nowrap rounded-full border border-[var(--fp-border)] px-4 text-sm font-medium sm:hidden"
+                className="inline-flex h-10 items-center gap-1.5 whitespace-nowrap rounded-lg border border-[var(--fp-border)] px-3.5 text-sm font-medium md:hidden"
               >
                 <Sparkles className="h-4 w-4" aria-hidden />
                 추천
@@ -455,7 +535,7 @@ export function FontPairClient() {
               <button
                 type="button"
                 onClick={() => setListOpen(true)}
-                className="inline-flex h-10 items-center gap-1.5 whitespace-nowrap rounded-full border border-[var(--fp-border)] px-4 text-sm font-medium sm:hidden"
+                className="inline-flex h-10 items-center gap-1.5 whitespace-nowrap rounded-lg border border-[var(--fp-border)] px-3.5 text-sm font-medium md:hidden"
               >
                 <LayoutGrid className="h-4 w-4" aria-hidden />
                 목록
@@ -493,7 +573,7 @@ export function FontPairClient() {
 
         {/* ① 브랜드 아이덴티티 */}
         <Section n="01" title="브랜드 아이덴티티">
-          <div className="rounded-2xl border border-[var(--fp-border)] bg-[var(--fp-surface)] px-6 py-14 text-center sm:px-10 sm:py-20">
+          <div className="rounded-xl border border-[var(--fp-border)] bg-[var(--fp-surface)] px-6 py-14 text-center sm:px-10 sm:py-20">
             <p
               className="text-[11px] font-semibold uppercase tracking-[0.35em] text-[var(--fp-muted)]"
               style={{ fontFamily: ff(sub) }}
@@ -501,14 +581,14 @@ export function FontPairClient() {
               EST. 2019 · SEOUL
             </p>
             <h1
-              className="mt-4 break-keep text-5xl leading-[1.05] sm:text-7xl"
-              style={{ fontFamily: ff(heading), fontWeight: 800 }}
+              className="mt-4 break-keep"
+              style={slot(heading, "h", "clamp(3rem, 9vw, 4.5rem)")}
             >
               {brand || "브랜드명"}
             </h1>
             <p
-              className="mx-auto mt-5 max-w-xl break-keep text-lg text-[var(--fp-muted)] sm:text-2xl"
-              style={{ fontFamily: ff(sub) }}
+              className="mx-auto mt-5 max-w-xl break-keep text-[var(--fp-muted)]"
+              style={slot(sub, "s", "clamp(1.125rem, 3.5vw, 1.5rem)")}
             >
               {slogan || "슬로건을 입력하세요"}
             </p>
@@ -517,7 +597,7 @@ export function FontPairClient() {
 
         {/* ② 에디토리얼 */}
         <Section n="02" title="에디토리얼">
-          <article className="rounded-2xl border border-[var(--fp-border)] bg-[var(--fp-surface)] p-6 sm:p-10">
+          <article className="rounded-xl border border-[var(--fp-border)] bg-[var(--fp-surface)] p-6 sm:p-10">
             <p
               className="text-xs font-semibold uppercase tracking-widest"
               style={{ fontFamily: ff(body), color: "var(--fp-accent)" }}
@@ -525,23 +605,24 @@ export function FontPairClient() {
               TYPOGRAPHY
             </p>
             <h2
-              className="mt-3 break-keep text-3xl leading-tight sm:text-5xl"
-              style={{ fontFamily: ff(heading), fontWeight: 700 }}
+              className="mt-3 break-keep"
+              style={slot(heading, "h", "clamp(1.875rem, 5vw, 3rem)")}
             >
               글자는 목소리를 갖는다
             </h2>
             <p
-              className="mt-4 break-keep text-lg text-[var(--fp-muted)] sm:text-2xl"
-              style={{ fontFamily: ff(sub) }}
+              className="mt-4 break-keep text-[var(--fp-muted)]"
+              style={slot(sub, "s", "clamp(1.125rem, 3.5vw, 1.5rem)")}
             >
               타이포그래피는 정보를 넘어 감정을 전달하는 첫 번째 인터페이스다.
             </p>
-            <div
-              className="mt-6 grid gap-5 break-keep text-[15px] leading-8 sm:grid-cols-2 sm:text-base"
-              style={{ fontFamily: ff(body) }}
-            >
-              <p>{ESSAY_1}</p>
-              <p>{ESSAY_2}</p>
+            <div className="mt-6 grid gap-5 break-keep sm:grid-cols-2">
+              <p style={slot(body, "b", "clamp(0.9375rem, 2vw, 1rem)")}>
+                {ESSAY_1}
+              </p>
+              <p style={slot(body, "b", "clamp(0.9375rem, 2vw, 1rem)")}>
+                {ESSAY_2}
+              </p>
             </div>
           </article>
         </Section>
@@ -549,7 +630,7 @@ export function FontPairClient() {
         {/* ③ UI 카드 */}
         <Section n="03" title="UI 카드">
           <div className="grid gap-4 sm:grid-cols-2">
-            <div className="rounded-2xl border border-[var(--fp-border)] bg-[var(--fp-surface)] p-6">
+            <div className="rounded-xl border border-[var(--fp-border)] bg-[var(--fp-surface)] p-5">
               <span
                 className="inline-block rounded-full px-2.5 py-1 text-xs font-semibold"
                 style={{ background: "var(--fp-surface-2)", fontFamily: ff(body) }}
@@ -557,14 +638,14 @@ export function FontPairClient() {
                 신규
               </span>
               <h3
-                className="mt-3 break-keep text-2xl"
-                style={{ fontFamily: ff(heading), fontWeight: 700 }}
+                className="mt-3 break-keep"
+                style={slot(heading, "h", "1.5rem")}
               >
                 새 프로젝트 시작
               </h3>
               <p
-                className="mt-2 break-keep text-sm text-[var(--fp-muted)]"
-                style={{ fontFamily: ff(body) }}
+                className="mt-2 break-keep text-[var(--fp-muted)]"
+                style={slot(body, "b", "0.875rem")}
               >
                 아이디어를 화면으로 옮기는 첫 단계입니다. 팀을 초대하고 목표를 정하면 준비가 끝납니다.
               </p>
@@ -580,28 +661,27 @@ export function FontPairClient() {
                 지금 만들기
               </button>
             </div>
-            <div className="rounded-2xl border border-[var(--fp-border)] bg-[var(--fp-surface)] p-6">
-              <div className="flex items-baseline justify-between">
-                <h3
-                  className="break-keep text-2xl"
-                  style={{ fontFamily: ff(heading), fontWeight: 700 }}
-                >
+            <div className="rounded-xl border border-[var(--fp-border)] bg-[var(--fp-surface)] p-5">
+              <div className="flex items-baseline justify-between gap-3">
+                <h3 className="break-keep" style={slot(heading, "h", "1.5rem")}>
                   이번 주 요약
                 </h3>
                 <span
-                  className="text-3xl font-black"
-                  style={{ fontFamily: ff(heading), color: "var(--fp-accent)" }}
+                  style={{
+                    ...slot(heading, "h", "1.875rem"),
+                    color: "var(--fp-accent)",
+                  }}
                 >
                   92%
                 </span>
               </div>
               <p
-                className="mt-2 break-keep text-sm text-[var(--fp-muted)]"
-                style={{ fontFamily: ff(body) }}
+                className="mt-2 break-keep text-[var(--fp-muted)]"
+                style={slot(body, "b", "0.875rem")}
               >
                 예정된 작업 대부분이 순조롭게 진행되고 있습니다.
               </p>
-              <div className="mt-4 space-y-2" style={{ fontFamily: ff(body) }}>
+              <div className="mt-4 space-y-2" style={slot(body, "b", "0.875rem")}>
                 {[
                   ["완료된 작업", "18건"],
                   ["진행 중", "5건"],
@@ -609,7 +689,7 @@ export function FontPairClient() {
                 ].map(([k, v]) => (
                   <div
                     key={k}
-                    className="flex items-center justify-between border-b border-[var(--fp-border)] pb-2 text-sm last:border-0"
+                    className="flex items-center justify-between border-b border-[var(--fp-border)] pb-2 last:border-0"
                   >
                     <span className="text-[var(--fp-muted)]">{k}</span>
                     <span className="font-semibold">{v}</span>
@@ -623,14 +703,16 @@ export function FontPairClient() {
         {/* ④ 글리프 시트(3장) */}
         <Section n="04" title="글리프 시트">
           <div className="grid gap-4 sm:grid-cols-3">
-            {[
-              { role: "제목", font: heading },
-              { role: "부제", font: sub },
-              { role: "본문", font: body },
-            ].map(({ role, font }) => (
+            {(
+              [
+                ["제목", heading, "h"],
+                ["부제", sub, "s"],
+                ["본문", body, "b"],
+              ] as const
+            ).map(([role, font, key]) => (
               <div
                 key={role}
-                className="rounded-2xl border border-[var(--fp-border)] bg-[var(--fp-surface)] p-5"
+                className="rounded-xl border border-[var(--fp-border)] bg-[var(--fp-surface)] p-5"
               >
                 <div className="flex flex-wrap items-center gap-2">
                   <span
@@ -652,8 +734,8 @@ export function FontPairClient() {
                   </a>
                 </div>
                 <p
-                  className="mt-4 break-keep text-xl leading-relaxed sm:text-2xl"
-                  style={{ fontFamily: ff(font) }}
+                  className="mt-4 break-keep"
+                  style={slot(font, key, "clamp(1.25rem, 3vw, 1.5rem)")}
                 >
                   {GLYPHS}
                 </p>
@@ -662,6 +744,16 @@ export function FontPairClient() {
           </div>
         </Section>
       </main>
+
+      {/* ── 파인튜닝 패널(우측 슬라이드) ── */}
+      {tuneOpen && (
+        <TuningPanel
+          tuning={tuning}
+          onChange={setTuning}
+          onReset={() => setTuning(defaultTuning())}
+          onClose={() => setTuneOpen(false)}
+        />
+      )}
 
       {/* ── 하단 고정 페어 바 ── */}
       <div className="fixed inset-x-0 bottom-0 z-30 border-t border-[var(--fp-border)] bg-[var(--fp-surface)]/95 backdrop-blur">
@@ -750,6 +842,159 @@ function Section({
   );
 }
 
+// ── 파인튜닝 패널 ───────────────────────────────────────────────────────
+const SLOT_META: { key: SlotKey; label: string }[] = [
+  { key: "h", label: "제목" },
+  { key: "s", label: "부제" },
+  { key: "b", label: "본문" },
+];
+function TuningPanel({
+  tuning,
+  onChange,
+  onReset,
+  onClose,
+}: {
+  tuning: TuningState;
+  onChange: (next: TuningState) => void;
+  onReset: () => void;
+  onClose: () => void;
+}) {
+  useEscClose(onClose);
+  const set = (key: SlotKey, field: keyof SlotTune, value: number) =>
+    onChange({ ...tuning, [key]: { ...tuning[key], [field]: value } });
+
+  return (
+    <>
+      <button
+        type="button"
+        aria-label="파인튜닝 닫기"
+        onClick={onClose}
+        className="fixed inset-0 z-40 bg-black/30"
+      />
+      <aside
+        className="fixed inset-y-0 right-0 z-40 flex w-full max-w-[380px] flex-col border-l border-[var(--fp-border)] bg-[var(--fp-surface)] shadow-2xl"
+        role="dialog"
+        aria-modal="true"
+        aria-label="파인튜닝"
+      >
+        <div className="flex items-center justify-between border-b border-[var(--fp-border)] px-4 py-3">
+          <h2 className="text-base font-semibold">파인튜닝</h2>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onReset}
+              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[var(--fp-border)] px-3 text-sm font-medium hover:bg-[var(--fp-surface-2)]"
+            >
+              <RotateCcw className="h-3.5 w-3.5" aria-hidden />
+              초기화
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="닫기"
+              className="grid h-9 w-9 place-items-center rounded-lg border border-[var(--fp-border)] hover:bg-[var(--fp-surface-2)]"
+            >
+              <X className="h-4 w-4" aria-hidden />
+            </button>
+          </div>
+        </div>
+        <div className="flex-1 space-y-6 overflow-y-auto px-4 py-5">
+          {SLOT_META.map(({ key, label }) => {
+            const t = tuning[key];
+            return (
+              <div key={key} className="space-y-3">
+                <p className="text-sm font-semibold">{label}</p>
+                <TuneRange
+                  slot={label}
+                  name="크기 스케일"
+                  value={t.scale}
+                  min={0.7}
+                  max={1.5}
+                  step={0.05}
+                  display={`${t.scale.toFixed(2)}×`}
+                  onChange={(v) => set(key, "scale", v)}
+                />
+                <TuneRange
+                  slot={label}
+                  name="자간"
+                  value={t.ls}
+                  min={-0.05}
+                  max={0.1}
+                  step={0.005}
+                  display={`${t.ls.toFixed(3)}em`}
+                  onChange={(v) => set(key, "ls", v)}
+                />
+                <TuneRange
+                  slot={label}
+                  name="행간"
+                  value={t.lh}
+                  min={1.0}
+                  max={2.2}
+                  step={0.05}
+                  display={t.lh.toFixed(2)}
+                  onChange={(v) => set(key, "lh", v)}
+                />
+                <TuneRange
+                  slot={label}
+                  name="굵기"
+                  value={t.weight}
+                  min={100}
+                  max={900}
+                  step={100}
+                  display={String(t.weight)}
+                  onChange={(v) => set(key, "weight", v)}
+                />
+              </div>
+            );
+          })}
+          <p className="pt-1 text-xs leading-5 text-[var(--fp-muted)]">
+            굵기는 가변(variable) 폰트에서 단계별로, 고정 굵기 폰트에서는 브라우저 합성으로 적용됩니다.
+          </p>
+        </div>
+      </aside>
+    </>
+  );
+}
+
+function TuneRange({
+  slot,
+  name,
+  value,
+  min,
+  max,
+  step,
+  display,
+  onChange,
+}: {
+  slot: string;
+  name: string;
+  value: number;
+  min: number;
+  max: number;
+  step: number;
+  display: string;
+  onChange: (v: number) => void;
+}) {
+  return (
+    <label className="block">
+      <span className="flex items-center justify-between text-xs">
+        <span className="text-[var(--fp-muted)]">{name}</span>
+        <span className="font-mono font-medium">{display}</span>
+      </span>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        aria-label={`${slot} ${name}`}
+        className="mt-1 h-10 w-full cursor-pointer accent-[var(--fp-accent)]"
+      />
+    </label>
+  );
+}
+
 // ── 하단 페어 슬롯 ──────────────────────────────────────────────────────
 function PairSlot({
   role,
@@ -763,7 +1008,7 @@ function PairSlot({
   onToggleLock: () => void;
 }) {
   return (
-    <div className="flex min-w-0 items-center gap-2 rounded-xl border border-[var(--fp-border)] bg-[var(--fp-bg)] px-3 py-2">
+    <div className="flex min-w-0 items-center gap-2 rounded-lg border border-[var(--fp-border)] bg-[var(--fp-bg)] px-3 py-2">
       <span className="shrink-0 text-[11px] font-semibold text-[var(--fp-muted)]">
         {role}
       </span>
@@ -842,7 +1087,13 @@ function GalleryOverlay({
   onClose,
 }: {
   saved: SavedPair[];
-  onApply: (h: string, s: string, b: string, m: MoodKey) => void;
+  onApply: (
+    h: string,
+    s: string,
+    b: string,
+    m: MoodKey,
+    tune?: TuningState,
+  ) => void;
   onDelete: (savedAt: number) => void;
   onClose: () => void;
 }) {
@@ -863,8 +1114,12 @@ function GalleryOverlay({
     });
   }, [saved]);
 
-  const apply = (h: string, s: string, b: string, m: MoodKey) => {
-    onApply(h, s, b, m);
+  const applyCurated = (p: CuratedPair) => {
+    onApply(p.h, p.s, p.b, p.mood);
+    onClose();
+  };
+  const applySaved = (p: SavedPair) => {
+    onApply(p.h, p.s, p.b, p.mood, p.tuning);
     onClose();
   };
 
@@ -872,7 +1127,7 @@ function GalleryOverlay({
     <OverlayShell title="페어 갤러리" onClose={onClose}>
       <div className="mx-auto max-w-6xl">
         {/* 탭 */}
-        <div className="mb-5 inline-flex rounded-full border border-[var(--fp-border)] p-1">
+        <div className="mb-5 inline-flex rounded-lg border border-[var(--fp-border)] p-1">
           {(
             [
               ["curated", `추천 · ${CURATED_PAIRS.length}`],
@@ -886,7 +1141,7 @@ function GalleryOverlay({
                 type="button"
                 onClick={() => setTab(key)}
                 aria-pressed={active}
-                className="h-10 rounded-full px-4 text-sm font-medium transition"
+                className="h-10 rounded-md px-4 text-sm font-medium transition"
                 style={
                   active
                     ? { background: "var(--fp-accent)", color: "var(--fp-accent-fg)" }
@@ -902,11 +1157,7 @@ function GalleryOverlay({
         {tab === "curated" ? (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {CURATED_PAIRS.map((p) => (
-              <CuratedCard
-                key={p.name}
-                pair={p}
-                onClick={() => apply(p.h, p.s, p.b, p.mood)}
-              />
+              <CuratedCard key={p.name} pair={p} onClick={() => applyCurated(p)} />
             ))}
           </div>
         ) : saved.length === 0 ? (
@@ -919,7 +1170,7 @@ function GalleryOverlay({
               <SavedCard
                 key={p.savedAt}
                 pair={p}
-                onApply={() => apply(p.h, p.s, p.b, p.mood)}
+                onApply={() => applySaved(p)}
                 onDelete={() => onDelete(p.savedAt)}
               />
             ))}
@@ -1013,8 +1264,8 @@ function SavedCard({
         >
           {bLabel} · 가나다 AaBb 123
         </p>
-        <span className="mt-3 inline-block text-xs font-medium text-[var(--fp-accent)]">
-          이 페어 적용 →
+        <span className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-[var(--fp-accent)]">
+          {pair.tuning ? "튜닝 포함 적용 →" : "이 페어 적용 →"}
         </span>
       </button>
     </div>
@@ -1044,7 +1295,7 @@ function OverlayShell({
           type="button"
           onClick={onClose}
           aria-label="닫기"
-          className="grid h-10 w-10 place-items-center rounded-full border border-[var(--fp-border)] hover:bg-[var(--fp-surface-2)]"
+          className="grid h-10 w-10 place-items-center rounded-lg border border-[var(--fp-border)] hover:bg-[var(--fp-surface-2)]"
         >
           <X className="h-4 w-4" aria-hidden />
         </button>
