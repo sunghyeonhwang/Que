@@ -13,6 +13,8 @@ import { corsHeadersFor, resolveAllowedOrigin } from "@/lib/api/cors";
 
 const VIEW_HOSTS = new Set(["view.griff.co.kr", "view.localhost"]);
 const GANTT_HOSTS = new Set(["gant.griff.co.kr", "gant.localhost"]);
+// (4) 폰트 페어링 공개 사이트 — font 호스트면 모든 경로를 /font로 rewrite(인증 없음, 인덱스 허용).
+const FONT_HOSTS = new Set(["font.griff.co.kr", "font.localhost"]);
 
 /** Host 헤더(:port 제거) 소문자. NextRequest.headers 우선, 없으면 nextUrl.host. */
 function hostnameOf(request: NextRequest): string {
@@ -26,6 +28,10 @@ function isViewHost(request: NextRequest): boolean {
 
 function isGanttHost(request: NextRequest): boolean {
   return GANTT_HOSTS.has(hostnameOf(request));
+}
+
+function isFontHost(request: NextRequest): boolean {
+  return FONT_HOSTS.has(hostnameOf(request));
 }
 
 /** /api/* 요청에 CORS를 붙인다(프리플라이트 포함). */
@@ -69,6 +75,13 @@ export function proxy(request: NextRequest): NextResponse {
     const response = NextResponse.next();
     response.headers.set("X-Robots-Tag", "noindex, nofollow");
     return response;
+  }
+
+  if (isFontHost(request)) {
+    // 폰트 페어링 사이트: view처럼 전 경로 rewrite — 공개·비인증이라 그대로 /font 하나로 수렴.
+    const url = request.nextUrl.clone();
+    if (url.pathname !== "/font") url.pathname = "/font";
+    return NextResponse.rewrite(url);
   }
 
   if (!isViewHost(request)) {
