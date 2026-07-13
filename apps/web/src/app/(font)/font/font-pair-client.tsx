@@ -128,6 +128,7 @@ interface SlotTune {
   ls: number; // letter-spacing em, -0.05~0.1
   lh: number; // line-height, 1.0~2.2
   weight: number; // 100~900 step 100
+  uppercase?: boolean; // text-transform: uppercase (하위호환: 없으면 off)
 }
 interface TuningState {
   h: SlotTune;
@@ -136,9 +137,9 @@ interface TuningState {
 }
 function defaultTuning(): TuningState {
   return {
-    h: { scale: 1, ls: 0, lh: 1.2, weight: 700 },
-    s: { scale: 1, ls: 0, lh: 1.4, weight: 500 },
-    b: { scale: 1, ls: 0, lh: 1.7, weight: 400 },
+    h: { scale: 1, ls: 0, lh: 1.2, weight: 700, uppercase: false },
+    s: { scale: 1, ls: 0, lh: 1.4, weight: 500, uppercase: false },
+    b: { scale: 1, ls: 0, lh: 1.7, weight: 400, uppercase: false },
   };
 }
 
@@ -194,6 +195,7 @@ function slot(font: FontDef, key: SlotKey, base: string): React.CSSProperties {
     letterSpacing: `var(--fp-${key}-ls)`,
     lineHeight: `var(--fp-${key}-lh)`,
     fontWeight: `var(--fp-${key}-w)`,
+    textTransform: `var(--fp-${key}-tt)`,
   };
   return s as React.CSSProperties;
 }
@@ -227,8 +229,16 @@ function buildCss(h: FontDef, s: FontDef, b: FontDef, t: TuningState) {
       ...infos.map((u) => `/* ${u} */`),
     ].join("\n");
   }
-  const rule = (sel: string, f: FontDef, tune: SlotTune) =>
-    `${sel} {\n  font-family: '${f.family}';\n  letter-spacing: ${tune.ls}em;\n  line-height: ${tune.lh};\n  font-weight: ${tune.weight};\n} /* 크기 스케일 ${tune.scale.toFixed(2)}× */`;
+  const rule = (sel: string, f: FontDef, tune: SlotTune) => {
+    const lines = [
+      `  font-family: '${f.family}';`,
+      `  letter-spacing: ${tune.ls}em;`,
+      `  line-height: ${tune.lh};`,
+      `  font-weight: ${tune.weight};`,
+    ];
+    if (tune.uppercase) lines.push("  text-transform: uppercase;");
+    return `${sel} {\n${lines.join("\n")}\n} /* 크기 스케일 ${tune.scale.toFixed(2)}× */`;
+  };
   const usage = [
     rule("h1", h, t.h),
     rule("h2", s, t.s),
@@ -519,14 +529,17 @@ export function FontPairClient() {
     "--fp-h-ls": `${tuning.h.ls}em`,
     "--fp-h-lh": String(tuning.h.lh),
     "--fp-h-w": String(tuning.h.weight),
+    "--fp-h-tt": tuning.h.uppercase ? "uppercase" : "none",
     "--fp-s-scale": String(tuning.s.scale),
     "--fp-s-ls": `${tuning.s.ls}em`,
     "--fp-s-lh": String(tuning.s.lh),
     "--fp-s-w": String(tuning.s.weight),
+    "--fp-s-tt": tuning.s.uppercase ? "uppercase" : "none",
     "--fp-b-scale": String(tuning.b.scale),
     "--fp-b-ls": `${tuning.b.ls}em`,
     "--fp-b-lh": String(tuning.b.lh),
     "--fp-b-w": String(tuning.b.weight),
+    "--fp-b-tt": tuning.b.uppercase ? "uppercase" : "none",
   } as React.CSSProperties;
 
   return (
@@ -1048,6 +1061,8 @@ function TuningPanel({
   useEscClose(onClose);
   const set = (key: SlotKey, field: keyof SlotTune, value: number) =>
     onChange({ ...tuning, [key]: { ...tuning[key], [field]: value } });
+  const setUpper = (key: SlotKey, value: boolean) =>
+    onChange({ ...tuning, [key]: { ...tuning[key], uppercase: value } });
 
   return (
     <>
@@ -1130,6 +1145,16 @@ function TuningPanel({
                   display={String(t.weight)}
                   onChange={(v) => set(key, "weight", v)}
                 />
+                <label className="flex min-h-10 cursor-pointer items-center justify-between">
+                  <span className="text-xs text-[var(--fp-muted)]">대문자</span>
+                  <input
+                    type="checkbox"
+                    checked={!!t.uppercase}
+                    onChange={(e) => setUpper(key, e.target.checked)}
+                    aria-label={`${label} 대문자`}
+                    className="h-5 w-5 cursor-pointer accent-[var(--fp-accent)]"
+                  />
+                </label>
               </div>
             );
           })}
