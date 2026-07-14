@@ -78,6 +78,68 @@ import type { CalendarProvider } from "../calendar-provider";
 import { dedupKeyFor, type NotificationIntent, type NotificationOutboxEntry } from "../notifications";
 import { createSeed } from "./seed";
 
+// ── 회의록 Action 추출 파서(2026-07-14 확정 요약 폼) ──────────────────────────────
+// 확정 폼: "### 작업 항목" 아래 체크박스 `- [ ] 내용 — 담당자[, 담당자…] [날짜]".
+// 요약 불릿·"## AI 제안 요약" 불릿은 Action이 아니므로, 체크박스가 하나라도 있으면 체크박스 라인만 후보로 삼는다.
+
+/** 꼬리(담당자·날짜) 분리에 쓰는 대시류(em-dash·유사) — ASCII 하이픈은 본문에 흔해 제외한다. */
+const ACTION_TAIL_DASHES = ["—", "−", "–", "―"] as const;
+
+/** 'YYYY-MM-DD' → 그날 17:00 KST ISO(업무시간 기본 — 결제 dueAt 관례와 동일). 유효하지 않으면 undefined.
+ *  라운드트립 검증 필수: V8 Date.parse는 2026-02-31 같은 달력에 없는 날짜를 3월로 롤오버해 통과시키지만
+ *  Postgres timestamptz는 거부한다 — 추출 성공 후 persist에서 터지는 비대칭을 여기서 끊는다(글래도스 게이트). */
+function actionDueIso(ymd: string): string | undefined {
+  const iso = `${ymd}T17:00:00+09:00`;
+  const ms = Date.parse(iso);
+  if (Number.isNaN(ms)) return undefined;
+  // KST(+09:00) 벽시계로 되돌려 입력 연·월·일과 일치하는지 확인 — 롤오버면 불일치.
+  const back = new Date(ms + 9 * 3600_000).toISOString().slice(0, 10);
+  return back === ymd ? iso : undefined;
+}
+
+/**
+ * 꼬리 세그먼트의 마감일 파싱(dueAt 재료). 단일 `YYYY-MM-DD`, 범위 `A~B`는 **끝 날짜**
+ * (끝이 `MM-DD`/`DD`처럼 축약이면 A 기준으로 연·월 보정), 복수 나열은 **마지막 날짜**.
+ * "오후" 등 수식어는 무시하고 날짜만. 파싱 실패는 undefined(조용히 마감 없음).
+ */
+function parseActionDueDate(tail: string): string | undefined {
+  const fulls = [...tail.matchAll(/(\d{4})-(\d{2})-(\d{2})/g)];
+  if (fulls.length === 0) return undefined;
+  const last = fulls[fulls.length - 1];
+  let year = Number(last[1]);
+  let month = Number(last[2]);
+  let day = Number(last[3]);
+  // 마지막 완전 날짜 바로 뒤 "~<끝>"이면 끝으로 대체(연·월 축약은 시작값 유지).
+  const after = tail.slice((last.index ?? 0) + last[0].length);
+  const range = after.match(/^\s*[~〜～]\s*(?:(\d{4})-)?(?:(\d{2})-)?(\d{1,2})(?!\d)/);
+  if (range) {
+    if (range[1]) year = Number(range[1]);
+    if (range[2]) month = Number(range[2]);
+    day = Number(range[3]);
+  }
+  const ymd = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  return actionDueIso(ymd);
+}
+
+/**
+ * 꼬리 세그먼트에서 **가장 먼저 언급된** 팀원을 **이름 전체 포함**으로만 안전 매칭한다.
+ * 부분 이름("승환씨"≠"박승환")·호칭("실장님")·익명("Speaker N"·"[Insert Name]")은 미배정 —
+ * 오매칭이 노이즈보다 나쁘다는 판단(2026-07-14 확정).
+ */
+function matchActionAssignee(tail: string, users: readonly User[]): string | undefined {
+  let bestId: string | undefined;
+  let bestIdx = Infinity;
+  for (const u of users) {
+    if (!u.name) continue;
+    const idx = tail.indexOf(u.name);
+    if (idx >= 0 && idx < bestIdx) {
+      bestIdx = idx;
+      bestId = u.id;
+    }
+  }
+  return bestId;
+}
+
 // 인메모리 mock DB. 모든 변경(mutation)은 도메인 규칙을 통과해야 하고
 // ChangeLog에 via(web|mcp|cli)와 함께 기록된다.
 // Phase B(API 계층)에서 같은 인터페이스의 API 어댑터로 교체한다.
@@ -1031,16 +1093,39 @@ export class MockQueDb implements QueDb {
 
     const nowIso = this.now();
     const created: ActionItem[] = [];
-    for (const line of note.markdownBody.split("\n")) {
+    const lines = note.markdownBody.split("\n");
+    // 체크박스 우선 모드: `- [ ]`/`- [x]` 라인이 하나라도 있으면 그 라인만 후보로 삼아
+    // 요약 불릿·"## AI 제안 요약" 불릿(작업 아님)을 통째로 차단한다. 없으면 기존 전체-불릿 동작(하위호환).
+    const hasCheckbox = lines.some((l) => /^\s*[-*]\s+\[[ xX]?\]/.test(l));
+
+    for (const line of lines) {
       const bullet = line.match(/^\s*[-*]\s+(.+)$/)?.[1];
       if (!bullet) continue;
+      const isCheckbox = /^\[[ xX]?\]/.test(bullet);
+      if (hasCheckbox && !isCheckbox) continue; // 체크박스 모드: 일반 불릿(요약·AI 제안) 제외
 
-      // "(담당: 이름 ...)" 패턴에서 담당자 추출
-      const assignee = this.users.find((u) => bullet.includes(`담당: ${u.name}`));
+      // 꼬리(마지막 대시류 뒤 = 담당자·날짜) 분리. 대시가 없으면 꼬리 없음(레거시/일반 불릿).
+      let dashIdx = -1;
+      for (const d of ACTION_TAIL_DASHES) {
+        const i = bullet.lastIndexOf(d);
+        if (i > dashIdx) dashIdx = i;
+      }
+      const titleSrc = dashIdx >= 0 ? bullet.slice(0, dashIdx) : bullet;
+      const tail = dashIdx >= 0 ? bullet.slice(dashIdx + 1) : "";
+
+      // 담당자: 꼬리에서 팀원 전체이름 매칭(첫 언급) → 없으면 레거시 "담당: 이름" 패턴.
+      // 복수 담당이면 첫 매칭자만 assigneeId(나머지는 sourceText 원문에 보존된다).
+      let assigneeId = tail ? matchActionAssignee(tail, this.users) : undefined;
+      if (!assigneeId) {
+        assigneeId = this.users.find((u) => bullet.includes(`담당: ${u.name}`))?.id;
+      }
+      // 마감일: 꼬리 세그먼트의 날짜(단일/범위 끝/복수 마지막/축약 보정). 없으면 undefined.
+      const dueAt = tail ? parseActionDueDate(tail) : undefined;
+
       // 제목은 200자 상한(DB check 제약과 동일)으로 절단 — 원문은 sourceText에 그대로 보존된다.
-      // 마크다운 잔재(체크박스 "[ ]"·**굵게**·__밑줄__)는 벗긴다 — 남기면 알림·목록에 그대로 노출된다
-      // (2026-07-13 실데이터 발견 — 온보딩 영상 검수에서 지적).
-      const title = bullet
+      // 꼬리(담당·날짜)는 titleSrc 단계에서 이미 제거됐고, 마크다운 잔재(체크박스 "[ ]"·**굵게**·
+      // __밑줄__)·"(담당: …)"를 벗긴다 — 남기면 알림·목록에 그대로 노출된다(2026-07-13 온보딩 검수 지적).
+      const title = titleSrc
         .replace(/^\[[ xX]?\]\s*/, "")
         .replace(/\*\*([^*]+)\*\*/g, "$1")
         .replace(/__([^_]+)__/g, "$1")
@@ -1050,15 +1135,20 @@ export class MockQueDb implements QueDb {
         .slice(0, 200);
       if (!title) continue;
 
+      const hasAssignee = Boolean(assigneeId);
+      const hasDue = Boolean(dueAt);
       const item: ActionItem = {
         id: this.nextId("act"),
         meetingNoteId: note.id,
         sourceText: bullet,
         title,
-        assigneeId: assignee?.id,
+        assigneeId,
+        dueAt,
         projectId: note.projectId,
-        status: "needs_review", // 마감일은 추출하지 않으므로 항상 확인 필요로 시작
-        confidence: assignee ? 0.8 : 0.5,
+        // 담당·마감이 모두 있으면 생성 대기(candidate) — updateActionItem 승격 규칙과 동일 기준.
+        // **Task 자동 생성은 여전히 금지**(도메인 규칙) — candidate는 사람이 확인 후 confirmActionItem으로만 생성.
+        status: hasAssignee && hasDue ? "candidate" : "needs_review",
+        confidence: hasAssignee && hasDue ? 0.9 : hasAssignee ? 0.8 : hasDue ? 0.6 : 0.5,
         createdAt: nowIso,
       };
       this.actionItems.push(item);

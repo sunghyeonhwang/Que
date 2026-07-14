@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { createMockDb } from "./data/mock-db";
 import {
@@ -870,7 +872,7 @@ describe("회의록 업로드와 Action 추출", () => {
         fileName: "정리.md",
         markdownBody: [
           "- [ ] **의자 및 좌석 배치**: 조달 방안 검토",
-          "- __발표자 안내__ 메일 발송",
+          "- [ ] __발표자 안내__ 메일 발송",
         ].join("\n"),
       },
     );
@@ -959,6 +961,149 @@ describe("회의록 업로드와 Action 추출", () => {
     );
     expect(note.visibility).toBe("restricted");
     expect(note.restrictedUserIds).toEqual(["park-seunghwan"]);
+  });
+});
+
+describe("Action 추출 — 확정 요약 폼(체크박스·담당·마감) 실물 회귀", () => {
+  // 실물 샘플(2026-07-14 확정 폼): 섹션 요약 불릿 + '### 작업 항목' 체크박스 + 말미 'AI 제안 요약' 불릿.
+  const SAMPLE = readFileSync(
+    fileURLToPath(new URL("./__fixtures__/meeting-note-sample-epic-0714.md", import.meta.url)),
+    "utf8",
+  );
+
+  function extractFromSample() {
+    const d = db();
+    const note = d.createMeetingNote(
+      { actorId: "oh-seunghoon", via: "web" },
+      {
+        title: "07-14 주간 회의",
+        meetingAt: NOW.toISOString(),
+        attendeeIds: [],
+        fileName: "meeting-note-sample-epic-0714.md",
+        markdownBody: SAMPLE,
+      },
+    );
+    return d.extractActionItems({ actorId: "oh-seunghoon", via: "web" }, note.id);
+  }
+
+  it("체크박스 라인만 추출하고 요약·AI 제안 불릿은 제외한다(59건)", () => {
+    const items = extractFromSample();
+    // 샘플의 '- [ ]' 체크박스는 정확히 59개. 섹션 요약 불릿·'AI 제안 요약' 11개 등 일반 불릿은 전부 제외.
+    expect(items).toHaveLength(59);
+    // 요약/AI 제안 불릿 특유의 문장이 후보 제목에 섞이지 않았는지(노이즈 차단 검증).
+    expect(items.some((i) => i.title.includes("백업 스폰서"))).toBe(false); // AI 제안 요약 불릿
+    expect(items.some((i) => i.title.includes("메타 픽셀 연동은 완료"))).toBe(false); // 섹션 요약 불릿
+  });
+
+  it("마감일을 단일/범위 끝/복수 마지막/월넘김으로 파싱한다(45건, 17:00 KST)", () => {
+    const items = extractFromSample();
+    const withDue = items.filter((i) => i.dueAt);
+    expect(withDue).toHaveLength(45);
+    // 모든 dueAt는 업무시간(17:00 +09:00) 기본 관례.
+    expect(withDue.every((i) => i.dueAt!.endsWith("T17:00:00+09:00"))).toBe(true);
+    const dueDay = (title: string) =>
+      items.find((i) => i.title.startsWith(title))?.dueAt?.slice(0, 10);
+    // 범위 '2026-07-31~08-02' → 끝(월 넘김 보정).
+    expect(dueDay("브랜딩 디자인 최종 컨펌")).toBe("2026-08-02");
+    // 범위 '2026-07-15~19' → 끝(일 축약 보정).
+    expect(dueDay("시트 옆 오프라인 디자인")).toBe("2026-07-19");
+    // 복수 '2026-07-26, 2026-07-30' → 마지막.
+    expect(dueDay("대표 대시보드 개선")).toBe("2026-07-30");
+    // '2026-07-15 오후' → 수식어 무시, 날짜만.
+    expect(dueDay("발표자 리마인더 메일")).toBe("2026-07-15");
+  });
+
+  it("익명·호칭·부분이름은 미배정 — 오매칭보다 미배정이 안전(샘플 담당 매칭 0건)", () => {
+    const items = extractFromSample();
+    // 샘플 담당자는 전부 'Speaker N'·'[Insert Name]'·호칭('실장님')·비팀원('박정현 차장님')·부분이름('승환씨').
+    // 팀원 전체이름이 담긴 꼬리가 하나도 없어 매칭 0건이 정상(안전 매칭).
+    expect(items.filter((i) => i.assigneeId)).toHaveLength(0);
+    // 담당·마감 모두 없으니 candidate 승격 0건 — 전부 확인 필요.
+    expect(items.filter((i) => i.status === "candidate")).toHaveLength(0);
+    expect(items.every((i) => i.status === "needs_review")).toBe(true);
+    // 마감만 있는 항목의 신뢰도는 0.6, 둘 다 없으면 0.5.
+    const dued = items.find((i) => i.dueAt);
+    expect(dued?.confidence).toBe(0.6);
+    const bare = items.find((i) => !i.dueAt && !i.assigneeId);
+    expect(bare?.confidence).toBe(0.5);
+  });
+
+  it("담당·마감이 모두 있으면 candidate로 승격하고 신뢰도 0.9 — Task 자동 생성은 없다", () => {
+    const d = db();
+    // 팀원 전체이름(황성현) + 단일 마감이 담긴 체크박스 1줄.
+    const note = d.createMeetingNote(
+      { actorId: "oh-seunghoon", via: "web" },
+      {
+        title: "확정 폼 단건",
+        meetingAt: NOW.toISOString(),
+        attendeeIds: [],
+        fileName: "one.md",
+        markdownBody: "### 작업 항목\n- [ ] 랜딩 카피 최종 검토 — 황성현 2026-07-17",
+      },
+    );
+    const before = d.tasks.length;
+    const [item] = d.extractActionItems({ actorId: "oh-seunghoon", via: "web" }, note.id);
+    expect(item.assigneeId).toBe("hwang-sunghyeon");
+    expect(item.dueAt).toBe("2026-07-17T17:00:00+09:00");
+    expect(item.status).toBe("candidate");
+    expect(item.confidence).toBe(0.9);
+    expect(item.title).toBe("랜딩 카피 최종 검토"); // 꼬리(담당·날짜) 제거
+    expect(item.sourceText).toContain("황성현 2026-07-17"); // 원문 보존
+    expect(d.tasks.length).toBe(before); // 자동 Task 생성 금지(도메인 규칙)
+  });
+
+  it("복수 담당은 첫 언급 팀원만 assigneeId, 나머지는 sourceText에 남는다", () => {
+    const d = db();
+    const note = d.createMeetingNote(
+      { actorId: "oh-seunghoon", via: "web" },
+      {
+        title: "복수 담당",
+        meetingAt: NOW.toISOString(),
+        attendeeIds: [],
+        fileName: "multi.md",
+        markdownBody: "### 작업 항목\n- [ ] 부스 세팅 점검 — 이예진, 김리원 2026-07-20",
+      },
+    );
+    const [item] = d.extractActionItems({ actorId: "oh-seunghoon", via: "web" }, note.id);
+    expect(item.assigneeId).toBe("lee-yejin"); // 꼬리에서 먼저 언급된 이예진
+    expect(item.sourceText).toContain("김리원"); // 둘째 담당은 원문 보존
+  });
+
+  it("체크박스가 전혀 없는 문서는 기존 전체-불릿 동작(하위호환)", () => {
+    const d = db();
+    const note = d.createMeetingNote(
+      { actorId: "oh-seunghoon", via: "web" },
+      {
+        title: "구형 회의록",
+        meetingAt: NOW.toISOString(),
+        attendeeIds: [],
+        fileName: "legacy.md",
+        markdownBody: ["## 할 일", "- 배너 문구 검토", "- 예산안 정리 (담당: 황성현)"].join("\n"),
+      },
+    );
+    const items = d.extractActionItems({ actorId: "oh-seunghoon", via: "web" }, note.id);
+    expect(items).toHaveLength(2); // 체크박스 없음 → 모든 불릿 후보
+    expect(items[1].assigneeId).toBe("hwang-sunghyeon"); // 레거시 '담당: 이름' 유지
+    expect(items[1].title).toBe("예산안 정리");
+  });
+
+  it("달력에 없는 날짜(2월 31일)는 조용히 무시한다 — V8 롤오버/Postgres 거부 비대칭 차단", () => {
+    const d = db();
+    const note = d.createMeetingNote(
+      { actorId: "oh-seunghoon", via: "web" },
+      {
+        title: "달력 오류",
+        meetingAt: NOW.toISOString(),
+        attendeeIds: [],
+        fileName: "bad-date.md",
+        markdownBody: "### 작업 항목\n- [ ] 정산 마감 — 황성현 2026-02-31",
+      },
+    );
+    const [item] = d.extractActionItems({ actorId: "oh-seunghoon", via: "web" }, note.id);
+    // V8 Date.parse는 2026-02-31을 3월 3일로 롤오버해 통과시키지만, 라운드트립 검증이 걸러낸다.
+    expect(item.dueAt).toBeUndefined();
+    expect(item.assigneeId).toBe("hwang-sunghyeon"); // 담당 매칭은 유지
+    expect(item.status).toBe("needs_review"); // 마감 없음 → 승격 안 됨
   });
 });
 
