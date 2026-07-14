@@ -4,17 +4,23 @@ import { revalidatePath } from "next/cache";
 import { isQueRuleError, type PaymentCategory, type PaymentStatus } from "@que/core";
 import { getDb } from "@/lib/db";
 import { getCurrentUser } from "@/lib/current-user";
+import { notifyPaymentCreated, notifyPaymentDone } from "@/lib/notifications/dispatch";
 import type { ActionResult } from "@/app/(app)/today/actions";
 
 type Db = Awaited<ReturnType<typeof getDb>>;
 
 // mutation과 persist를 반드시 같은 db 인스턴스에서 (글래도스 반려 회귀 — cache 정체성 의존 금지).
-async function toResult(fn: (db: Db) => Promise<unknown> | unknown): Promise<ActionResult> {
+// afterCommit: persist 성공 직후 알림 훅(있으면). 절대 throw하지 않는 훅만 전달한다(발송 실패가 응답을 막지 않게).
+async function toResult<T>(
+  fn: (db: Db) => Promise<T> | T,
+  afterCommit?: (db: Db, result: T) => Promise<void>,
+): Promise<ActionResult> {
   try {
     const db = await getDb();
-    await fn(db);
+    const result = await fn(db);
     await db.persist();
     revalidatePath("/payments");
+    if (afterCommit) await afterCommit(db, result);
     return { ok: true };
   } catch (error) {
     if (isQueRuleError(error)) return { ok: false, error: error.message };
@@ -43,8 +49,10 @@ export async function createPaymentRequestAction(input: {
   }
 
   const user = await getCurrentUser();
-  return toResult((db) =>
-    db.createPaymentRequest({ actorId: user.id, via: "web" }, { ...input, dueAt }),
+  return toResult(
+    (db) => db.createPaymentRequest({ actorId: user.id, via: "web" }, { ...input, dueAt }),
+    // 등록 성공 직후 active 관리자(등록자 제외) 개인 DM. 훅은 절대 throw하지 않는다.
+    (db, payment) => notifyPaymentCreated(db, payment.id),
   );
 }
 
@@ -53,7 +61,12 @@ export async function updatePaymentStatusAction(input: {
   to: PaymentStatus;
 }): Promise<ActionResult> {
   const user = await getCurrentUser();
-  return toResult((db) => db.updatePaymentStatus({ actorId: user.id, via: "web" }, input));
+  return toResult(
+    (db) => db.updatePaymentStatus({ actorId: user.id, via: "web" }, input),
+    // 완료(done) 전환에 한해 등록자에게 개인 DM. 훅은 절대 throw하지 않는다.
+    (db, payment) =>
+      input.to === "done" ? notifyPaymentDone(db, payment.id) : Promise.resolve(),
+  );
 }
 
 // 결제 분류(카테고리) 관리 — 관리자 전용. 권한 최종 강제는 core mutation(canManagePaymentCategory).

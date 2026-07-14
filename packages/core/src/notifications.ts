@@ -34,7 +34,13 @@ export type NotificationTone = "red" | "amber" | "violet" | "blue";
  *  dedup_key `crisis:<milestoneId>:<KST날짜>:<recipientId>` — 수신자별 개별 행(마일스톤·날짜·수신자당 1회),
  *  하루 최대 3건 상한은 web dispatch가 distinct 마일스톤 기준으로 강제.
  *  crisis_remind는 2h 미해결 재촉 DM — dedup_key `crisis_remind:<milestoneId>:<KST날짜>:<recipientId>`.
- *  crisis_esc는 4h 미해결 관리자·대표 에스컬레이션 DM — dedup_key `crisis_esc:<milestoneId>:<KST날짜>:<recipientId>`. */
+ *  crisis_esc는 4h 미해결 관리자·대표 에스컬레이션 DM — dedup_key `crisis_esc:<milestoneId>:<KST날짜>:<recipientId>`.
+ *  payment_created는 결제 요청 등록 즉시 **active 관리자 전원(등록자 본인 제외)** 개인 DM — recipient=관리자 userId,
+ *  entityType="payment_request", entityId=paymentId, dedup_key `payment_created:<paymentId>:<recipientId>`
+ *  로 **결제·수신자당 평생 1회**(crisis 수신자별 dedup 패턴). 계좌번호는 payload에 절대 담지 않는다(Slack 계좌 유출 방지).
+ *  payment_done은 결제 완료(status=done) 시 **등록자(requesterId)** 개인 DM — recipient=requesterId,
+ *  entityType="payment_request", entityId=paymentId, dedup_key `payment_done:<paymentId>:<lastChangedAt ISO>`
+ *  로 **완료 이벤트당 1회**(재완료 시 lastChangedAt이 바뀌어 재발송 가능). 계좌번호 미포함 동일. */
 export type NotificationKind =
   | "issue"
   | "on_hold"
@@ -52,7 +58,9 @@ export type NotificationKind =
   | "crisis_remind"
   | "crisis_esc"
   | "change_remind"
-  | "change_esc";
+  | "change_esc"
+  | "payment_created"
+  | "payment_done";
 
 /** 아웃박스 status 컬럼. */
 export type NotificationStatus = "pending" | "held" | "sent" | "skipped" | "failed";
@@ -127,6 +135,11 @@ export interface NotificationContext {
 export function dedupKeyFor(intent: NotificationIntent): string {
   // task_created는 task 1건당 평생 1회 — marker 없이 taskId만으로 유일키(재시도·중복 훅 방지).
   if (intent.kind === "task_created") return `task_created:${intent.entityId}`;
+  // payment_created는 결제·수신자당 평생 1회 — recipient(관리자 userId)로 개별화(수신자별 개별 행).
+  if (intent.kind === "payment_created")
+    return `payment_created:${intent.entityId}:${intent.recipient ?? intent.marker}`;
+  // payment_done은 완료 이벤트(lastChangedAt ISO=marker)당 1회 — 재완료 시 marker가 바뀌어 재발송 가능.
+  if (intent.kind === "payment_done") return `payment_done:${intent.entityId}:${intent.marker}`;
   return `${intent.kind}:${intent.entityId}:${intent.marker}`;
 }
 

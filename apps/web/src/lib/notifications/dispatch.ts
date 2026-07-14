@@ -299,6 +299,107 @@ export async function notifyTaskCreated(
   }
 }
 
+/** 금액 원화 콤마 포맷("1,234,000원"). 결제 DM 표시용(계좌번호와 무관 — 금액만). */
+function formatWon(amount: number): string {
+  return `${Math.round(amount).toLocaleString("ko-KR")}원`;
+}
+
+/**
+ * 결제 요청 등록 DM(payment_created) 훅. **persist 성공 직후** 호출한다. **절대 throw하지 않는다.**
+ * 수신자: **active 관리자(role=admin) 전원 중 등록자 본인 제외** — 각자 개인 DM.
+ * 게이트: Bot Token(personalDigestEnabled). dedup `payment_created:<paymentId>:<recipientId>`(결제·수신자당 평생 1회).
+ * ⚠️ digestRecipientAllowlist(QUE_DIGEST_RECIPIENTS)를 **적용하지 않는다** — 프로덕션이 대표만 허용이라도
+ *    결제 알림은 등록자·관리자에게 반드시 도달해야 한다는 사용자 결정(2026-07-14). 개인 브리핑 단계적
+ *    롤아웃 게이트와 목적이 다른 **트랜잭셔널 알림**이라 allowlist를 우회한다.
+ * ⚠️ 계좌번호는 payload에 절대 담지 않는다(마스킹 규칙 — Slack 계좌 유출 방지). 금액·제목·분류·요청자·마감일만.
+ * 방해금지(22-8) 창 안이면 enqueueAndSend가 hold(창 종료 후 발송).
+ */
+export async function notifyPaymentCreated(
+  db: MockQueDb,
+  paymentId: string,
+  now: Date = new Date(),
+): Promise<void> {
+  if (!personalDigestEnabled()) return; // 개인 DM — Bot Token 게이트
+  try {
+    const payment = db.paymentRequests.find((p) => p.id === paymentId);
+    if (!payment) return;
+    const nameOf = (id: string) => db.users.find((u) => u.id === id)?.name ?? id;
+    const lines = [
+      `제목: ${payment.title}`,
+      `분류: ${payment.category}`,
+      `금액: ${formatWon(payment.amount)}`,
+      `요청자: ${nameOf(payment.requesterId)}`,
+      `마감일: ${formatKstDateTime(payment.dueAt)}`,
+    ];
+    const admins = db.users.filter(
+      (u) => u.role === "admin" && u.active !== false && u.id !== payment.requesterId,
+    );
+    const intents: NotificationIntent[] = admins.map((admin) => ({
+      kind: "payment_created",
+      entityType: "payment_request",
+      entityId: payment.id,
+      marker: admin.id, // recipient로 dedup(수신자 개별화) — marker는 폴백 재료
+      recipient: admin.id, // 발송 직전 Slack member ID로 해석
+      payload: {
+        title: "새 결제 요청",
+        text: lines.join("\n"),
+        deeplinkPath: "/payments",
+        tone: "blue", // 정보성(NotificationTone에 green 없음)
+      },
+    }));
+    if (intents.length === 0) return; // 등록자 외 active 관리자 없음
+    await enqueueAndSend(db, intents, now);
+  } catch (error) {
+    // 발송 로직 실패가 결제 등록을 되돌리지 않게 흡수한다(dispatch 기존 원칙).
+    console.error("[que-notify] notifyPaymentCreated 실패(무시)", error);
+  }
+}
+
+/**
+ * 결제 완료 DM(payment_done) 훅. **persist 성공 직후** 호출한다(status가 done으로 바뀐 뒤). **절대 throw하지 않는다.**
+ * 수신자: **등록자(requesterId)** — 처리자 본인이 등록자여도 발송한다(사용자 요구 그대로).
+ * 게이트: Bot Token(personalDigestEnabled). dedup `payment_done:<paymentId>:<lastChangedAt ISO>`(완료 이벤트당 1회).
+ * ⚠️ digestRecipientAllowlist를 적용하지 않는다(트랜잭셔널 — notifyPaymentCreated와 동일 결정).
+ * ⚠️ 계좌번호는 payload에 절대 담지 않는다. 제목·금액·처리자·완료 시각만.
+ * 방해금지(22-8) 창 안이면 enqueueAndSend가 hold(창 종료 후 발송).
+ */
+export async function notifyPaymentDone(
+  db: MockQueDb,
+  paymentId: string,
+  now: Date = new Date(),
+): Promise<void> {
+  if (!personalDigestEnabled()) return; // 개인 DM — Bot Token 게이트
+  try {
+    const payment = db.paymentRequests.find((p) => p.id === paymentId);
+    if (!payment || !payment.requesterId) return;
+    const nameOf = (id: string) => db.users.find((u) => u.id === id)?.name ?? id;
+    const changedAt = payment.lastChangedAt ?? now.toISOString();
+    const handler = payment.lastChangedBy ? nameOf(payment.lastChangedBy) : "-";
+    const lines = [
+      `제목: ${payment.title}`,
+      `금액: ${formatWon(payment.amount)}`,
+      `처리자: ${handler}`,
+      `완료 시각: ${formatKstDateTime(changedAt)}`,
+    ];
+    const intent: NotificationIntent = {
+      kind: "payment_done",
+      entityType: "payment_request",
+      entityId: payment.id,
+      marker: changedAt, // 완료 이벤트(lastChangedAt ISO)당 1회 — 재완료 시 재발송
+      recipient: payment.requesterId, // 발송 직전 Slack member ID로 해석
+      payload: {
+        title: "결제 완료",
+        text: lines.join("\n"),
+        deeplinkPath: "/payments",
+        tone: "blue", // 정보성(NotificationTone에 green 없음)
+      },
+    };
+    await enqueueAndSend(db, [intent], now);
+  } catch (error) {
+    console.error("[que-notify] notifyPaymentDone 실패(무시)", error);
+  }
+}
+
 /**
  * 크론 드레인. held 중 창이 끝난 것을 pending으로 풀고, pending + 재시도 가능한 failed를 전량 발송한다.
  * attempts 상한(MAX_ATTEMPTS) 초과 failed는 재시도하지 않는다(무한 재시도 방지).

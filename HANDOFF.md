@@ -41,6 +41,9 @@ mock 인증: 쿠키 `que-user=<id>` / PAT `que_pat_<id>` (예: `hwang-sunghyeon`
 
 **프로덕션은 GRIFF Pro 팀(`griff-fde0dc32/que`) · <https://que.griff.co.kr> · 실 DB(`QUE_DB=supabase`)+실 인증(Auth.js) 라이브.** 비밀값은 `data/.env`(gitignore). Vercel env로 기능 게이트(아래 참고).
 
+#### 💳 결제요청 Slack DM 2종 (2026-07-14 사용자 요청 — 오승훈 등록 건 DM 미수신 리포트로 발견)
+결제 알림은 **미구현이었음**(버그 아님). 구현: ①`payment_created` — 등록 시 active 관리자 전원(등록자 제외) 개인 DM, dedup `payment_created:<paymentId>:<recipientId>` 평생 1회 ②`payment_done` — `updatePaymentStatus(to=done)` 시 등록자에게 DM(처리자=등록자여도 발송), dedup `payment_done:<paymentId>:<lastChangedAt>`(재완료 시 재발송). 훅은 payments/actions.ts(persist 후, toResult→afterCommit 확장), 빌더는 dispatch.ts `notifyPaymentCreated/Done`(notifyTaskCreated 패턴, throw 금지, Bot Token 게이트). **⚠️ digestRecipientAllowlist 의도적 우회**(사용자 결정 2026-07-14 — `QUE_DIGEST_RECIPIENTS=hwang-sunghyeon` 상태에서도 결제 DM은 관리자·등록자에게 가야 함. 트랜잭셔널 알림은 브리핑 롤아웃 게이트와 목적이 다름). **계좌번호는 payload에 절대 미포함**(Slack 유출 방지). payload에 제목/분류/금액(콤마)/요청자·처리자/마감·완료시각, 딥링크 /payments, tone blue. **DB 마이그레이션 필수**: `db/supabase/add-payment-notification-kinds.sql`(outbox kind CHECK에 2종 추가 — task_created 유실 사고 재발 방지. **적용 전 배포 시 결제는 정상이나 DM만 조용히 유실**). core 테스트 279(신규 4). 도움말 결제 섹션에 DM 안내 추가.
+
 #### ✅ 완료·라이브 (2026-07-06~07) — 상세는 각 절 참고
 - **팀원·권한 관리 확장**(설정›직원관리: 추가·비활성·권한변경·정보편집) · **view 현황판**(주간뷰 겹침 레인 분할+N 상한, Week range 제거·기본 3day, hide-completed 즉시반응) · **로그아웃 오류 수정**(NEXT_REDIRECT 오인).
 - **Pro 팀 이전**(GRIFF, env·도메인·git 함께) · **cron 활성화**(`*/10` `/api/cron/sync`) · **Sentry**(에러 리포팅) · **Slack B-1**(팀채널 알림·스탠드업, `SLACK_WEBHOOK_URL`) · **Slack Phase 2**(개인 DM 브리핑 9:50, `SLACK_BOT_TOKEN`, 8명 매핑) · **CLI/MCP**(방식 (b) repo 실행 + `/tools` 사전준비 온보딩) · **마감임박 임계 env화** · **도움말 전면 개편**(8→13섹션).
