@@ -1167,11 +1167,12 @@ export class MockQueDb implements QueDb {
     return created;
   }
 
-  /** Action 후보의 담당자/마감일/프로젝트 지정. 확인 필요 → 생성 대기 승격을 처리한다. */
+  /** Action 후보의 제목/담당자/마감일/프로젝트 지정. 확인 필요 → 생성 대기 승격을 처리한다. */
   updateActionItem(
     ctx: ActorContext,
     input: {
       actionItemId: string;
+      title?: string;
       assigneeId?: string;
       dueAt?: string;
       projectId?: string;
@@ -1188,6 +1189,17 @@ export class MockQueDb implements QueDb {
     }
     if (input.assigneeId && !this.users.some((u) => u.id === input.assigneeId)) {
       throw new QueRuleError("NOT_FOUND", `사용자 없음: ${input.assigneeId}`);
+    }
+    // 제목 수정 — 추출 시 절단 규약(200자, DB check 제약)과 동일. 원문(sourceText)은 건드리지 않는다.
+    let titleChanged: string | undefined;
+    if (input.title !== undefined) {
+      const title = input.title.trim();
+      if (!title) throw new QueRuleError("INVALID_INPUT", "Action 제목은 비울 수 없다");
+      const next = title.slice(0, 200);
+      if (next !== item.title) {
+        item.title = next;
+        titleChanged = next;
+      }
     }
     if (input.dueAt) {
       const range = parseScheduleRange({ startAt: input.dueAt, endAt: input.dueAt });
@@ -1208,6 +1220,8 @@ export class MockQueDb implements QueDb {
       entityId: item.id,
       changeType: "update",
       afterValue: item.status,
+      // afterValue가 status만 남겨 제목 변경이 로그에 안 보이던 공백을 reason으로 보강.
+      ...(titleChanged !== undefined && { reason: `제목 수정: ${titleChanged}` }),
     });
     return item;
   }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Pencil } from "lucide-react";
 import { ACTION_ITEM_STATUS_LABELS, type ActionItemStatus } from "@que/core";
 import { useRoster } from "@/components/app/roster-provider";
 import { useSafeAction } from "@/components/app/use-safe-action";
@@ -61,6 +62,8 @@ export function ActionRow({
   const roster = useRoster();
   const userItems = Object.fromEntries(roster.map((u) => [u.id, u.name]));
   const { run: runAction, pending } = useSafeAction();
+  const [title, setTitle] = useState(item.title);
+  const [editingTitle, setEditingTitle] = useState(false);
   const [assigneeId, setAssigneeId] = useState(item.assigneeId ?? "");
   const [projectId, setProjectId] = useState(item.projectId ?? "");
   const [dueDate, setDueDate] = useState(item.dueDate ?? "");
@@ -74,12 +77,33 @@ export function ActionRow({
     runAction(fn, { success: successMessage });
   };
 
-  // 저장 대상: 담당자·프로젝트·마감일·마감시각. 시작시각은 확정 전용(저장 대상 아님).
+  // 저장 대상: 제목·담당자·프로젝트·마감일·마감시각. 시작시각은 확정 전용(저장 대상 아님).
   const dirty =
+    title !== item.title ||
     assigneeId !== (item.assigneeId ?? "") ||
     projectId !== (item.projectId ?? "") ||
     dueDate !== (item.dueDate ?? "") ||
     dueTime !== (item.dueTime ?? "");
+
+  // 저장(제목 포함) — 제목은 바뀌었을 때만 전달(빈 제목은 core가 거부해 토스트로 표시된다).
+  const save = () =>
+    run(
+      () =>
+        updateActionItemAction({
+          actionItemId: item.id,
+          title: title !== item.title ? title : undefined,
+          assigneeId: assigneeId || undefined,
+          projectId: projectId || undefined,
+          dueDate: dueDate || undefined,
+          dueTime: dueTime || undefined,
+        }),
+      "후보 정보를 저장했습니다.",
+    );
+
+  const cancelTitleEdit = () => {
+    setTitle(item.title);
+    setEditingTitle(false);
+  };
 
   return (
     <div className="rounded-xl border border-[var(--que-border)] bg-[var(--que-bg)] p-3.5">
@@ -87,9 +111,49 @@ export function ActionRow({
         <ToneBadge tone={STATUS_TONE[item.status]}>
           {ACTION_ITEM_STATUS_LABELS[item.status]}
         </ToneBadge>
-        <p className="min-w-0 flex-1 truncate text-sm font-medium text-[var(--que-text)]">
-          {item.title}
-        </p>
+        {editingTitle ? (
+          <Input
+            autoFocus
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                setEditingTitle(false);
+                save();
+              } else if (e.key === "Escape") {
+                e.preventDefault();
+                cancelTitleEdit();
+              }
+            }}
+            onBlur={() => setEditingTitle(false)}
+            aria-label={`${item.title} 제목 수정 입력`}
+            className="h-10 min-w-0 flex-1 rounded-lg text-sm font-medium"
+          />
+        ) : (
+          <>
+            {/* 표시 제목 = 편집 state — blur로 닫힌 미저장 편집값이 화면과 저장 페이로드에서
+                갈라지는 함정 방지(글래도스 지적: 보이지 않는 제목이 저장되는 유령 상태). */}
+            <p className="min-w-0 flex-1 truncate text-sm font-medium text-[var(--que-text)]">
+              {title}
+            </p>
+            {!resolved && (
+              <Button
+                type="button"
+                variant="ghost"
+                aria-label="제목 수정"
+                className="size-10 shrink-0 rounded-lg p-0 text-[var(--que-text-tertiary)]"
+                disabled={pending}
+                onClick={() => {
+                  setTitle(item.title);
+                  setEditingTitle(true);
+                }}
+              >
+                <Pencil className="size-4" aria-hidden />
+              </Button>
+            )}
+          </>
+        )}
       </div>
       <p className="mt-1 text-xs text-[var(--que-text-tertiary)]">
         원문: “{item.sourceText}” — {item.noteName}
@@ -186,19 +250,7 @@ export function ActionRow({
                 size="sm"
                 className="h-10 rounded-lg"
                 disabled={pending}
-                onClick={() =>
-                  run(
-                    () =>
-                      updateActionItemAction({
-                        actionItemId: item.id,
-                        assigneeId: assigneeId || undefined,
-                        projectId: projectId || undefined,
-                        dueDate: dueDate || undefined,
-                        dueTime: dueTime || undefined,
-                      }),
-                    "후보 정보를 저장했습니다.",
-                  )
-                }
+                onClick={save}
               >
                 저장
               </Button>

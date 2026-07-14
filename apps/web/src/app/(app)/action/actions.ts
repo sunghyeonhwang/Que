@@ -91,6 +91,7 @@ export async function setActionItemStatusAction(input: {
 
 export async function updateActionItemAction(input: {
   actionItemId: string;
+  title?: string;
   assigneeId?: string;
   projectId?: string;
   dueDate?: string; // YYYY-MM-DD
@@ -108,6 +109,7 @@ export async function updateActionItemAction(input: {
       { actorId: user.id, via: "web" },
       {
         actionItemId: input.actionItemId,
+        title: input.title,
         assigneeId: input.assigneeId,
         projectId: input.projectId,
         dueAt,

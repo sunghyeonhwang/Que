@@ -408,6 +408,43 @@ describe("게이트 반려 회귀 (글래도스 공격 케이스)", () => {
   });
 });
 
+describe("Action 후보 제목 수정 (updateActionItem title)", () => {
+  it("제목을 수정하면 반영되고 ChangeLog reason에 남는다", () => {
+    const d = db();
+    const updated = d.updateActionItem(
+      { actorId: "hwang-sunghyeon", via: "web" },
+      { actionItemId: "act-error-doc", title: "  결제 오류 재현 시나리오 재작성  " },
+    );
+    expect(updated.title).toBe("결제 오류 재현 시나리오 재작성"); // trim 적용
+    const clog = d.changeLogs.at(-1)!;
+    expect(clog.entityId).toBe("act-error-doc");
+    expect(clog.changeType).toBe("update");
+    expect(clog.reason).toContain("제목 수정");
+  });
+
+  it("빈 제목(공백만)은 거부된다", () => {
+    const d = db();
+    expect(() =>
+      d.updateActionItem(
+        { actorId: "hwang-sunghyeon", via: "web" },
+        { actionItemId: "act-error-doc", title: "   " },
+      ),
+    ).toThrowError(/비울 수 없다/);
+  });
+
+  it("이미 처리된(created) Action의 제목은 수정할 수 없다", () => {
+    const d = db();
+    // act-error-doc는 담당·마감이 갖춰진 candidate — 먼저 Task로 확정해 created로 만든다.
+    d.confirmActionItem({ actorId: "hwang-sunghyeon", via: "web" }, "act-error-doc");
+    expect(() =>
+      d.updateActionItem(
+        { actorId: "hwang-sunghyeon", via: "web" },
+        { actionItemId: "act-error-doc", title: "확정 후 제목 변경 시도" },
+      ),
+    ).toThrowError(/이미 처리된/);
+  });
+});
+
 describe("결제 요청 등록", () => {
   it("필수값과 금액을 검증하고 대기 상태로 생성한다", () => {
     const d = db();
