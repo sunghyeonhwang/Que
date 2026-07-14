@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Plus, Trash2 } from "lucide-react";
 import { splitActionItemAction } from "@/app/(app)/action/actions";
+import { DuePicker } from "@/components/app/due-picker";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -205,38 +206,37 @@ function SplitBody({
       {/* 세그먼트 목록 — 태블릿 세로 대비 내부 스크롤 */}
       <div className="flex max-h-[45vh] flex-col gap-2 overflow-y-auto">
         {rows.map((row, idx) => (
-          <div key={row.id} className="flex items-center gap-2">
+          <div key={row.id} className="flex flex-wrap items-center gap-2">
             <Input
               value={row.title}
               onChange={(e) => update(row.id, { title: e.target.value })}
               placeholder={`항목 ${idx + 1} 제목`}
               aria-label={`항목 ${idx + 1} 제목`}
-              className="h-10 min-w-0 flex-1 rounded-lg text-sm"
+              className="h-10 min-w-40 flex-1 rounded-lg text-sm"
             />
-            <input
-              type="date"
-              value={row.date}
-              onChange={(e) => update(row.id, { date: e.target.value })}
-              aria-label={`항목 ${idx + 1} 마감일`}
-              className="h-10 shrink-0 rounded-lg border border-[var(--que-border)] bg-transparent px-2 text-sm"
-            />
-            <input
-              type="time"
-              value={row.time}
-              onChange={(e) => update(row.id, { time: e.target.value })}
-              aria-label={`항목 ${idx + 1} 마감 시각`}
-              className="hidden h-10 shrink-0 rounded-lg border border-[var(--que-border)] bg-transparent px-2 text-sm sm:block"
-            />
-            <Button
-              type="button"
-              variant="ghost"
-              aria-label={`항목 ${idx + 1} 삭제`}
-              className="size-10 shrink-0 rounded-lg p-0 text-[var(--que-text-tertiary)]"
-              disabled={rows.length <= 1}
-              onClick={() => remove(row.id)}
-            >
-              <Trash2 className="size-4" aria-hidden />
-            </Button>
+            <div className="flex items-center gap-2">
+              {/* 분할 세그먼트엔 시작 개념이 없어 시작 절 없이 통합 마감 팝오버만. */}
+              <div className="w-44">
+                <DuePicker
+                  dueDate={row.date}
+                  dueTime={row.time}
+                  onSelectDate={(date) => update(row.id, { date })}
+                  onSelectDueTime={(time) => update(row.id, { time })}
+                  onClear={() => update(row.id, { date: "", time: "" })}
+                  triggerAriaLabel={`항목 ${idx + 1} 마감 설정`}
+                />
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                aria-label={`항목 ${idx + 1} 삭제`}
+                className="size-10 shrink-0 rounded-lg p-0 text-[var(--que-text-tertiary)]"
+                disabled={rows.length <= 1}
+                onClick={() => remove(row.id)}
+              >
+                <Trash2 className="size-4" aria-hidden />
+              </Button>
+            </div>
           </div>
         ))}
       </div>

@@ -79,10 +79,11 @@ function clampDueTime(time: string): string {
 export interface DuePickerProps {
   dueDate: string; // YYYY-MM-DD | ""
   dueTime: string; // HH:mm | ""
-  startTime: string; // HH:mm | ""
   onSelectDate: (date: string) => void;
   onSelectDueTime: (time: string) => void;
-  onSelectStartTime: (time: string) => void;
+  /** 시작 시각 절(선택). 둘 다 주면 하단에 시작 시각 절을 렌더한다(미전달 시 미렌더). */
+  startTime?: string; // HH:mm | ""
+  onSelectStartTime?: (time: string) => void;
   onClear?: () => void;
   triggerAriaLabel?: string;
   triggerClassName?: string;
@@ -269,24 +270,26 @@ export function DuePicker({
           </div>
         </div>
 
-        {/* 시작 시각(마감 −1h 자동, 수동 편집 가능) */}
-        <div className="flex items-center justify-between gap-2 border-t border-[var(--que-border)] pt-2.5">
-          <div className="flex flex-col">
-            <p className="text-xs font-medium text-[var(--que-text-tertiary)]">
-              시작 시각
-            </p>
-            <p className="text-[11px] text-[var(--que-text-tertiary)]">
-              마감 1시간 전 자동 · 직접 조정 가능
-            </p>
+        {/* 시작 시각(마감 −1h 자동, 수동 편집 가능) — 시작 절 사용처에서만 렌더 */}
+        {onSelectStartTime && (
+          <div className="flex items-center justify-between gap-2 border-t border-[var(--que-border)] pt-2.5">
+            <div className="flex flex-col">
+              <p className="text-xs font-medium text-[var(--que-text-tertiary)]">
+                시작 시각
+              </p>
+              <p className="text-[11px] text-[var(--que-text-tertiary)]">
+                마감 1시간 전 자동 · 직접 조정 가능
+              </p>
+            </div>
+            <input
+              type="time"
+              value={startTime ?? ""}
+              onChange={(e) => onSelectStartTime(e.target.value)}
+              aria-label="시작 시각"
+              className="h-9 rounded-lg border border-[var(--que-border)] bg-transparent px-2 text-sm"
+            />
           </div>
-          <input
-            type="time"
-            value={startTime}
-            onChange={(e) => onSelectStartTime(e.target.value)}
-            aria-label="시작 시각"
-            className="h-9 rounded-lg border border-[var(--que-border)] bg-transparent px-2 text-sm"
-          />
-        </div>
+        )}
 
         {hasDue && onClear && (
           <button
