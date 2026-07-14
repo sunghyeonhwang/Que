@@ -67,7 +67,7 @@ gant.griff.co.kr(`(gantt)/gantt`)에서 **task 클릭 시 화면 이탈(/project
 1. **② B2 인증 마무리** — mock PAT 폴백 제거(`api/auth.ts`) + `core/mock/tokens.ts` 삭제 + `QUE_ALLOW_MOCK_AUTH` 제거. **전제: 팀 8명 각자 PAT 재발급**(현재 프로덕션 7/8이 아직 `label='initial'`, 실 재발급은 송수용 1건만). 제거 시 로컬 dev mock 테스트가 깨지니 **다른 개발 다 끝난 맨 마지막에**. (사용자 확정: 맨 마지막.)
 2. **③ 개인 비밀번호 배포** — 현재 전원 공용 `good121930`(`must_change=false`). 개인별 랜덤 + `must_change_password=true`(첫 로그인 강제 변경). 스크립트 있음: `db/supabase/gen-passwords.mts` → `set-passwords.sql`. **전원 강제 변경이라 팀 공지 직전에**. (사용자 확정: 맨 마지막.)
 3. **④ 구글 캘린더 실연동** — `GOOGLE_SERVICE_ACCOUNT_KEY`+도메인위임 대기. **현재 더미 유지**(회사 일정=Mock, Que 일정=실제). **전환 절차: provider 교체 → source=`company` 더미 삭제 → 실 sync**(아래 "그 외 대기 트랙" 참고).
-4. **회의록 액션플랜(항목15)** — 회의록 md 샘플 대기.
+4. ~~**회의록 액션플랜(항목15)** — 회의록 md 샘플 대기.~~ → **✅ 완료(2026-07-14~15)**: 확정 폼 파서 업그레이드 + 제목 편집·마감 팝오버·나누기·드롭다운 필터(위 "회의록 요약 폼" 절). 남은 후속: "실장님" 호칭→실명 매핑(jobRole 배정표 오면).
 5. ~~**Phase 3 (할일 생성→담당자 DM)**~~ → **✅ 완료 (2026-07-08)**: 할일 생성 즉시 담당자에게 개인 DM(task_created). Phase 2 Bot DM 인프라 재사용. 아래 "Slack Phase 3" 절.
 6. (후순위) 그리프 3,4Q 프로젝트 임포트([[griff-3-4q-schedule-sheet]], 담당자 부재 블로커) · 홈 정식 디자인(프리뷰 전 착수 금지).
 
