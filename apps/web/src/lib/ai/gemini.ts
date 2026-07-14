@@ -170,7 +170,10 @@ export async function generateWithTools(params: {
         generationConfig: {
           temperature: 0.2,
           maxOutputTokens: params.maxOutputTokens ?? 2048,
-          thinkingConfig: { thinkingBudget: model === "pro" ? 2048 : 512 },
+          // pro 4096: Copilot 채팅 승급(2026-07-15 사용자 확정 "pro + 추론 예산 상향") — 도구 조합·
+          // 교정 재시도 정확도용 헤드룸. 8192가 아닌 4096인 이유: TIMEOUT_MS(52s) 안에서 다단계
+          // 라운드(최대 3회)를 돌아야 하는 대화형 화면이라 지연 상한을 함께 잡는다.
+          thinkingConfig: { thinkingBudget: model === "pro" ? 4096 : 512 },
         },
       }),
     });

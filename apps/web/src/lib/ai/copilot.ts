@@ -285,6 +285,9 @@ export async function runCopilot(
       systemInstruction: systemPromptFor(new Date()),
       contents,
       functionDeclarations,
+      // Copilot 채팅은 pro(2026-07-15 사용자 확정) — flash의 도구 선택·교정 호출 약점이
+      // 실측으로 확인돼 승급. 배치성 AI(브리핑·요약)의 모델 선택과는 무관.
+      model: "pro",
     });
     const parts = candidate.parts ?? [];
     const calls = parts.filter((p): p is GeminiPart & { functionCall: NonNullable<GeminiPart["functionCall"]> } =>
@@ -476,6 +479,7 @@ export async function runCopilot(
     systemInstruction: systemPromptFor(new Date()),
     contents,
     functionDeclarations: COPILOT_READ_TOOL_DECLARATIONS, // 마지막엔 쓰기 제안 없이 정리만
+    model: "pro",
   });
   const text = collectText(finalCandidate.parts ?? []) || "해당 데이터를 찾지 못했습니다.";
   return { text, sources: dedupeSources(sourceMap) };
