@@ -300,6 +300,14 @@ export async function runCopilot(
         name: call.functionCall.name,
         check: buildDraftChecked(call.functionCall.name, call.functionCall.args ?? {}),
       }));
+      // 참조 ID 실존 검증 — 모델이 지어낸 projectId 등이 카드에 실리는 걸 막는다
+      // (2026-07-14 라이브 실측: 미존재 프로젝트명에 가짜 id "unreal-…-123"을 만들어 카드 발행).
+      // 스키마 통과분도 참조가 죽어 있으면 실패로 강등해 기존 재시도 루프를 태운다.
+      for (const b of built) {
+        if (!b.check.ok) continue;
+        const refError = await verifyDraftRefs(b.check.draft);
+        if (refError) b.check = refError;
+      }
       // 성공분을 누적(중복 제거) + 라벨 해석.
       for (const b of built) {
         if (!b.check.ok) continue;
@@ -599,6 +607,74 @@ function buildDraftChecked(toolName: string, rawArgs: Record<string, unknown>): 
     issues,
     modelError: describeModelError(kind, issues),
     userHint: describeUserHint(kind, issues),
+  };
+}
+
+/** kind → propose 도구명(역매핑, verifyDraftRefs 실패 보고용). */
+const KIND_TO_PROPOSE = Object.fromEntries(
+  Object.entries(PROPOSE_TO_KIND).map(([tool, kind]) => [kind, tool]),
+) as Record<CopilotDraft["kind"], string>;
+
+/**
+ * 스키마를 통과한 draft의 **참조 ID 실존**을 검증한다(모델이 지어낸 id 방어).
+ * 죽은 참조가 있으면 실패 DraftCheck로 강등해 기존 재시도 루프(functionResponse.error)를 태운다 —
+ * 사람이 카드에서 가짜 id를 실행해 core 오류를 맞는 경로를 서버가 먼저 끊는다.
+ * 실존하는 참조만 통과시키므로 권한 상승과 무관(실행 시 core가 권한을 재검증한다).
+ */
+async function verifyDraftRefs(
+  draft: CopilotDraft,
+): Promise<Extract<DraftCheck, { ok: false }> | null> {
+  const db = await getDb();
+  const missing: string[] = [];
+  const hints: string[] = [];
+  const hasUser = (id?: string) => !id || db.users.some((u) => u.id === id);
+  const hasProject = (id?: string) => !id || db.projects.some((p) => p.id === id);
+  if (draft.kind === "create_task" || draft.kind === "create_milestone") {
+    if (!hasProject("projectId" in draft ? draft.projectId : undefined)) {
+      missing.push(
+        `projectId '${draft.projectId}'는 존재하지 않는다. get_project_status나 search_items로 실제 id를 찾아라. 그 이름의 프로젝트가 정말 없으면 propose_create_project로 프로젝트 생성을 먼저 제안하라.`,
+      );
+      hints.push(
+        "말씀하신 프로젝트를 찾지 못했습니다. 정확한 프로젝트 이름을 알려주시거나, 새 프로젝트로 만들어 드릴까요?",
+      );
+    }
+  }
+  if (draft.kind === "create_task" && !hasUser(draft.assigneeId)) {
+    missing.push(`assigneeId '${draft.assigneeId}'는 존재하지 않는다. 모르면 비워라(본인 배정).`);
+    hints.push("담당자를 찾지 못했습니다. 팀원 이름을 다시 알려주세요.");
+  }
+  if (draft.kind === "create_project") {
+    if (draft.clientId && !db.clients.some((c) => c.id === draft.clientId)) {
+      missing.push(`clientId '${draft.clientId}'는 존재하지 않는다. list_clients로 실제 id를 찾거나 비워라.`);
+      hints.push("말씀하신 클라이언트를 찾지 못했습니다.");
+    }
+    if (!hasUser(draft.ownerId)) {
+      missing.push(`ownerId '${draft.ownerId}'는 존재하지 않는다. 모르면 비워라(본인).`);
+      hints.push("담당자를 찾지 못했습니다.");
+    }
+  }
+  if (
+    (draft.kind === "change_status" || draft.kind === "help_request") &&
+    !db.tasks.some((t) => t.id === draft.taskId)
+  ) {
+    missing.push(`taskId '${draft.taskId}'는 존재하지 않는다. search_items나 get_my_today로 실제 id를 찾아라.`);
+    hints.push("대상 작업을 찾지 못했습니다. 작업 이름을 알려주세요.");
+  }
+  if (draft.kind === "help_request") {
+    const dead = draft.helpUserIds.filter((id) => !db.users.some((u) => u.id === id));
+    if (dead.length > 0) {
+      missing.push(`helpUserIds ${dead.map((d) => `'${d}'`).join(", ")}는 존재하지 않는다.`);
+      hints.push("도움을 요청할 팀원을 찾지 못했습니다.");
+    }
+  }
+  if (missing.length === 0) return null;
+  return {
+    ok: false,
+    toolName: KIND_TO_PROPOSE[draft.kind],
+    kind: draft.kind,
+    rawArgs: draft as unknown as Record<string, unknown>,
+    modelError: `참조 검증 실패 — ${missing.join(" ")}`,
+    userHint: hints.join(" "),
   };
 }
 
