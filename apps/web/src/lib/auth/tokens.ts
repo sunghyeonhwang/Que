@@ -80,6 +80,29 @@ export async function listPats(userId: string): Promise<PatRow[]> {
   }));
 }
 
+/** 특정 라벨의 활성 토큰을 모두 폐기한다(같은 유저 스코프).
+ *  용도: 재발급형 표면(SSO 등)에서 발급 직전 같은 라벨의 기존 토큰을 회수해 누적을 막는다(rotate).
+ *  반환은 폐기된 행 수(0이면 기존 토큰 없음 — 첫 발급). */
+export async function revokePatsByLabel(input: {
+  userId: string;
+  label: string;
+}): Promise<{ ok: boolean; revoked: number }> {
+  if (!useSupabase) return { ok: false, revoked: 0 };
+  const label = input.label.trim();
+  if (!label) return { ok: false, revoked: 0 };
+  const client = admin();
+  // user_id + label 스코프. select로 폐기 행 수를 회수(멱등 — 이미 revoked면 대상 아님).
+  const { data, error } = await client
+    .from("personal_access_tokens")
+    .update({ revoked_at: new Date().toISOString() })
+    .eq("user_id", input.userId)
+    .eq("label", label)
+    .is("revoked_at", null)
+    .select("token_hash");
+  if (error) return { ok: false, revoked: 0 };
+  return { ok: true, revoked: data?.length ?? 0 };
+}
+
 export async function revokePat(input: {
   userId: string;
   tokenHash: string;

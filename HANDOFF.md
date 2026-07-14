@@ -41,6 +41,9 @@ mock 인증: 쿠키 `que-user=<id>` / PAT `que_pat_<id>` (예: `hwang-sunghyeon`
 
 **프로덕션은 GRIFF Pro 팀(`griff-fde0dc32/que`) · <https://que.griff.co.kr> · 실 DB(`QUE_DB=supabase`)+실 인증(Auth.js) 라이브.** 비밀값은 `data/.env`(gitignore). Vercel env로 기능 게이트(아래 참고).
 
+#### 🔗 Que↔DayBlocks(todo.griff.co.kr) SSO (2026-07-14 사용자 요청 "세션 공유")
+사용자 원요청은 "쿠키 도메인 확대+미들웨어 이식"이었으나 **todo(DayBlocks, `~/Desktop/todo_griff`)는 정적 Vite SPA(서버 없음, Que PAT 로그인 기내장)** — 쿠키 확대 불필요·불가 판정, 대신 **PAT 교환 SSO**로 구현. ①Que: `GET /api/auth/sso`(신규 route) — Auth.js 세션 쿠키(SameSite=Lax는 *.griff.co.kr same-site라 todo발 fetch에도 전송, **쿠키 도메인 미확대가 설계 핵심**)로 사용자 확정 → `loadReadOnlyDb`로 role·active 현재값 검증 → 같은 라벨 PAT rotate(`revokePatsByLabel` 신규) 후 `issuePat(label="sso-dayblocks")` → `{token,user}` 반환. CORS는 이 라우트만 `corsHeadersWithCredentials`(ACAO 화이트리스트 에코+ACA-Credentials, proxy.ts 경로 분기) — 전역 Bearer CORS 불변. 주의: issuePat MAX_ACTIVE=10 캡 공유(활성 10개 찬 유저는 SSO 500), mock dev에선 500(supabase 게이트). ②DayBlocks: `ssoLogin()`(queApi, X-Que-Via 없음=simple request 유지)+`trySso`(authStore, ssoAttempted 1회 가드)+App 부팅 silent 시도(anon&&!dismissed, 스피너 게이트)+LoginScreen "Que 세션으로 연결" 수동 버튼. 로그아웃 직후 자동 재로그인 안 함(수동만). DESIGN.md §14.2 예외+§14.9 신설로 문서화. todo 레포는 별도 커밋·별도 vercel 배포.
+
 #### 📊 통합 간트 task 편집 (2026-07-14 사용자 요청)
 gant.griff.co.kr(`(gantt)/gantt`)에서 **task 클릭 시 화면 이탈(/projects 링크) → 같은 페이지 `?task=` 드로어**로 교체. projects의 TaskDetailDrawer를 이동 없이 재사용(gantt page가 `getTaskDetail`+열린 태스크에 한해 `getProjectMeta` 로드, gantt-board `taskHref`가 pathname+기존 client/risk/zoom 파라미터 보존). 쓰기는 전부 기존 pm-actions(core canEditTask) 경유 — admin 전용 페이지라도 core가 타인 작업 편집을 막으면 projects와 동일하게 읽기+댓글. 마일스톤 편집(칩 Popover+드래그 asDecision)은 기존 유지, Popover 수정은 useSafeAction의 router.refresh가 /gantt 재요청이라 revalidatePath 무관하게 갱신됨. 전체화면(html fullscreen)과 Sheet(body 포털) 공존 확인.
 

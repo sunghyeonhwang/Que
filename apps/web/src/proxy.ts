@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { corsHeadersFor, resolveAllowedOrigin } from "@/lib/api/cors";
+import {
+  corsHeadersFor,
+  corsHeadersWithCredentials,
+  resolveAllowedOrigin,
+} from "@/lib/api/cors";
 
 // Next.js 16: middleware는 proxy로 개명(파일 규약 proxy.ts, 프로젝트당 1개). 세 관심사를 함께 처리한다.
 // (1) 공개 읽기전용 현황판 호스트 라우팅 — view 호스트면 모든 경로를 /view로 rewrite + noindex.
@@ -10,6 +14,9 @@ import { corsHeadersFor, resolveAllowedOrigin } from "@/lib/api/cors";
 // (3) /api/* CORS — DayBlocks(todo.griff.co.kr) 등 브라우저 앱이 Que REST API를 호출하도록
 //     화이트리스트 origin에만 ACAO를 에코. Bearer(PAT) 인증이라 쿠키 credentials 불필요 → ACA-Credentials 없음.
 //     인증·도메인 규칙은 각 라우트(withApi)가 그대로 강제 — 여기선 CORS 헤더만 다룬다.
+//     예외: /api/auth/sso 는 브라우저 세션 쿠키(credentials:'include')로 PAT를 교환하는 유일한
+//     표면이라 이 경로에 한해 ACA-Credentials:true를 붙인다(ACAO는 그대로 화이트리스트 에코 —
+//     credentials+와일드카드 조합은 스펙 위반이므로 구체 origin에만). OPTIONS 프리플라이트도 동일.
 
 const VIEW_HOSTS = new Set(["view.griff.co.kr", "view.localhost"]);
 const GANTT_HOSTS = new Set(["gant.griff.co.kr", "gant.localhost"]);
@@ -37,20 +44,23 @@ function isFontHost(request: NextRequest): boolean {
 /** /api/* 요청에 CORS를 붙인다(프리플라이트 포함). */
 function handleApiCors(request: NextRequest): NextResponse {
   const allowedOrigin = resolveAllowedOrigin(request.headers.get("origin"));
+  // 세션 쿠키로 PAT를 교환하는 SSO 표면만 credentials 허용(그 외 전부 Bearer 전용).
+  const needsCredentials = request.nextUrl.pathname === "/api/auth/sso";
+  const headersFor = needsCredentials ? corsHeadersWithCredentials : corsHeadersFor;
 
   // 프리플라이트(OPTIONS)는 라우트까지 가지 않고 여기서 응답한다.
   if (request.method === "OPTIONS") {
     // 화이트리스트 밖(또는 origin 없음)이면 CORS 헤더 없이 204 — 브라우저가 차단한다.
     return new NextResponse(null, {
       status: 204,
-      headers: allowedOrigin ? corsHeadersFor(allowedOrigin) : undefined,
+      headers: allowedOrigin ? headersFor(allowedOrigin) : undefined,
     });
   }
 
   const response = NextResponse.next();
   // 실제 요청: 화이트리스트 매칭 시에만 ACAO를 부여한다.
   if (allowedOrigin) {
-    for (const [key, value] of Object.entries(corsHeadersFor(allowedOrigin))) {
+    for (const [key, value] of Object.entries(headersFor(allowedOrigin))) {
       response.headers.set(key, value);
     }
   }

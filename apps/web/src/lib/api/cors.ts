@@ -40,3 +40,14 @@ export function corsHeadersFor(allowedOrigin: string): Record<string, string> {
     Vary: "Origin",
   };
 }
+
+/** 쿠키(credentials) 동반 요청을 허용해야 하는 라우트 전용 CORS 헤더.
+ *  현재 유일 소비자: /api/auth/sso(브라우저 세션 쿠키 → PAT 교환).
+ *  ACA-Credentials:true는 ACAO 와일드카드(*)와 함께 쓰면 스펙 위반이므로, 반드시
+ *  화이트리스트에서 에코한 구체 origin(allowedOrigin)과만 조합한다. */
+export function corsHeadersWithCredentials(allowedOrigin: string): Record<string, string> {
+  return {
+    ...corsHeadersFor(allowedOrigin),
+    "Access-Control-Allow-Credentials": "true",
+  };
+}
