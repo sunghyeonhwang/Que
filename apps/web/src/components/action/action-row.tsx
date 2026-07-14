@@ -5,6 +5,7 @@ import { Pencil } from "lucide-react";
 import { ACTION_ITEM_STATUS_LABELS, type ActionItemStatus } from "@que/core";
 import { useRoster } from "@/components/app/roster-provider";
 import { useSafeAction } from "@/components/app/use-safe-action";
+import { DatePresetChips, TimePresetChips } from "@/components/app/date-preset-chips";
 import {
   confirmActionItemAction,
   setActionItemStatusAction,
@@ -218,6 +219,11 @@ export function ActionRow({
                 aria-label={`${item.title} 마감일`}
                 className="h-10 w-full rounded-lg text-sm"
               />
+              <DatePresetChips
+                value={dueDate}
+                onSelect={setDueDate}
+                ariaLabel={`${item.title} 마감일 빠른 선택`}
+              />
             </Field>
             <Field>
               <FieldLabel htmlFor={`due-time-${item.id}`}>마감 시각 (선택)</FieldLabel>
@@ -228,6 +234,11 @@ export function ActionRow({
                 onChange={(e) => setDueTime(e.target.value)}
                 aria-label={`${item.title} 마감 시각`}
                 className="h-10 w-full rounded-lg text-sm"
+              />
+              <TimePresetChips
+                value={dueTime}
+                onSelect={setDueTime}
+                ariaLabel={`${item.title} 마감 시각 빠른 선택`}
               />
             </Field>
           </div>
