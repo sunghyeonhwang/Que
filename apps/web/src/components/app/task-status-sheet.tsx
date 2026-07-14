@@ -12,6 +12,7 @@ import {
   type TaskStatus,
 } from "@que/core";
 import { updateTaskDetailsAction } from "@/app/(app)/projects/pm-actions";
+import { DateRangePicker } from "@/components/app/date-range-picker";
 import {
   cancelTaskAction,
   changeTaskStatusAction,
@@ -679,39 +680,21 @@ function ScheduleEditForm({
   return (
     <div>
       <h3 className="mb-2 text-sm font-medium">일정 · 프로젝트 변경</h3>
-      <div className="grid grid-cols-3 gap-3">
-        <Field>
-          <FieldLabel htmlFor="sched-date">날짜</FieldLabel>
-          <Input
-            id="sched-date"
-            type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            className="h-10"
-          />
-        </Field>
-        <Field>
-          <FieldLabel htmlFor="sched-start">시작</FieldLabel>
-          <Input
-            id="sched-start"
-            type="time"
-            value={startTime}
-            onChange={(e) => setStartTime(e.target.value)}
-            className="h-10"
-          />
-        </Field>
-        <Field>
-          <FieldLabel htmlFor="sched-end">끝</FieldLabel>
-          <Input
-            id="sched-end"
-            type="time"
-            value={endTime}
-            onChange={(e) => setEndTime(e.target.value)}
-            className="h-10"
-            aria-invalid={timeError ? true : undefined}
-          />
-        </Field>
-      </div>
+      {/* 재일정은 하루짜리 블록(시작~끝 시각) — singleDay 기간 캘린더로 날짜+시각을 한 번에. */}
+      <Field>
+        <FieldLabel>날짜 · 시각</FieldLabel>
+        <DateRangePicker
+          singleDay
+          value={{ startDate: date, startTime, endDate: date, endTime }}
+          onChange={(r) => {
+            setDate(r.startDate);
+            setStartTime(r.startTime);
+            setEndTime(r.endTime);
+          }}
+          emptyLabel="날짜 미정"
+          triggerAriaLabel={`${taskTitle} 일정 설정`}
+        />
+      </Field>
       {timeError && <p className="mt-1 text-sm text-destructive">{timeError}</p>}
       <div className="mt-3">
         <Field>

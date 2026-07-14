@@ -18,11 +18,12 @@ import { cn } from "@/lib/utils";
 // 작업 입력 등에서 재사용 전제의 공용 컴포넌트.
 
 const TZ = "Asia/Seoul";
-const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
-const pad = (n: number) => String(n).padStart(2, "0");
+// 달력 원시 헬퍼 — DateRangePicker가 재사용한다(중복 구현 금지). 전부 KST 벽시계 기준.
+export const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
+export const pad = (n: number) => String(n).padStart(2, "0");
 
 /** 오늘의 KST 날짜 키(YYYY-MM-DD). */
-function kstTodayKey(): string {
+export function kstTodayKey(): string {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: TZ,
     year: "numeric",
@@ -30,20 +31,27 @@ function kstTodayKey(): string {
     day: "2-digit",
   }).format(new Date());
 }
-function parseKey(key: string): { y: number; m: number; d: number } {
+export function parseKey(key: string): { y: number; m: number; d: number } {
   const [y, m, d] = key.split("-").map(Number);
   return { y, m, d }; // m 1-based
 }
-function keyOfYmd(y: number, m1: number, d: number): string {
+export function keyOfYmd(y: number, m1: number, d: number): string {
   return `${y}-${pad(m1)}-${pad(d)}`;
 }
 /** UTC 앵커로 요일 계산(로컬 TZ 무관). 0=일 … 6=토. */
-function weekdayOf(key: string): number {
+export function weekdayOf(key: string): number {
   const { y, m, d } = parseKey(key);
   return new Date(Date.UTC(y, m - 1, d)).getUTCDay();
 }
-function daysInMonth(y: number, m1: number): number {
+export function daysInMonth(y: number, m1: number): number {
   return new Date(Date.UTC(y, m1, 0)).getUTCDate();
+}
+/** UTC 앵커 기반 n일 가감(YYYY-MM-DD → YYYY-MM-DD). 로컬 TZ 무관. */
+export function addDaysKey(key: string, n: number): string {
+  const { y, m, d } = parseKey(key);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  dt.setUTCDate(dt.getUTCDate() + n);
+  return keyOfYmd(dt.getUTCFullYear(), dt.getUTCMonth() + 1, dt.getUTCDate());
 }
 
 /** 버튼 라벨: "7월 18일(금) 17:00" / 날짜만 "7월 18일(금)" / 미설정 emptyLabel.

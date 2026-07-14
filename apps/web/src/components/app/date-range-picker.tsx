@@ -1,0 +1,351 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  WEEKDAYS,
+  kstTodayKey,
+  parseKey,
+  keyOfYmd,
+  weekdayOf,
+  daysInMonth,
+  addDaysKey,
+} from "@/components/app/due-picker";
+import { DatePresetChips } from "@/components/app/date-preset-chips";
+import { cn } from "@/lib/utils";
+
+// 기간(범위) 선택 캘린더 — 한 그리드에서 시작일·마감일을 찍으면 두 마커(원형 채움)와
+// 사이 기간이 연속 밴드로 하이라이트된다. 색은 Que 브랜드 인디고(마커=brand, 밴드=brand-subtle).
+// 달력 원시 헬퍼는 due-picker에서 재사용(중복 구현 금지). KST 벽시계 기준.
+
+/** "7월 21일(월)" */
+function dayLabel(key: string): string {
+  const { m, d } = parseKey(key);
+  return `${m}월 ${d}일(${WEEKDAYS[weekdayOf(key)]})`;
+}
+
+/** 트리거 라벨: 기간 "7월 21일(월) ~ 7월 25일(금)"(+마감시각), 하루 "7월 21일(월)", 미설정 emptyLabel. */
+export function formatRangeLabel(
+  startDate: string,
+  startTime: string,
+  endDate: string,
+  endTime: string,
+  opts?: { showTime?: boolean; emptyLabel?: string },
+): string {
+  const emptyLabel = opts?.emptyLabel ?? "기간 미정";
+  if (!startDate) return emptyLabel;
+  const single = !endDate || endDate === startDate;
+  const base = single
+    ? dayLabel(startDate)
+    : `${dayLabel(startDate)} ~ ${dayLabel(endDate)}`;
+  const t = opts?.showTime !== false && endTime ? ` ${endTime}` : "";
+  return base + t;
+}
+
+export interface DateRange {
+  startDate: string; // YYYY-MM-DD | ""
+  startTime: string; // HH:mm | ""
+  endDate: string; // YYYY-MM-DD | ""
+  endTime: string; // HH:mm | ""
+}
+
+export interface DateRangePickerProps {
+  value: DateRange;
+  onChange: (next: DateRange) => void;
+  /** 하루 고정(재일정 등) — 클릭 한 번에 시작=마감 동일 날짜. 기간 밴드 없음. */
+  singleDay?: boolean;
+  /** 시각 절(시작·마감 자유 입력) 노출. 기본 true. */
+  showTime?: boolean;
+  emptyLabel?: string;
+  triggerAriaLabel?: string;
+  triggerClassName?: string;
+}
+
+export function DateRangePicker({
+  value,
+  onChange,
+  singleDay = false,
+  showTime = true,
+  emptyLabel = "기간 미정",
+  triggerAriaLabel = "기간 설정",
+  triggerClassName,
+}: DateRangePickerProps) {
+  const { startDate, startTime, endDate, endTime } = value;
+  const todayKey = useMemo(() => kstTodayKey(), []);
+  const init = parseKey(startDate || todayKey);
+  const [view, setView] = useState({ y: init.y, m: init.m }); // m 1-based
+  // 진행 중 선택의 시작점(두 번째 클릭 대기). 처음부터 start만 있으면 그걸 기점으로.
+  const [pendingStart, setPendingStart] = useState<string | null>(
+    startDate && !endDate ? startDate : null,
+  );
+
+  // 기간 프리셋(시작·마감 동시). singleDay면 단일 날짜 칩으로 대체.
+  const presets = useMemo(() => {
+    const today = kstTodayKey();
+    const day = weekdayOf(today);
+    const friday = addDaysKey(today, (5 - day + 7) % 7);
+    const nextMonday = addDaysKey(today, ((1 - day + 7) % 7) || 7);
+    const nextFriday = addDaysKey(nextMonday, 4);
+    return [
+      { label: "오늘 하루", start: today, end: today },
+      { label: "오늘~금요일", start: today, end: friday },
+      { label: "다음 주(월~금)", start: nextMonday, end: nextFriday },
+      { label: "+1주", start: today, end: addDaysKey(today, 7) },
+    ];
+  }, []);
+
+  const shift = (delta: number) =>
+    setView((v) => {
+      let y = v.y;
+      let m = v.m + delta;
+      if (m < 1) {
+        m = 12;
+        y -= 1;
+      } else if (m > 12) {
+        m = 1;
+        y += 1;
+      }
+      return { y, m };
+    });
+
+  const pickDate = (k: string) => {
+    if (singleDay) {
+      onChange({ ...value, startDate: k, endDate: k });
+      return;
+    }
+    if (pendingStart === null) {
+      // 새 선택 시작(미선택이거나 완성 상태) — 시작만 세팅, 마감 비움.
+      setPendingStart(k);
+      onChange({ ...value, startDate: k, endDate: "" });
+    } else {
+      // 두 번째 클릭 — 앞뒤 정렬해 시작·마감 확정(같은 날이면 하루짜리).
+      const lo = k < pendingStart ? k : pendingStart;
+      const hi = k < pendingStart ? pendingStart : k;
+      setPendingStart(null);
+      onChange({ ...value, startDate: lo, endDate: hi });
+    }
+  };
+
+  const applyPreset = (start: string, end: string) => {
+    setPendingStart(null);
+    onChange({ ...value, startDate: start, endDate: end });
+  };
+
+  const firstWeekday = weekdayOf(keyOfYmd(view.y, view.m, 1));
+  const dim = daysInMonth(view.y, view.m);
+  const cells: (string | null)[] = [
+    ...Array.from({ length: firstWeekday }, () => null),
+    ...Array.from({ length: dim }, (_, i) => keyOfYmd(view.y, view.m, i + 1)),
+  ];
+
+  const hasRange = Boolean(startDate && endDate);
+  const sameDay = hasRange && startDate === endDate;
+  const hasStart = Boolean(startDate);
+
+  return (
+    <Popover>
+      <PopoverTrigger
+        aria-label={triggerAriaLabel}
+        className={cn(
+          "flex h-10 w-full items-center gap-2 rounded-lg border border-[var(--que-border)] bg-transparent px-2.5 text-left text-sm transition-colors hover:bg-[var(--que-bg-muted)] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50",
+          triggerClassName,
+        )}
+      >
+        <CalendarDays
+          className="size-4 shrink-0 text-[var(--que-text-tertiary)]"
+          aria-hidden
+        />
+        <span
+          className={cn(
+            "min-w-0 flex-1 truncate",
+            hasStart ? "text-[var(--que-text)]" : "text-[var(--que-text-tertiary)]",
+          )}
+        >
+          {formatRangeLabel(startDate, startTime, endDate, endTime, {
+            showTime,
+            emptyLabel,
+          })}
+        </span>
+      </PopoverTrigger>
+
+      <PopoverContent
+        align="start"
+        className="max-h-[min(80vh,36rem)] w-80 gap-3 overflow-y-auto"
+      >
+        {/* 빠른 선택(프리셋 버튼) */}
+        <div className="flex flex-col gap-2">
+          <p className="text-xs font-medium text-[var(--que-text-tertiary)]">
+            빠른 선택
+          </p>
+          {singleDay ? (
+            <DatePresetChips
+              value={startDate}
+              onSelect={(d) => applyPreset(d, d)}
+              ariaLabel="날짜 빠른 선택"
+            />
+          ) : (
+            <div className="flex flex-wrap gap-1.5">
+              {presets.map((p) => {
+                const active = startDate === p.start && endDate === p.end;
+                return (
+                  <button
+                    key={p.label}
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() => applyPreset(p.start, p.end)}
+                    className={cn(
+                      "inline-flex h-10 items-center justify-center rounded-lg border px-3 text-sm transition-colors",
+                      active
+                        ? "border-[var(--que-brand)] bg-[var(--que-brand-subtle)] font-semibold text-[var(--que-brand)]"
+                        : "border-[var(--que-border)] text-[var(--que-text-secondary)] hover:bg-[var(--que-bg-muted)] hover:text-[var(--que-text)]",
+                    )}
+                  >
+                    {p.label}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* 콤팩트 월 달력(KST) + 기간 밴드 */}
+        <div className="flex flex-col gap-1.5 border-t border-[var(--que-border)] pt-2.5">
+          <div className="flex items-center justify-between">
+            <button
+              type="button"
+              onClick={() => shift(-1)}
+              aria-label="이전 달"
+              className="grid size-10 place-items-center rounded-lg text-[var(--que-text-secondary)] hover:bg-[var(--que-bg-muted)]"
+            >
+              <ChevronLeft className="size-4" aria-hidden />
+            </button>
+            <span className="text-sm font-semibold text-[var(--que-text)]">
+              {view.y}년 {view.m}월
+            </span>
+            <button
+              type="button"
+              onClick={() => shift(1)}
+              aria-label="다음 달"
+              className="grid size-10 place-items-center rounded-lg text-[var(--que-text-secondary)] hover:bg-[var(--que-bg-muted)]"
+            >
+              <ChevronRight className="size-4" aria-hidden />
+            </button>
+          </div>
+          <div className="grid grid-cols-7">
+            {WEEKDAYS.map((w) => (
+              <span
+                key={w}
+                className="grid h-7 place-items-center text-[11px] font-medium text-[var(--que-text-tertiary)]"
+              >
+                {w}
+              </span>
+            ))}
+            {cells.map((key, idx) =>
+              key === null ? (
+                <span key={`blank-${idx}`} className="size-10" aria-hidden />
+              ) : (
+                (() => {
+                  const day = Number(key.slice(-2));
+                  const isStart = key === startDate && hasStart;
+                  const isEnd = hasRange && key === endDate;
+                  const endpoint = isStart || isEnd;
+                  const inRange =
+                    hasRange && !sameDay && key > startDate && key < endDate;
+                  const bandRight = hasRange && !sameDay && isStart;
+                  const bandLeft = hasRange && !sameDay && isEnd;
+                  const isToday = key === todayKey;
+                  return (
+                    <div
+                      key={key}
+                      className="relative grid size-10 place-items-center"
+                    >
+                      {/* 연속 밴드(brand-subtle) — 셀 폭을 꽉 채워 인접 셀과 이어진다 */}
+                      {inRange && (
+                        <span
+                          aria-hidden
+                          className="absolute inset-x-0 inset-y-1 bg-[var(--que-brand-subtle)]"
+                        />
+                      )}
+                      {bandRight && (
+                        <span
+                          aria-hidden
+                          className="absolute inset-y-1 left-1/2 right-0 bg-[var(--que-brand-subtle)]"
+                        />
+                      )}
+                      {bandLeft && (
+                        <span
+                          aria-hidden
+                          className="absolute inset-y-1 left-0 right-1/2 bg-[var(--que-brand-subtle)]"
+                        />
+                      )}
+                      <button
+                        type="button"
+                        aria-pressed={endpoint}
+                        aria-label={`${view.m}월 ${day}일${isToday ? " (오늘)" : ""}${
+                          isStart ? " 시작" : ""
+                        }${isEnd ? " 마감" : ""}`}
+                        onClick={() => pickDate(key)}
+                        className={cn(
+                          "relative grid size-9 place-items-center rounded-full text-sm transition-colors",
+                          endpoint
+                            ? "bg-[var(--que-brand)] font-semibold text-[var(--que-on-brand)]"
+                            : "text-[var(--que-text)] hover:bg-[var(--que-bg-muted)]",
+                          !endpoint &&
+                            !inRange &&
+                            isToday &&
+                            "font-semibold text-[var(--que-brand)] ring-1 ring-inset ring-[var(--que-brand)]",
+                        )}
+                      >
+                        {day}
+                      </button>
+                    </div>
+                  );
+                })()
+              ),
+            )}
+          </div>
+          {!singleDay && (
+            <p className="text-[11px] text-[var(--que-text-tertiary)]">
+              시작일과 마감일을 차례로 누르세요. 같은 날을 두 번 누르면 하루짜리입니다.
+            </p>
+          )}
+        </div>
+
+        {/* 시각 절 — 시작·마감 자유 입력(각 폼의 기존 시각 필드에 매핑) */}
+        {showTime && (
+          <div className="flex flex-col gap-2 border-t border-[var(--que-border)] pt-2.5">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-xs font-medium text-[var(--que-text-tertiary)]">
+                시작 시각
+              </p>
+              <input
+                type="time"
+                value={startTime}
+                onChange={(e) => onChange({ ...value, startTime: e.target.value })}
+                aria-label="시작 시각"
+                className="h-9 rounded-lg border border-[var(--que-border)] bg-transparent px-2 text-sm"
+              />
+            </div>
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-xs font-medium text-[var(--que-text-tertiary)]">
+                마감 시각
+              </p>
+              <input
+                type="time"
+                value={endTime}
+                onChange={(e) => onChange({ ...value, endTime: e.target.value })}
+                aria-label="마감 시각"
+                className="h-9 rounded-lg border border-[var(--que-border)] bg-transparent px-2 text-sm"
+              />
+            </div>
+          </div>
+        )}
+      </PopoverContent>
+    </Popover>
+  );
+}

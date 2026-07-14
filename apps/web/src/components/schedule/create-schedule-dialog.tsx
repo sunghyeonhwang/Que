@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/dialog";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { DateRangePicker } from "@/components/app/date-range-picker";
 import {
   Select,
   SelectContent,
@@ -239,39 +240,21 @@ export function CreateScheduleDialog({
               {eventTitleError && <p className="text-sm text-destructive">{eventTitleError}</p>}
             </Field>
 
-            <div className="grid grid-cols-3 gap-3">
-              <Field>
-                <FieldLabel htmlFor="cs-ev-date">날짜</FieldLabel>
-                <Input
-                  id="cs-ev-date"
-                  type="date"
-                  value={date}
-                  onChange={(e) => setDate(e.target.value)}
-                  className="h-10"
-                />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="cs-ev-start">시작</FieldLabel>
-                <Input
-                  id="cs-ev-start"
-                  type="time"
-                  value={startTime}
-                  onChange={(e) => setStartTime(e.target.value)}
-                  className="h-10"
-                />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="cs-ev-end">종료</FieldLabel>
-                <Input
-                  id="cs-ev-end"
-                  type="time"
-                  value={endTime}
-                  onChange={(e) => setEndTime(e.target.value)}
-                  className="h-10"
-                  aria-invalid={eventTimeError ? true : undefined}
-                />
-              </Field>
-            </div>
+            {/* 미팅은 하루 안의 시간대 — singleDay 기간 캘린더로 날짜+시작·종료 시각을 한 번에. */}
+            <Field>
+              <FieldLabel>날짜 · 시각</FieldLabel>
+              <DateRangePicker
+                singleDay
+                value={{ startDate: date, startTime, endDate: date, endTime }}
+                onChange={(r) => {
+                  setDate(r.startDate);
+                  setStartTime(r.startTime);
+                  setEndTime(r.endTime);
+                }}
+                emptyLabel="날짜 미정"
+                triggerAriaLabel="일정 날짜·시각 설정"
+              />
+            </Field>
             {eventTimeError && <p className="-mt-1 text-sm text-destructive">{eventTimeError}</p>}
 
             <Field>

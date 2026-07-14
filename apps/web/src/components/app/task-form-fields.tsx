@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { DateRangePicker } from "@/components/app/date-range-picker";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -212,56 +213,32 @@ export function TaskFormFields({
         )}
       </div>
 
-      {/* 시작·마감 — 날짜만 넣어도 되고(기간 작업, 간트 막대), 시간까지 넣으면 캘린더 시간대에 얹힌다. */}
-      <div className="grid grid-cols-2 gap-3">
-        <Field>
-          <FieldLabel htmlFor={`${idPrefix}-start-date`}>시작일</FieldLabel>
-          <Input
-            id={`${idPrefix}-start-date`}
-            type="date"
-            value={value.startDate}
-            onChange={(e) => set({ startDate: e.target.value })}
-            className="h-10"
-          />
-        </Field>
-        <Field>
-          <FieldLabel htmlFor={`${idPrefix}-start-time`}>시작 시간</FieldLabel>
-          <Input
-            id={`${idPrefix}-start-time`}
-            type="time"
-            value={value.startTime}
-            onChange={(e) => set({ startTime: e.target.value })}
-            className="h-10"
-            disabled={!value.startDate}
-          />
-        </Field>
-        <Field>
-          <FieldLabel htmlFor={`${idPrefix}-due-date`}>마감일</FieldLabel>
-          <Input
-            id={`${idPrefix}-due-date`}
-            type="date"
-            value={value.dueDate}
-            onChange={(e) => set({ dueDate: e.target.value })}
-            className="h-10"
-            aria-invalid={errors.range ? true : undefined}
-          />
-        </Field>
-        <Field>
-          <FieldLabel htmlFor={`${idPrefix}-due-time`}>마감 시간</FieldLabel>
-          <Input
-            id={`${idPrefix}-due-time`}
-            type="time"
-            value={value.dueTime}
-            onChange={(e) => set({ dueTime: e.target.value })}
-            className="h-10"
-            disabled={!value.dueDate}
-            aria-invalid={errors.range ? true : undefined}
-          />
-        </Field>
-      </div>
-      {errors.range && <p className="-mt-1 text-sm text-destructive">{errors.range}</p>}
+      {/* 기간(시작~마감) — 한 달력에서 기간을 찍고 시각을 정한다. 날짜만·하루짜리·여러 날 모두 가능.
+          페이로드는 startDate/startTime/dueDate/dueTime 그대로 유지(저장 로직 무변경). */}
+      <Field>
+        <FieldLabel>기간</FieldLabel>
+        <DateRangePicker
+          value={{
+            startDate: value.startDate,
+            startTime: value.startTime,
+            endDate: value.dueDate,
+            endTime: value.dueTime,
+          }}
+          onChange={(r) =>
+            set({
+              startDate: r.startDate,
+              startTime: r.startTime,
+              dueDate: r.endDate,
+              dueTime: r.endTime,
+            })
+          }
+          emptyLabel="기간 미정"
+          triggerAriaLabel="작업 기간 설정"
+        />
+      </Field>
+      {errors.range && <p className="text-sm text-destructive">{errors.range}</p>}
       {noDateHint && !value.startDate && !value.dueDate && (
-        <p className="-mt-1 text-sm text-[var(--que-text-secondary)]">{noDateHint}</p>
+        <p className="text-sm text-[var(--que-text-secondary)]">{noDateHint}</p>
       )}
 
       {projectItems && (
