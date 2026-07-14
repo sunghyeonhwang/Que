@@ -57,7 +57,8 @@ export function computeDatePresets(now: Date = new Date()): DatePreset[] {
   ];
 }
 
-export const TIME_PRESETS = ["10:00", "14:00", "18:00"] as const;
+// 마감 시각 허용 창 11:00~17:00(2026-07-15 사용자 확정 — due-picker의 DUE_TIME_MIN/MAX와 정합).
+export const TIME_PRESETS = ["11:00", "14:00", "17:00"] as const;
 
 // 운영 도구 톤: 작은 outline 칩, hover. 활성=브랜드(상태색 의미 침범 금지). 최소 40px 터치(h-10).
 const CHIP_BASE =

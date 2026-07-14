@@ -59,10 +59,11 @@ export async function confirmActionItemAction(
     let dueAt: string | undefined;
     let startAt: string | undefined;
     if (overrides.dueDate) {
-      dueAt = toIso(overrides.dueDate, overrides.dueTime, "18:00");
+      // 기본 마감 17:00 — 마감 시각 허용 창 11:00~17:00(2026-07-15 사용자 확정, due-picker와 정합).
+      dueAt = toIso(overrides.dueDate, overrides.dueTime, "17:00");
       if (!dueAt) return { ok: false, error: "유효하지 않은 마감 일시다 (YYYY-MM-DD HH:mm)" };
       if (overrides.startTime) {
-        startAt = toIso(overrides.dueDate, overrides.startTime, "18:00");
+        startAt = toIso(overrides.dueDate, overrides.startTime, "17:00");
         if (!startAt) return { ok: false, error: "유효하지 않은 시작 시각이다 (HH:mm)" };
       }
     }
@@ -129,11 +130,11 @@ export async function updateActionItemAction(input: {
   assigneeId?: string;
   projectId?: string;
   dueDate?: string; // YYYY-MM-DD
-  dueTime?: string; // HH:mm (옵션, 기본 18:00)
+  dueTime?: string; // HH:mm (옵션, 기본 17:00 — 마감 허용 창 11:00~17:00)
 }): Promise<ActionResult> {
   let dueAt: string | undefined;
   if (input.dueDate) {
-    dueAt = toIso(input.dueDate, input.dueTime, "18:00");
+    dueAt = toIso(input.dueDate, input.dueTime, "17:00");
     if (!dueAt) return { ok: false, error: "유효하지 않은 마감 일시다 (YYYY-MM-DD HH:mm)" };
   }
 

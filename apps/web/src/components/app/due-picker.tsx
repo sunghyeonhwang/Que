@@ -54,14 +54,26 @@ export function formatDueLabel(dueDate?: string, dueTime?: string): string {
   return dueTime ? `${base} ${dueTime}` : base;
 }
 
-/** 08:00~20:00, 30분 간격 슬롯. */
+/** 마감 시각 허용 창(2026-07-15 사용자 확정 — 마감은 오전 11시~오후 5시에만 존재). */
+export const DUE_TIME_MIN = "11:00";
+export const DUE_TIME_MAX = "17:00";
+
+/** 11:00~17:00, 30분 간격 슬롯. */
 function buildSlots(): string[] {
   const out: string[] = [];
-  for (let h = 8; h <= 20; h++) {
+  for (let h = 11; h <= 17; h++) {
     out.push(`${pad(h)}:00`);
-    if (h < 20) out.push(`${pad(h)}:30`);
+    if (h < 17) out.push(`${pad(h)}:30`);
   }
   return out;
+}
+
+/** HH:mm을 허용 창 안으로 클램프(직접 입력 방어). */
+function clampDueTime(time: string): string {
+  if (!time) return time;
+  if (time < DUE_TIME_MIN) return DUE_TIME_MIN;
+  if (time > DUE_TIME_MAX) return DUE_TIME_MAX;
+  return time;
 }
 
 export interface DuePickerProps {
@@ -227,8 +239,10 @@ export function DuePicker({
             <input
               type="time"
               value={dueTime}
-              onChange={(e) => onSelectDueTime(e.target.value)}
-              aria-label="마감 시각 직접 입력"
+              min={DUE_TIME_MIN}
+              max={DUE_TIME_MAX}
+              onChange={(e) => onSelectDueTime(clampDueTime(e.target.value))}
+              aria-label="마감 시각 직접 입력 (11:00~17:00)"
               className="h-9 rounded-lg border border-[var(--que-border)] bg-transparent px-2 text-sm"
             />
           </div>

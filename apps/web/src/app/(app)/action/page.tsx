@@ -100,7 +100,8 @@ export default async function ActionPage({
         ))}
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,24rem)]">
+      {/* 우측 '생성된 Task' 24rem→36rem(1.5배 — 2026-07-15 사용자 요청). */}
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,36rem)]">
         <div className="flex max-h-[calc(100dvh-18rem)] flex-col gap-2 overflow-y-auto pr-0.5">
           {rows.length === 0 && (
             <p className="rounded-xl border border-dashed border-[var(--que-border)] bg-[var(--que-bg-muted)] py-10 text-center text-sm text-[var(--que-text-tertiary)]">
