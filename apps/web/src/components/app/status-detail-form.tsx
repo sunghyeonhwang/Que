@@ -5,6 +5,11 @@ import { X } from "lucide-react";
 import { type StatusDetail } from "@que/core";
 import { useRoster } from "@/components/app/roster-provider";
 import { Button } from "@/components/ui/button";
+import {
+  DuePicker,
+  joinDateTimeLocal,
+  splitDateTimeLocal,
+} from "@/components/app/due-picker";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import {
@@ -114,12 +119,21 @@ export function StatusDetailForm({
         </Select>
       </Field>
       <Field>
-        <FieldLabel htmlFor="status-recheck">다시 확인할 시간</FieldLabel>
-        <Input
-          id="status-recheck"
-          type="datetime-local"
-          value={recheckAt}
-          onChange={(e) => setRecheckAt(e.target.value)}
+        <FieldLabel>다시 확인할 시간</FieldLabel>
+        <DuePicker
+          dueDate={splitDateTimeLocal(recheckAt).date}
+          dueTime={splitDateTimeLocal(recheckAt).time}
+          timeMin="08:00"
+          timeMax="20:00"
+          emptyLabel="시간 미정"
+          onSelectDate={(d) =>
+            setRecheckAt(joinDateTimeLocal(d, splitDateTimeLocal(recheckAt).time))
+          }
+          onSelectDueTime={(t) =>
+            setRecheckAt(joinDateTimeLocal(splitDateTimeLocal(recheckAt).date, t))
+          }
+          onClear={() => setRecheckAt("")}
+          triggerAriaLabel="다시 확인할 시간 설정"
         />
       </Field>
       <Button onClick={handleSubmit} disabled={!canSubmit} className="h-10">

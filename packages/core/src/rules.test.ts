@@ -550,6 +550,80 @@ describe("Action 후보 나누기 (splitActionItem)", () => {
   });
 });
 
+describe("회의록 제목 수정 (updateMeetingNoteTitle)", () => {
+  it("업로더가 제목을 수정하면 반영되고 ChangeLog reason에 남는다", () => {
+    const d = db();
+    // note-payment-qa 업로더 = oh-seunghoon.
+    const updated = d.updateMeetingNoteTitle(
+      { actorId: "oh-seunghoon", via: "web" },
+      { meetingNoteId: "note-payment-qa", title: "  결제 QA 회의 (수정)  " },
+    );
+    expect(updated.title).toBe("결제 QA 회의 (수정)"); // trim
+    const clog = d.changeLogs.at(-1)!;
+    expect(clog.entityType).toBe("meeting_note");
+    expect(clog.entityId).toBe("note-payment-qa");
+    expect(clog.reason).toContain("제목 수정");
+  });
+
+  it("빈 제목(공백만)은 거부된다", () => {
+    const d = db();
+    expect(() =>
+      d.updateMeetingNoteTitle(
+        { actorId: "oh-seunghoon", via: "web" },
+        { meetingNoteId: "note-payment-qa", title: "   " },
+      ),
+    ).toThrowError(/회의명은 필수다/);
+  });
+
+  it("업로더도 관리자도 아니면 거부된다", () => {
+    const d = db();
+    // lee-hyejin(사원)은 note-payment-qa의 업로더(oh)도 관리자도 아니다.
+    expect(() =>
+      d.updateMeetingNoteTitle(
+        { actorId: "lee-hyejin", via: "web" },
+        { meetingNoteId: "note-payment-qa", title: "무단 변경" },
+      ),
+    ).toThrowError(/업로더 또는 관리자/);
+  });
+});
+
+describe("반복 템플릿 제목 수정 (updateRecurringTemplate)", () => {
+  it("만든 사람이 제목을 수정하면 반영되고 ChangeLog reason에 남는다", () => {
+    const d = db();
+    // tmpl-weekly-standup 생성자 = hwang-sunghyeon.
+    const updated = d.updateRecurringTemplate(
+      { actorId: "hwang-sunghyeon", via: "web" },
+      { templateId: "tmpl-weekly-standup", title: "  주간 스탠드업 (개편)  " },
+    );
+    expect(updated.title).toBe("주간 스탠드업 (개편)"); // trim
+    const clog = d.changeLogs.at(-1)!;
+    expect(clog.entityType).toBe("recurring_template");
+    expect(clog.entityId).toBe("tmpl-weekly-standup");
+    expect(clog.reason).toContain("제목 수정");
+  });
+
+  it("빈 제목(공백만)은 거부된다", () => {
+    const d = db();
+    expect(() =>
+      d.updateRecurringTemplate(
+        { actorId: "hwang-sunghyeon", via: "web" },
+        { templateId: "tmpl-weekly-standup", title: "   " },
+      ),
+    ).toThrowError(/제목은 필수다/);
+  });
+
+  it("만든 사람도 관리자도 아니면 거부된다", () => {
+    const d = db();
+    // lee-hyejin(사원)은 생성자(hwang)도 관리자도 아니다.
+    expect(() =>
+      d.updateRecurringTemplate(
+        { actorId: "lee-hyejin", via: "web" },
+        { templateId: "tmpl-weekly-standup", title: "무단 변경" },
+      ),
+    ).toThrowError(QueRuleError);
+  });
+});
+
 describe("결제 요청 등록", () => {
   it("필수값과 금액을 검증하고 대기 상태로 생성한다", () => {
     const d = db();

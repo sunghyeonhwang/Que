@@ -13,6 +13,11 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import {
+  DuePicker,
+  joinDateTimeLocal,
+  splitDateTimeLocal,
+} from "@/components/app/due-picker";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -176,14 +181,24 @@ export function UploadNoteForm({ projects }: { projects: UploadNoteProjectOption
             <Input id="note-title" value={title} onChange={(e) => setTitle(e.target.value)} />
           </Field>
           <Field>
-            <FieldLabel htmlFor="note-date">회의 일시</FieldLabel>
-            <Input
-              id="note-date"
-              type="datetime-local"
-              // 다크 네이티브 위젯은 전역 color-scheme(globals.css)이 처리한다.
-              className=""
-              value={meetingDateTime}
-              onChange={(e) => setMeetingDateTime(e.target.value)}
+            <FieldLabel>회의 일시</FieldLabel>
+            <DuePicker
+              dueDate={splitDateTimeLocal(meetingDateTime).date}
+              dueTime={splitDateTimeLocal(meetingDateTime).time}
+              timeMin="08:00"
+              timeMax="20:00"
+              emptyLabel="일시 미정"
+              onSelectDate={(d) =>
+                setMeetingDateTime(
+                  joinDateTimeLocal(d, splitDateTimeLocal(meetingDateTime).time),
+                )
+              }
+              onSelectDueTime={(t) =>
+                setMeetingDateTime(
+                  joinDateTimeLocal(splitDateTimeLocal(meetingDateTime).date, t),
+                )
+              }
+              triggerAriaLabel="회의 일시 설정"
             />
           </Field>
         </div>

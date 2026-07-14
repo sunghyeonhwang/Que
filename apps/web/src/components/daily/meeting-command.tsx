@@ -12,6 +12,11 @@ import { useSafeAction } from "@/components/app/use-safe-action";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
+  DuePicker,
+  joinDateTimeLocal,
+  splitDateTimeLocal,
+} from "@/components/app/due-picker";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -216,13 +221,23 @@ export function MeetingCommand() {
                 기한{draft.intent === "create_milestone" && <span className="text-[var(--que-error)]"> *</span>}
               </dt>
               <dd className="min-w-0 flex-1">
-                <Input
-                  type="datetime-local"
-                  aria-label="기한"
-                  className="h-10 w-[13.5rem]"
-                  value={dueAt}
-                  onChange={(e) => setDueAt(e.target.value)}
-                />
+                <div className="w-[13.5rem]">
+                  <DuePicker
+                    dueDate={splitDateTimeLocal(dueAt).date}
+                    dueTime={splitDateTimeLocal(dueAt).time}
+                    timeMin="08:00"
+                    timeMax="20:00"
+                    emptyLabel="기한 미정"
+                    onSelectDate={(d) =>
+                      setDueAt(joinDateTimeLocal(d, splitDateTimeLocal(dueAt).time, "17:00"))
+                    }
+                    onSelectDueTime={(t) =>
+                      setDueAt(joinDateTimeLocal(splitDateTimeLocal(dueAt).date, t, "17:00"))
+                    }
+                    onClear={() => setDueAt("")}
+                    triggerAriaLabel="기한 설정"
+                  />
+                </div>
               </dd>
             </div>
           </dl>

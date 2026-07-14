@@ -94,6 +94,17 @@ export async function extractActionsAction(meetingNoteId: string): Promise<Actio
   return toResult((db) => db.extractActionItems({ actorId: user.id, via: "web" }, meetingNoteId));
 }
 
+/** 회의록 제목(회의명) 수정 — 업로더 또는 관리자만(core가 최종 강제). */
+export async function updateMeetingNoteTitleAction(input: {
+  meetingNoteId: string;
+  title: string;
+}): Promise<ActionResult> {
+  const user = await getCurrentUser();
+  return toResult((db) =>
+    db.updateMeetingNoteTitle({ actorId: user.id, via: "web" }, input),
+  );
+}
+
 /**
  * 행동 기반 회의록 초안 저장(기획 §1-f "회의 후") — **admin만**. 오늘 시스템에 남은 결정을
  * 결정적 템플릿(draftMeetingMinutes)으로 묶어 kind(weekly|milestone) 회의록으로 저장한다.

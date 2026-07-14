@@ -1072,6 +1072,36 @@ export class MockQueDb implements QueDb {
     return note;
   }
 
+  /** 회의록 제목(회의명) 수정 — 업로더 또는 관리자만. 원문(markdownBody)·추출물은 건드리지 않는다.
+   *  createMeetingNote와 동일 규약(trim·필수·200자). ChangeLog reason에 "제목 수정: …"을 남긴다. */
+  updateMeetingNoteTitle(
+    ctx: ActorContext,
+    input: { meetingNoteId: string; title: string },
+  ): MeetingNote {
+    const actor = this.requireUser(ctx.actorId);
+    const note = this.meetingNotes.find((n) => n.id === input.meetingNoteId);
+    if (!note) throw new QueRuleError("NOT_FOUND", `회의록 없음: ${input.meetingNoteId}`);
+    // 편집 권한: 업로더 또는 관리자(열람 규칙 canViewMeetingNote의 소유 축과 동일).
+    if (actor.role !== "admin" && note.uploaderId !== actor.id) {
+      throw new QueRuleError("NOT_AUTHORIZED", "회의록 제목은 업로더 또는 관리자만 수정할 수 있다");
+    }
+    const title = input.title.trim();
+    if (!title) throw new QueRuleError("INVALID_INPUT", "회의명은 필수다");
+    if (title.length > 200) throw new QueRuleError("INVALID_INPUT", "회의명은 200자 이내다");
+    if (title !== note.title) {
+      note.title = title;
+      note.updatedAt = this.now();
+      this.logChange(ctx, {
+        entityType: "meeting_note",
+        entityId: note.id,
+        changeType: "update",
+        afterValue: title,
+        reason: `제목 수정: ${title}`,
+      });
+    }
+    return note;
+  }
+
   /** 회의록에서 Action 후보를 규칙 기반으로 추출한다.
    *  자동으로 Task를 만들지 않는다 — 후보는 candidate/needs_review로만 생성된다. */
   extractActionItems(ctx: ActorContext, meetingNoteId: string): ActionItem[] {
@@ -1888,6 +1918,38 @@ export class MockQueDb implements QueDb {
       beforeValue: String(before),
       afterValue: String(active),
     });
+    return template;
+  }
+
+  /** 반복 업무 템플릿 제목 수정 — 만든 사람과 관리자만(setActive와 동일 권한). 회차 생성 규칙엔 영향 없다.
+   *  createRecurringTemplate와 동일 규약(trim·필수·200자). 변경이 있을 때만 ChangeLog에 남긴다. */
+  updateRecurringTemplate(
+    ctx: ActorContext,
+    input: { templateId: string; title?: string },
+  ): RecurringTemplate {
+    const actor = this.requireUser(ctx.actorId);
+    const template = this.recurringTemplates.find((t) => t.id === input.templateId);
+    if (!template) throw new QueRuleError("NOT_FOUND", `템플릿 없음: ${input.templateId}`);
+    assertCanManageRecurringTemplate(actor, template);
+    let titleChanged: string | undefined;
+    if (input.title !== undefined) {
+      const title = input.title.trim();
+      if (!title) throw new QueRuleError("INVALID_INPUT", "제목은 필수다");
+      const next = title.slice(0, 200);
+      if (next !== template.title) {
+        template.title = next;
+        titleChanged = next;
+      }
+    }
+    if (titleChanged !== undefined) {
+      this.logChange(ctx, {
+        entityType: "recurring_template",
+        entityId: template.id,
+        changeType: "update",
+        afterValue: titleChanged,
+        reason: `제목 수정: ${titleChanged}`,
+      });
+    }
     return template;
   }
 

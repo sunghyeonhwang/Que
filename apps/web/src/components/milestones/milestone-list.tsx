@@ -12,6 +12,11 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import {
+  DuePicker,
+  joinDateTimeLocal,
+  splitDateTimeLocal,
+} from "@/components/app/due-picker";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -178,15 +183,23 @@ function MilestoneRowItem({ milestone: m }: { milestone: MilestoneRow }) {
             제목
             <Input className="h-10" value={title} onChange={(e) => setTitle(e.target.value)} />
           </label>
-          <label className="flex flex-col gap-1 text-xs text-[var(--que-text-secondary)]">
+          <div className="flex w-56 flex-col gap-1 text-xs text-[var(--que-text-secondary)]">
             기한
-            <Input
-              type="datetime-local"
-              className="h-10"
-              value={dueAt}
-              onChange={(e) => setDueAt(e.target.value)}
+            <DuePicker
+              dueDate={splitDateTimeLocal(dueAt).date}
+              dueTime={splitDateTimeLocal(dueAt).time}
+              timeMin="08:00"
+              timeMax="20:00"
+              emptyLabel="기한 미정"
+              onSelectDate={(d) =>
+                setDueAt(joinDateTimeLocal(d, splitDateTimeLocal(dueAt).time, "17:00"))
+              }
+              onSelectDueTime={(t) =>
+                setDueAt(joinDateTimeLocal(splitDateTimeLocal(dueAt).date, t, "17:00"))
+              }
+              triggerAriaLabel="마일스톤 기한 설정"
             />
-          </label>
+          </div>
           <label className="flex h-10 cursor-pointer items-center gap-2 text-xs text-[var(--que-text-secondary)]">
             <Checkbox
               checked={critical}

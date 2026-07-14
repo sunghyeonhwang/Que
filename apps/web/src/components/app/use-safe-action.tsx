@@ -23,6 +23,9 @@ export function useSafeAction() {
     options: {
       success: string;
       onSuccess?: () => void;
+      /** 실패(도메인 거부·예외) 시 호출 — 인라인 편집의 낙관적 표시를 원값으로 되돌리는 데 쓴다.
+       *  (글래도스 시트 심사 지적: 저장 실패 후에도 화면에 미저장 값이 남는 유령 상태 방지) */
+      onError?: () => void;
       refresh?: boolean;
       /** 성공 토스트에 [실행 취소] 버튼을 붙인다 — 결과(이전 값 포함)를 받아 되돌리기 액션을 돌려준다.
        *  undefined를 돌려주면 버튼 없음(되돌릴 것이 없는 경우). */
@@ -44,10 +47,12 @@ export function useSafeAction() {
           if (options.refresh !== false) router.refresh();
         } else {
           toast.error(result.error);
+          options.onError?.();
         }
       } catch (error) {
         reportError(error, { source: "server-action" });
         toast.error(UNEXPECTED_ERROR_MESSAGE);
+        options.onError?.();
       }
     });
   };

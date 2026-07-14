@@ -151,6 +151,7 @@ export function TaskStatusSheet({
     if (trimmed === task.title) return; // 변화 없음
     run(() => updateTaskDetailsAction({ taskId: task.id, title: trimmed }), {
       success: "제목을 수정했습니다.",
+      onError: () => setTitle(task.title), // 저장 실패 시 표시 원복
     });
   };
   const cancelTitleEdit = () => {

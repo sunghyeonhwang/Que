@@ -4,8 +4,12 @@ import { useState } from "react";
 import { CalendarClock, Check, TriangleAlert } from "lucide-react";
 import { resolveMilestoneAgendaAction } from "@/app/(app)/planning/actions";
 import { useSafeAction } from "@/components/app/use-safe-action";
+import {
+  DuePicker,
+  joinDateTimeLocal,
+  splitDateTimeLocal,
+} from "@/components/app/due-picker";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 
 // 마일스톤 안건 결정 컨트롤 — 회의 진행 모드 ⑶ 마일스톤 안건과 /daily 긴급 결정 카드가 공유한다.
@@ -60,17 +64,27 @@ export function MilestoneDecision({
   if (mode === "defer") {
     return (
       <div className="flex flex-col gap-2">
-        <label className="text-xs font-medium text-[var(--que-text-secondary)]" htmlFor={`due-${milestoneId}`}>
+        <span className="text-xs font-medium text-[var(--que-text-secondary)]">
           새 마감일
-        </label>
+        </span>
         <div className="flex flex-wrap items-center gap-2">
-          <Input
-            id={`due-${milestoneId}`}
-            type="datetime-local"
-            className="h-10 w-[13.5rem]"
-            value={newDueAt}
-            onChange={(e) => setNewDueAt(e.target.value)}
-          />
+          <div className="w-[13.5rem]">
+            <DuePicker
+              dueDate={splitDateTimeLocal(newDueAt).date}
+              dueTime={splitDateTimeLocal(newDueAt).time}
+              timeMin="08:00"
+              timeMax="20:00"
+              emptyLabel="새 마감일 미정"
+              onSelectDate={(d) =>
+                setNewDueAt(joinDateTimeLocal(d, splitDateTimeLocal(newDueAt).time, "17:00"))
+              }
+              onSelectDueTime={(t) =>
+                setNewDueAt(joinDateTimeLocal(splitDateTimeLocal(newDueAt).date, t, "17:00"))
+              }
+              onClear={() => setNewDueAt("")}
+              triggerAriaLabel="새 마감일 설정"
+            />
+          </div>
           <Button
             className="h-10"
             disabled={!newDueAt || pending}

@@ -1,13 +1,17 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { format } from "date-fns";
-import { FileText } from "lucide-react";
-import { extractActionsAction } from "@/app/(app)/meeting-notes/actions";
+import { FileText, Pencil } from "lucide-react";
+import {
+  extractActionsAction,
+  updateMeetingNoteTitleAction,
+} from "@/app/(app)/meeting-notes/actions";
 import { useSafeAction } from "@/components/app/use-safe-action";
 import { ToneBadge } from "@/components/app/tone-badge";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Sheet,
   SheetContent,
@@ -32,6 +36,8 @@ export interface NoteListItem {
   markdownBody: string;
   visibility: "team" | "project" | "admin" | "restricted";
   restrictedCount?: number;
+  /** 제목 편집 가능(업로더·관리자 — 서버 조립). 연필 노출 게이트: UI 숨김+서버 강제 3중 관례. */
+  canEdit?: boolean;
 }
 
 /** 업로드된 회의록 목록. 원문 미리보기(Sheet)와 Action 추출 버튼을 제공한다.
@@ -60,6 +66,38 @@ export function NoteList({
 function NoteRow({ note, highlighted }: { note: NoteListItem; highlighted: boolean }) {
   const { run, pending } = useSafeAction();
   const rowRef = useRef<HTMLDivElement | null>(null);
+
+  // 제목 인라인 편집(업로더·관리자만 — 서버 강제, 실패 시 토스트+원복). sr-only SheetTitle 유지.
+  const { run: runTitle, pending: titlePending } = useSafeAction();
+  const [title, setTitle] = useState(note.title);
+  const [editingTitle, setEditingTitle] = useState(false);
+  const titleCommittedRef = useRef(true);
+
+  const beginTitleEdit = () => {
+    setTitle(note.title);
+    titleCommittedRef.current = false;
+    setEditingTitle(true);
+  };
+  const commitTitle = () => {
+    if (titleCommittedRef.current) return;
+    titleCommittedRef.current = true;
+    setEditingTitle(false);
+    const trimmed = title.trim();
+    if (!trimmed) {
+      setTitle(note.title);
+      return;
+    }
+    if (trimmed === note.title) return;
+    runTitle(() => updateMeetingNoteTitleAction({ meetingNoteId: note.id, title: trimmed }), {
+      success: "회의록 제목을 수정했습니다.",
+      onError: () => setTitle(note.title), // 저장 실패 시 표시 원복
+    });
+  };
+  const cancelTitleEdit = () => {
+    titleCommittedRef.current = true;
+    setTitle(note.title);
+    setEditingTitle(false);
+  };
 
   // 딥링크로 강조된 행은 마운트 시 화면 안으로 스크롤한다.
   useEffect(() => {
@@ -113,7 +151,45 @@ function NoteRow({ note, highlighted }: { note: NoteListItem; highlighted: boole
         </SheetTrigger>
         <SheetContent side="right" className="w-full max-w-lg p-5">
           <SheetHeader className="p-0 pb-3 text-left">
-            <SheetTitle>{note.title}</SheetTitle>
+            {editingTitle ? (
+              <>
+                {/* 편집 중에도 접근성용 제목 유지(sr-only) — task-status-sheet 선례 */}
+                <SheetTitle className="sr-only">{title}</SheetTitle>
+                <Input
+                  autoFocus
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      commitTitle();
+                    } else if (e.key === "Escape") {
+                      e.preventDefault();
+                      cancelTitleEdit();
+                    }
+                  }}
+                  onBlur={commitTitle}
+                  aria-label={`${note.title} 제목 수정 입력`}
+                  className="h-10 w-full rounded-lg text-base font-semibold"
+                />
+              </>
+            ) : (
+              <div className="flex items-center gap-2">
+                <SheetTitle className="min-w-0 flex-1">{title}</SheetTitle>
+                {note.canEdit && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    aria-label="제목 수정"
+                    className="size-10 shrink-0 rounded-lg p-0 text-[var(--que-text-tertiary)]"
+                    disabled={titlePending}
+                    onClick={beginTitleEdit}
+                  >
+                    <Pencil className="size-4" aria-hidden />
+                  </Button>
+                )}
+              </div>
+            )}
             <SheetDescription>{note.fileName} — 원문은 항상 보존됩니다</SheetDescription>
           </SheetHeader>
           <ScrollArea className="h-[calc(100dvh-8rem)] rounded-lg border border-[var(--que-border)] p-3">

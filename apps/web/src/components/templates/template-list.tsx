@@ -1,9 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { Pencil } from "lucide-react";
 import { RECURRENCE_FREQUENCY_LABELS, WEEKDAY_LABELS } from "@que/core";
-import { setRecurringTemplateActiveAction } from "@/app/(app)/projects/actions";
+import {
+  setRecurringTemplateActiveAction,
+  updateRecurringTemplateAction,
+} from "@/app/(app)/projects/actions";
 import { useOptimisticAction } from "@/components/app/use-optimistic-action";
+import { useSafeAction } from "@/components/app/use-safe-action";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 export interface TemplateListItem {
   id: string;
@@ -46,6 +53,38 @@ function TemplateRow({ template }: { template: TemplateListItem }) {
   const [active, setActive] = useState(template.active);
   const { run } = useOptimisticAction();
 
+  // 제목 인라인 편집(생성자·관리자만 — 서버 강제). titleCommittedRef로 Enter 후 blur 중복 저장 차단.
+  const { run: runTitle, pending: titlePending } = useSafeAction();
+  const [title, setTitle] = useState(template.title);
+  const [editingTitle, setEditingTitle] = useState(false);
+  const titleCommittedRef = useRef(true);
+
+  const beginTitleEdit = () => {
+    setTitle(template.title);
+    titleCommittedRef.current = false;
+    setEditingTitle(true);
+  };
+  const commitTitle = () => {
+    if (titleCommittedRef.current) return;
+    titleCommittedRef.current = true;
+    setEditingTitle(false);
+    const trimmed = title.trim();
+    if (!trimmed) {
+      setTitle(template.title);
+      return;
+    }
+    if (trimmed === template.title) return;
+    runTitle(() => updateRecurringTemplateAction({ templateId: template.id, title: trimmed }), {
+      success: "제목을 수정했습니다.",
+      onError: () => setTitle(template.title), // 저장 실패 시 표시 원복
+    });
+  };
+  const cancelTitleEdit = () => {
+    titleCommittedRef.current = true;
+    setTitle(template.title);
+    setEditingTitle(false);
+  };
+
   const toggle = () => {
     const next = !active;
     run(() => setRecurringTemplateActiveAction(template.id, next), {
@@ -64,7 +103,41 @@ function TemplateRow({ template }: { template: TemplateListItem }) {
   return (
     <div className="flex min-h-12 flex-wrap items-center gap-2 rounded-md border px-3 py-2">
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium">{template.title}</p>
+        {editingTitle ? (
+          <Input
+            autoFocus
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                commitTitle();
+              } else if (e.key === "Escape") {
+                e.preventDefault();
+                cancelTitleEdit();
+              }
+            }}
+            onBlur={commitTitle}
+            aria-label={`${template.title} 제목 수정 입력`}
+            className="h-10 w-full rounded-lg text-sm font-medium"
+          />
+        ) : (
+          <div className="flex items-center gap-1.5">
+            <p className="min-w-0 flex-1 truncate text-sm font-medium">{title}</p>
+            {template.canManage && (
+              <Button
+                type="button"
+                variant="ghost"
+                aria-label="제목 수정"
+                className="size-8 shrink-0 rounded-lg p-0 text-[var(--que-text-tertiary)]"
+                disabled={titlePending}
+                onClick={beginTitleEdit}
+              >
+                <Pencil className="size-3.5" aria-hidden />
+              </Button>
+            )}
+          </div>
+        )}
         <p className="truncate text-xs text-muted-foreground">
           {RECURRENCE_FREQUENCY_LABELS[template.frequency]} · {scheduleLabel} · 담당{" "}
           {template.assigneeName}

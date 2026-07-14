@@ -3,6 +3,11 @@
 import { useState } from "react";
 import { createMilestoneAction } from "@/app/(app)/planning/actions";
 import { useSafeAction } from "@/components/app/use-safe-action";
+import {
+  DuePicker,
+  joinDateTimeLocal,
+  splitDateTimeLocal,
+} from "@/components/app/due-picker";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -101,13 +106,21 @@ export function CreateMilestoneForm({
           />
         </Field>
         <Field>
-          <FieldLabel htmlFor="ms-due">기한</FieldLabel>
-          <Input
-            id="ms-due"
-            type="datetime-local"
-            className="h-10"
-            value={dueAt}
-            onChange={(e) => setDueAt(e.target.value)}
+          <FieldLabel>기한</FieldLabel>
+          <DuePicker
+            dueDate={splitDateTimeLocal(dueAt).date}
+            dueTime={splitDateTimeLocal(dueAt).time}
+            timeMin="08:00"
+            timeMax="20:00"
+            emptyLabel="기한 미정"
+            onSelectDate={(d) =>
+              setDueAt(joinDateTimeLocal(d, splitDateTimeLocal(dueAt).time, "17:00"))
+            }
+            onSelectDueTime={(t) =>
+              setDueAt(joinDateTimeLocal(splitDateTimeLocal(dueAt).date, t, "17:00"))
+            }
+            onClear={() => setDueAt("")}
+            triggerAriaLabel="마일스톤 기한 설정"
           />
         </Field>
         {/* 중요 마일스톤 — 최종 런칭일 등. 켜면 전 화면 칩이 붉은 그라데이션으로 표기된다. */}

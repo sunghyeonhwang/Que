@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { createPaymentRequestAction } from "@/app/(app)/payments/actions";
 import { useSafeAction } from "@/components/app/use-safe-action";
+import { DuePicker } from "@/components/app/due-picker";
 import { Button } from "@/components/ui/button";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -159,12 +160,16 @@ export function PaymentForm({ categories }: { categories: string[] }) {
             {amountError && <p className="text-sm text-destructive">{amountError}</p>}
           </Field>
           <Field>
-            <FieldLabel htmlFor="pay-due">마감일</FieldLabel>
-            <Input
-              id="pay-due"
-              type="date"
-              value={dueDate}
-              onChange={(e) => setDueDate(e.target.value)}
+            <FieldLabel>마감일</FieldLabel>
+            <DuePicker
+              dueDate={dueDate}
+              dueTime=""
+              showTime={false}
+              emptyLabel="마감일 미정"
+              onSelectDate={setDueDate}
+              onSelectDueTime={() => {}}
+              onClear={() => setDueDate("")}
+              triggerAriaLabel="결제 마감일 설정"
             />
           </Field>
         </div>

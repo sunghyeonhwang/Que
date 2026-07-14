@@ -37,6 +37,7 @@ import { useOptimisticAction } from "@/components/app/use-optimistic-action";
 import { Sheet, SheetClose, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DuePicker } from "@/components/app/due-picker";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
@@ -369,12 +370,15 @@ function DrawerBody({
           <FieldRow icon={<CalendarDays className="size-4" aria-hidden />} label="마감일">
             {canEdit ? (
               <div className="w-full">
-                <Input
-                  type="date"
-                  value={dueDate}
-                  onChange={(e) => setDueDate(e.target.value)}
-                  aria-label="마감일"
-                  className="h-10 min-h-10 border-[var(--que-border)]"
+                <DuePicker
+                  dueDate={dueDate}
+                  dueTime=""
+                  showTime={false}
+                  emptyLabel="마감일 미정"
+                  onSelectDate={setDueDate}
+                  onSelectDueTime={() => {}}
+                  onClear={() => setDueDate("")}
+                  triggerAriaLabel="마감일 설정"
                 />
                 {detail.isOverdue ? (
                   <p className="mt-1 flex items-center gap-1 text-xs font-medium text-[var(--que-error)]">

@@ -3,12 +3,14 @@
 import { useEffect, useRef, useState } from "react";
 import { useAnimate } from "motion/react";
 import { format } from "date-fns";
-import { ChevronDown, ListChecks, Lock, Plus } from "lucide-react";
+import { ChevronDown, ListChecks, Lock, Pencil, Plus } from "lucide-react";
 import type { ObjectiveStatus, StateCheck } from "@que/core";
 import type { OkrKeyResultView, OkrObjectiveView } from "@/lib/okr-data";
 import {
   toggleKeyResultCheckAction,
+  updateKeyResultAction,
   updateKeyResultProgressAction,
+  updateObjectiveAction,
 } from "@/app/(app)/daily/okr-actions";
 import { useSafeAction } from "@/components/app/use-safe-action";
 import { ToneBadge, type BadgeTone } from "@/components/app/tone-badge";
@@ -74,40 +76,107 @@ export function ObjectiveCard({
   const overall = averageProgress(keyResults);
   const status = OBJ_STATUS[objective.status];
 
+  // 목표 제목 인라인 편집(관리자만 — canManage). Enter/Esc, 실패 시 원복.
+  const { run: runTitle, pending: titlePending } = useSafeAction();
+  const [title, setTitle] = useState(objective.title);
+  const [editingTitle, setEditingTitle] = useState(false);
+  const titleCommittedRef = useRef(true);
+  const beginTitleEdit = () => {
+    setTitle(objective.title);
+    titleCommittedRef.current = false;
+    setEditingTitle(true);
+  };
+  const commitTitle = () => {
+    if (titleCommittedRef.current) return;
+    titleCommittedRef.current = true;
+    setEditingTitle(false);
+    const trimmed = title.trim();
+    if (!trimmed) {
+      setTitle(objective.title);
+      return;
+    }
+    if (trimmed === objective.title) return;
+    runTitle(() => updateObjectiveAction({ objectiveId: objective.id, title: trimmed }), {
+      success: "목표 제목을 수정했습니다.",
+      onError: () => setTitle(objective.title),
+    });
+  };
+  const cancelTitleEdit = () => {
+    titleCommittedRef.current = true;
+    setTitle(objective.title);
+    setEditingTitle(false);
+  };
+
   return (
     <div className="rounded-xl border border-[var(--que-border)] bg-[var(--que-bg)] shadow-[var(--que-shadow-sm)]">
-      {/* 헤더(토글) */}
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        className="flex w-full min-h-14 items-center gap-3 px-4 py-3 text-left"
-      >
-        <ChevronDown
-          className={cn(
-            "size-4 shrink-0 text-[var(--que-text-tertiary)] transition-transform",
-            open ? "" : "-rotate-90",
+      {/* 헤더(토글 + 제목 인라인 편집) */}
+      {editingTitle ? (
+        <div className="flex min-h-14 items-center gap-2 px-4 py-3">
+          <Input
+            autoFocus
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                commitTitle();
+              } else if (e.key === "Escape") {
+                e.preventDefault();
+                cancelTitleEdit();
+              }
+            }}
+            onBlur={commitTitle}
+            aria-label={`${objective.title} 제목 수정 입력`}
+            className="h-10 w-full rounded-lg text-sm font-semibold"
+          />
+        </div>
+      ) : (
+        <div className="flex min-h-14 items-center gap-1 px-4 py-3">
+          <button
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            aria-expanded={open}
+            className="flex min-w-0 flex-1 items-center gap-3 text-left"
+          >
+            <ChevronDown
+              className={cn(
+                "size-4 shrink-0 text-[var(--que-text-tertiary)] transition-transform",
+                open ? "" : "-rotate-90",
+              )}
+              aria-hidden
+            />
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="truncate text-sm font-semibold text-[var(--que-text)]">
+                  {title}
+                </span>
+                <ToneBadge tone={status.tone}>{status.label}</ToneBadge>
+              </div>
+              <p className="mt-0.5 truncate text-xs text-[var(--que-text-tertiary)]">
+                {periodLabel(objective.period)} · 소유자 {ownerName} · 핵심결과 {keyResults.length}개
+              </p>
+            </div>
+            <div className="flex w-28 shrink-0 items-center gap-2">
+              <ProgressBar value={overall} />
+              <span className="w-9 text-right text-xs font-medium tabular-nums text-[var(--que-text-secondary)]">
+                {overall}%
+              </span>
+            </div>
+          </button>
+          {canManage && (
+            <Button
+              type="button"
+              variant="ghost"
+              aria-label="목표 제목 수정"
+              className="size-10 shrink-0 rounded-lg p-0 text-[var(--que-text-tertiary)]"
+              disabled={titlePending}
+              onClick={beginTitleEdit}
+            >
+              <Pencil className="size-4" aria-hidden />
+            </Button>
           )}
-          aria-hidden
-        />
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="truncate text-sm font-semibold text-[var(--que-text)]">
-              {objective.title}
-            </span>
-            <ToneBadge tone={status.tone}>{status.label}</ToneBadge>
-          </div>
-          <p className="mt-0.5 truncate text-xs text-[var(--que-text-tertiary)]">
-            {periodLabel(objective.period)} · 소유자 {ownerName} · 핵심결과 {keyResults.length}개
-          </p>
         </div>
-        <div className="flex w-28 shrink-0 items-center gap-2">
-          <ProgressBar value={overall} />
-          <span className="w-9 text-right text-xs font-medium tabular-nums text-[var(--que-text-secondary)]">
-            {overall}%
-          </span>
-        </div>
-      </button>
+      )}
 
       {open && (
         <div className="border-t border-[var(--que-border)] px-4 py-3">
@@ -129,6 +198,7 @@ export function ObjectiveCard({
                   view={kr}
                   owner={memberById.get(kr.keyResult.ownerId)}
                   memberById={memberById}
+                  canEditTitle={canManage}
                 />
               ))}
             </div>
@@ -172,10 +242,13 @@ function KrRow({
   view,
   owner,
   memberById,
+  canEditTitle,
 }: {
   view: OkrKeyResultView;
   owner?: OkrMember;
   memberById: Map<string, OkrMember>;
+  /** KR 제목 편집 가능(관리자·목표 소유자 — 부모 canManage). 서버가 최종 강제. */
+  canEditTitle: boolean;
 }) {
   const {
     keyResult: kr,
@@ -190,6 +263,37 @@ function KrRow({
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState(String(kr.currentValue ?? 0));
   const { run, pending } = useSafeAction();
+
+  // KR 제목 인라인 편집. Enter/Esc, 실패 시 원복.
+  const { run: runTitle, pending: titlePending } = useSafeAction();
+  const [title, setTitle] = useState(kr.title);
+  const [editingTitle, setEditingTitle] = useState(false);
+  const titleCommittedRef = useRef(true);
+  const beginTitleEdit = () => {
+    setTitle(kr.title);
+    titleCommittedRef.current = false;
+    setEditingTitle(true);
+  };
+  const commitTitle = () => {
+    if (titleCommittedRef.current) return;
+    titleCommittedRef.current = true;
+    setEditingTitle(false);
+    const trimmed = title.trim();
+    if (!trimmed) {
+      setTitle(kr.title);
+      return;
+    }
+    if (trimmed === kr.title) return;
+    runTitle(() => updateKeyResultAction({ keyResultId: kr.id, title: trimmed }), {
+      success: "핵심결과 제목을 수정했습니다.",
+      onError: () => setTitle(kr.title),
+    });
+  };
+  const cancelTitleEdit = () => {
+    titleCommittedRef.current = true;
+    setTitle(kr.title);
+    setEditingTitle(false);
+  };
 
   const numeric = Number(value);
   const invalid = value.trim() === "" || Number.isNaN(numeric) || numeric < 0;
@@ -210,22 +314,44 @@ function KrRow({
 
   return (
     <div className="rounded-lg border border-[var(--que-border)]">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        className="flex w-full min-h-12 flex-wrap items-center gap-x-3 gap-y-1.5 px-3 py-2.5 text-left"
-      >
-        <div className="flex min-w-0 flex-[2] items-center gap-2">
-          <ChevronDown
-            className={cn(
-              "size-3.5 shrink-0 text-[var(--que-text-tertiary)] transition-transform",
-              open ? "" : "-rotate-90",
-            )}
-            aria-hidden
+      {editingTitle ? (
+        <div className="flex min-h-12 items-center px-3 py-2.5">
+          <Input
+            autoFocus
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                commitTitle();
+              } else if (e.key === "Escape") {
+                e.preventDefault();
+                cancelTitleEdit();
+              }
+            }}
+            onBlur={commitTitle}
+            aria-label={`${kr.title} 제목 수정 입력`}
+            className="h-9 w-full rounded-lg text-sm font-medium"
           />
-          <span className="truncate text-sm font-medium text-[var(--que-text)]">{kr.title}</span>
         </div>
+      ) : (
+        <div className="flex items-center gap-1 pr-1">
+          <button
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            aria-expanded={open}
+            className="flex min-h-12 flex-1 flex-wrap items-center gap-x-3 gap-y-1.5 px-3 py-2.5 text-left"
+          >
+            <div className="flex min-w-0 flex-[2] items-center gap-2">
+              <ChevronDown
+                className={cn(
+                  "size-3.5 shrink-0 text-[var(--que-text-tertiary)] transition-transform",
+                  open ? "" : "-rotate-90",
+                )}
+                aria-hidden
+              />
+              <span className="truncate text-sm font-medium text-[var(--que-text)]">{title}</span>
+            </div>
         <span
           className={cn(
             "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium",
@@ -254,13 +380,27 @@ function KrRow({
             <span className="text-[var(--que-success)]"> (완료 {doneTaskCount})</span>
           </span>
         )}
-        <div className="flex w-32 shrink-0 items-center gap-2">
-          <ProgressBar value={progress} />
-          <span className="w-9 text-right text-xs font-medium tabular-nums text-[var(--que-text-secondary)]">
-            {progress}%
-          </span>
+            <div className="flex w-32 shrink-0 items-center gap-2">
+              <ProgressBar value={progress} />
+              <span className="w-9 text-right text-xs font-medium tabular-nums text-[var(--que-text-secondary)]">
+                {progress}%
+              </span>
+            </div>
+          </button>
+          {canEditTitle && (
+            <Button
+              type="button"
+              variant="ghost"
+              aria-label="핵심결과 제목 수정"
+              className="size-9 shrink-0 rounded-lg p-0 text-[var(--que-text-tertiary)]"
+              disabled={titlePending}
+              onClick={beginTitleEdit}
+            >
+              <Pencil className="size-3.5" aria-hidden />
+            </Button>
+          )}
         </div>
-      </button>
+      )}
 
       {open && (
         <div className="border-t border-[var(--que-border)] px-3 py-3">

@@ -47,3 +47,14 @@ export async function setRecurringTemplateActiveAction(
     db.setRecurringTemplateActive({ actorId: user.id, via: "web" }, templateId, active),
   );
 }
+
+/** 반복 업무 템플릿 제목 수정 — 만든 사람·관리자만(core가 최종 강제). */
+export async function updateRecurringTemplateAction(input: {
+  templateId: string;
+  title?: string;
+}): Promise<ActionResult> {
+  const user = await getCurrentUser();
+  return toResult((db) =>
+    db.updateRecurringTemplate({ actorId: user.id, via: "web" }, input),
+  );
+}

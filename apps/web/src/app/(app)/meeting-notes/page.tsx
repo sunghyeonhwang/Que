@@ -58,6 +58,8 @@ export default async function MeetingNotesPage({
       markdownBody: note.markdownBody,
       visibility: note.visibility,
       restrictedCount: note.restrictedUserIds?.length,
+      // 제목 편집 권한(업로더·관리자) — 서버 판정을 내려 연필 노출을 게이트(core가 재강제).
+      canEdit: note.uploaderId === user.id || user.role === "admin",
     }));
 
   return (

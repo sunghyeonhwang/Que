@@ -29,7 +29,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
+import { DuePicker } from "@/components/app/due-picker";
 import { cn } from "@/lib/utils";
 
 // 업무 부하 표 → 행 '조정' → 재배분 시트(관리자 전용). 그 사람의 열린 작업을 지연 로드하고
@@ -264,19 +264,21 @@ function ReassignBody({ row, allRows }: { row: HomeLoadRow; allRows: HomeLoadRow
                     </label>
 
                     {/* 마감 미루기 */}
-                    <label className="flex min-w-0 flex-1 flex-col gap-1">
+                    <div className="flex min-w-0 flex-1 flex-col gap-1">
                       <span className="inline-flex items-center gap-1 text-xs font-medium text-[var(--que-text-secondary)]">
                         <CalendarClock className="size-3.5" aria-hidden />
                         마감 미루기
                       </span>
-                      <Input
-                        type="date"
-                        value={dueValue}
-                        onChange={(e) => pushDue(task, e.target.value)}
-                        className="min-h-10"
-                        aria-label={`${task.title} 마감일`}
+                      <DuePicker
+                        dueDate={dueValue}
+                        dueTime=""
+                        showTime={false}
+                        emptyLabel="마감일 미정"
+                        onSelectDate={(d) => pushDue(task, d)}
+                        onSelectDueTime={() => {}}
+                        triggerAriaLabel={`${task.title} 마감일 설정`}
                       />
-                    </label>
+                    </div>
                   </div>
                 )}
               </li>

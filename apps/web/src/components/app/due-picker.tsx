@@ -46,33 +46,60 @@ function daysInMonth(y: number, m1: number): number {
   return new Date(Date.UTC(y, m1, 0)).getUTCDate();
 }
 
-/** 마감 버튼 라벨: "7월 18일(금) 17:00" / 날짜만 "7월 18일(금)" / 미설정 "마감 미정". */
-export function formatDueLabel(dueDate?: string, dueTime?: string): string {
-  if (!dueDate) return "마감 미정";
+/** 버튼 라벨: "7월 18일(금) 17:00" / 날짜만 "7월 18일(금)" / 미설정 emptyLabel.
+ *  showTime=false거나 dueTime 없으면 날짜만 표기. */
+export function formatDueLabel(
+  dueDate?: string,
+  dueTime?: string,
+  opts?: { showTime?: boolean; emptyLabel?: string },
+): string {
+  const emptyLabel = opts?.emptyLabel ?? "마감 미정";
+  if (!dueDate) return emptyLabel;
   const { m, d } = parseKey(dueDate);
   const base = `${m}월 ${d}일(${WEEKDAYS[weekdayOf(dueDate)]})`;
-  return dueTime ? `${base} ${dueTime}` : base;
+  const withTime = opts?.showTime !== false && dueTime;
+  return withTime ? `${base} ${dueTime}` : base;
 }
 
-/** 마감 시각 허용 창(2026-07-15 사용자 확정 — 마감은 오전 11시~오후 5시에만 존재). */
+/** 마감 시각 허용 창(2026-07-15 사용자 확정 — 마감은 오전 11시~오후 5시에만 존재). 기본값. */
 export const DUE_TIME_MIN = "11:00";
 export const DUE_TIME_MAX = "17:00";
 
-/** 11:00~17:00, 30분 간격 슬롯. */
-function buildSlots(): string[] {
+/** datetime-local 문자열("yyyy-MM-ddTHH:mm") ↔ DuePicker의 date/time 분리 헬퍼.
+ *  기존 datetime-local 입력을 쓰던 폼이 페이로드 형식을 그대로 유지하며 UI만 교체할 때 쓴다. */
+export function splitDateTimeLocal(v: string): { date: string; time: string } {
+  if (!v) return { date: "", time: "" };
+  return { date: v.slice(0, 10), time: v.length >= 16 ? v.slice(11, 16) : "" };
+}
+export function joinDateTimeLocal(
+  date: string,
+  time: string,
+  defaultTime = "10:00",
+): string {
+  if (!date) return "";
+  return `${date}T${time || defaultTime}`;
+}
+
+const toMin = (t: string) => {
+  const [h, m] = t.split(":").map(Number);
+  return h * 60 + m;
+};
+const fromMin = (t: number) => `${pad(Math.floor(t / 60))}:${pad(t % 60)}`;
+
+/** [min, max] 30분 간격 슬롯(min이 :00/:30 정렬 가정). */
+function buildSlots(min: string, max: string): string[] {
+  const start = toMin(min);
+  const end = toMin(max);
   const out: string[] = [];
-  for (let h = 11; h <= 17; h++) {
-    out.push(`${pad(h)}:00`);
-    if (h < 17) out.push(`${pad(h)}:30`);
-  }
+  for (let t = start; t <= end; t += 30) out.push(fromMin(t));
   return out;
 }
 
 /** HH:mm을 허용 창 안으로 클램프(직접 입력 방어). */
-function clampDueTime(time: string): string {
+function clampTime(time: string, min: string, max: string): string {
   if (!time) return time;
-  if (time < DUE_TIME_MIN) return DUE_TIME_MIN;
-  if (time > DUE_TIME_MAX) return DUE_TIME_MAX;
+  if (time < min) return min;
+  if (time > max) return max;
   return time;
 }
 
@@ -85,6 +112,13 @@ export interface DuePickerProps {
   startTime?: string; // HH:mm | ""
   onSelectStartTime?: (time: string) => void;
   onClear?: () => void;
+  /** 시각 허용 창(30분 슬롯·클램프·time input min/max). 기본 11:00~17:00(마감 창). */
+  timeMin?: string;
+  timeMax?: string;
+  /** 시각 선택 UI를 숨기고 순수 날짜 필드로 쓴다(기본 true=시각 노출). */
+  showTime?: boolean;
+  /** 미설정 라벨(기본 "마감 미정" — "일시 미정" 등 대체). */
+  emptyLabel?: string;
   triggerAriaLabel?: string;
   triggerClassName?: string;
 }
@@ -97,10 +131,14 @@ export function DuePicker({
   onSelectDueTime,
   onSelectStartTime,
   onClear,
+  timeMin = DUE_TIME_MIN,
+  timeMax = DUE_TIME_MAX,
+  showTime = true,
+  emptyLabel = "마감 미정",
   triggerAriaLabel = "마감 설정",
   triggerClassName,
 }: DuePickerProps) {
-  const slots = useMemo(() => buildSlots(), []);
+  const slots = useMemo(() => buildSlots(timeMin, timeMax), [timeMin, timeMax]);
   const todayKey = useMemo(() => kstTodayKey(), []);
   // 보이는 달: 선택일 있으면 그 달, 없으면 오늘 달. 마운트 시 1회 초기화.
   const init = parseKey(dueDate || todayKey);
@@ -148,7 +186,7 @@ export function DuePicker({
             hasDue ? "text-[var(--que-text)]" : "text-[var(--que-text-tertiary)]",
           )}
         >
-          {formatDueLabel(dueDate, dueTime)}
+          {formatDueLabel(dueDate, dueTime, { showTime, emptyLabel })}
         </span>
       </PopoverTrigger>
 
@@ -162,7 +200,7 @@ export function DuePicker({
             빠른 선택
           </p>
           <DatePresetChips value={dueDate} onSelect={onSelectDate} />
-          <TimePresetChips value={dueTime} onSelect={onSelectDueTime} />
+          {showTime && <TimePresetChips value={dueTime} onSelect={onSelectDueTime} />}
         </div>
 
         {/* 콤팩트 월 달력(KST) */}
@@ -231,47 +269,51 @@ export function DuePicker({
           </div>
         </div>
 
-        {/* 마감 시각 슬롯 + 직접 입력 */}
-        <div className="flex flex-col gap-1.5 border-t border-[var(--que-border)] pt-2.5">
-          <div className="flex items-center justify-between gap-2">
-            <p className="text-xs font-medium text-[var(--que-text-tertiary)]">
-              마감 시각
-            </p>
-            <input
-              type="time"
-              value={dueTime}
-              min={DUE_TIME_MIN}
-              max={DUE_TIME_MAX}
-              onChange={(e) => onSelectDueTime(clampDueTime(e.target.value))}
-              aria-label="마감 시각 직접 입력 (11:00~17:00)"
-              className="h-9 rounded-lg border border-[var(--que-border)] bg-transparent px-2 text-sm"
-            />
+        {/* 시각 슬롯 + 직접 입력 — showTime일 때만 */}
+        {showTime && (
+          <div className="flex flex-col gap-1.5 border-t border-[var(--que-border)] pt-2.5">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-xs font-medium text-[var(--que-text-tertiary)]">
+                시각
+              </p>
+              <input
+                type="time"
+                value={dueTime}
+                min={timeMin}
+                max={timeMax}
+                onChange={(e) =>
+                  onSelectDueTime(clampTime(e.target.value, timeMin, timeMax))
+                }
+                aria-label={`시각 직접 입력 (${timeMin}~${timeMax})`}
+                className="h-9 rounded-lg border border-[var(--que-border)] bg-transparent px-2 text-sm"
+              />
+            </div>
+            <div className="grid max-h-36 grid-cols-4 gap-1 overflow-y-auto">
+              {slots.map((t) => {
+                const active = t === dueTime;
+                return (
+                  <button
+                    key={t}
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() => onSelectDueTime(t)}
+                    className={cn(
+                      "h-10 rounded-lg border text-xs transition-colors",
+                      active
+                        ? "border-[var(--que-brand)] bg-[var(--que-brand-subtle)] font-semibold text-[var(--que-brand)]"
+                        : "border-[var(--que-border)] text-[var(--que-text-secondary)] hover:bg-[var(--que-bg-muted)]",
+                    )}
+                  >
+                    {t}
+                  </button>
+                );
+              })}
+            </div>
           </div>
-          <div className="grid max-h-36 grid-cols-4 gap-1 overflow-y-auto">
-            {slots.map((t) => {
-              const active = t === dueTime;
-              return (
-                <button
-                  key={t}
-                  type="button"
-                  aria-pressed={active}
-                  onClick={() => onSelectDueTime(t)}
-                  className={cn(
-                    "h-10 rounded-lg border text-xs transition-colors",
-                    active
-                      ? "border-[var(--que-brand)] bg-[var(--que-brand-subtle)] font-semibold text-[var(--que-brand)]"
-                      : "border-[var(--que-border)] text-[var(--que-text-secondary)] hover:bg-[var(--que-bg-muted)]",
-                  )}
-                >
-                  {t}
-                </button>
-              );
-            })}
-          </div>
-        </div>
+        )}
 
         {/* 시작 시각(마감 −1h 자동, 수동 편집 가능) — 시작 절 사용처에서만 렌더 */}
-        {onSelectStartTime && (
+        {showTime && onSelectStartTime && (
           <div className="flex items-center justify-between gap-2 border-t border-[var(--que-border)] pt-2.5">
             <div className="flex flex-col">
               <p className="text-xs font-medium text-[var(--que-text-tertiary)]">
@@ -298,7 +340,7 @@ export function DuePicker({
             className="flex h-10 items-center justify-center gap-1.5 rounded-lg border border-[var(--que-border)] text-sm text-[var(--que-text-secondary)] hover:bg-[var(--que-bg-muted)]"
           >
             <X className="size-4" aria-hidden />
-            마감 지우기
+            지우기
           </button>
         )}
       </PopoverContent>
