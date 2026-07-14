@@ -648,20 +648,26 @@ function ScheduleEditForm({
   projects: { id: string; name: string }[] | null;
   onDone: () => void;
 }) {
-  const [date, setDate] = useState(toDateStr(startAt) || toDateStr(new Date().toISOString()));
+  const initDate = toDateStr(startAt) || toDateStr(new Date().toISOString());
+  const [startDate, setStartDate] = useState(initDate);
+  const [endDate, setEndDate] = useState(toDateStr(endAt) || initDate);
   const [startTime, setStartTime] = useState(toTimeStr(startAt) || "09:00");
   const [endTime, setEndTime] = useState(toTimeStr(endAt) || "10:00");
   const [selectedProject, setSelectedProject] = useState(projectId ?? NO_PROJECT);
   const { run, pending } = useSafeAction();
 
-  const timeError = endTime <= startTime ? "끝 시간은 시작 시간보다 늦어야 합니다." : null;
+  // end>start 판정을 날짜+시각 전체로(같은 날이면 시각, 다른 날이면 날짜 기준으로 자연 확장).
+  const rangeError =
+    toIso(endDate, endTime) <= toIso(startDate, startTime)
+      ? "마감은 시작보다 늦어야 합니다."
+      : null;
 
   const submit = () => {
-    if (timeError || !date) return;
+    if (rangeError || !startDate || !endDate) return;
     // 바뀐 항목만 전송한다. 프로젝트는 NO_PROJECT → null(해제), 그 외는 id.
     const patch: Parameters<typeof updateTaskScheduleAction>[0] = { taskId };
-    const nextStart = toIso(date, startTime);
-    const nextEnd = toIso(date, endTime);
+    const nextStart = toIso(startDate, startTime);
+    const nextEnd = toIso(endDate, endTime);
     if (nextStart !== startAt) patch.startAt = nextStart;
     if (nextEnd !== endAt) patch.endAt = nextEnd;
     const nextProjectId = selectedProject === NO_PROJECT ? null : selectedProject;
@@ -680,22 +686,22 @@ function ScheduleEditForm({
   return (
     <div>
       <h3 className="mb-2 text-sm font-medium">일정 · 프로젝트 변경</h3>
-      {/* 재일정은 하루짜리 블록(시작~끝 시각) — singleDay 기간 캘린더로 날짜+시각을 한 번에. */}
+      {/* 작업 등록 폼과 동일한 기간(범위) 캘린더 — 하루/여러 날 모두 가능(간트 기간 작업 지원). */}
       <Field>
-        <FieldLabel>날짜 · 시각</FieldLabel>
+        <FieldLabel>기간 · 시각</FieldLabel>
         <DateRangePicker
-          singleDay
-          value={{ startDate: date, startTime, endDate: date, endTime }}
+          value={{ startDate, startTime, endDate, endTime }}
           onChange={(r) => {
-            setDate(r.startDate);
+            setStartDate(r.startDate);
             setStartTime(r.startTime);
+            setEndDate(r.endDate);
             setEndTime(r.endTime);
           }}
-          emptyLabel="날짜 미정"
+          emptyLabel="기간 미정"
           triggerAriaLabel={`${taskTitle} 일정 설정`}
         />
       </Field>
-      {timeError && <p className="mt-1 text-sm text-destructive">{timeError}</p>}
+      {rangeError && <p className="mt-1 text-sm text-destructive">{rangeError}</p>}
       <div className="mt-3">
         <Field>
           <FieldLabel>프로젝트</FieldLabel>
@@ -725,7 +731,7 @@ function ScheduleEditForm({
       <Button
         variant="secondary"
         className="mt-3 h-10 w-full"
-        disabled={pending || !date || !!timeError}
+        disabled={pending || !startDate || !endDate || !!rangeError}
         onClick={submit}
       >
         {pending ? "변경 중…" : "일정 · 프로젝트 저장"}
