@@ -1,15 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 import { toast } from "sonner";
+import { Pencil } from "lucide-react";
 import {
   TASK_STATUS_LABELS,
   type StatusDetail,
   type TaskStatus,
 } from "@que/core";
+import { updateTaskDetailsAction } from "@/app/(app)/projects/pm-actions";
 import {
   cancelTaskAction,
   changeTaskStatusAction,
@@ -124,6 +126,39 @@ export function TaskStatusSheet({
   // 재배정 픽커 열림 여부 — 숫자키 상태 변경 가드에 포함한다(Select 포커스 중 오변경 방지).
   const [reassignPickerOpen, setReassignPickerOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+
+  // 제목 인라인 편집 — 표시 제목=편집 state로 통일(유령 상태 방지). 저장은 core updateTaskDetails
+  // (canEditTask 강제 — 본인/담당/관리자만). 연필은 편집 권한이 있을 때만 노출한다.
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [title, setTitle] = useState(task.title);
+  // Enter→커밋 후 뒤따르는 blur가 중복 저장하지 않도록 커밋 여부를 ref로 가드한다.
+  const titleCommittedRef = useRef(true);
+
+  const beginTitleEdit = () => {
+    setTitle(task.title);
+    titleCommittedRef.current = false;
+    setEditingTitle(true);
+  };
+  const commitTitle = () => {
+    if (titleCommittedRef.current) return;
+    titleCommittedRef.current = true;
+    setEditingTitle(false);
+    const trimmed = title.trim();
+    if (!trimmed) {
+      setTitle(task.title); // 빈 제목은 되돌린다(core도 거부)
+      return;
+    }
+    if (trimmed === task.title) return; // 변화 없음
+    run(() => updateTaskDetailsAction({ taskId: task.id, title: trimmed }), {
+      success: "제목을 수정했습니다.",
+    });
+  };
+  const cancelTitleEdit = () => {
+    titleCommittedRef.current = true;
+    setTitle(task.title);
+    setEditingTitle(false);
+  };
+  const canEditTask = task.canEdit !== false;
 
   // 문제발생/홀드 작업의 최신 상세(사유·다음액션·도움·재확인)를 열릴 때 지연 조회한다.
   // 액션이 issue/on_hold가 아니면 null을 돌려주므로, 열릴 때마다 조회 결과로만 세팅하면
@@ -290,7 +325,45 @@ export function TaskStatusSheet({
       </SheetTrigger>
       <SheetContent side="right" className="w-full max-w-md overflow-y-auto p-5">
         <SheetHeader className="p-0 pb-4 text-left">
-          <SheetTitle>{task.title}</SheetTitle>
+          {editingTitle ? (
+            <>
+              {/* 편집 중에도 접근성용 제목은 유지(sr-only) */}
+              <SheetTitle className="sr-only">{title}</SheetTitle>
+              <Input
+                autoFocus
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    commitTitle();
+                  } else if (e.key === "Escape") {
+                    e.preventDefault();
+                    cancelTitleEdit();
+                  }
+                }}
+                onBlur={commitTitle}
+                aria-label={`${task.title} 제목 수정 입력`}
+                className="h-10 w-full rounded-lg text-base font-semibold"
+              />
+            </>
+          ) : (
+            <div className="flex items-center gap-2">
+              <SheetTitle className="min-w-0 flex-1">{title}</SheetTitle>
+              {canEditTask && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  aria-label="제목 수정"
+                  className="size-10 shrink-0 rounded-lg p-0 text-[var(--que-text-tertiary)]"
+                  disabled={pending}
+                  onClick={beginTitleEdit}
+                >
+                  <Pencil className="size-4" aria-hidden />
+                </Button>
+              )}
+            </div>
+          )}
           <SheetDescription>
             {task.timeText}
             {task.metaText ? ` · ${task.metaText}` : ""}
