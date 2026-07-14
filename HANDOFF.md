@@ -15,7 +15,7 @@
 - **Supabase 실 DB 연동 완료 (핵심)**: 실 프로젝트 `rnsqhipljpdmmkviiypy`에 스키마·시드 적용. `SupabaseQueDb`(`apps/web/src/lib/supabase-db.ts`)가 MockQueDb를 상속해 요청마다 스냅샷 load→mutation→diff persist. **`QUE_DB=supabase`면 실 DB, 없으면 mock(기본).**
 - core 테스트 209케이스(전부 통과). 글래도스 게이트 누적 30+회(반려 전부 수정 후 승인).
 
-### 🧭 C-3b 홈 목표 명세 확정 (2026-07-10, 디자인·구현 대기)
+### 🧭 C-3b 홈 목표 명세 확정 (2026-07-10) — **✅ 구현 완료**(같은 날 Figma 시안 3종 동기 확정 후 구현 — 아래 "✅ C-3b 직급별 홈 정식 재구성" 절이 결과 정본. 이 절은 명세 배경 기록)
 
 - **정본 관계**: 기획 정본 `data/docs/que-product-plan.md`의 직급별 홈을 갱신하고, 상세 Figma/구현 계약을 `data/docs/que-home-spec.md`에 To-be 명세로 정리했다. 현행 코드를 정본으로 복사하는 문서가 아니다.
 - **공통 네이밍**: 세 역할은 같은 Home Dashboard의 role variant다. 공통 표시명=`오늘 요약`·`핵심 현황`·`우선 확인`·`작업 상태 확인`·`오늘 할 일`·`오늘 일정`·`프로젝트 현황`·`업무 흐름`·`업무 부하`·`확인 필요`; Figma/component 이름은 `Home/*` 계약을 사용한다. 프레임=`Home / CEO|Manager|Staff / Viewport`.
@@ -69,7 +69,7 @@ gant.griff.co.kr(`(gantt)/gantt`)에서 **task 클릭 시 화면 이탈(/project
 3. **④ 구글 캘린더 실연동** — `GOOGLE_SERVICE_ACCOUNT_KEY`+도메인위임 대기. **현재 더미 유지**(회사 일정=Mock, Que 일정=실제). **전환 절차: provider 교체 → source=`company` 더미 삭제 → 실 sync**(아래 "그 외 대기 트랙" 참고).
 4. ~~**회의록 액션플랜(항목15)** — 회의록 md 샘플 대기.~~ → **✅ 완료(2026-07-14~15)**: 확정 폼 파서 업그레이드 + 제목 편집·마감 팝오버·나누기·드롭다운 필터(위 "회의록 요약 폼" 절). 남은 후속: "실장님" 호칭→실명 매핑(jobRole 배정표 오면).
 5. ~~**Phase 3 (할일 생성→담당자 DM)**~~ → **✅ 완료 (2026-07-08)**: 할일 생성 즉시 담당자에게 개인 DM(task_created). Phase 2 Bot DM 인프라 재사용. 아래 "Slack Phase 3" 절.
-6. (후순위) 그리프 3,4Q 프로젝트 임포트([[griff-3-4q-schedule-sheet]], 담당자 부재 블로커) · 홈 정식 디자인(프리뷰 전 착수 금지).
+6. (후순위) 그리프 3,4Q 프로젝트 임포트([[griff-3-4q-schedule-sheet]], 담당자 부재 블로커). ~~홈 정식 디자인~~ → ✅ C-3b 구현 완료(2026-07-10 — 역할별 홈 ceo/manager/staff-home + 벨 개인화 라이브).
 
 **Vercel env 게이트 현황(GRIFF/que production)**: `SLACK_WEBHOOK_URL`·`SLACK_BOT_TOKEN`·`CRON_SECRET`·`QUE_CRON_ACTIVE=1`·`NEXT_PUBLIC_SENTRY_DSN`·`QUE_DB=supabase`·`SUPABASE_*`·`AUTH_SECRET`·**`QUE_DIGEST_RECIPIENTS=hwang-sunghyeon`(대표만 — Slack Phase 3/브리핑 단계 롤아웃, 전원확대는 C-1 후. 위 롤아웃 절 참고)** 설정됨. 미설정: `QUE_DEADLINE_THRESHOLD_HOURS`(기본24)·`QUE_QUIET_HOURS`(기본22-8)·`GOOGLE_SERVICE_ACCOUNT_KEY`·`QUE_ALLOW_MOCK_AUTH`(의도적 미설정).
 
