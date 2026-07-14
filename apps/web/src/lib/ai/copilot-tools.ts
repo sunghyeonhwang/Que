@@ -9,6 +9,7 @@ import { getTeamData } from "@/lib/team-data";
 import { getOkrData } from "@/lib/okr-data";
 import { searchWorkspace } from "@/lib/search-data";
 import { computeHomeLoad } from "@/lib/home-load";
+import { getPaymentData } from "@/lib/payment-data";
 import {
   getActiveProjects,
   getProjectBoard,
@@ -94,6 +95,21 @@ export const COPILOT_READ_TOOL_DECLARATIONS: GeminiFunctionDeclaration[] = [
     parameters: { type: "object", properties: {} },
   },
   {
+    name: "get_payments",
+    description:
+      "결제 요청 현황. '미결제/입금 대기/결제 현황/누가 결제를 올렸나/이번 달 결제' 같은 질문에 쓴다. 상태로 필터한다. 계좌번호는 제공하지 않고, 금액은 권한에 따라 마스킹된 표시값(비공개면 없음)만 제공된다.",
+    parameters: {
+      type: "object",
+      properties: {
+        status: {
+          type: "string",
+          enum: ["waiting", "done", "cancelled", "all"],
+          description: "조회 상태. waiting=대기(기본), done=완료, cancelled=취소, all=전체.",
+        },
+      },
+    },
+  },
+  {
     name: "search_items",
     description:
       "워크스페이스 전역 검색(작업·회의록·Action·결제·팀원). 특정 이름/키워드로 항목을 찾을 때 쓴다. 열람 권한과 민감정보 마스킹은 이미 적용된다.",
@@ -114,6 +130,26 @@ export const COPILOT_READ_TOOL_NAMES = new Set(
 
 type Args = Record<string, unknown>;
 const str = (v: unknown): string | undefined => (typeof v === "string" ? v : undefined);
+
+const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
+const DOW_KO = ["일", "월", "화", "수", "목", "금", "토"];
+
+/**
+ * ISO datetime → KST 사람 표기("7월 21일(화) 17:00", 시각이 00:00이면 날짜만).
+ * 도구 데이터에 ISO(propose용)와 **함께** 실어, 답변 본문이 ISO 원문 대신 이 표기를 쓰게 한다.
+ * 파싱 실패 시 원본 문자열을 그대로 돌려준다(방어).
+ */
+export function humanizeKst(iso: string): string {
+  const ms = Date.parse(iso);
+  if (Number.isNaN(ms)) return iso;
+  const d = new Date(ms + KST_OFFSET_MS);
+  const base = `${d.getUTCMonth() + 1}월 ${d.getUTCDate()}일(${DOW_KO[d.getUTCDay()]})`;
+  const h = d.getUTCHours();
+  const m = d.getUTCMinutes();
+  if (h === 0 && m === 0) return base; // 시각 없음 → 날짜만
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${base} ${p(h)}:${p(m)}`;
+}
 
 /**
  * 읽기 도구 1개 실행. name이 읽기 도구가 아니면 예외.
@@ -140,6 +176,12 @@ export async function runCopilotReadTool(
       return getWorkload(user, now);
     case "list_clients":
       return listClients();
+    case "get_payments":
+      return getPayments(
+        user,
+        str(args.status) as "waiting" | "done" | "cancelled" | "all" | undefined,
+        now,
+      );
     case "search_items":
       return searchItems(user, str(args.query) ?? "");
     default:
@@ -223,7 +265,7 @@ async function getProjectStatus(user: User, query: string): Promise<ToolResult> 
     return {
       data: {
         found: false,
-        note: "이름이 일치하는 프로젝트를 찾지 못했습니다. 아래 후보 중에서 고르거나 사용자에게 물어보세요.",
+        note: "이름이 일치하는 프로젝트를 찾지 못했습니다. 사용자가 말한 이름이 아래 후보에 없으면 propose_create_project로 새 프로젝트 생성을 제안하세요(누구나 만들 수 있음). 후보 중 하나를 의도한 것 같으면 그것으로 진행하거나 사용자에게 확인하세요.",
         // id를 함께 줘야 모델이 propose_* 에 projectId를 채울 수 있다(2026-07-12 — 프로젝트 미질문 회귀).
         candidates: projects.slice(0, 10).map((p) => ({ id: p.id, name: p.name })),
       },
@@ -251,6 +293,7 @@ async function getProjectStatus(user: User, query: string): Promise<ToolResult> 
       milestones: milestones.slice(0, 10).map((m) => ({
         title: m.title,
         dueAt: m.dueAt,
+        dueAtHuman: humanizeKst(m.dueAt),
         riskStatus: m.riskStatus,
       })),
     },
@@ -287,6 +330,7 @@ async function getMilestones(
         title: m.title,
         project: m.projectName,
         dueAt: m.dueAt,
+        dueAtHuman: humanizeKst(m.dueAt),
         riskStatus: m.riskStatus,
       })),
     },
@@ -338,6 +382,40 @@ async function getWorkload(user: User, now: Date): Promise<ToolResult> {
       })),
     },
     sources: [{ label: "업무 부하", href: "/home" }],
+  };
+}
+
+/**
+ * 결제 요청 현황(상태 필터, 기본 waiting). 결제 데이터 계층(getPaymentData)을 재사용해
+ * 권한별 마스킹을 그대로 위임한다 — **계좌번호는 모델에 싣지 않고, 금액은 마스킹된 표시값만**(비공개면 null).
+ */
+async function getPayments(
+  user: User,
+  status: "waiting" | "done" | "cancelled" | "all" | undefined,
+  now: Date,
+): Promise<ToolResult> {
+  const filter = status ?? "waiting";
+  const data = await getPaymentData(user, now);
+  const rows = filter === "all" ? data.rows : data.rows.filter((r) => r.status === filter);
+  return {
+    data: {
+      status: filter,
+      count: rows.length,
+      summary: data.summary,
+      payments: rows.slice(0, 30).map((r) => ({
+        title: r.title,
+        category: r.category,
+        // 금액은 권한 마스킹된 표시값(비공개면 null). 계좌번호(원본·마스킹)는 일절 싣지 않는다.
+        amount: r.amountDisplay,
+        requester: r.requesterName,
+        recipient: r.recipientName ?? null,
+        dueAt: r.dueAt ?? null,
+        dueAtHuman: r.dueAt ? humanizeKst(r.dueAt) : null,
+        status: r.status,
+        overdue: r.overdue,
+      })),
+    },
+    sources: [{ label: "결제요청", href: "/payments" }],
   };
 }
 

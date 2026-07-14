@@ -19,6 +19,83 @@ import { cn } from "@/lib/utils";
 // 오고(환각 방어), 쓰기 intent는 확인 카드(draft) → 사람이 [실행]을 눌러야 core mutation이 돈다(via:"chat").
 // 룩은 데일리 스탠드업 대화형 체크인(standup-chat.tsx)을 재사용한다: AI 좌측 Sparkles·사용자 우측 말풍선.
 
+// ── assistant 메시지 경량 마크다운 렌더 ─────────────────────────────────────
+// LLM 출력이므로 안전이 최우선. 지원 문법: **굵게** · *기울임*(또는 _기울임_) · `인라인 코드` ·
+// `-`/`*` 순서없는 목록 · `1.` 순서 목록 · 줄바꿈. 표·헤딩·이미지·링크·원시 HTML은 렌더하지 않는다.
+//
+// [XSS 불가 근거] ⑴ 입력 전체를 escapeHtml으로 먼저 이스케이프해(&<>) LLM이 보낸 어떤 태그도
+// 텍스트로 무력화한다. ⑵ 이후 삽입하는 태그는 이 코드가 생성하는 고정 화이트리스트
+// (p·br·strong·em·code·ul·ol·li)뿐이고, **속성을 일절 출력하지 않는다**(href/src/style/on* 없음).
+// 따라서 태그·속성 기반 주입 경로가 없어 dangerouslySetInnerHTML로 렌더해도 안전하다.
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+/** 인라인 변환 — 백틱으로 쪼개 코드 스팬을 강조 처리에서 격리한다(자리표시자 없이 안전).
+ *  홀수 조각=코드(이스케이프만), 짝수 조각=일반(이스케이프 후 강조·기울임). */
+function inlineMarkdown(s: string): string {
+  return s
+    .split("`")
+    .map((part, idx) => {
+      const escaped = escapeHtml(part);
+      if (idx % 2 === 1) return `<code>${escaped}</code>`; // 코드 안에는 강조를 적용하지 않는다
+      return escaped
+        .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>") // **굵게** (먼저)
+        .replace(/\*([^*\n]+)\*/g, "<em>$1</em>") // *기울임*
+        .replace(/_([^_\n]+)_/g, "<em>$1</em>"); // _기울임_
+    })
+    .join("");
+}
+
+const isBullet = (l: string) => /^\s*[-*] +/.test(l);
+const isNumbered = (l: string) => /^\s*\d+\. +/.test(l);
+
+/** 경량 마크다운 → 안전 HTML. 블록: 목록(ul/ol)·문단(줄바꿈=<br>). */
+function renderAssistantMarkdown(src: string): string {
+  const lines = src.replace(/\r\n/g, "\n").split("\n");
+  const out: string[] = [];
+  let i = 0;
+  while (i < lines.length) {
+    if (!lines[i].trim()) {
+      i++;
+      continue;
+    }
+    if (isBullet(lines[i]) || isNumbered(lines[i])) {
+      const ordered = isNumbered(lines[i]);
+      const tag = ordered ? "ol" : "ul";
+      const items: string[] = [];
+      // 같은 종류(ul/ol)가 이어지는 동안 하나의 목록으로 묶는다(종류가 바뀌면 새 목록).
+      while (i < lines.length && (ordered ? isNumbered(lines[i]) : isBullet(lines[i]))) {
+        const text = lines[i].replace(/^\s*(?:[-*]|\d+\.) +/, "");
+        items.push(`<li>${inlineMarkdown(text)}</li>`);
+        i++;
+      }
+      out.push(`<${tag}>${items.join("")}</${tag}>`);
+      continue;
+    }
+    // 문단 — 목록·빈 줄 전까지 모아 단일 줄바꿈은 <br>로 잇는다.
+    const buf: string[] = [];
+    while (
+      i < lines.length &&
+      lines[i].trim() &&
+      !isBullet(lines[i]) &&
+      !isNumbered(lines[i])
+    ) {
+      buf.push(inlineMarkdown(lines[i].trim()));
+      i++;
+    }
+    out.push(`<p>${buf.join("<br>")}</p>`);
+  }
+  return out.join("");
+}
+
+// 말풍선 내부 마크다운 요소 스타일 — 전역 CSS를 건드리지 않고 Tailwind 자식 선택자로 국소 적용.
+// 기존 말풍선 타이포(text-sm)·간격 회귀 없이 강조/코드/목록만 최소 스타일링.
+const MD_BUBBLE_CLASS =
+  "[&_p]:m-0 [&_p+p]:mt-2 [&_strong]:font-semibold [&_em]:italic " +
+  "[&_code]:rounded [&_code]:bg-[var(--que-bg)] [&_code]:px-1 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-[0.85em] " +
+  "[&_ul]:my-1 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:my-1 [&_ol]:list-decimal [&_ol]:pl-5 [&_li]:my-0.5 [&_li]:pl-0.5";
+
 /** 상태 전환 라벨(client 순수 매핑 — core 미접촉). */
 const STATUS_LABEL: Record<string, string> = {
   scheduled: "예정",
@@ -272,9 +349,14 @@ export function CopilotChat({
                 <Sparkles className="size-3.5" />
               </span>
               <div className="flex min-w-0 max-w-[85%] flex-col gap-2">
-                <p className="whitespace-pre-wrap rounded-lg rounded-tl-none bg-[var(--que-bg-muted)] px-3 py-2 text-sm text-[var(--que-text)]">
-                  {m.text}
-                </p>
+                {/* assistant 본문 — 경량 마크다운 렌더. HTML 이스케이프 후 화이트리스트 태그만 생성하므로 XSS 불가(위 주석). */}
+                <div
+                  className={cn(
+                    "break-words rounded-lg rounded-tl-none bg-[var(--que-bg-muted)] px-3 py-2 text-sm text-[var(--que-text)]",
+                    MD_BUBBLE_CLASS,
+                  )}
+                  dangerouslySetInnerHTML={{ __html: renderAssistantMarkdown(m.text) }}
+                />
 
                 {/* 출처 칩 — 내부 이동(ExternalLink 아님) */}
                 {m.sources && m.sources.length > 0 && (
