@@ -135,6 +135,9 @@ function draftSummary(
           { label: "담당", value: labels?.assigneeName ?? (draft.assigneeId ?? "본인") },
           // 프로젝트 행은 항상 표시 — 비어 있으면 "없음"을 드러내야 사람이 카드에서 알아챈다(2026-07-12).
           { label: "프로젝트", value: draft.projectId ? (labels?.projectName ?? draft.projectId) : "없음" },
+          // 시작 시각이 있으면 함께 표시 — 회의형 작업("내일 11시 회의")은 시작이 본질인데
+          // 기한(endAt)만 보이면 시간이 안 잡힌 것처럼 오해된다(2026-07-15 실측).
+          ...(draft.startAt ? [{ label: "시작", value: formatWhen(draft.startAt) }] : []),
           { label: "기한", value: formatWhen(draft.endAt) },
         ],
       };
