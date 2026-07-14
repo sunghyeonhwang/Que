@@ -8,6 +8,7 @@ import {
   type User,
 } from "@que/core";
 import { getDb } from "./db";
+import { dateKeyOfIso } from "./daily-data";
 
 // 팀 현황 데이터 조합 (기획서 "팀 현황판").
 // 초점은 "누가 일하고 있나"가 아니라 "어디가 막혔나"다.
@@ -152,19 +153,24 @@ export async function getTeamData(
       a.startAt.localeCompare(b.startAt),
     );
 
+    // 충돌 검사는 하루짜리 시간 블록만(items 자체는 표시용이라 기간 작업도 유지).
+    // 기간 작업(KST 시작 날짜 ≠ 마감 날짜)은 종일 겹침으로 잡혀 스팸이 되므로 제외한다.
+    const timedItems = items.filter(
+      (it) => dateKeyOfIso(it.startAt) === dateKeyOfIso(it.endAt),
+    );
     let conflictCount = 0;
-    for (let i = 0; i < items.length; i += 1) {
-      for (let j = i + 1; j < items.length; j += 1) {
-        const aStart = new Date(items[i].startAt);
-        const aEnd = new Date(items[i].endAt);
-        const bStart = new Date(items[j].startAt);
-        const bEnd = new Date(items[j].endAt);
+    for (let i = 0; i < timedItems.length; i += 1) {
+      for (let j = i + 1; j < timedItems.length; j += 1) {
+        const aStart = new Date(timedItems[i].startAt);
+        const aEnd = new Date(timedItems[i].endAt);
+        const bStart = new Date(timedItems[j].startAt);
+        const bEnd = new Date(timedItems[j].endAt);
         if (aStart < bEnd && bStart < aEnd) {
           conflictCount += 1;
           conflicts.push({
             userName: user.name,
-            aTitle: items[i].title,
-            bTitle: items[j].title,
+            aTitle: timedItems[i].title,
+            bTitle: timedItems[j].title,
             overlapStartAt: (aStart > bStart ? aStart : bStart).toISOString(),
           });
         }

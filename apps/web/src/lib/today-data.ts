@@ -9,6 +9,7 @@ import {
   type User,
 } from "@que/core";
 import { getDb } from "./db";
+import { dateKeyOfIso } from "./daily-data";
 
 // 오늘 화면 데이터 조합. 조회 로직은 화면이 아니라 여기 모아 재사용한다.
 
@@ -182,7 +183,15 @@ export async function getTodayData(
       ];
     });
 
-  const timed = timeline.filter((item) => item.startAt && item.endAt);
+  // 분 단위 충돌 검사 대상 = 하루짜리 시간 블록만.
+  // 기간 작업(KST 시작 날짜 ≠ 마감 날짜)은 여러 날에 걸쳐 종일 겹침으로 잡혀 충돌 스팸을 내므로 제외한다.
+  // (하루 시간 블록끼리 · 시간 블록 vs 회사 일정 충돌·재배치 제안은 그대로.)
+  const timed = timeline.filter(
+    (item) =>
+      item.startAt &&
+      item.endAt &&
+      dateKeyOfIso(item.startAt) === dateKeyOfIso(item.endAt),
+  );
   let conflictCount = 0;
   const conflictSuggestions: ConflictSuggestion[] = [];
   for (let i = 0; i < timed.length; i += 1) {

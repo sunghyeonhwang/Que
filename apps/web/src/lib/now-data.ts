@@ -7,6 +7,7 @@ import {
   type User,
 } from "@que/core";
 import { getDb } from "./db";
+import { dateKeyOfIso } from "./daily-data";
 
 // Now 통합표 — 캘린더 일정과 회의록 Action을 한 표로 합친다 (기획서 "Now 통합표").
 
@@ -168,7 +169,10 @@ export async function getNowData(
             overlapsTodayRange(e.startAt, e.endAt),
         )
         .map((e) => ({ startAt: e.startAt, endAt: e.endAt })),
-    ].sort((a, b) => a.startAt.localeCompare(b.startAt));
+    ]
+      // 기간 작업(KST 시작 날짜 ≠ 마감 날짜)은 종일 겹침 스팸이라 충돌 검사에서 제외.
+      .filter((it) => dateKeyOfIso(it.startAt) === dateKeyOfIso(it.endAt))
+      .sort((a, b) => a.startAt.localeCompare(b.startAt));
     for (let i = 0; i < items.length; i += 1) {
       for (let j = i + 1; j < items.length; j += 1) {
         if (

@@ -20,6 +20,7 @@ import { getCommentViewsByTask } from "@/lib/comments";
 import { getClientFilter } from "@/lib/client-filter";
 import { getCurrentUser } from "@/lib/current-user";
 import { getTodayData, type TodayTimelineItem } from "@/lib/today-data";
+import { dateKeyOfIso } from "@/lib/daily-data";
 import { filterMyTasks, getMyTaskList, type MyTaskTab } from "@/lib/my-tasks-data";
 import { buildTodayHref, parseTodayPanel, type TodayPanel } from "@/lib/today-nav";
 import { cn } from "@/lib/utils";
@@ -271,16 +272,26 @@ function TimelineRow({
   item: TodayTimelineItem;
   comments?: TaskRowData["comments"];
 }) {
-  const timeText = item.startAt
-    ? `${format(new Date(item.startAt), "HH:mm")}${item.endAt ? `–${format(new Date(item.endAt), "HH:mm")}` : ""}`
-    : "시간 미정";
+  // 기간 작업(KST 시작 날짜 ≠ 마감 날짜)은 시간 블록과 구분한다: 시간 자리에 "기간 M/D~M/D".
+  const isMultiDay = Boolean(
+    item.startAt &&
+      item.endAt &&
+      dateKeyOfIso(item.startAt) !== dateKeyOfIso(item.endAt),
+  );
+  const timeText = isMultiDay
+    ? `기간 ${format(new Date(item.startAt!), "M/d")}~${format(new Date(item.endAt!), "M/d")}`
+    : item.startAt
+      ? `${format(new Date(item.startAt), "HH:mm")}${item.endAt ? `–${format(new Date(item.endAt), "HH:mm")}` : ""}`
+      : "시간 미정";
+  const timeClass = cn(
+    "shrink-0 tabular-nums text-muted-foreground",
+    isMultiDay ? "w-24 text-xs" : "w-20 text-sm",
+  );
 
   if (item.kind === "event") {
     return (
       <div className="flex min-h-10 items-center gap-3 rounded-md border border-dashed px-3 py-2">
-        <span className="w-20 shrink-0 text-sm tabular-nums text-muted-foreground">
-          {timeText}
-        </span>
+        <span className={timeClass}>{timeText}</span>
         <span className="min-w-0 flex-1 truncate text-sm">{item.title}</span>
         <Badge variant="outline">회사 일정</Badge>
       </div>
@@ -304,9 +315,7 @@ function TimelineRow({
   return (
     <TaskStatusSheet task={row}>
       <div className="flex min-h-12 items-center gap-3 rounded-md border px-3 py-2 transition-colors hover:bg-accent/50">
-        <span className="w-20 shrink-0 text-sm tabular-nums text-muted-foreground">
-          {timeText}
-        </span>
+        <span className={timeClass}>{timeText}</span>
         <span className="min-w-0 flex-1">
           <span className="block truncate text-sm font-medium">{task.title}</span>
           {task.description && (
@@ -315,6 +324,11 @@ function TimelineRow({
             </span>
           )}
         </span>
+        {isMultiDay && (
+          <Badge variant="outline" className="shrink-0">
+            기간 작업
+          </Badge>
+        )}
         <StatusBadge status={task.status} />
         <span className="sr-only">{`현재 상태 ${TASK_STATUS_LABELS[task.status]}, 클릭하면 상태를 변경할 수 있습니다`}</span>
       </div>
