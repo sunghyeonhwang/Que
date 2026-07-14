@@ -2,6 +2,10 @@ import Link from "next/link";
 import { format } from "date-fns";
 import { canViewMeetingNote, formatProjectLabel } from "@que/core";
 import { ActionRow, type ActionRowData } from "@/components/action/action-row";
+import {
+  NoteFilterSelect,
+  type NoteFilterOption,
+} from "@/components/action/note-filter-select";
 import { PageHeader } from "@/components/app/page-header";
 import { NoteTabs } from "@/components/app/note-tabs";
 import { NoteSummaryCards } from "@/components/notes/note-summary-cards";
@@ -9,7 +13,6 @@ import { StatusBadge } from "@/components/app/status-badge";
 import { getCurrentUser } from "@/lib/current-user";
 import { getNoteSummary } from "@/lib/notes-summary";
 import { getDb } from "@/lib/db";
-import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -44,7 +47,52 @@ export default async function ActionPage({
   // 인라인 프로젝트 생성 다이얼로그의 클라이언트 선택 옵션(선택사항).
   const clientOptions = db.clients.map((c) => ({ id: c.id, name: c.name }));
 
-  const noteFilter = params.note && noteById.has(params.note) ? params.note : undefined;
+  // 회의록별 미처리(needs_review/candidate/held) Action 수 — 옵션 조립·기본 선택에 쓴다.
+  const UNRESOLVED = new Set(["needs_review", "candidate", "held"]);
+  const unresolvedByNote = new Map<string, number>();
+  for (const item of db.actionItems) {
+    if (!noteById.has(item.meetingNoteId)) continue;
+    if (UNRESOLVED.has(item.status)) {
+      unresolvedByNote.set(
+        item.meetingNoteId,
+        (unresolvedByNote.get(item.meetingNoteId) ?? 0) + 1,
+      );
+    }
+  }
+  // 미처리가 남은 회의록만(최근 meetingAt순) — 전부 처리된 회의록은 드롭다운에서 제외.
+  const unresolvedNotes = visibleNotes
+    .filter((n) => (unresolvedByNote.get(n.id) ?? 0) > 0)
+    .sort((a, b) => b.meetingAt.localeCompare(a.meetingAt));
+
+  // 선택 해석:
+  // - ?note=all → 명시적 전체
+  // - ?note=<유효 회의록> → 그 회의록(전부 처리됐어도 딥링크 유지 위해 옵션에 동적 포함)
+  // - 그 외(없음/무효) → 미처리가 남은 최신 회의록, 없으면 전체
+  const requested = params.note;
+  const selected =
+    requested === "all"
+      ? "all"
+      : requested && noteById.has(requested)
+        ? requested
+        : (unresolvedNotes[0]?.id ?? "all");
+  const noteFilter = selected === "all" ? undefined : selected;
+
+  // 드롭다운 옵션(서버 조립): 전체 + 미처리 회의록 + (딥링크로 온 처리완료 회의록 동적 포함).
+  const optionNotes = [...unresolvedNotes];
+  if (selected !== "all" && !optionNotes.some((n) => n.id === selected)) {
+    const extra = noteById.get(selected);
+    if (extra) optionNotes.push(extra);
+  }
+  optionNotes.sort((a, b) => b.meetingAt.localeCompare(a.meetingAt));
+  const noteOptions: NoteFilterOption[] = [
+    { value: "all", label: "전체 회의록" },
+    ...optionNotes.map((n) => {
+      const count = unresolvedByNote.get(n.id) ?? 0;
+      const md = format(new Date(n.meetingAt), "M/d");
+      const tail = count > 0 ? `미처리 ${count}건` : "처리 완료";
+      return { value: n.id, label: `${n.title} · ${md} · ${tail}` };
+    }),
+  ];
 
   const rows: ActionRowData[] = [...db.actionItems]
     .filter((item) => noteById.has(item.meetingNoteId))
@@ -88,17 +136,7 @@ export default async function ActionPage({
 
       <NoteTabs active="action" />
 
-      <div className="mb-4 flex flex-wrap gap-2" aria-label="회의록 필터">
-        <FilterChip href="/action" active={!noteFilter} label="전체 회의록" />
-        {visibleNotes.map((note) => (
-          <FilterChip
-            key={note.id}
-            href={`/action?note=${note.id}`}
-            active={noteFilter === note.id}
-            label={note.title}
-          />
-        ))}
-      </div>
+      <NoteFilterSelect value={selected} options={noteOptions} />
 
       {/* 우측 '생성된 Task' 24rem→36rem(1.5배 — 2026-07-15 사용자 요청). */}
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,36rem)]">
@@ -151,19 +189,3 @@ export default async function ActionPage({
   );
 }
 
-function FilterChip({ href, active, label }: { href: string; active: boolean; label: string }) {
-  return (
-    <Link
-      href={href}
-      aria-current={active ? "page" : undefined}
-      className={cn(
-        "flex h-10 items-center rounded-lg border px-3 text-sm font-medium transition-colors",
-        active
-          ? "border-transparent bg-[var(--que-brand)] text-[var(--que-on-brand)]"
-          : "border-[var(--que-border)] text-[var(--que-text-secondary)] hover:bg-[var(--que-bg-muted)]",
-      )}
-    >
-      {label}
-    </Link>
-  );
-}
