@@ -358,15 +358,38 @@ export async function runCopilot(
             });
           }
         }
+        // 오류만 돌려주면 flash가 교정 호출 대신 "다시 시도하겠다"는 설명 텍스트로 턴을 끝내는
+        // 실측 회귀(2026-07-14) — 같은 user 턴에 명시 지시를 함께 실어 즉시 교정 호출을 강제한다.
+        responseParts.push({
+          text: "위 오류를 반영해 지금 즉시 교정된 propose_* 도구를 호출하라. 설명 텍스트만 반환하지 마라. 마일스톤인데 프로젝트를 특정할 수 없으면 propose_create_task로 바꿔 호출하라.",
+        });
         contents.push({ role: "user", parts: responseParts });
         continue; // 다음 라운드에서 모델이 교정
       }
 
-      // 확정 emit(재시도 소진 또는 실패 없음). 성공 누적분을 카드로, 남은 실패는 구체 문구로.
+      // 확정 emit(재시도 소진 또는 실패 없음). 성공 누적분을 카드로, 남은 실패는
+      // ⑴ 마일스톤(projectId 부재)이면 서버가 작업 카드로 결정적 변환, ⑵ 그 외는 구체 문구로.
+      const residualHints: string[] = [];
+      for (const f of failures) {
+        const converted = convertMilestoneFailureToTask(f);
+        if (converted) {
+          const key = JSON.stringify(converted);
+          if (!seenDraftKeys.has(key)) {
+            seenDraftKeys.add(key);
+            capturedDrafts.push(converted);
+            capturedLabels.push(await resolveDraftLabels(user, converted));
+          }
+          residualHints.push(
+            `"${converted.title}"은(는) 프로젝트가 없어 마일스톤 대신 작업(할 일) 카드로 준비했습니다.`,
+          );
+        } else if (f.userHint) {
+          residualHints.push(f.userHint);
+        }
+      }
       return finalizeCopilotProposal({
         drafts: capturedDrafts,
         labels: capturedLabels,
-        failureHints: failures.map((c) => c.userHint),
+        failureHints: residualHints,
         modelText: collectText(parts),
         messages,
         sources: dedupeSources(sourceMap),
@@ -536,10 +559,19 @@ function dedupeSources(map: Map<string, CopilotSource>): CopilotSource[] {
   return [...map.values()].slice(0, 8);
 }
 
-/** propose_* args 검증 결과. 실패면 모델에 되돌릴 오류(modelError)와 사용자 안내(userHint)를 함께 담는다. */
+/** propose_* args 검증 결과. 실패면 모델에 되돌릴 오류(modelError)와 사용자 안내(userHint)를 함께 담고,
+ *  서버측 결정적 변환(마일스톤→작업)을 위해 kind·rawArgs·issues 원본도 보존한다. */
 type DraftCheck =
   | { ok: true; draft: CopilotDraft }
-  | { ok: false; toolName: string; modelError: string; userHint: string };
+  | {
+      ok: false;
+      toolName: string;
+      kind?: CopilotDraft["kind"];
+      rawArgs: Record<string, unknown>;
+      issues?: DraftIssues;
+      modelError: string;
+      userHint: string;
+    };
 
 /**
  * propose_* args → 검증된 draft. 실패 시 draft를 조용히 버리지 않고, zod 오류를 **모델에 되돌릴 문구**와
@@ -548,7 +580,13 @@ type DraftCheck =
 function buildDraftChecked(toolName: string, rawArgs: Record<string, unknown>): DraftCheck {
   const kind = PROPOSE_TO_KIND[toolName];
   if (!kind) {
-    return { ok: false, toolName, modelError: `알 수 없는 제안 도구: ${toolName}`, userHint: "" };
+    return {
+      ok: false,
+      toolName,
+      rawArgs,
+      modelError: `알 수 없는 제안 도구: ${toolName}`,
+      userHint: "",
+    };
   }
   const parsed = copilotDraftSchema.safeParse({ ...rawArgs, kind });
   if (parsed.success) return { ok: true, draft: parsed.data };
@@ -556,9 +594,36 @@ function buildDraftChecked(toolName: string, rawArgs: Record<string, unknown>): 
   return {
     ok: false,
     toolName,
+    kind,
+    rawArgs,
+    issues,
     modelError: describeModelError(kind, issues),
     userHint: describeUserHint(kind, issues),
   };
+}
+
+/**
+ * projectId 부재로 탈락한 create_milestone 제안을 create_task draft로 결정적으로 변환한다.
+ * 배경(2026-07-14 라이브 실측): "회의 잡아줘, 프로젝트 없음" 요청에서 flash가 마일스톤 제안을
+ * 고집하고, 오류 피드백을 받아도 교정 호출 대신 설명 텍스트만 반환해 카드가 영영 안 나왔다.
+ * 확인 카드 자체가 사람의 확인 절차이므로, 서버가 안전하게 작업 카드로 바꿔 제시한다
+ * (projectId 없는 task는 finalize의 프로젝트 확인 가드가 기존대로 되묻는다 — 가드 우회 아님).
+ */
+function convertMilestoneFailureToTask(
+  f: Extract<DraftCheck, { ok: false }>,
+): Extract<CopilotDraft, { kind: "create_task" }> | null {
+  if (f.kind !== "create_milestone" || !f.issues || !issuesTouch(f.issues, "projectId")) return null;
+  const title = typeof f.rawArgs.title === "string" ? f.rawArgs.title : undefined;
+  const dueAt = typeof f.rawArgs.dueAt === "string" ? f.rawArgs.dueAt : undefined;
+  if (!title || !dueAt) return null;
+  const parsed = createTaskDraftSchema.safeParse({
+    kind: "create_task",
+    title,
+    startAt: dueAt,
+    endAt: dueAt,
+    ...(typeof f.rawArgs.description === "string" && { description: f.rawArgs.description }),
+  });
+  return parsed.success ? parsed.data : null;
 }
 
 /** zod 파싱 실패 시 issues 배열 타입(버전 독립 — ZodError에서 유도). */
