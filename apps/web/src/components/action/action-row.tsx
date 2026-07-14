@@ -2,11 +2,12 @@
 
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { ChevronDown, ChevronUp, Pencil, Plus } from "lucide-react";
+import { ChevronDown, ChevronUp, Pencil, Plus, Split } from "lucide-react";
 import { ACTION_ITEM_STATUS_LABELS, type ActionItemStatus } from "@que/core";
 import { useRoster } from "@/components/app/roster-provider";
 import { useSafeAction } from "@/components/app/use-safe-action";
 import { DuePicker, formatDueLabel } from "@/components/app/due-picker";
+import { SplitActionDialog } from "@/components/action/split-action-dialog";
 import {
   confirmActionItemAction,
   createProjectAction,
@@ -107,6 +108,7 @@ export function ActionRow({
   // 인라인 생성한 프로젝트를 즉시 목록에 반영(revalidate 전 낙관 표시).
   const [extraProjects, setExtraProjects] = useState<ActionProjectOption[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [splitOpen, setSplitOpen] = useState(false);
   const [newName, setNewName] = useState("");
   const [newClientId, setNewClientId] = useState("");
   const [creating, setCreating] = useState(false);
@@ -418,6 +420,16 @@ export function ActionRow({
                 <Button
                   variant="outline"
                   size="sm"
+                  className="h-10 gap-1.5 rounded-lg"
+                  disabled={pending}
+                  onClick={() => setSplitOpen(true)}
+                >
+                  <Split className="size-4" aria-hidden />
+                  나누기
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
                   className="h-10 rounded-lg"
                   disabled={pending}
                   onClick={() =>
@@ -448,6 +460,15 @@ export function ActionRow({
           </div>
         </div>
       )}
+
+      {/* 후보 나누기 — 날짜 프리필 후 사람이 확정(확인 카드 원칙). 실행은 core splitActionItem. */}
+      <SplitActionDialog
+        open={splitOpen}
+        onOpenChange={setSplitOpen}
+        actionItemId={item.id}
+        title={item.title}
+        sourceText={item.sourceText}
+      />
 
       {/* 인라인 프로젝트 생성 다이얼로그 — core createProject(전원 허용) 경유 */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

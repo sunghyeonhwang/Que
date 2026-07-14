@@ -124,6 +124,31 @@ export async function setActionItemStatusAction(input: {
   return toResult((db) => db.setActionItemStatus({ actorId: user.id, via: "web" }, input));
 }
 
+/** Action 후보 나누기 — 한 후보를 N건으로 분할(원본은 ignored, 신규는 담당·프로젝트·원문 상속).
+ *  각 part의 dueDate(+dueTime, 기본 17:00)는 toIso로 ISO 마감일로 변환한다. Task 자동 생성 없음. */
+export async function splitActionItemAction(input: {
+  actionItemId: string;
+  parts: { title: string; dueDate?: string; dueTime?: string }[];
+}): Promise<ActionResult> {
+  const coreParts: { title: string; dueAt?: string }[] = [];
+  for (const part of input.parts) {
+    let dueAt: string | undefined;
+    if (part.dueDate) {
+      dueAt = toIso(part.dueDate, part.dueTime, "17:00");
+      if (!dueAt) return { ok: false, error: "유효하지 않은 마감 일시다 (YYYY-MM-DD HH:mm)" };
+    }
+    coreParts.push({ title: part.title, dueAt });
+  }
+
+  const user = await getCurrentUser();
+  return toResult((db) =>
+    db.splitActionItem(
+      { actorId: user.id, via: "web" },
+      { actionItemId: input.actionItemId, parts: coreParts },
+    ),
+  );
+}
+
 export async function updateActionItemAction(input: {
   actionItemId: string;
   title?: string;

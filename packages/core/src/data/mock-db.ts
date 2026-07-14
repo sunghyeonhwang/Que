@@ -1226,6 +1226,77 @@ export class MockQueDb implements QueDb {
     return item;
   }
 
+  /**
+   * Action 후보 나누기(분할). 한 후보에 여러 일이 묶인 경우(예: 날짜가 여러 개) N건으로 쪼갠다.
+   * 원본은 ignored로 접고, 신규 각 항목은 원본의 회의록·원문(sourceText)·담당자·프로젝트를 상속하고
+   * 각 part의 제목·마감일을 받는다. **Task 자동 생성 없음** — 분할은 후보 재구성일 뿐(도메인 규칙).
+   */
+  splitActionItem(
+    ctx: ActorContext,
+    input: { actionItemId: string; parts: { title: string; dueAt?: string }[] },
+  ): ActionItem[] {
+    const actor = this.requireUser(ctx.actorId);
+    const item = this.requireActionItem(input.actionItemId);
+    assertCanResolveActionItem(actor, item, this.meetingNoteOf(item));
+    if (item.status === "created" || item.status === "ignored") {
+      throw new QueRuleError("ACTION_ALREADY_RESOLVED", `이미 처리된 Action이다 (${item.status})`);
+    }
+    if (!Array.isArray(input.parts) || input.parts.length < 2 || input.parts.length > 20) {
+      throw new QueRuleError("INVALID_INPUT", "나누기는 2건 이상 20건 이하로만 가능하다");
+    }
+
+    // 먼저 전량 검증(부분 생성 방지) — 제목 필수·200자 상한, 마감일은 parseScheduleRange로 달력까지 검증.
+    const normalized = input.parts.map((p) => {
+      const title = (p.title ?? "").trim();
+      if (!title) throw new QueRuleError("INVALID_INPUT", "나눈 항목의 제목은 비울 수 없다");
+      const dueAt = p.dueAt ? parseScheduleRange({ startAt: p.dueAt, endAt: p.dueAt }).startAt : undefined;
+      return { title: title.slice(0, 200), dueAt };
+    });
+
+    const nowIso = this.now();
+    const created: ActionItem[] = [];
+    for (const part of normalized) {
+      const hasAssignee = Boolean(item.assigneeId);
+      const hasDue = Boolean(part.dueAt);
+      const child: ActionItem = {
+        id: this.nextId("act"),
+        meetingNoteId: item.meetingNoteId,
+        sourceText: item.sourceText, // 원문 출처는 원본 그대로 상속(분할 추적)
+        title: part.title,
+        assigneeId: item.assigneeId,
+        dueAt: part.dueAt,
+        projectId: item.projectId,
+        // 승격·신뢰도 규칙은 추출/updateActionItem과 동일.
+        status: hasAssignee && hasDue ? "candidate" : "needs_review",
+        confidence: hasAssignee && hasDue ? 0.9 : hasAssignee ? 0.8 : hasDue ? 0.6 : 0.5,
+        createdAt: nowIso,
+      };
+      this.actionItems.push(child);
+      created.push(child);
+      this.logChange(ctx, {
+        entityType: "action_item",
+        entityId: child.id,
+        changeType: "create",
+        afterValue: child.title,
+        reason: `Action 분할로 생성(원본 ${item.id})`,
+      });
+    }
+
+    // 원본은 ignored로 접는다(후보로 다시 뜨지 않게).
+    item.status = "ignored";
+    item.lastChangedBy = actor.id;
+    item.lastChangedAt = nowIso;
+    const summary = created.map((c) => c.title).join(", ").slice(0, 300);
+    this.logChange(ctx, {
+      entityType: "action_item",
+      entityId: item.id,
+      changeType: "update",
+      afterValue: "ignored",
+      reason: `${created.length}건으로 분할: ${summary}`,
+    });
+    return created;
+  }
+
   /** 작업 댓글 — 팀 누구나 타인의 작업에도 남길 수 있다 (수정 불가 팀원의 의사 전달 통로).
    *  helpUserId 지정 시 "도움 요청"이 되어 대상자 오늘 화면과 팀 현황 Attention에 노출된다. */
   addTaskComment(

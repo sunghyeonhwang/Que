@@ -445,6 +445,111 @@ describe("Action 후보 제목 수정 (updateActionItem title)", () => {
   });
 });
 
+describe("Action 후보 나누기 (splitActionItem)", () => {
+  it("N건으로 분할하며 원문·담당·프로젝트를 상속하고 원본은 ignored가 된다", () => {
+    const d = db();
+    const before = d.tasks.length;
+    // act-error-doc: candidate, 담당 park-seunghwan, prj-payment, note-payment-qa.
+    const created = d.splitActionItem(
+      { actorId: "hwang-sunghyeon", via: "web" },
+      {
+        actionItemId: "act-error-doc",
+        parts: [
+          { title: "7/16 뉴스레터 발송", dueAt: "2026-07-16T17:00:00+09:00" },
+          { title: "7/20 문자 발송" },
+        ],
+      },
+    );
+    expect(created).toHaveLength(2);
+    // 상속: 회의록·원문·담당·프로젝트.
+    expect(created.every((c) => c.meetingNoteId === "note-payment-qa")).toBe(true);
+    expect(created.every((c) => c.sourceText === "오류 재현 시나리오를 문서화한다.")).toBe(true);
+    expect(created.every((c) => c.assigneeId === "park-seunghwan")).toBe(true);
+    expect(created.every((c) => c.projectId === "prj-payment")).toBe(true);
+    // 상태·신뢰도: 담당+마감→candidate 0.9, 담당만→needs_review 0.8.
+    expect(created[0].status).toBe("candidate");
+    expect(created[0].confidence).toBe(0.9);
+    expect(created[0].dueAt).toBe("2026-07-16T17:00:00+09:00");
+    expect(created[1].status).toBe("needs_review");
+    expect(created[1].confidence).toBe(0.8);
+    expect(created[1].dueAt).toBeUndefined();
+    // 원본은 ignored + 분할 로그. Task 자동 생성 없음.
+    expect(d.actionItems.find((a) => a.id === "act-error-doc")!.status).toBe("ignored");
+    const clog = d.changeLogs.at(-1)!;
+    expect(clog.entityId).toBe("act-error-doc");
+    expect(clog.reason).toMatch(/2건으로 분할/);
+    expect(d.tasks.length).toBe(before);
+  });
+
+  it("담당자 없는 원본을 나누면 마감이 있어도 needs_review(0.6)로 남는다", () => {
+    const d = db();
+    // act-refund-copy: needs_review, 담당 없음.
+    const created = d.splitActionItem(
+      { actorId: "hwang-sunghyeon", via: "web" },
+      {
+        actionItemId: "act-refund-copy",
+        parts: [
+          { title: "환불 정책 초안", dueAt: "2026-07-18T17:00:00+09:00" },
+          { title: "환불 FAQ 반영" },
+        ],
+      },
+    );
+    expect(created[0].assigneeId).toBeUndefined();
+    expect(created[0].status).toBe("needs_review");
+    expect(created[0].confidence).toBe(0.6); // 마감만
+    expect(created[1].confidence).toBe(0.5); // 담당·마감 모두 없음
+  });
+
+  it("2건 미만이면 거부된다", () => {
+    const d = db();
+    expect(() =>
+      d.splitActionItem(
+        { actorId: "hwang-sunghyeon", via: "web" },
+        { actionItemId: "act-error-doc", parts: [{ title: "하나만" }] },
+      ),
+    ).toThrowError(/2건 이상/);
+  });
+
+  it("이미 처리된(created) Action은 나눌 수 없다", () => {
+    const d = db();
+    d.confirmActionItem({ actorId: "hwang-sunghyeon", via: "web" }, "act-error-doc");
+    expect(() =>
+      d.splitActionItem(
+        { actorId: "hwang-sunghyeon", via: "web" },
+        { actionItemId: "act-error-doc", parts: [{ title: "a" }, { title: "b" }] },
+      ),
+    ).toThrowError(/이미 처리된/);
+  });
+
+  it("빈 제목·잘못된 날짜가 있으면 전량 거부(부분 생성 없음)", () => {
+    const d = db();
+    const countBefore = d.actionItems.length;
+    // 빈 제목
+    expect(() =>
+      d.splitActionItem(
+        { actorId: "hwang-sunghyeon", via: "web" },
+        { actionItemId: "act-error-doc", parts: [{ title: "정상" }, { title: "   " }] },
+      ),
+    ).toThrowError(/비울 수 없다/);
+    // 잘못된 날짜(월 13)
+    expect(() =>
+      d.splitActionItem(
+        { actorId: "hwang-sunghyeon", via: "web" },
+        {
+          actionItemId: "act-error-doc",
+          parts: [
+            { title: "a", dueAt: "2026-13-01T17:00:00+09:00" },
+            { title: "b" },
+          ],
+        },
+      ),
+    ).toThrowError(QueRuleError);
+    // 어느 경우에도 신규 항목이 생기지 않았고 원본도 그대로 candidate.
+    expect(d.actionItems.length).toBe(countBefore);
+    expect(d.actionItems.find((a) => a.id === "act-error-doc")!.status).toBe("candidate");
+  });
+});
+
 describe("결제 요청 등록", () => {
   it("필수값과 금액을 검증하고 대기 상태로 생성한다", () => {
     const d = db();
