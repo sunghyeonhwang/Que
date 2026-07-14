@@ -22,6 +22,7 @@ import {
   Eye,
   ListTodo,
   Palette,
+  Type,
   Sparkles,
   type LucideIcon,
 } from "lucide-react";
@@ -149,9 +150,11 @@ export const MENU_SECTIONS: MenuSection[] = [
     ],
   },
   {
-    // 바로가기 — Que 밖의 전용 화면(다른 도메인) 4개. 순서 고정(간트→뷰→투두→컬러).
+    // 바로가기 — Que 밖의 전용 화면(다른 도메인) 5개. 순서 고정(간트→뷰→투두→컬러→폰트).
     // 전부 external 링크라 새 탭으로 열리고 active 하이라이트가 없다. 아이콘에만 포인트 컬러를 입힌다
     // (상태색 의미와 분리 — 배경·뱃지 금지). '기타' 위에 둬 자주 여는 외부 도구를 가깝게 배치한다.
+    // 풀 사이드바(SidebarNav)는 이 섹션을 2열 버튼 칩 그리드로 렌더한다(리스트 행 대신 — 아이콘 틴트+라벨,
+    // 테두리·hover, 40px 터치). 축소 레일·모바일 시트는 기존 동작(레일=아이콘 전용, 시트=SidebarNav 재사용).
     // 기존 'TODO 앱' QR 모달(#todo-app)은 여기 '투두'(외부 링크)로 통합해 메뉴 진입점을 이관했다
     // (TodoAppDialog·`#` 모달 규약은 유지 — 도움말 참조·향후 재사용 대비).
     label: "바로가기",
@@ -187,6 +190,15 @@ export const MENU_SECTIONS: MenuSection[] = [
         icon: Palette,
         external: true,
         accentColor: "#ec4899",
+      },
+      // 폰트(폰트 페어링): 버밀리언 코럴 — 폰트페어 사이트 원 정체성 색. Que 브랜드 인디고와 겹치지 않아
+      // 메뉴 아이콘 틴트로 적합(현 사이트 UI는 인디고지만 메뉴 구분용으로는 코럴 유지).
+      {
+        href: "https://font.griff.co.kr",
+        label: "폰트",
+        icon: Type,
+        external: true,
+        accentColor: "#ec5a29",
       },
     ],
   },

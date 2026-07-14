@@ -52,6 +52,43 @@ export function SidebarNav({
       {MENU_SECTIONS.map((section) => {
         const items = section.items.filter((item) => !item.adminOnly || isAdmin);
         if (items.length === 0) return null;
+
+        // 바로가기 — 외부 링크를 2열 버튼 칩 그리드로(리스트 행 대신). 아이콘 틴트+라벨, 테두리·hover, 40px.
+        // 전부 external이라 새 탭 <a>. active 하이라이트 없음(규약). 배경·뱃지에는 accentColor를 쓰지 않는다.
+        if (section.label === "바로가기") {
+          return (
+            <div key={section.label} className="flex flex-col gap-1">
+              <p className="px-3 pb-1 text-xs font-medium text-[var(--que-text-tertiary)]">
+                {section.label}
+              </p>
+              <div className="grid grid-cols-2 gap-1.5">
+                {items.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <a
+                      key={item.href}
+                      href={item.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={onNavigate}
+                      title={`${item.label} — 새 탭에서 열림`}
+                      aria-label={`${item.label} (새 탭에서 열림)`}
+                      className="flex h-10 items-center gap-2 rounded-lg border border-[var(--que-border)] px-2.5 text-sm font-medium text-[var(--que-text-secondary)] transition-colors hover:bg-[var(--que-bg-muted)] hover:text-[var(--que-text)] focus-visible:outline-2 focus-visible:outline-[var(--que-brand)]"
+                    >
+                      <Icon
+                        className="size-[18px] shrink-0"
+                        style={item.accentColor ? { color: item.accentColor } : undefined}
+                        aria-hidden
+                      />
+                      <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                    </a>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        }
+
         return (
           <div key={section.label} className="flex flex-col gap-1">
             <p className="px-3 pb-1 text-xs font-medium text-[var(--que-text-tertiary)]">
