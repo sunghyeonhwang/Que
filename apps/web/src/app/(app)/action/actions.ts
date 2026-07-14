@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { isQueRuleError } from "@que/core";
+import { formatProjectLabel, isQueRuleError } from "@que/core";
 import { getDb } from "@/lib/db";
 import { getCurrentUser } from "@/lib/current-user";
 import { notifyTaskCreated } from "@/lib/notifications/dispatch";
@@ -79,6 +79,40 @@ export async function confirmActionItemAction(
     (db) => db.confirmActionItem({ actorId: user.id, via: "web" }, actionItemId, coreOverrides),
     (db, task) => notifyTaskCreated(db, task.id), // Action→Task 확정도 생성 이벤트 — 담당자 DM
   );
+}
+
+export type CreateProjectResult =
+  | { ok: true; project: { id: string; name: string } }
+  | { ok: false; error: string };
+
+/** 프로젝트 인라인 생성 — Copilot create_project와 동일한 core createProject 경로(전원 허용, 2026-07-12).
+ *  성공 시 새 프로젝트의 { id, 라벨 }을 돌려줘 Select에서 즉시 선택할 수 있게 한다. ChangeLog via=web. */
+export async function createProjectAction(input: {
+  name: string;
+  clientId?: string;
+}): Promise<CreateProjectResult> {
+  const user = await getCurrentUser();
+  try {
+    const db = await getDb();
+    const project = db.createProject(
+      { actorId: user.id, via: "web" },
+      { name: input.name, clientId: input.clientId || undefined },
+    );
+    await db.persist();
+    for (const path of ["/action", "/projects", "/now", "/today", "/planning"]) {
+      revalidatePath(path);
+    }
+    const client = project.clientId
+      ? db.clients.find((c) => c.id === project.clientId)
+      : undefined;
+    return {
+      ok: true,
+      project: { id: project.id, name: formatProjectLabel(project, client) },
+    };
+  } catch (error) {
+    if (isQueRuleError(error)) return { ok: false, error: error.message };
+    throw error;
+  }
 }
 
 export async function setActionItemStatusAction(input: {

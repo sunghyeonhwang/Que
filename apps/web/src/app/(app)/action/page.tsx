@@ -41,6 +41,9 @@ export default async function ActionPage({
     name: formatProjectLabel(p, p.clientId ? clientById.get(p.clientId) : undefined),
   }));
 
+  // 인라인 프로젝트 생성 다이얼로그의 클라이언트 선택 옵션(선택사항).
+  const clientOptions = db.clients.map((c) => ({ id: c.id, name: c.name }));
+
   const noteFilter = params.note && noteById.has(params.note) ? params.note : undefined;
 
   const rows: ActionRowData[] = [...db.actionItems]
@@ -105,7 +108,12 @@ export default async function ActionPage({
             </p>
           )}
           {rows.map((row) => (
-            <ActionRow key={row.id} item={row} projects={projectOptions} />
+            <ActionRow
+              key={row.id}
+              item={row}
+              projects={projectOptions}
+              clients={clientOptions}
+            />
           ))}
         </div>
 
