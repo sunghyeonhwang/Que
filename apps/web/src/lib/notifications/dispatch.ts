@@ -306,7 +306,8 @@ function formatWon(amount: number): string {
 
 /**
  * 결제 요청 등록 DM(payment_created) 훅. **persist 성공 직후** 호출한다. **절대 throw하지 않는다.**
- * 수신자: **active 관리자(role=admin) 전원 중 등록자 본인 제외** — 각자 개인 DM.
+ * 수신자: **active 관리자(role=admin) 전원** — 각자 개인 DM. 등록자가 관리자면 **본인도 기록성 DM을 받는다**
+ *   (2026-07-14 사용자 확정 — "관리자전원". 본인 행동 알림을 원한 것이 이 확장의 발단이라 본인 제외를 두지 않는다).
  * 게이트: Bot Token(personalDigestEnabled). dedup `payment_created:<paymentId>:<recipientId>`(결제·수신자당 평생 1회).
  * ⚠️ digestRecipientAllowlist(QUE_DIGEST_RECIPIENTS)를 **적용하지 않는다** — 프로덕션이 대표만 허용이라도
  *    결제 알림은 등록자·관리자에게 반드시 도달해야 한다는 사용자 결정(2026-07-14). 개인 브리핑 단계적
@@ -331,9 +332,7 @@ export async function notifyPaymentCreated(
       `요청자: ${nameOf(payment.requesterId)}`,
       `마감일: ${formatKstDateTime(payment.dueAt)}`,
     ];
-    const admins = db.users.filter(
-      (u) => u.role === "admin" && u.active !== false && u.id !== payment.requesterId,
-    );
+    const admins = db.users.filter((u) => u.role === "admin" && u.active !== false);
     const intents: NotificationIntent[] = admins.map((admin) => ({
       kind: "payment_created",
       entityType: "payment_request",
@@ -357,8 +356,10 @@ export async function notifyPaymentCreated(
 
 /**
  * 결제 완료 DM(payment_done) 훅. **persist 성공 직후** 호출한다(status가 done으로 바뀐 뒤). **절대 throw하지 않는다.**
- * 수신자: **등록자(requesterId)** — 처리자 본인이 등록자여도 발송한다(사용자 요구 그대로).
- * 게이트: Bot Token(personalDigestEnabled). dedup `payment_done:<paymentId>:<lastChangedAt ISO>`(완료 이벤트당 1회).
+ * 수신자: **등록자(requesterId) + active 관리자 전원**(중복 제거 — 등록자가 관리자면 1건만). 처리자 본인 제외 없음
+ *   (2026-07-14 사용자 확정 — 대표가 직접 완료 처리하고도 DM을 원한 것이 이 요청의 발단).
+ * 게이트: Bot Token(personalDigestEnabled). dedup `payment_done:<paymentId>:<lastChangedAt ISO>:<recipientId>`
+ *   (완료 이벤트·수신자당 1회, 재완료 시 재발송).
  * ⚠️ digestRecipientAllowlist를 적용하지 않는다(트랜잭셔널 — notifyPaymentCreated와 동일 결정).
  * ⚠️ 계좌번호는 payload에 절대 담지 않는다. 제목·금액·처리자·완료 시각만.
  * 방해금지(22-8) 창 안이면 enqueueAndSend가 hold(창 종료 후 발송).
@@ -371,7 +372,7 @@ export async function notifyPaymentDone(
   if (!personalDigestEnabled()) return; // 개인 DM — Bot Token 게이트
   try {
     const payment = db.paymentRequests.find((p) => p.id === paymentId);
-    if (!payment || !payment.requesterId) return;
+    if (!payment) return;
     const nameOf = (id: string) => db.users.find((u) => u.id === id)?.name ?? id;
     const changedAt = payment.lastChangedAt ?? now.toISOString();
     const handler = payment.lastChangedBy ? nameOf(payment.lastChangedBy) : "-";
@@ -381,20 +382,28 @@ export async function notifyPaymentDone(
       `처리자: ${handler}`,
       `완료 시각: ${formatKstDateTime(changedAt)}`,
     ];
-    const intent: NotificationIntent = {
+    // 등록자 + active 관리자 전원(중복 제거). 등록자가 비활성/부재여도 등록자 본인은 반드시 포함.
+    const recipientIds = [
+      ...new Set([
+        ...(payment.requesterId ? [payment.requesterId] : []),
+        ...db.users.filter((u) => u.role === "admin" && u.active !== false).map((u) => u.id),
+      ]),
+    ];
+    const intents: NotificationIntent[] = recipientIds.map((rid) => ({
       kind: "payment_done",
       entityType: "payment_request",
       entityId: payment.id,
-      marker: changedAt, // 완료 이벤트(lastChangedAt ISO)당 1회 — 재완료 시 재발송
-      recipient: payment.requesterId, // 발송 직전 Slack member ID로 해석
+      marker: changedAt, // 완료 이벤트(lastChangedAt ISO)당 1회 — recipient로 개별화, 재완료 시 재발송
+      recipient: rid, // 발송 직전 Slack member ID로 해석
       payload: {
         title: "결제 완료",
         text: lines.join("\n"),
         deeplinkPath: "/payments",
         tone: "blue", // 정보성(NotificationTone에 green 없음)
       },
-    };
-    await enqueueAndSend(db, [intent], now);
+    }));
+    if (intents.length === 0) return;
+    await enqueueAndSend(db, intents, now);
   } catch (error) {
     console.error("[que-notify] notifyPaymentDone 실패(무시)", error);
   }

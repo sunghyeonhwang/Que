@@ -112,13 +112,13 @@ describe("dedupKeyFor — 결제 알림(payment_created / payment_done)", () => 
       payload: { title: "새 결제 요청", text: "", deeplinkPath: "/payments", tone: "blue" },
     };
   }
-  function paymentDone(paymentId: string, changedAt: string): NotificationIntent {
+  function paymentDone(paymentId: string, changedAt: string, recipientId = "u-1"): NotificationIntent {
     return {
       kind: "payment_done",
       entityType: "payment_request",
       entityId: paymentId,
       marker: changedAt,
-      recipient: "u-1",
+      recipient: recipientId,
       payload: { title: "결제 완료", text: "", deeplinkPath: "/payments", tone: "blue" },
     };
   }
@@ -144,13 +144,23 @@ describe("dedupKeyFor — 결제 알림(payment_created / payment_done)", () => 
     );
   });
 
-  it("payment_done은 완료 이벤트(lastChangedAt)당 키 — 재완료 시각이 다르면 새 키(재발송 가능)", () => {
+  it("payment_done은 완료 이벤트(lastChangedAt)·수신자당 키 — 재완료 시각이 다르면 새 키(재발송 가능)", () => {
     const first = dedupKeyFor(paymentDone("pay-1", "2026-07-07T09:00:00.000Z"));
     const same = dedupKeyFor(paymentDone("pay-1", "2026-07-07T09:00:00.000Z"));
     const requeue = dedupKeyFor(paymentDone("pay-1", "2026-07-08T09:00:00.000Z"));
-    expect(first).toBe("payment_done:pay-1:2026-07-07T09:00:00.000Z");
-    expect(same).toBe(first); // 같은 완료 이벤트 → 중복 발송 차단
+    expect(first).toBe("payment_done:pay-1:2026-07-07T09:00:00.000Z:u-1");
+    expect(same).toBe(first); // 같은 완료 이벤트·수신자 → 중복 발송 차단
     expect(requeue).not.toBe(first); // 재완료 → 재발송 허용
+  });
+
+  it("payment_done은 수신자별로 키가 분리된다(등록자 + 관리자 각자 1행)", () => {
+    const changedAt = "2026-07-07T09:00:00.000Z";
+    const keys = new Set([
+      dedupKeyFor(paymentDone("pay-1", changedAt, "u-1")),
+      dedupKeyFor(paymentDone("pay-1", changedAt, "u-2")),
+      dedupKeyFor(paymentDone("pay-1", changedAt, "u-3")),
+    ]);
+    expect(keys.size).toBe(3);
   });
 });
 
