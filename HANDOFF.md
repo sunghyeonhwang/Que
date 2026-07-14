@@ -41,6 +41,9 @@ mock 인증: 쿠키 `que-user=<id>` / PAT `que_pat_<id>` (예: `hwang-sunghyeon`
 
 **프로덕션은 GRIFF Pro 팀(`griff-fde0dc32/que`) · <https://que.griff.co.kr> · 실 DB(`QUE_DB=supabase`)+실 인증(Auth.js) 라이브.** 비밀값은 `data/.env`(gitignore). Vercel env로 기능 게이트(아래 참고).
 
+#### 📊 통합 간트 task 편집 (2026-07-14 사용자 요청)
+gant.griff.co.kr(`(gantt)/gantt`)에서 **task 클릭 시 화면 이탈(/projects 링크) → 같은 페이지 `?task=` 드로어**로 교체. projects의 TaskDetailDrawer를 이동 없이 재사용(gantt page가 `getTaskDetail`+열린 태스크에 한해 `getProjectMeta` 로드, gantt-board `taskHref`가 pathname+기존 client/risk/zoom 파라미터 보존). 쓰기는 전부 기존 pm-actions(core canEditTask) 경유 — admin 전용 페이지라도 core가 타인 작업 편집을 막으면 projects와 동일하게 읽기+댓글. 마일스톤 편집(칩 Popover+드래그 asDecision)은 기존 유지, Popover 수정은 useSafeAction의 router.refresh가 /gantt 재요청이라 revalidatePath 무관하게 갱신됨. 전체화면(html fullscreen)과 Sheet(body 포털) 공존 확인.
+
 #### 💳 결제요청 Slack DM 2종 (2026-07-14 사용자 요청 — 오승훈 등록 건 DM 미수신 리포트로 발견)
 결제 알림은 **미구현이었음**(버그 아님). 구현: ①`payment_created` — 등록 시 active 관리자 전원(등록자 제외) 개인 DM, dedup `payment_created:<paymentId>:<recipientId>` 평생 1회 ②`payment_done` — `updatePaymentStatus(to=done)` 시 등록자에게 DM(처리자=등록자여도 발송), dedup `payment_done:<paymentId>:<lastChangedAt>`(재완료 시 재발송). 훅은 payments/actions.ts(persist 후, toResult→afterCommit 확장), 빌더는 dispatch.ts `notifyPaymentCreated/Done`(notifyTaskCreated 패턴, throw 금지, Bot Token 게이트). **⚠️ digestRecipientAllowlist 의도적 우회**(사용자 결정 2026-07-14 — `QUE_DIGEST_RECIPIENTS=hwang-sunghyeon` 상태에서도 결제 DM은 관리자·등록자에게 가야 함. 트랜잭셔널 알림은 브리핑 롤아웃 게이트와 목적이 다름). **계좌번호는 payload에 절대 미포함**(Slack 유출 방지). payload에 제목/분류/금액(콤마)/요청자·처리자/마감·완료시각, 딥링크 /payments, tone blue. **DB 마이그레이션**: `db/supabase/add-payment-notification-kinds.sql`(outbox kind CHECK에 2종 추가 — task_created 유실 사고 재발 방지) — **✅ 프로덕션 적용 완료(2026-07-14, 사용자 승인 후 supabase 마이그레이션 `add_payment_notification_kinds`, 19종 확인)**. 오승훈의 최초 리포트 건("워싱캔버스 더스트백" pay-a43cdc55)은 구현 전 등록분이라 등록 DM 소급 없음(수동 outbox 삽입은 권한 게이트 거부 — 이후 등록분부터 자동). core 테스트 279(신규 4). 도움말 결제 섹션에 DM 안내 추가.
 

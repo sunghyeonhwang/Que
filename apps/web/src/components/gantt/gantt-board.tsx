@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 import { toast } from "sonner";
@@ -64,6 +64,7 @@ export function GanttBoard({
   initialZoom: Zoom;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const [risk, setRisk] = useState(initialRisk);
   const [zoom, setZoom] = useState<Zoom>(initialZoom);
@@ -179,7 +180,12 @@ export function GanttBoard({
           data={data}
           colWidth={colWidth}
           showProject
-          taskHref={(taskId) => `/projects?project=all&task=${taskId}`}
+          // 회의 화면 이탈 없이 같은 페이지에서 드로어를 연다(client/risk/zoom 파라미터 보존).
+          taskHref={(taskId) => {
+            const sp = new URLSearchParams(searchParams.toString());
+            sp.set("task", taskId);
+            return `${pathname}?${sp.toString()}`;
+          }}
         />
       </div>
 
