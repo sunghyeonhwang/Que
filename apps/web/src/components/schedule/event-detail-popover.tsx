@@ -3,16 +3,20 @@
 import { useState, type ReactElement } from "react";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
-import { Calendar, Clock, Flag, FolderOpen, Lock, User, Users } from "lucide-react";
+import { Calendar, ChevronDown, Clock, Flag, FolderOpen, Lock, User, Users } from "lucide-react";
 import type { CalendarViewItem } from "@/lib/calendar-data";
 import { updateTaskScheduleAction } from "@/app/(app)/today/actions";
 import { updateEventScheduleAction } from "@/app/(app)/calendar/actions";
 import { useSafeAction } from "@/components/app/use-safe-action";
-import { DateRangePicker } from "@/components/app/date-range-picker";
+import {
+  DateRangePicker,
+  formatRangeLabel,
+} from "@/components/app/date-range-picker";
 import { PriorityBadge } from "@/components/projects/priority-badge";
 import { TaskStatusSheet, type TaskRowData } from "@/components/app/task-status-sheet";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 
 const pad = (n: number) => String(n).padStart(2, "0");
 function toDateStr(iso?: string): string {
@@ -214,9 +218,43 @@ export function EventDetailPopover({
   );
 }
 
-/** 작업 재일정(팝오버 내장) — 재일정 폼과 동일한 full 기간 DateRangePicker + updateTaskScheduleAction. */
+/** 기간 요약 토글 버튼 — 클릭 시 부모(팝오버) 안에서 달력을 아코디언처럼 펼친다(중첩 Popover 회피). */
+function RangeToggleButton({
+  label,
+  expanded,
+  onToggle,
+  ariaLabel,
+}: {
+  label: string;
+  expanded: boolean;
+  onToggle: () => void;
+  ariaLabel: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-expanded={expanded}
+      aria-label={ariaLabel}
+      className="flex h-10 w-full items-center gap-2 rounded-lg border border-[var(--que-border)] bg-transparent px-2.5 text-left text-sm transition-colors hover:bg-[var(--que-bg-muted)] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+    >
+      <Calendar className="size-4 shrink-0 text-[var(--que-text-tertiary)]" aria-hidden />
+      <span className="min-w-0 flex-1 truncate text-[var(--que-text)]">{label}</span>
+      <ChevronDown
+        className={cn(
+          "size-4 shrink-0 text-[var(--que-text-tertiary)] transition-transform",
+          expanded && "rotate-180",
+        )}
+        aria-hidden
+      />
+    </button>
+  );
+}
+
+/** 작업 재일정(팝오버 내장) — full 기간 DateRangePicker(인라인) + updateTaskScheduleAction. */
 function TaskRescheduleInline({ item }: { item: CalendarViewItem }) {
   const { run, pending } = useSafeAction();
+  const [expanded, setExpanded] = useState(false);
   const initDate = toDateStr(item.startAt) || toDateStr(new Date().toISOString());
   const [startDate, setStartDate] = useState(initDate);
   const [endDate, setEndDate] = useState(toDateStr(item.endAt) || initDate);
@@ -239,17 +277,27 @@ function TaskRescheduleInline({ item }: { item: CalendarViewItem }) {
 
   return (
     <div className="flex flex-col gap-2">
-      <DateRangePicker
-        value={{ startDate, startTime, endDate, endTime }}
-        onChange={(r) => {
-          setStartDate(r.startDate);
-          setStartTime(r.startTime);
-          setEndDate(r.endDate);
-          setEndTime(r.endTime);
-        }}
-        emptyLabel="기간 미정"
-        triggerAriaLabel={`${item.title} 일정 설정`}
+      <RangeToggleButton
+        label={formatRangeLabel(startDate, startTime, endDate, endTime, {
+          emptyLabel: "기간 미정",
+        })}
+        expanded={expanded}
+        onToggle={() => setExpanded((v) => !v)}
+        ariaLabel={`${item.title} 일정 설정`}
       />
+      {expanded && (
+        <DateRangePicker
+          inline
+          value={{ startDate, startTime, endDate, endTime }}
+          onChange={(r) => {
+            setStartDate(r.startDate);
+            setStartTime(r.startTime);
+            setEndDate(r.endDate);
+            setEndTime(r.endTime);
+          }}
+          emptyLabel="기간 미정"
+        />
+      )}
       <div className="flex items-center justify-between gap-2">
         <span className="text-xs text-destructive">
           {rangeError ? "마감은 시작보다 늦어야 합니다." : ""}
@@ -266,9 +314,10 @@ function TaskRescheduleInline({ item }: { item: CalendarViewItem }) {
   );
 }
 
-/** Que 일정 시간 수정(팝오버 내장) — singleDay DateRangePicker + updateEventScheduleAction(core moveCalendarEvent). */
+/** Que 일정 시간 수정(팝오버 내장) — singleDay DateRangePicker(인라인) + updateEventScheduleAction(core moveCalendarEvent). */
 function EventRescheduleInline({ item }: { item: CalendarViewItem }) {
   const { run, pending } = useSafeAction();
+  const [expanded, setExpanded] = useState(false);
   const initDate = toDateStr(item.startAt) || toDateStr(new Date().toISOString());
   const [date, setDate] = useState(initDate);
   const [startTime, setStartTime] = useState(toTimeStr(item.startAt) || "09:00");
@@ -290,17 +339,27 @@ function EventRescheduleInline({ item }: { item: CalendarViewItem }) {
 
   return (
     <div className="flex flex-col gap-2">
-      <DateRangePicker
-        singleDay
-        value={{ startDate: date, startTime, endDate: date, endTime }}
-        onChange={(r) => {
-          setDate(r.startDate);
-          setStartTime(r.startTime);
-          setEndTime(r.endTime);
-        }}
-        emptyLabel="날짜 미정"
-        triggerAriaLabel={`${item.title} 일정 설정`}
+      <RangeToggleButton
+        label={formatRangeLabel(date, startTime, date, endTime, {
+          emptyLabel: "날짜 미정",
+        })}
+        expanded={expanded}
+        onToggle={() => setExpanded((v) => !v)}
+        ariaLabel={`${item.title} 일정 설정`}
       />
+      {expanded && (
+        <DateRangePicker
+          inline
+          singleDay
+          value={{ startDate: date, startTime, endDate: date, endTime }}
+          onChange={(r) => {
+            setDate(r.startDate);
+            setStartTime(r.startTime);
+            setEndTime(r.endTime);
+          }}
+          emptyLabel="날짜 미정"
+        />
+      )}
       <div className="flex items-center justify-between gap-2">
         <span className="text-xs text-destructive">
           {timeError ? "종료는 시작보다 늦어야 합니다." : ""}

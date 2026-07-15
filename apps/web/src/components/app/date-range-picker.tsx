@@ -61,6 +61,9 @@ export interface DateRangePickerProps {
   singleDay?: boolean;
   /** 시각 절(시작·마감 자유 입력) 노출. 기본 true. */
   showTime?: boolean;
+  /** 인라인 변형 — Popover 래핑을 생략하고 달력 본문만 렌더한다(트리거·부모 표시는 호출부가 담당).
+   *  Popover 안 Popover 중첩 시 부모가 닫히는 문제를 피하려 팝오버 안에서 아코디언처럼 펼칠 때 쓴다. */
+  inline?: boolean;
   emptyLabel?: string;
   triggerAriaLabel?: string;
   triggerClassName?: string;
@@ -71,6 +74,7 @@ export function DateRangePicker({
   onChange,
   singleDay = false,
   showTime = true,
+  inline = false,
   emptyLabel = "기간 미정",
   triggerAriaLabel = "기간 설정",
   triggerClassName,
@@ -147,36 +151,8 @@ export function DateRangePicker({
   const sameDay = hasRange && startDate === endDate;
   const hasStart = Boolean(startDate);
 
-  return (
-    <Popover>
-      <PopoverTrigger
-        aria-label={triggerAriaLabel}
-        className={cn(
-          "flex h-10 w-full items-center gap-2 rounded-lg border border-[var(--que-border)] bg-transparent px-2.5 text-left text-sm transition-colors hover:bg-[var(--que-bg-muted)] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50",
-          triggerClassName,
-        )}
-      >
-        <CalendarDays
-          className="size-4 shrink-0 text-[var(--que-text-tertiary)]"
-          aria-hidden
-        />
-        <span
-          className={cn(
-            "min-w-0 flex-1 truncate",
-            hasStart ? "text-[var(--que-text)]" : "text-[var(--que-text-tertiary)]",
-          )}
-        >
-          {formatRangeLabel(startDate, startTime, endDate, endTime, {
-            showTime,
-            emptyLabel,
-          })}
-        </span>
-      </PopoverTrigger>
-
-      <PopoverContent
-        align="start"
-        className="max-h-[min(80vh,36rem)] w-80 gap-3 overflow-y-auto"
-      >
+  const body = (
+    <>
         {/* 빠른 선택(프리셋 버튼) */}
         <div className="flex flex-col gap-2">
           <p className="text-xs font-medium text-[var(--que-text-tertiary)]">
@@ -345,6 +321,49 @@ export function DateRangePicker({
             </div>
           </div>
         )}
+    </>
+  );
+
+  // 인라인: 부모(팝오버 등) 본문에 달력을 직접 펼친다 — 중첩 Popover 회피.
+  if (inline) {
+    return (
+      <div className="flex max-h-[min(55vh,30rem)] flex-col gap-3 overflow-y-auto rounded-lg border border-[var(--que-border)] bg-[var(--que-bg)] p-2.5">
+        {body}
+      </div>
+    );
+  }
+
+  return (
+    <Popover>
+      <PopoverTrigger
+        aria-label={triggerAriaLabel}
+        className={cn(
+          "flex h-10 w-full items-center gap-2 rounded-lg border border-[var(--que-border)] bg-transparent px-2.5 text-left text-sm transition-colors hover:bg-[var(--que-bg-muted)] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50",
+          triggerClassName,
+        )}
+      >
+        <CalendarDays
+          className="size-4 shrink-0 text-[var(--que-text-tertiary)]"
+          aria-hidden
+        />
+        <span
+          className={cn(
+            "min-w-0 flex-1 truncate",
+            hasStart ? "text-[var(--que-text)]" : "text-[var(--que-text-tertiary)]",
+          )}
+        >
+          {formatRangeLabel(startDate, startTime, endDate, endTime, {
+            showTime,
+            emptyLabel,
+          })}
+        </span>
+      </PopoverTrigger>
+
+      <PopoverContent
+        align="start"
+        className="max-h-[min(80vh,36rem)] w-80 gap-3 overflow-y-auto"
+      >
+        {body}
       </PopoverContent>
     </Popover>
   );
