@@ -100,7 +100,7 @@ const TOOLS: {
   },
   {
     title: "Que Copilot",
-    menu: "Copilot · ⌘K",
+    menu: "상단바 Copilot · ⌘K",
     href: "/copilot",
     why: "화면을 찾아다니고 폼을 채우는 시간 — 물어보면 됩니다.",
     how: "“오늘 팀 막힌 거?”는 실데이터로 답하고, “내일 10시 ○○ 잡아줘”는 확인 카드 → [실행].",

@@ -23,7 +23,6 @@ import {
   ListTodo,
   Palette,
   Type,
-  Sparkles,
   type LucideIcon,
 } from "lucide-react";
 
@@ -95,9 +94,8 @@ export const MENU_SECTIONS: MenuSection[] = [
           { label: "OKR", href: "/daily?tab=okr" },
         ],
       },
-      // Copilot(/copilot) — Que Copilot 풀 페이지(LLM 채팅 스타일). ⌘K 팔레트 채팅이 좁아 별도 화면으로 승격.
-      // 실데이터로 답하고, 변경은 확인 카드 → 사람이 [실행]. 전원 접근. 데일리 바로 아래.
-      { href: "/copilot", label: "Copilot", icon: Sparkles },
+      // Copilot(/copilot)은 사이드바 메뉴에서 상단바 '작업 추가' 옆으로 이관했다(2026-07-15 사용자 확정 —
+      // ⌘K 팔레트 채팅이 좁아 별도 화면으로 승격했던 이력 유지, 진입점만 상단바로 이동). 여기에는 항목을 두지 않는다.
       // 작업 목록(/today) — 오늘 개인 진입점(팀원). 2026-07-11 Now를 독립 메뉴로 분리(탭 병합 폐기).
       // 하위: 상단 패널 스위처(현황=기본 / 입력=?panel=input)를 사이드바에서도 펼침.
       {

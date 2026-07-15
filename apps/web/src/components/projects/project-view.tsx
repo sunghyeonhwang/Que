@@ -28,7 +28,8 @@ import { GanttSuggestDialog } from "./gantt-suggest-dialog";
 const VIEW_KEYS: ProjectViewKey[] = ["list", "board", "calendar", "gantt"];
 
 function resolveView(raw: string | undefined): ProjectViewKey {
-  return VIEW_KEYS.includes(raw as ProjectViewKey) ? (raw as ProjectViewKey) : "board";
+  // 기본=간트(2026-07-15 사용자 확정 — view 파라미터 없이 진입하면 간트로 연다).
+  return VIEW_KEYS.includes(raw as ProjectViewKey) ? (raw as ProjectViewKey) : "gantt";
 }
 
 /** 프로젝트 화면 클라이언트 오케스트레이터 — 클라이언트·프로젝트 필터 + 헤더 + 뷰 탭 + 목록/보드/캘린더. */

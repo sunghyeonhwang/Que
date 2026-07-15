@@ -1,5 +1,7 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
+import { Sparkles } from "lucide-react";
 import { rankForUser } from "@que/core";
 import { auth } from "@/auth";
 import { getDb } from "@/lib/db";
@@ -24,7 +26,9 @@ import { KeyboardShortcuts } from "@/components/app/keyboard-shortcuts";
 import { NotificationsBell } from "@/components/app/notifications-bell";
 import { MotionProvider } from "@/components/app/motion-provider";
 import { AddTaskDialog } from "@/components/app/add-task-dialog";
+import { buttonVariants } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { cn } from "@/lib/utils";
 
 // App Shell (재설계).
 // - xl 이상: 좌측 고정 풀 사이드바(로고+워드마크+클라이언트 스위처+라벨 메뉴)
@@ -110,6 +114,20 @@ export default async function AppLayout({
           </div>
 
           <div className="ml-auto flex items-center gap-1 sm:gap-2">
+            {/* Copilot — 사이드바 메뉴에서 상단바 '작업 추가' 옆으로 이관(2026-07-15 사용자 확정).
+                작업 추가가 primary라 Copilot은 그 왼쪽 outline 톤. 폰(<md)은 하단 탭바에 Copilot이
+                있으므로 헤더 버튼은 숨겨 밀도를 유지(NotificationsBell·FullscreenButton과 동일 패턴). */}
+            <Link
+              href="/copilot"
+              aria-label="Que Copilot 열기"
+              className={cn(
+                buttonVariants({ variant: "outline" }),
+                "hidden h-10 gap-1.5 rounded-lg px-2.5 font-medium md:inline-flex sm:px-3.5",
+              )}
+            >
+              <Sparkles className="size-4" aria-hidden />
+              <span>Copilot</span>
+            </Link>
             <AddTaskDialog currentUserId={user.id} />
             {/* 폰(<md)은 하단 탭바 '알림'이 대신하므로 헤더 종·전체화면은 숨겨 밀도를 낮춘다 */}
             <div className="hidden md:contents">
