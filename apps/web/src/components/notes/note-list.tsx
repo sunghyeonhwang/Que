@@ -127,7 +127,47 @@ function NoteRow({ note, highlighted }: { note: NoteListItem; highlighted: boole
         <FileText className="size-[18px]" />
       </span>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium text-[var(--que-text)]">{note.title}</p>
+        {/* 목록 행 제목 인라인 편집(발견성 ↑) — 시트 안 연필과 같은 state·규약 공유(refresh로 동기). */}
+        {editingTitle ? (
+          <Input
+            autoFocus
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                commitTitle();
+              } else if (e.key === "Escape") {
+                e.preventDefault();
+                cancelTitleEdit();
+              }
+            }}
+            onBlur={commitTitle}
+            aria-label={`${note.title} 제목 수정 입력`}
+            className="h-9 w-full rounded-lg text-sm font-medium"
+          />
+        ) : (
+          <div className="flex items-center gap-1">
+            <p className="min-w-0 flex-1 truncate text-sm font-medium text-[var(--que-text)]">
+              {title}
+            </p>
+            {note.canEdit && (
+              <Button
+                type="button"
+                variant="ghost"
+                aria-label="제목 수정"
+                className="size-9 shrink-0 rounded-lg p-0 text-[var(--que-text-tertiary)]"
+                disabled={titlePending}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  beginTitleEdit();
+                }}
+              >
+                <Pencil className="size-4" aria-hidden />
+              </Button>
+            )}
+          </div>
+        )}
         <p className="truncate text-xs text-[var(--que-text-tertiary)]">
           {note.fileName} · {format(new Date(note.meetingAt), "M/d")} ·{" "}
           {note.projectName ?? "프로젝트 미지정"} · 업로드 {note.uploaderName}
