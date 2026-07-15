@@ -122,7 +122,12 @@ export function SidebarNav({
               );
               const inner = (
                 <>
-                  <Icon className="size-[18px] shrink-0" aria-hidden />
+                  <Icon
+                    className="size-[18px] shrink-0"
+                    // 정체성 컬러(아이콘 틴트만 — 배경·뱃지 금지 규약). active여도 유지해 정체성 고정.
+                    style={item.accentColor ? { color: item.accentColor } : undefined}
+                    aria-hidden
+                  />
                   <span className="min-w-0 flex-1 truncate">{item.label}</span>
                   {badgeCount > 0 ? (
                     <span

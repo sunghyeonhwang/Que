@@ -88,6 +88,8 @@ export const MENU_SECTIONS: MenuSection[] = [
         label: "데일리",
         icon: CalendarCheck,
         emphasized: true, // 사원 최빈 화면(하루 1회 체크인) — 2026-07-16 볼드 확정
+        // 정체성 컬러(아이콘 틴트만 — 바로가기 규약 재사용): 아침 체크인=앰버. 라이트/다크 양 테마 가시.
+        accentColor: "#f59e0b",
         children: [
           { label: "오늘", href: "/daily" },
           { label: "OKR", href: "/daily?tab=okr" },
@@ -103,6 +105,8 @@ export const MENU_SECTIONS: MenuSection[] = [
         label: "작업 목록",
         icon: ListChecks,
         emphasized: true, // 사원 최빈 화면(할 일 확인·완료 체크 하루 수회) — 2026-07-16 볼드 확정
+        // 정체성 컬러: 체크리스트=틸(상태색 green #22c55e·바로가기 투두 그린과 구분되는 톤). 양 테마 가시.
+        accentColor: "#14b8a6",
         children: [
           { label: "현황", href: "/today" },
           { label: "입력", href: "/today?panel=input" },
