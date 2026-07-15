@@ -46,6 +46,10 @@ export interface MenuItem {
   /** 아이콘 틴트용 포인트 컬러(CSS 컬러). '바로가기' 섹션 전용 — 각 앱의 정체성 색을 아이콘에만 입힌다.
    *  상태색 의미(green=진행 등)와 혼동되지 않게 배경·뱃지에는 쓰지 않고 아이콘 색만 바꾼다. */
   accentColor?: string;
+  /** 테마 반응 하이라이트 — 아이콘+텍스트에 `var(--que-nav-accent)`(라이트 #00C3FF / 다크 #FFE500) 적용.
+   *  최빈 메뉴 4항목(데일리·작업목록·프로젝트·일정) 통일 하이라이트.
+   *  accentColor(개별 하드코딩·아이콘만)와 구분한다. 상태색 의미와 무관한 신규 변수라 배경·뱃지엔 안 쓴다. */
+  navAccent?: boolean;
   /** 병합 메뉴의 active 매칭 경로. 없으면 href로 매칭한다. */
   match?: string[];
   /** 사이드바 우측 뱃지 정적 폴백. 실데이터는 레이아웃이 SidebarNav의 badges prop으로 href별 주입. */
@@ -87,8 +91,8 @@ export const MENU_SECTIONS: MenuSection[] = [
         label: "데일리",
         icon: CalendarCheck,
         emphasized: true, // 사원 최빈 화면(하루 1회 체크인) — 2026-07-16 볼드 확정
-        // 정체성 컬러(아이콘 틴트만 — 바로가기 규약 재사용): 아침 체크인=앰버. 라이트/다크 양 테마 가시.
-        accentColor: "#f59e0b",
+        // 테마 반응 하이라이트(아이콘+텍스트, 라이트 #00C3FF·다크 #FFE500) — 최빈 메뉴 4항목 통일.
+        navAccent: true,
         children: [
           { label: "오늘", href: "/daily" },
           { label: "OKR", href: "/daily?tab=okr" },
@@ -103,8 +107,8 @@ export const MENU_SECTIONS: MenuSection[] = [
         label: "작업 목록",
         icon: ListChecks,
         emphasized: true, // 사원 최빈 화면(할 일 확인·완료 체크 하루 수회) — 2026-07-16 볼드 확정
-        // 정체성 컬러: 체크리스트=틸(상태색 green #22c55e·바로가기 투두 그린과 구분되는 톤). 양 테마 가시.
-        accentColor: "#14b8a6",
+        // 테마 반응 하이라이트(아이콘+텍스트, 라이트 #00C3FF·다크 #FFE500) — 최빈 메뉴 4항목 통일.
+        navAccent: true,
         children: [
           { label: "현황", href: "/today" },
           { label: "입력", href: "/today?panel=input" },
@@ -116,9 +120,24 @@ export const MENU_SECTIONS: MenuSection[] = [
         href: "/projects",
         label: "프로젝트",
         icon: FolderKanban,
+        // 테마 반응 하이라이트(아이콘+텍스트) — 최빈 메뉴 4항목 통일. emphasized(볼드)는 안 붙임(볼드는 2개 한정).
+        navAccent: true,
         children: [{ label: "간트", href: "/projects?view=gantt" }],
       },
-      { href: "/schedule", label: "일정", icon: Calendar },
+      // 일정 — 테마 반응 하이라이트(아이콘+텍스트) 대상 4항목. 볼드는 미적용.
+      { href: "/schedule", label: "일정", icon: Calendar, navAccent: true },
+      // 회의록·확인필요(/action) 탭 병합 — 실행 그룹(데일리·작업목록·프로젝트·일정) 바로 뒤로 승격
+      // (2026-07-15 사용자: "…일정 / 다음 회의록이 오게"). 사이드바 하위로도 두 라우트를 펼침.
+      {
+        href: "/meeting-notes",
+        label: "회의록",
+        icon: FileText,
+        match: ["/meeting-notes", "/action"],
+        children: [
+          { label: "회의록", href: "/meeting-notes" },
+          { label: "확인필요", href: "/action" },
+        ],
+      },
       // Now 운영표(/now) — 회의 Action·캘린더 일정 연결 확인 팀 운영표. 운영 성격이라 팀 현황 옆에 둔다.
       // 2026-07-11 '작업 목록'과의 탭 병합에서 독립 메뉴로 승격(현행 접근 유지 — adminOnly 아님).
       { href: "/now", label: "Now", icon: Activity },
@@ -132,17 +151,6 @@ export const MENU_SECTIONS: MenuSection[] = [
         children: [
           { label: "운영 보드", href: "/team" },
           { label: "리포트", href: "/team?view=report", adminOnly: true },
-        ],
-      },
-      // 회의록·확인필요(/action) 탭 병합 — 사이드바 하위로도 두 라우트를 펼침.
-      {
-        href: "/meeting-notes",
-        label: "회의록",
-        icon: FileText,
-        match: ["/meeting-notes", "/action"],
-        children: [
-          { label: "회의록", href: "/meeting-notes" },
-          { label: "확인필요", href: "/action" },
         ],
       },
       // 반복 업무 템플릿(Task 자동 생성) + 프로젝트 마일스톤 관리. 백엔드는 기존 완성분 재연결.

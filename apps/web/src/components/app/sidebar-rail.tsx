@@ -79,8 +79,14 @@ export function SidebarRail({
                   >
                     <Icon
                       className="size-[18px] shrink-0"
-                      // 정체성 컬러는 외부 링크뿐 아니라 강조 메뉴(데일리·작업 목록)에도 — 아이콘 틴트만.
-                      style={item.accentColor ? { color: item.accentColor } : undefined}
+                      // navAccent(테마 반응 하이라이트) 우선 → accentColor 폴백. 레일은 텍스트 없음 → 아이콘만.
+                      style={
+                        item.navAccent
+                          ? { color: "var(--que-nav-accent)" }
+                          : item.accentColor
+                            ? { color: item.accentColor }
+                            : undefined
+                      }
                       aria-hidden
                     />
                     {isExternal ? (

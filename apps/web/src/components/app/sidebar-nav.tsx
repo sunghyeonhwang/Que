@@ -120,15 +120,28 @@ export function SidebarNav({
                         : "font-medium",
                     ),
               );
+              // navAccent(테마 반응 하이라이트) 우선 → accentColor(개별 아이콘 틴트) 폴백.
+              // active의 text-brand 클래스보다 인라인 style이 우선이라 active에서도 하이라이트 유지.
+              const iconColorStyle = item.navAccent
+                ? { color: "var(--que-nav-accent)" }
+                : item.accentColor
+                  ? { color: item.accentColor }
+                  : undefined;
               const inner = (
                 <>
                   <Icon
                     className="size-[18px] shrink-0"
-                    // 정체성 컬러(아이콘 틴트만 — 배경·뱃지 금지 규약). active여도 유지해 정체성 고정.
-                    style={item.accentColor ? { color: item.accentColor } : undefined}
+                    // 정체성 컬러/하이라이트(아이콘 틴트 — 배경·뱃지 금지 규약). active여도 유지해 정체성 고정.
+                    style={iconColorStyle}
                     aria-hidden
                   />
-                  <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                  <span
+                    className="min-w-0 flex-1 truncate"
+                    // navAccent는 텍스트에도 적용(아이콘+텍스트 통일 하이라이트). active의 text-brand보다 우선.
+                    style={item.navAccent ? { color: "var(--que-nav-accent)" } : undefined}
+                  >
+                    {item.label}
+                  </span>
                   {badgeCount > 0 ? (
                     <span
                       className="flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--que-error)] px-1.5 text-[11px] font-semibold text-white"
