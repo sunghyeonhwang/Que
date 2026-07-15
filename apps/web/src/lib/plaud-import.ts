@@ -57,7 +57,13 @@ async function getJson(url: string): Promise<Record<string, unknown>> {
     const res = await fetch(url, {
       method: "GET",
       redirect: "error", // HTTP 리다이렉트로 임의 호스트 이동 차단
-      headers: { accept: "application/json" },
+      headers: {
+        accept: "application/json",
+        // Plaud가 node 기본 UA를 403으로 차단한다(2026-07-15 라이브 실측 — curl·브라우저 UA는 통과).
+        // 화이트리스트 호스트에만 나가는 요청이므로 브라우저형 UA로 식별 문제 없음.
+        "user-agent":
+          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36 QueBot/1.0",
+      },
       signal: controller.signal,
       cache: "no-store",
     });
