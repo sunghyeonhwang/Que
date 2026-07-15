@@ -55,6 +55,11 @@ function PaymentRowView({ row, highlighted }: { row: PaymentRow; highlighted: bo
   };
 
   const dueText = row.dueAt ? format(new Date(row.dueAt), "M/d") : null;
+  // 히스토리(완료/취소) 행에 처리일 표기 — 진행 중 행에는 표시하지 않는다.
+  const settledText =
+    row.status !== "waiting" && row.lastChangedAt
+      ? `${row.status === "done" ? "완료" : "취소"} ${format(new Date(row.lastChangedAt), "M/d")}`
+      : null;
   // 입금 완료 원형 버튼은 대기·완료 상태에서만(취소는 별도 되돌리기). 관리자만 완료 토글.
   const showDoneCircle = row.canComplete && row.status !== "cancelled";
 
@@ -112,6 +117,12 @@ function PaymentRowView({ row, highlighted }: { row: PaymentRow; highlighted: bo
             <Dot />
             <span className="shrink-0">요청 {row.requesterName}</span>
           </span>
+          {settledText && (
+            <>
+              <Dot />
+              <span className="shrink-0">{settledText}</span>
+            </>
+          )}
         </div>
       </div>
 

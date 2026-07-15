@@ -1,5 +1,7 @@
 import { PageHeader } from "@/components/app/page-header";
+import { LinkTabs } from "@/components/app/link-tabs";
 import { PaymentCategoryManager } from "@/components/payments/payment-category-manager";
+import { PaymentExportPanel } from "@/components/payments/payment-export-panel";
 import { PaymentForm } from "@/components/payments/payment-form";
 import { PaymentList } from "@/components/payments/payment-list";
 import { getCurrentUser } from "@/lib/current-user";
@@ -23,9 +25,10 @@ const METRIC_TONE: Record<string, string> = {
 export default async function PaymentsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ payment?: string }>;
+  searchParams: Promise<{ payment?: string; tab?: string }>;
 }) {
-  const { payment: highlightPaymentId } = await searchParams;
+  const { payment: highlightPaymentId, tab } = await searchParams;
+  const isHistory = tab === "history";
   const user = await getCurrentUser();
   const isAdmin = user.role === "admin";
   const [data, activeCategories, allCategories] = await Promise.all([
@@ -69,14 +72,40 @@ export default async function PaymentsPage({
         ))}
       </section>
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,24rem)_minmax(0,1fr)]">
-        <PaymentForm categories={activeCategories.map((c) => c.name)} />
-        {/* 좁은 폭(태블릿 가로 등)에서는 목록을 위로, xl 2열에서는 원래 순서(폼 좌·목록 우). */}
-        <div className="order-first min-w-0 xl:order-none">
-          <h2 className="mb-2 text-base font-semibold text-[var(--que-text)]">결제 요청 목록</h2>
-          <PaymentList rows={data.rows} highlightId={highlightPaymentId} />
+      <LinkTabs
+        label="결제 목록 전환"
+        active={isHistory ? "history" : "active"}
+        tabs={[
+          { key: "active", label: "진행 중", href: "/payments" },
+          { key: "history", label: "히스토리", href: "/payments?tab=history" },
+        ]}
+      />
+
+      {isHistory ? (
+        <div className="min-w-0">
+          {/* 세무회계용 기간별 CSV 다운로드 — 관리자 전용 */}
+          {isAdmin && <PaymentExportPanel />}
+          <h2 className="mb-2 text-base font-semibold text-[var(--que-text)]">완료 · 취소 내역</h2>
+          <PaymentList
+            rows={[...data.rows]
+              .filter((r) => r.status !== "waiting")
+              .sort((a, b) => (b.lastChangedAt ?? "").localeCompare(a.lastChangedAt ?? ""))}
+            highlightId={highlightPaymentId}
+          />
         </div>
-      </div>
+      ) : (
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,24rem)_minmax(0,1fr)]">
+          <PaymentForm categories={activeCategories.map((c) => c.name)} />
+          {/* 좁은 폭(태블릿 가로 등)에서는 목록을 위로, xl 2열에서는 원래 순서(폼 좌·목록 우). */}
+          <div className="order-first min-w-0 xl:order-none">
+            <h2 className="mb-2 text-base font-semibold text-[var(--que-text)]">결제 요청 목록</h2>
+            <PaymentList
+              rows={data.rows.filter((r) => r.status === "waiting")}
+              highlightId={highlightPaymentId}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

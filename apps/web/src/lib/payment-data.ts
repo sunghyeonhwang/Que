@@ -23,6 +23,8 @@ export interface PaymentRow {
   description?: string;
   dueAt?: string;
   status: PaymentStatus;
+  /** 완료/취소일(상태 마지막 변경 시각) — 히스토리 정렬·표시용. */
+  lastChangedAt?: string;
   overdue: boolean;
   dueSoon: boolean;
   /** 현재 사용자가 이 요청의 상태를 바꿀 수 있는가 (관리자=전체, 요청자=취소만) */
@@ -91,6 +93,7 @@ export async function getPaymentData(viewer: User, now: Date = new Date()): Prom
         description: payment.description,
         dueAt: payment.dueAt,
         status: payment.status,
+        lastChangedAt: payment.lastChangedAt,
         overdue,
         dueSoon:
           payment.status === "waiting" &&

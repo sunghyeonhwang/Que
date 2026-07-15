@@ -53,36 +53,33 @@ export function SidebarNav({
         const items = section.items.filter((item) => !item.adminOnly || isAdmin);
         if (items.length === 0) return null;
 
-        // 바로가기 — 외부 링크를 2열 버튼 칩 그리드로(리스트 행 대신). 아이콘 틴트+라벨, 테두리·hover, 40px.
+        // 바로가기 — 외부 링크를 아이콘 전용 버튼 행으로(2026-07-15 사용자 "간트/뷰… 텍스트를 빼달라").
         // 전부 external이라 새 탭 <a>. active 하이라이트 없음(규약). 배경·뱃지에는 accentColor를 쓰지 않는다.
-        // 섹션 제목 텍스트는 표시하지 않는다(2026-07-15 사용자 — "버튼만"). 접근성 라벨은 aria로 유지.
+        // 섹션 제목·라벨 텍스트 모두 미표시 — 이름은 title 툴팁과 aria-label로만(접근성 유지).
         if (section.label === "바로가기") {
           return (
-            <div key={section.label} aria-label="바로가기" className="flex flex-col gap-1">
-              <div className="grid grid-cols-2 gap-1.5">
-                {items.map((item) => {
-                  const Icon = item.icon;
-                  return (
-                    <a
-                      key={item.href}
-                      href={item.href}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={onNavigate}
-                      title={`${item.label} — 새 탭에서 열림`}
-                      aria-label={`${item.label} (새 탭에서 열림)`}
-                      className="flex h-10 items-center gap-2 rounded-lg border border-[var(--que-border)] px-2.5 text-sm font-medium text-[var(--que-text-secondary)] transition-colors hover:bg-[var(--que-bg-muted)] hover:text-[var(--que-text)] focus-visible:outline-2 focus-visible:outline-[var(--que-brand)]"
-                    >
-                      <Icon
-                        className="size-[18px] shrink-0"
-                        style={item.accentColor ? { color: item.accentColor } : undefined}
-                        aria-hidden
-                      />
-                      <span className="min-w-0 flex-1 truncate">{item.label}</span>
-                    </a>
-                  );
-                })}
-              </div>
+            <div key={section.label} aria-label="바로가기" className="flex flex-wrap gap-1.5">
+              {items.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <a
+                    key={item.href}
+                    href={item.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={onNavigate}
+                    title={`${item.label} — 새 탭에서 열림`}
+                    aria-label={`${item.label} (새 탭에서 열림)`}
+                    className="grid size-10 place-items-center rounded-lg border border-[var(--que-border)] transition-colors hover:bg-[var(--que-bg-muted)] focus-visible:outline-2 focus-visible:outline-[var(--que-brand)]"
+                  >
+                    <Icon
+                      className="size-[18px] shrink-0"
+                      style={item.accentColor ? { color: item.accentColor } : undefined}
+                      aria-hidden
+                    />
+                  </a>
+                );
+              })}
             </div>
           );
         }
