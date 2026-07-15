@@ -53,12 +53,13 @@ export function SidebarNav({
         const items = section.items.filter((item) => !item.adminOnly || isAdmin);
         if (items.length === 0) return null;
 
-        // 바로가기 — 외부 링크를 아이콘 전용 버튼 행으로(2026-07-15 사용자 "간트/뷰… 텍스트를 빼달라").
+        // 바로가기 — 외부 링크를 아이콘 전용 소형 버튼 1줄로(2026-07-15 사용자 "더 작게 1줄").
         // 전부 external이라 새 탭 <a>. active 하이라이트 없음(규약). 배경·뱃지에는 accentColor를 쓰지 않는다.
         // 섹션 제목·라벨 텍스트 모두 미표시 — 이름은 title 툴팁과 aria-label로만(접근성 유지).
+        // 32px(size-8)로 터치 최소 40px 규약보다 작음: 데스크톱 사이드바 보조 링크에 한한 사용자 명시 예외.
         if (section.label === "바로가기") {
           return (
-            <div key={section.label} aria-label="바로가기" className="flex flex-wrap gap-1.5">
+            <div key={section.label} aria-label="바로가기" className="flex flex-nowrap gap-1 px-1">
               {items.map((item) => {
                 const Icon = item.icon;
                 return (
@@ -70,10 +71,10 @@ export function SidebarNav({
                     onClick={onNavigate}
                     title={`${item.label} — 새 탭에서 열림`}
                     aria-label={`${item.label} (새 탭에서 열림)`}
-                    className="grid size-10 place-items-center rounded-lg border border-[var(--que-border)] transition-colors hover:bg-[var(--que-bg-muted)] focus-visible:outline-2 focus-visible:outline-[var(--que-brand)]"
+                    className="grid size-8 shrink-0 place-items-center rounded-md border border-[var(--que-border)] transition-colors hover:bg-[var(--que-bg-muted)] focus-visible:outline-2 focus-visible:outline-[var(--que-brand)]"
                   >
                     <Icon
-                      className="size-[18px] shrink-0"
+                      className="size-4 shrink-0"
                       style={item.accentColor ? { color: item.accentColor } : undefined}
                       aria-hidden
                     />
