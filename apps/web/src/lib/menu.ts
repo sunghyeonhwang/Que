@@ -112,8 +112,14 @@ export const MENU_SECTIONS: MenuSection[] = [
           { label: "입력", href: "/today?panel=input" },
         ],
       },
-      // 프로젝트 PM 도구 — 보드(status 4열)/목록/캘린더. 카드=core Task. 전원 노출(쓰기는 카드별 권한).
-      { href: "/projects", label: "프로젝트", icon: FolderKanban },
+      // 프로젝트 PM 도구 — 보드(status 4열)/목록/캘린더/간트. 카드=core Task. 전원 노출(쓰기는 카드별 권한).
+      // 하위는 간트 1개만(뷰 4종 전부는 과밀 — 간트만 "봐야 하는 화면"으로 진입점 승격, 2026-07-16 확정).
+      {
+        href: "/projects",
+        label: "프로젝트",
+        icon: FolderKanban,
+        children: [{ label: "간트", href: "/projects?view=gantt" }],
+      },
       { href: "/schedule", label: "일정", icon: Calendar },
       // Now 운영표(/now) — 회의 Action·캘린더 일정 연결 확인 팀 운영표. 운영 성격이라 팀 현황 옆에 둔다.
       // 2026-07-11 '작업 목록'과의 탭 병합에서 독립 메뉴로 승격(현행 접근 유지 — adminOnly 아님).
