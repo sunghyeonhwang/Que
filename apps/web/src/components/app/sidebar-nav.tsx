@@ -55,12 +55,10 @@ export function SidebarNav({
 
         // 바로가기 — 외부 링크를 2열 버튼 칩 그리드로(리스트 행 대신). 아이콘 틴트+라벨, 테두리·hover, 40px.
         // 전부 external이라 새 탭 <a>. active 하이라이트 없음(규약). 배경·뱃지에는 accentColor를 쓰지 않는다.
+        // 섹션 제목 텍스트는 표시하지 않는다(2026-07-15 사용자 — "버튼만"). 접근성 라벨은 aria로 유지.
         if (section.label === "바로가기") {
           return (
-            <div key={section.label} className="flex flex-col gap-1">
-              <p className="px-3 pb-1 text-xs font-medium text-[var(--que-text-tertiary)]">
-                {section.label}
-              </p>
+            <div key={section.label} aria-label="바로가기" className="flex flex-col gap-1">
               <div className="grid grid-cols-2 gap-1.5">
                 {items.map((item) => {
                   const Icon = item.icon;
