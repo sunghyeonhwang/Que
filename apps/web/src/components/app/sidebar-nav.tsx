@@ -112,7 +112,13 @@ export function SidebarNav({
                 "focus-visible:outline-2 focus-visible:outline-[var(--que-brand)]",
                 active
                   ? "bg-[var(--que-brand-subtle)] font-semibold text-[var(--que-brand)]"
-                  : "font-medium text-[var(--que-text-secondary)] hover:bg-[var(--que-bg-muted)] hover:text-[var(--que-text)]",
+                  : cn(
+                      "text-[var(--que-text-secondary)] hover:bg-[var(--que-bg-muted)] hover:text-[var(--que-text)]",
+                      // 최빈 메뉴(데일리·작업 목록) 볼드 강조 — 2026-07-16 사용자 확정.
+                      item.emphasized
+                        ? "font-semibold text-[var(--que-text)]"
+                        : "font-medium",
+                    ),
               );
               const inner = (
                 <>

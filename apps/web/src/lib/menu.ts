@@ -58,6 +58,9 @@ export interface MenuItem {
    *  화면 내부 탭은 그대로 유지해 양쪽 접근이 공존한다. href는 탭 파라미터를 포함할 수 있다
    *  (예: `/team?view=report`). adminOnly 하위는 비관리자에게 숨긴다(role은 서버가 재판정). */
   children?: { label: string; href: string; adminOnly?: boolean }[];
+  /** 최빈 사용 메뉴 강조(볼드) — 사원의 하루 최빈 화면(데일리·작업 목록)에만 사용
+   *  (2026-07-16 사용자 확정 "사원들이 자주 봐야 하는 메뉴는 볼드"). 남발하면 강조가 죽는다. */
+  emphasized?: boolean;
 }
 
 export interface MenuSection {
@@ -84,6 +87,7 @@ export const MENU_SECTIONS: MenuSection[] = [
         href: "/daily",
         label: "데일리",
         icon: CalendarCheck,
+        emphasized: true, // 사원 최빈 화면(하루 1회 체크인) — 2026-07-16 볼드 확정
         children: [
           { label: "오늘", href: "/daily" },
           { label: "OKR", href: "/daily?tab=okr" },
@@ -98,6 +102,7 @@ export const MENU_SECTIONS: MenuSection[] = [
         href: "/today",
         label: "작업 목록",
         icon: ListChecks,
+        emphasized: true, // 사원 최빈 화면(할 일 확인·완료 체크 하루 수회) — 2026-07-16 볼드 확정
         children: [
           { label: "현황", href: "/today" },
           { label: "입력", href: "/today?panel=input" },
