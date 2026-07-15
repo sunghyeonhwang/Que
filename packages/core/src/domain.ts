@@ -190,6 +190,9 @@ export const projectSchema = z.object({
   // PM 도구(/projects) 프로젝트 설명. DB check(char_length<=2000)와 동일 상한.
   description: z.string().max(2000).optional(),
   milestoneIds: z.array(z.string()).default([]),
+  // 관리자가 정한 표시 순서(오름차순) — 같은 클라이언트(또는 미소속) 그룹 안에서만 의미를 갖는다.
+  // 클라이언트 sortOrder 선례. /clients·/projects 목록이 이 순서를 공유한다.
+  sortOrder: z.number().int().default(0),
 });
 export type Project = z.infer<typeof projectSchema>;
 

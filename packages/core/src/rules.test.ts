@@ -2241,6 +2241,71 @@ describe("클라이언트 표시 순서 변경 (reorderClients)", () => {
   });
 });
 
+describe("프로젝트 표시 순서 변경 (reorderProjects)", () => {
+  // client-mendix 그룹에 2건 더 추가해 3건 그룹(prj-summer·A·B)을 만든다.
+  function withGroup() {
+    const d = db();
+    const a = d.createProject(
+      { actorId: "hwang-sunghyeon", via: "web" },
+      { name: "A", clientId: "client-mendix" },
+    );
+    const b = d.createProject(
+      { actorId: "hwang-sunghyeon", via: "web" },
+      { name: "B", clientId: "client-mendix" },
+    );
+    return { d, a, b };
+  }
+
+  it("같은 클라이언트 그룹 안에서 orderedIds대로 sortOrder를 0..n-1로 재설정하고 ChangeLog를 남긴다", () => {
+    const { d, a, b } = withGroup();
+    const next = [b.id, a.id, "prj-summer"];
+    const result = d.reorderProjects(
+      { actorId: "hwang-sunghyeon", via: "web" },
+      { clientId: "client-mendix", orderedIds: next },
+    );
+    expect(result.map((p) => p.id)).toEqual(next);
+    next.forEach((id, i) => {
+      expect(d.projects.find((p) => p.id === id)!.sortOrder).toBe(i);
+    });
+    const clog = d.changeLogs.at(-1)!;
+    expect(clog.entityType).toBe("project");
+    expect(clog.changeType).toBe("update");
+    expect(clog.reason).toBe("표시 순서 변경");
+  });
+
+  it("다른 그룹(다른 클라이언트)의 프로젝트를 섞으면 거부한다", () => {
+    const { d } = withGroup();
+    // prj-payment는 client-epic 소속 — client-mendix 정렬에 섞을 수 없다.
+    expect(() =>
+      d.reorderProjects(
+        { actorId: "hwang-sunghyeon", via: "web" },
+        { clientId: "client-mendix", orderedIds: ["prj-summer", "prj-payment"] },
+      ),
+    ).toThrowError(/다른 그룹/);
+  });
+
+  it("관리자도 담당자도 아니면 순서를 바꿀 수 없다", () => {
+    const { d } = withGroup();
+    // prj-summer 담당은 hwang(관리자). kim-riwon은 관리자도 담당자도 아니다.
+    expect(() =>
+      d.reorderProjects(
+        { actorId: "kim-riwon", via: "web" },
+        { clientId: "client-mendix", orderedIds: ["prj-summer"] },
+      ),
+    ).toThrowError(/관리자 또는 프로젝트 담당자/);
+  });
+
+  it("중복 id는 거부한다", () => {
+    const { d } = withGroup();
+    expect(() =>
+      d.reorderProjects(
+        { actorId: "hwang-sunghyeon", via: "web" },
+        { clientId: "client-mendix", orderedIds: ["prj-summer", "prj-summer"] },
+      ),
+    ).toThrowError(/중복/);
+  });
+});
+
 describe("결제 분류(카테고리) — 관리자만 생성·수정·순서변경", () => {
   it("비관리자는 결제 분류를 만들 수 없다(아무것도 추가되지 않음)", () => {
     const d = db();

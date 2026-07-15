@@ -48,6 +48,8 @@ create table if not exists projects (
   client_id  text references clients(id),
   -- PM 도구(/projects) 프로젝트 설명. core에서 2000자 상한 검증. (add-project-description.sql)
   description text check (char_length(description) <= 2000),
+  -- 관리자가 정한 표시 순서(오름차순) — 같은 클라이언트/미소속 그룹 안에서만 의미. (add-project-sort-order.sql)
+  sort_order integer not null default 0,
   created_at timestamptz not null default now()
 );
 

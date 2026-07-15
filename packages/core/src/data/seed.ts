@@ -75,6 +75,7 @@ export function createSeed(now: Date): QueSeed {
       status: "active",
       clientId: "client-mendix",
       milestoneIds: ["ms-summer-open", "ms-summer-report"],
+      sortOrder: 0,
     },
     {
       id: "prj-payment",
@@ -83,6 +84,7 @@ export function createSeed(now: Date): QueSeed {
       status: "active",
       clientId: "client-epic",
       milestoneIds: ["ms-payment-qa"],
+      sortOrder: 0,
     },
     {
       id: "prj-cs",
@@ -91,6 +93,7 @@ export function createSeed(now: Date): QueSeed {
       status: "active",
       clientId: "client-griff", // 자사(그리프) 내부 운영도 클라이언트 행으로 취급
       milestoneIds: ["ms-cs-faq"],
+      sortOrder: 0,
     },
   ];
 

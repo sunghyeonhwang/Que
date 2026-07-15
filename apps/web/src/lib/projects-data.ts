@@ -448,7 +448,8 @@ export async function getActiveProjects(clientFilter?: string): Promise<ProjectL
   return db.projects
     .filter((p) => p.status === "active")
     .filter((p) => (clientFilter ? p.clientId === clientFilter : true))
-    .sort((a, b) => a.name.localeCompare(b.name, "ko"))
+    // 관리자가 정한 표시 순서(sortOrder 오름차순) → 이름. /clients 그룹 정렬과 일관.
+    .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.name.localeCompare(b.name, "ko"))
     .map((p) => ({
       id: p.id,
       name: p.name,

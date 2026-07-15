@@ -33,7 +33,10 @@ export default async function ClientsPage({
   const nameById = new Map(users.map((u) => [u.id, u.name]));
 
   const projectsByClient = new Map<string | undefined, ProjectRowData[]>();
-  for (const p of [...db.projects].sort((a, b) => a.name.localeCompare(b.name, "ko"))) {
+  // 그룹 내 표시 순서: 관리자가 정한 sortOrder(오름차순) → 이름. 프로젝트 재정렬이 이 순서를 바꾼다.
+  for (const p of [...db.projects].sort(
+    (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.name.localeCompare(b.name, "ko"),
+  )) {
     const row: ProjectRowData = {
       id: p.id,
       name: p.name,

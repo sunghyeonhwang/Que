@@ -49,6 +49,20 @@ export async function reorderClientsAction(input: {
   return toResult((db) => db.reorderClients({ actorId: user.id, via: "web" }, input));
 }
 
+/** 같은 클라이언트(또는 미소속) 그룹 안에서 프로젝트 표시 순서 재설정 — 관리자·담당자만(core 강제). */
+export async function reorderProjectsAction(input: {
+  clientId?: string;
+  orderedIds: string[];
+}): Promise<ActionResult> {
+  const user = await getCurrentUser();
+  const result = await toResult((db) =>
+    db.reorderProjects({ actorId: user.id, via: "web" }, input),
+  );
+  // toResult가 /clients·layout을 갱신한다. 좌측 프로젝트 목록(/projects)도 순서를 공유하므로 함께 갱신.
+  if (result.ok) revalidatePath("/projects");
+  return result;
+}
+
 export async function createProjectAction(input: {
   name: string;
   clientId?: string;

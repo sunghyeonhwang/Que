@@ -41,6 +41,9 @@ mock 인증: 쿠키 `que-user=<id>` / PAT `que_pat_<id>` (예: `hwang-sunghyeon`
 
 **프로덕션은 GRIFF Pro 팀(`griff-fde0dc32/que`) · <https://que.griff.co.kr> · 실 DB(`QUE_DB=supabase`)+실 인증(Auth.js) 라이브.** 비밀값은 `data/.env`(gitignore). Vercel env로 기능 게이트(아래 참고).
 
+#### 📁 프로젝트 순서 조정 (2026-07-15 사용자 요청 — 클라이언트 순서처럼)
+Project에 `sortOrder` 신설(core zod default 0·createProject는 그룹 맨뒤 max+1) + `reorderProjects({clientId?, orderedIds})`(그룹 내 재정렬 — 그룹 밖/미존재/중복 전량 선검증·canManageProject 전건·ChangeLog 1건, 테스트 4 — 총 305) + `reorderProjectsAction` + client-groups에 프로젝트 위/아래 버튼(클라이언트 재정렬과 동일 낙관 규약, 1개 그룹 미노출). 정렬 소비처 2곳: clients/page.tsx 그룹핑·projects-data getActiveProjects(**sortOrder→이름**, `?? 0` 방어). **DB 마이그레이션 `add-project-sort-order.sql` 프로덕션 적용 완료(2026-07-15)** — ADD COLUMN IF NOT EXISTS+그룹별 created_at 백필+**재실행 가드**(sort_order<>0 존재 시 백필 스킵 — 글래도스 권고). ⚠️ 이 컬럼 없인 프로젝트 persist가 깨짐(write-through가 상시 전송) — 마이그레이션 선행 필수였음(이행됨). 알려진 엣지: 미필터 /projects 좌측 목록은 그룹 간 sortOrder 인터리브 가능(활성 필터 스코프 사용이 전제라 실사용 영향 소).
+
 #### 💳 결제 히스토리·세무 CSV (2026-07-15 사용자 요청 — "완료 목록 보관+월/분기/연 다운로드")
 ①더미 결제 4건 삭제(더스트백만 유지 — 사용자 지시). ②/payments **URL 탭** [진행 중](waiting)|[히스토리](done·cancelled, lastChangedAt 내림차순·처리일 표기). ③**세무 CSV 다운로드(admin 전용)**: 히스토리 탭 패널(월/분기/연 단위+기간 Select) → `GET /api/payments/export?from&to&label` — auth() 세션+**DB 현재값 admin 검증**(403), 대상=완료(done)+완료일 `[from,to)`(KST dateKeyOfIso, to 배타), UTF-8 BOM+CRLF, **계좌 원본 포함**(세무 증빙 인가 반출 — 주석 근거, 화면 마스킹은 유지), **CSV 수식 인젝션 방어**(`=+-@`탭CR 시작 셀에 `'` 프리픽스 — 글래도스 반려→이행), RFC5987 파일명(결제내역_2026-07 등). 취소 건은 CSV 제외(지급 완료 기준). 참고: 결제 변경 이력은 change_logs(ChangeLog)에 남으나 07-15 초기화로 과거분은 소거 — 이후 변경부터 기록. ④사이드바 바로가기 **아이콘 전용**(라벨 텍스트 제거 — 사용자 재정정, title 툴팁+aria만).
 

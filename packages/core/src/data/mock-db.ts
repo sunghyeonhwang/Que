@@ -1644,6 +1644,57 @@ export class MockQueDb implements QueDb {
     return targets;
   }
 
+  /**
+   * 프로젝트 표시 순서 재설정 — **같은 클라이언트(또는 미소속) 그룹 안에서만**. reorderClients 선례.
+   * orderedIds는 전부 그 그룹 소속이어야 한다(그룹 밖·미존재·중복 거부). 전량 선검증 후 반영(부분 반영 없음).
+   * 권한: 대상 프로젝트 전부를 관리할 수 있어야 한다(관리자 또는 각 프로젝트 담당자). ChangeLog 1건.
+   */
+  reorderProjects(
+    ctx: ActorContext,
+    input: { clientId?: string; orderedIds: string[] },
+  ): Project[] {
+    const actor = this.requireUser(ctx.actorId);
+    const ids = input.orderedIds;
+    if (!Array.isArray(ids) || ids.length === 0) {
+      throw new QueRuleError("INVALID_INPUT", "정렬할 프로젝트 목록이 비어 있다");
+    }
+    if (new Set(ids).size !== ids.length) {
+      throw new QueRuleError("INVALID_INPUT", "정렬 목록에 중복된 프로젝트가 있다");
+    }
+    // 대상 그룹: 같은 clientId(미지정이면 클라이언트 미소속 그룹). undefined끼리 일치시킨다.
+    const groupKey = input.clientId ?? undefined;
+    const targets = ids.map((id) => {
+      const project = this.projects.find((p) => p.id === id);
+      if (!project) throw new QueRuleError("NOT_FOUND", `프로젝트 없음: ${id}`);
+      if ((project.clientId ?? undefined) !== groupKey) {
+        throw new QueRuleError(
+          "INVALID_INPUT",
+          `다른 그룹의 프로젝트는 함께 정렬할 수 없다: ${id}`,
+        );
+      }
+      return project;
+    });
+    if (!targets.every((p) => canManageProject(actor, p))) {
+      throw new QueRuleError(
+        "NOT_AUTHORIZED",
+        "프로젝트 순서는 관리자 또는 프로젝트 담당자만 변경할 수 있다",
+      );
+    }
+    const before = targets.map((p) => `${p.id}:${p.sortOrder ?? 0}`).join(",");
+    targets.forEach((project, index) => {
+      project.sortOrder = index;
+    });
+    this.logChange(ctx, {
+      entityType: "project",
+      entityId: targets[0].id, // 대표 — before/after에 전체 순서를 담는다
+      changeType: "update",
+      beforeValue: before,
+      afterValue: ids.map((id, i) => `${id}:${i}`).join(","),
+      reason: "표시 순서 변경",
+    });
+    return targets;
+  }
+
   /** 클라이언트 수정(이름·상태) — 관리자만. */
   updateClient(
     ctx: ActorContext,
@@ -1708,6 +1759,12 @@ export class MockQueDb implements QueDb {
       throw new QueRuleError("INVALID_INPUT", "프로젝트 설명은 2000자 이내다");
     }
 
+    // 새 프로젝트는 같은 그룹(같은 클라이언트/미소속)의 맨 뒤에 붙인다(표시 순서 sortOrder).
+    const group = this.projects.filter(
+      (p) => (p.clientId ?? undefined) === (input.clientId ?? undefined),
+    );
+    const sortOrder = group.reduce((max, p) => Math.max(max, p.sortOrder ?? 0), -1) + 1;
+
     const project: Project = {
       id: this.nextId("prj"),
       name,
@@ -1716,6 +1773,7 @@ export class MockQueDb implements QueDb {
       clientId: input.clientId,
       description,
       milestoneIds: [],
+      sortOrder,
     };
     this.projects.push(project);
     this.logChange(ctx, {

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type DragEvent } from "react";
 import { ChevronDown, ChevronUp, GripVertical } from "lucide-react";
 import {
   reorderClientsAction,
+  reorderProjectsAction,
   updateClientAction,
   updateProjectAction,
 } from "@/app/(app)/clients/actions";
@@ -158,11 +159,12 @@ export function ClientGroups({
           <p className="mb-3 text-xs text-[var(--que-text-tertiary)]">
             클라이언트에 연결되지 않은 내부 프로젝트예요. 아래에서 클라이언트를 지정할 수 있어요.
           </p>
-          <div className="flex flex-col gap-2">
-            {unassigned.map((p) => (
-              <ProjectRow key={p.id} project={p} clientOptions={clientOptions} users={users} />
-            ))}
-          </div>
+          <ProjectReorderList
+            clientId={undefined}
+            projects={unassigned}
+            clientOptions={clientOptions}
+            users={users}
+          />
         </div>
       )}
     </div>
@@ -352,15 +354,18 @@ function ClientCard({
         </div>
       )}
 
-      <div className="mt-3 flex flex-col gap-2">
+      <div className="mt-3">
         {c.projects.length === 0 ? (
           <p className="py-2 text-center text-xs text-[var(--que-text-tertiary)]">
             소속 프로젝트가 없어요.
           </p>
         ) : (
-          c.projects.map((p) => (
-            <ProjectRow key={p.id} project={p} clientOptions={clientOptions} users={users} />
-          ))
+          <ProjectReorderList
+            clientId={c.id}
+            projects={c.projects}
+            clientOptions={clientOptions}
+            users={users}
+          />
         )}
       </div>
 
@@ -388,14 +393,91 @@ function ClientCard({
   );
 }
 
+/**
+ * 한 그룹(같은 클라이언트 또는 미소속) 안의 프로젝트 목록을 위/아래로 재정렬한다.
+ * 클라이언트 재정렬(ClientGroups)과 동일한 낙관 갱신 패턴 — 로컬 순서를 먼저 바꾸고 서버 확정,
+ * 실패 시 재검증으로 원복된다. 프로젝트가 1개뿐이면 컨트롤을 숨긴다(클라이언트 reorderable 관례).
+ */
+function ProjectReorderList({
+  clientId,
+  projects,
+  clientOptions,
+  users,
+}: {
+  clientId?: string;
+  projects: ProjectRowData[];
+  clientOptions: { id: string; name: string }[];
+  users: UserOption[];
+}) {
+  const { run, pending } = useSafeAction();
+  const [order, setOrder] = useState<string[]>(() => projects.map((p) => p.id));
+  // 서버 목록이 바뀌면(추가/재배정/재정렬 확정) 렌더 중 로컬 순서를 맞춘다(ClientGroups와 동일 패턴).
+  const serverKey = projects.map((p) => p.id).join(",");
+  const [prevKey, setPrevKey] = useState(serverKey);
+  if (prevKey !== serverKey) {
+    setPrevKey(serverKey);
+    setOrder(projects.map((p) => p.id));
+  }
+
+  const byId = new Map(projects.map((p) => [p.id, p]));
+  const ordered = order.map((id) => byId.get(id)).filter((p): p is ProjectRowData => Boolean(p));
+  const reorderable = ordered.length > 1;
+
+  const commit = (next: string[]) => {
+    setOrder(next);
+    run(() => reorderProjectsAction({ clientId, orderedIds: next }), {
+      success: "프로젝트 순서를 바꿨습니다.",
+    });
+  };
+  const moveBy = (id: string, dir: -1 | 1) => {
+    const from = order.indexOf(id);
+    const to = from + dir;
+    if (from < 0 || to < 0 || to >= order.length) return;
+    const next = [...order];
+    [next[from], next[to]] = [next[to], next[from]];
+    commit(next);
+  };
+
+  return (
+    <div className="flex flex-col gap-2">
+      {ordered.map((p, index) => (
+        <ProjectRow
+          key={p.id}
+          project={p}
+          clientOptions={clientOptions}
+          users={users}
+          reorderable={reorderable}
+          reorderPending={pending}
+          isFirst={index === 0}
+          isLast={index === ordered.length - 1}
+          onMoveUp={() => moveBy(p.id, -1)}
+          onMoveDown={() => moveBy(p.id, 1)}
+        />
+      ))}
+    </div>
+  );
+}
+
 function ProjectRow({
   project: p,
   clientOptions,
   users,
+  reorderable = false,
+  reorderPending = false,
+  isFirst = false,
+  isLast = false,
+  onMoveUp,
+  onMoveDown,
 }: {
   project: ProjectRowData;
   clientOptions: { id: string; name: string }[];
   users: UserOption[];
+  reorderable?: boolean;
+  reorderPending?: boolean;
+  isFirst?: boolean;
+  isLast?: boolean;
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
 }) {
   const { run, pending } = useSafeAction();
   const [editing, setEditing] = useState(false);
@@ -433,6 +515,29 @@ function ProjectRow({
   return (
     <div className="rounded-lg border border-[var(--que-border)] px-3 py-2.5">
       <div className="flex flex-wrap items-center gap-2">
+        {reorderable && (
+          <div className="flex items-center gap-1">
+            {/* 터치(태블릿) 대응 — 40px 버튼으로 그룹 안에서 한 칸씩 이동한다(클라이언트 재정렬 선례) */}
+            <button
+              type="button"
+              aria-label={`${p.name} 위로 이동`}
+              disabled={isFirst || reorderPending}
+              onClick={onMoveUp}
+              className="flex size-10 items-center justify-center rounded-lg border border-[var(--que-border)] text-[var(--que-text-secondary)] hover:bg-[var(--que-bg-muted)] disabled:opacity-30"
+            >
+              <ChevronUp className="size-4" />
+            </button>
+            <button
+              type="button"
+              aria-label={`${p.name} 아래로 이동`}
+              disabled={isLast || reorderPending}
+              onClick={onMoveDown}
+              className="flex size-10 items-center justify-center rounded-lg border border-[var(--que-border)] text-[var(--que-text-secondary)] hover:bg-[var(--que-bg-muted)] disabled:opacity-30"
+            >
+              <ChevronDown className="size-4" />
+            </button>
+          </div>
+        )}
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium text-[var(--que-text)]">{p.name}</p>
           <p className="truncate text-xs text-[var(--que-text-tertiary)]">
