@@ -478,13 +478,13 @@ export async function getProjectMeta(projectId: string): Promise<ProjectMeta | n
   const project = db.projects.find((p) => p.id === projectId);
   if (!project) return null;
 
-  const memberIds = new Set<string>([project.ownerId]);
-  for (const t of db.tasks) {
-    if (t.projectId === project.id) memberIds.add(t.assigneeId);
-  }
-  const members = [...memberIds]
-    .map(resolveMember)
-    .filter((m): m is ListViewMember => m !== null);
+  // 배정 후보 = 전체 active 팀원(이름순). 소유자+기존 담당자로만 좁히면 새 프로젝트에 본인만 떠서
+  // 담당자 배정이 막힌다(8인 팀 — 전체 노출이 맞다). 목록 필터 후보가 넓어지는 건 무해·일관.
+  const members = db.users
+    .filter((u) => u.active !== false)
+    .map((u) => resolveMember(u.id))
+    .filter((m): m is ListViewMember => m !== null)
+    .sort((a, b) => a.name.localeCompare(b.name));
 
   const client = project.clientId
     ? db.clients.find((c) => c.id === project.clientId)

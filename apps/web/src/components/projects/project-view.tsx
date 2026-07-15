@@ -17,6 +17,7 @@ import { ProjectScopeSummary } from "./project-scope-summary";
 import { ALL_CLIENTS } from "@/lib/projects-scope";
 import { ProjectScopeFilters } from "./project-scope-filters";
 import { CreateTaskDialog } from "./create-task-dialog";
+import { AddMilestoneDialog } from "./add-milestone-dialog";
 import { ViewTabs, type ProjectView as ProjectViewKey } from "./view-tabs";
 import { ListView } from "./list-view";
 import { BoardView } from "./board-view";
@@ -152,6 +153,12 @@ export function ProjectView({
           {!isAllProjects && meta ? (
             <CreateTaskDialog projectId={viewProjectId} meta={meta} />
           ) : null}
+          {/* 마일스톤 추가 — 특정 프로젝트면 프리필(고정), 전체 보기면 폼에서 프로젝트 선택.
+              권한·생성은 /planning과 같은 core 경로(createMilestoneAction)로 강제. */}
+          <AddMilestoneDialog
+            projects={projects.map((p) => ({ id: p.id, name: p.name }))}
+            lockedProjectId={isAllProjects ? undefined : viewProjectId || undefined}
+          />
         </div>
       </div>
 
