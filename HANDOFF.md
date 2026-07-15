@@ -1,6 +1,6 @@
 # Que 핸드오프 문서
 
-마지막 업데이트: 2026-07-13
+마지막 업데이트: 2026-07-15
 
 ---
 
@@ -40,6 +40,15 @@ mock 인증: 쿠키 `que-user=<id>` / PAT `que_pat_<id>` (예: `hwang-sunghyeon`
 ### 다음 할 일
 
 **프로덕션은 GRIFF Pro 팀(`griff-fde0dc32/que`) · <https://que.griff.co.kr> · 실 DB(`QUE_DB=supabase`)+실 인증(Auth.js) 라이브.** 비밀값은 `data/.env`(gitignore). Vercel env로 기능 게이트(아래 참고).
+
+#### 🗓 일정 화면 필터 확장 + 프로젝트 캘린더 탭 폐기 (2026-07-15 사용자 — "내 캘린더 vs 전체 회사 캘린더 차이")
+사용자가 프로젝트 캘린더 탭과 /schedule의 역할 차이(전자=단일 프로젝트·마감만, 후자=팀 전체+회의·외부 캘린더)를 인지 → **프로젝트 캘린더 탭 제거하고 역량을 /schedule로 집중**. ⑴**프로젝트 '캘린더' 탭 제거**: view-tabs·project-view VIEW_KEYS `["list","board","gantt"]`, projects/page·projects-data에서 `getProjectCalendar`·`ProjectCalendar`·`CalendarCard`·`CalendarDay`·전용 헬퍼·고아 date-fns import 제거, `components/projects/calendar-view.tsx` **파일 삭제**. `?view=calendar` 구링크는 resolveView 기본 gantt로 폴백. ⑵**소유자 멤버별 다중 필터**(신규, 사용자 확정 "멤버별 다중선택"): `?owner=<id>,<id>`(콤마·실존 user id 화이트리스트), `filterScheduleItems`에 ownerIds Set — **ownerId 있는 task·event에만 적용, 마일스톤은 담당자 필드 부재라 제외**(hide 토글로만 제어). 필터 팝업 '담당자' 섹션=[전체]/[내 것만] 빠른 버튼+멤버 체크 리스트(아바타색·max-h-56 스크롤). ⑶**일정 종류 4종 표시 토글**(신규, 사용자 확정 "4종 개별"): `?hide=meeting,external`(4키 화이트리스트 task/meeting/external/milestone), CalendarViewItem에 additive `eventSource?: "que"|"company"`(회의=que·외부=company), milestone hide 시 page가 `milestones=[]`. 팝업 섹션 순서 표시→담당자→우선순위→키워드, activeCount·초기화가 owner·hide 포함. **기존 오늘 버튼·일간/3일/주간/월간 뷰·우선순위·키워드·키보드 단축키는 이미 있어 무변경**(사용자 요청 7건 중 5건이 기구현이었음). 글래도스 승인(마스킹 우회 0·화이트리스트·표시 필터라 권한 누수 아님·부제 카운트 필터 전 기준·클라 번들에 서버 모듈 유입 없음). 라이브 실측: 팝업 4체크+담당자 다중선택 렌더, '내 것만'→`?owner=hwang-sunghyeon` 반영 확인. 경미: ScheduleKind 4키가 calendar-data·schedule-filter 두 곳 중복 정의(클라 번들 격리 의도, 5번째 종류 추가 시 동기화 주의).
+
+#### 🧭 프로젝트 기본 뷰 간트 전환 + Copilot 진입점 상단바 이관 (2026-07-15 사용자)
+①**프로젝트 기본 뷰=간트**: project-view resolveView 폴백 board→gantt(view 미지정 시). menu.ts 프로젝트 children `[간트](/projects?view=gantt)`는 유지(중복이나 사용자 명시 요청 항목, 제거는 사용자 결정 사안). ②**Copilot 사이드바 메뉴 폐기→상단바 이관**: menu.ts에서 Copilot 항목 제거(Sparkles import 정리), layout.tsx 헤더 '작업 추가' 왼쪽에 `/copilot` outline Link 버튼(`hidden md:inline-flex` — 폰은 하단 탭바 Copilot 탭 존치, mobile-tabbar 무변경). ⌘K 팔레트 화면 이동 목록(NAV_ITEMS=MENU_SECTIONS 파생)에서도 사라지나 팔레트 채팅·'전체 화면'으로 진입 가능(수용). help-content·onboard 문구 정정(사이드바→상단바, "처음엔 보드"→"간트"). CLAUDE.md 메뉴 절 갱신(헌법 1조=menu.ts 일치). 글래도스 승인, 라이브 실측(기본 진입 간트 선택·상단바 Copilot 버튼·사이드바 Copilot 부재).
+
+#### 📊 간트 전체 보기 클라이언트·프로젝트 그룹 헤더 (2026-07-15 사용자 — "전체 보기에서 클라이언트·프로젝트명")
+간트 전체 보기(all)에 **클라이언트 · 프로젝트명 그룹 헤더 행** 삽입. projects-data: GanttTask에 projectId·clientName, 정렬을 클라이언트(sortOrder→이름)→프로젝트(sortOrder→이름)→시작일로(그룹 연속성). gantt-view: `layout`(그룹 헤더+작업 행 혼합)+`taskVisualRow` Map으로 **rowY를 layout 인덱스 기준으로 전환**(작업 막대 top·선행 화살표 y 양끝·bodyH·행 구분선 수 4곳 일관), 미소속은 맨 뒤 "미소속 작업". **단일 프로젝트 보기는 layout 평면·taskVisualRow 항등이라 픽셀 동일**(마일스톤 레인·오늘선·주말 음영·드래그 무변경). 소비처 양쪽 자동 적용(/projects 전체 보기 showProject=isAllProjects, gant.griff.co.kr GanttBoard). 글래도스 승인(좌·우 좌표계가 같은 layout 배열 파생이라 어긋날 자유도 없음). 커밋 fb5aaea.
 
 #### 📅 일정 팝오버 일시 수정 내장 (2026-07-15 사용자 — "시트 경유가 무겁다")
 /schedule event-detail-popover에 일시 수정 직접 내장: 작업=full 기간 DateRangePicker(+updateTaskScheduleAction 재사용), Que 이벤트=singleDay(+신규 `updateEventScheduleAction` — core moveCalendarEvent 얇은 래퍼), 외부 회사 일정·비공개=movable 판정 재사용으로 미노출. 시트(상세·상태 변경)는 유지. **라이브 디버그 2라운드 교훈**: ⑴중첩 Popover(부모 base-ui 안 자식 팝오버)는 자식 포털 클릭이 부모 outside-press로 판정돼 닫힘 → **DateRangePicker에 `inline` prop 신설**(팝오버 래핑 스킵, 본문만 렌더 — 부모 팝오버 안 아코디언 확장으로 중첩 제거) ⑵그 뒤에도 닫힘 재현 — 실원인은 **부분 선택 상태 크래시**: 달력 1클릭 시 endDate=""인데 rangeError가 매 렌더 `toIso("",…)`→`new Date("T10:00").toISOString()` RangeError→에러 바운더리 언마운트. 수정: 3개 파일(팝오버·task-status-sheet 재일정·create-schedule-dialog)의 `toIso` 크래시-프루프(빈 값·Invalid Date→"")+`complete` 게이트(검증·저장은 4값 완성 시만). 라이브 실측: 1클릭 생존·2클릭 기간 라벨 정상. **교훈: 팝오버가 "닫힌다"는 증상은 outside-press가 아니라 에러 바운더리 언마운트일 수 있다 — 콘솔부터 볼 것.**
