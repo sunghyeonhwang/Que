@@ -95,8 +95,9 @@ function startTimeToIso(raw: unknown): string | undefined {
 function parseShareResponse(
   json: Record<string, unknown>,
 ): { ok: true; note: PlaudNoteImport } | { ok: false; error: string } {
-  const data = asObject(json.data);
-  const dataFile = asObject(data?.data_file);
+  // 성공 응답의 data_file은 **최상위** 키다(2026-07-15 실측 — -302 응답만 data.domains 형태).
+  // 방어적으로 data 아래 중첩도 함께 본다.
+  const dataFile = asObject(json.data_file) ?? asObject(asObject(json.data)?.data_file);
   const notes = Array.isArray(dataFile?.notes_list) ? dataFile!.notes_list : [];
   if (notes.length === 0) {
     return { ok: false, error: "요약이 없는 녹음입니다. Plaud에서 요약을 먼저 생성해 주세요." };
