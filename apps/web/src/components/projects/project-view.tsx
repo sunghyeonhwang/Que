@@ -4,7 +4,6 @@ import { useCallback, useMemo, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import type {
   ProjectBoard,
-  ProjectCalendar,
   ProjectGantt,
   ProjectList,
   ProjectListItem,
@@ -21,18 +20,17 @@ import { AddMilestoneDialog } from "./add-milestone-dialog";
 import { ViewTabs, type ProjectView as ProjectViewKey } from "./view-tabs";
 import { ListView } from "./list-view";
 import { BoardView } from "./board-view";
-import { ProjectCalendarView } from "./calendar-view";
 import { GanttView } from "./gantt-view";
 import { GanttSuggestDialog } from "./gantt-suggest-dialog";
 
-const VIEW_KEYS: ProjectViewKey[] = ["list", "board", "calendar", "gantt"];
+const VIEW_KEYS: ProjectViewKey[] = ["list", "board", "gantt"];
 
 function resolveView(raw: string | undefined): ProjectViewKey {
   // 기본=간트(2026-07-15 사용자 확정 — view 파라미터 없이 진입하면 간트로 연다).
   return VIEW_KEYS.includes(raw as ProjectViewKey) ? (raw as ProjectViewKey) : "gantt";
 }
 
-/** 프로젝트 화면 클라이언트 오케스트레이터 — 클라이언트·프로젝트 필터 + 헤더 + 뷰 탭 + 목록/보드/캘린더. */
+/** 프로젝트 화면 클라이언트 오케스트레이터 — 클라이언트·프로젝트 필터 + 헤더 + 뷰 탭 + 목록/보드/간트. */
 export function ProjectView({
   clients,
   selectedClient,
@@ -42,7 +40,6 @@ export function ProjectView({
   view: viewRaw,
   board,
   list,
-  calendar,
   gantt,
   milestones,
   meta,
@@ -58,7 +55,6 @@ export function ProjectView({
   view?: string;
   board: ProjectBoard;
   list: ProjectList;
-  calendar: ProjectCalendar;
   gantt: ProjectGantt;
   /** 스코프 마일스톤(보드·목록 상단 띠용). 캘린더·간트는 각자 그리드에 배치. */
   milestones: ProjectMilestone[];
@@ -70,8 +66,8 @@ export function ProjectView({
   const searchParams = useSearchParams();
   const view = resolveView(viewRaw);
 
-  // 미완료만 보기 — 4개 뷰(보드·목록·캘린더·간트) 공통 클라 필터(2026-07-14 사용자 요청:
-  // 간트 전용에서 프로젝트 전체로 승격). 보드·목록은 완료 열 자체를 숨기고, 캘린더는 완료 카드만 거른다.
+  // 미완료만 보기 — 3개 뷰(보드·목록·간트) 공통 클라 필터(2026-07-14 사용자 요청:
+  // 간트 전용에서 프로젝트 전체로 승격). 보드·목록은 완료 열 자체를 숨긴다.
   const [hideDone, setHideDone] = useState(false);
   const boardColumns = useMemo(
     () => (hideDone ? board.columns.filter((c) => c.key !== "done") : board.columns),
@@ -80,13 +76,6 @@ export function ProjectView({
   const listColumns = useMemo(
     () => (hideDone ? list.columns.filter((c) => c.key !== "done") : list.columns),
     [hideDone, list.columns],
-  );
-  const calendarView = useMemo(
-    () =>
-      hideDone
-        ? { ...calendar, days: calendar.days.map((d) => ({ ...d, cards: d.cards.filter((c) => c.status !== "done") })) }
-        : calendar,
-    [hideDone, calendar],
   );
 
   // 전체 보기 스코프 요약용 집계. 특정 클라이언트 스코프면 클라이언트명을 함께 표시.
@@ -179,8 +168,6 @@ export function ProjectView({
           showProject={isAllProjects}
           allowCreate={!isAllProjects}
         />
-      ) : view === "calendar" ? (
-        <ProjectCalendarView data={calendarView} taskHref={taskHref} showProject={isAllProjects} />
       ) : view === "gantt" ? (
         <GanttView data={gantt} taskHref={taskHref} showProject={isAllProjects} hideDone={hideDone} />
       ) : (

@@ -45,13 +45,16 @@ function isTypingTarget(el: EventTarget | null): boolean {
 export function ScheduleHeader({
   range,
   anchorIso,
+  currentUserId,
   members,
   projects,
 }: {
   range: ScheduleRange;
   /** 현재 기준 날짜 YYYY-MM-DD */
   anchorIso: string;
-  /** "새로 추가" 작업 담당자 Select 옵션. */
+  /** 뷰어 id — 필터 팝오버의 "내 것만" 빠른 버튼용. */
+  currentUserId: string;
+  /** "새로 추가" 작업 담당자 Select 옵션 + 필터 팝오버 담당자 리스트. */
   members: ScheduleMember[];
   /** "새로 추가" 작업 프로젝트 Select 옵션. */
   projects: ScheduleProject[];
@@ -208,7 +211,7 @@ export function ScheduleHeader({
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <ScheduleFilter />
+      <ScheduleFilter members={members} currentUserId={currentUserId} />
 
       <CreateScheduleDialog members={members} projects={projects} defaultDate={anchorIso} />
     </div>

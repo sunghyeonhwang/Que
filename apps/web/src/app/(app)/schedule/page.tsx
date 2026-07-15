@@ -6,7 +6,13 @@ import { ScheduleHeader, type ScheduleRange } from "@/components/schedule/schedu
 import { WeekCalendar } from "@/components/schedule/week-calendar";
 import { getClientFilter } from "@/lib/client-filter";
 import { getCurrentUser } from "@/lib/current-user";
-import { filterScheduleItems, getCalendarData, type ScheduleFilters } from "@/lib/calendar-data";
+import {
+  filterScheduleItems,
+  getCalendarData,
+  SCHEDULE_KINDS,
+  type ScheduleFilters,
+  type ScheduleKind,
+} from "@/lib/calendar-data";
 import type { Task } from "@que/core";
 
 export const dynamic = "force-dynamic";
@@ -30,10 +36,40 @@ function parseDateParam(value: string | undefined): Date {
   return new Date();
 }
 
+/** owner 파라미터(콤마 구분) 파싱 — 실존 사용자 id만 화이트리스트해 Set으로. 비면 전체. */
+function parseOwners(value: string | undefined, validIds: Set<string>): Set<string> {
+  if (!value) return new Set();
+  return new Set(
+    value
+      .split(",")
+      .map((s) => s.trim())
+      .filter((id) => validIds.has(id)),
+  );
+}
+
+/** hide 파라미터(콤마 구분) 파싱 — 유효 종류 4키만 화이트리스트. 비면 전부 표시. */
+function parseHide(value: string | undefined): Set<ScheduleKind> {
+  if (!value) return new Set();
+  const valid = new Set<string>(SCHEDULE_KINDS);
+  return new Set(
+    value
+      .split(",")
+      .map((s) => s.trim())
+      .filter((k): k is ScheduleKind => valid.has(k)),
+  );
+}
+
 export default async function SchedulePage({
   searchParams,
 }: {
-  searchParams: Promise<{ range?: string; date?: string; priority?: string; q?: string }>;
+  searchParams: Promise<{
+    range?: string;
+    date?: string;
+    priority?: string;
+    q?: string;
+    owner?: string;
+    hide?: string;
+  }>;
 }) {
   const params = await searchParams;
   // 마지막 뷰 기억(기획 428): range 파라미터가 없으면 쿠키에 저장된 마지막 뷰로 연다.
@@ -76,9 +112,19 @@ export default async function SchedulePage({
     (it) => it.kind === "event" && isSameDay(new Date(it.startAt), anchor),
   ).length;
 
-  // 우선순위·키워드 서버 필터(URL 파라미터). 마스킹 이후 items에 적용한다(비공개 우회 방지).
-  const filters: ScheduleFilters = { priority: parsePriority(params.priority), keyword: params.q };
+  // 우선순위·키워드·담당자·종류 서버 필터(URL 파라미터). 마스킹 이후 items에 적용한다(비공개 우회 방지).
+  const validUserIds = new Set(data.users.map((u) => u.id));
+  const ownerIds = parseOwners(params.owner, validUserIds);
+  const hide = parseHide(params.hide);
+  const filters: ScheduleFilters = {
+    priority: parsePriority(params.priority),
+    keyword: params.q,
+    ownerIds,
+    hide,
+  };
   const items = filterScheduleItems(data.items, filters);
+  // 마일스톤은 items 밖이라 종류 토글(hide)로만 제어 — 담당자 필터·우선순위 대상 아님.
+  const milestones = hide.has("milestone") ? [] : data.milestones;
 
   return (
     <div>
@@ -94,6 +140,7 @@ export default async function SchedulePage({
         <ScheduleHeader
           range={range}
           anchorIso={format(anchor, "yyyy-MM-dd")}
+          currentUserId={user.id}
           members={data.users.map((u) => ({
             id: u.id,
             name: u.name,
@@ -104,13 +151,13 @@ export default async function SchedulePage({
       </header>
 
       {range === "month" ? (
-        <MonthView weeks={monthWeeks} anchor={anchor} items={items} milestones={data.milestones} />
+        <MonthView weeks={monthWeeks} anchor={anchor} items={items} milestones={milestones} />
       ) : range === "day" ? (
-        <WeekCalendar days={[anchor]} items={items} milestones={data.milestones} />
+        <WeekCalendar days={[anchor]} items={items} milestones={milestones} />
       ) : range === "3day" ? (
-        <WeekCalendar days={threeDays} items={items} milestones={data.milestones} />
+        <WeekCalendar days={threeDays} items={items} milestones={milestones} />
       ) : (
-        <WeekCalendar days={weekDays} items={items} milestones={data.milestones} />
+        <WeekCalendar days={weekDays} items={items} milestones={milestones} />
       )}
     </div>
   );

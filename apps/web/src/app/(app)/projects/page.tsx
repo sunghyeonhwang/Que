@@ -5,7 +5,6 @@ import { getClientFilter, getClientOptions } from "@/lib/client-filter";
 import {
   getActiveProjects,
   getProjectBoard,
-  getProjectCalendar,
   getProjectGantt,
   getProjectList,
   getProjectMeta,
@@ -23,10 +22,9 @@ export const dynamic = "force-dynamic";
 // thinking 지연 시 간헐 실패(/team AI 분석과 같은 사고 패턴). 넉넉히 60초.
 export const maxDuration = 60;
 
-// 프로젝트(/projects) — 보드(4열 고정)/목록/캘린더 뷰 + 태스크 상세 드로어.
+// 프로젝트(/projects) — 목록/보드/간트 뷰 + 태스크 상세 드로어.
 // 카드 = core Task. 헤더의 2단 필터(클라이언트 → 프로젝트)로 스코프를 좁힌다.
-// 클라이언트는 ?client=<id|all>, 프로젝트는 ?project=<id>, 뷰는 ?view=,
-// 캘린더 월은 ?month=, 드로어는 ?task=<id>.
+// 클라이언트는 ?client=<id|all>, 프로젝트는 ?project=<id>, 뷰는 ?view=, 드로어는 ?task=<id>.
 // ?client가 없으면 전역 클라이언트 스위처(쿠키)를 기본 스코프로 쓴다. ?client는 그 위에
 // 페이지 단위로 덮어쓰며(all=명시적 전체), 전역 쿠키는 바꾸지 않는다.
 export default async function ProjectsPage({
@@ -34,7 +32,6 @@ export default async function ProjectsPage({
 }: {
   searchParams: Promise<{
     view?: string;
-    month?: string;
     task?: string;
     project?: string;
     client?: string;
@@ -101,10 +98,9 @@ export default async function ProjectsPage({
     );
   }
 
-  const [board, list, calendar, gantt, milestones, taskDetail] = await Promise.all([
+  const [board, list, gantt, milestones, taskDetail] = await Promise.all([
     getProjectBoard(user, projectIds),
     getProjectList(user, projectIds),
-    getProjectCalendar(user, projectIds, params.month),
     getProjectGantt(user, projectIds),
     getProjectMilestones(user, projectIds),
     getTaskDetail(user, params.task),
@@ -131,7 +127,6 @@ export default async function ProjectsPage({
         view={params.view}
         board={board}
         list={list}
-        calendar={calendar}
         gantt={gantt}
         milestones={milestones}
         meta={meta}

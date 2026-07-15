@@ -27,6 +27,9 @@ export interface CalendarViewItem {
   taskStatus?: Task["status"];
   projectName?: string;
   isPrivate?: boolean;
+  /** 이벤트(kind:"event") 출처. "que"=회의, "company"=외부 회사 캘린더.
+      종류 표시 토글(작업/회의/외부/마일스톤)의 회의·외부 구분 기준. task/milestone에는 없다. */
+  eventSource?: "que" | "company";
   /** 최근 24시간 내 변경됨 — 캘린더에 "수정됨" 배지 표시 (기획 변경 공유 정책) */
   recentlyChanged?: boolean;
   // ---- 경량 상세 팝오버용(additive, optional) ----
@@ -41,12 +44,36 @@ export interface CalendarViewItem {
   canEdit?: boolean;
 }
 
+/**
+ * 일정 종류 4키(표시 토글용). meeting=회의(que 이벤트), external=외부 회사 캘린더(company 이벤트).
+ * milestone은 items 밖(별도 필드)이라 filterScheduleItems 대상이 아니다(page에서 milestones=[]로 처리).
+ */
+export type ScheduleKind = "task" | "meeting" | "external" | "milestone";
+export const SCHEDULE_KINDS: readonly ScheduleKind[] = [
+  "task",
+  "meeting",
+  "external",
+  "milestone",
+];
+
+/** CalendarViewItem을 표시 토글 4키 중 하나로 접는다. 마일스톤은 items에 없어 여기 오지 않는다. */
+function itemScheduleKind(item: CalendarViewItem): "task" | "meeting" | "external" {
+  if (item.kind === "task") return "task";
+  // 이벤트: company=외부 캘린더, 그 외(que/미지정)=회의.
+  return item.eventSource === "company" ? "external" : "meeting";
+}
+
 /** 일정 화면 서버 필터 파라미터. 날짜 From/To는 없다(뷰 기간이 이미 범위를 정함). */
 export interface ScheduleFilters {
   /** 작업 우선순위. 지정 시 해당 우선순위 작업만 남고, 우선순위 개념이 없는 이벤트는 제외된다. */
   priority?: Task["priority"];
   /** 제목 부분 일치(대소문자 무시). 마스킹 후 기준이라 비공개 일정은 "자리비움"으로만 검색된다. */
   keyword?: string;
+  /** 담당자 화이트리스트(ownerId Set). 비어있으면 전체. ownerId가 있는 항목(task·event)에만 적용.
+      마일스톤은 담당자 필드가 없어 이 필터 대상이 아니다(종류 토글로만 제어). */
+  ownerIds?: Set<string>;
+  /** 숨길 종류(표시 토글에서 해제된 것). task·meeting·external만 items에 적용된다. */
+  hide?: Set<ScheduleKind>;
 }
 
 /** 캘린더에 얹는 마일스톤(프로젝트명 포함). 칩 클릭으로 수정 가능(canManage일 때만). */
@@ -129,6 +156,8 @@ export async function getCalendarData(
         ownerColor: owner?.avatarColor ?? "#666666",
         movable: event.source === "que" && !isPrivate,
         isPrivate,
+        // 출처는 도메인 구분(회의 vs 외부 캘린더)이라 마스킹 대상이 아니다 — 제목·참석자만 가린다.
+        eventSource: event.source,
         recentlyChanged: isRecent(event.lastChangedAt),
         // 마스킹된 비공개 일정은 참석자를 노출하지 않는다(제목 마스킹 우회 금지 — "자리비움"은 상세도 비어야).
         attendees: hideTitle
@@ -168,6 +197,8 @@ export async function getCalendarData(
  * 계약(프론트/MCP/CLI 공유):
  * - keyword: 제목 부분 일치(대소문자 무시, trim). 모든 종류(task·event)에 적용.
  * - priority: 작업 우선순위 일치. 우선순위 개념이 없는 이벤트는 필터가 켜지면 제외된다.
+ * - ownerIds: 비어있지 않으면 그 담당자(ownerId)의 항목만. task·event에 적용(마일스톤은 items 밖).
+ * - hide: 담긴 종류(task·meeting·external)를 제거. milestone은 items에 없어 무시(page가 처리).
  * - 마일스톤은 이 함수의 대상이 아니다(items에 포함되지 않음 — 별도 필드로 전달).
  * - 부제 카운트(마감/미팅)는 필터 전 items 기준으로 계산해야 한다(이 함수 호출 전에 세어둘 것).
  */
@@ -176,11 +207,17 @@ export function filterScheduleItems(
   filters: ScheduleFilters,
 ): CalendarViewItem[] {
   const keyword = filters.keyword?.trim().toLowerCase();
-  const { priority } = filters;
-  if (!keyword && !priority) return items;
+  const { priority, ownerIds, hide } = filters;
+  const hasOwner = !!ownerIds && ownerIds.size > 0;
+  const hasHide = !!hide && hide.size > 0;
+  if (!keyword && !priority && !hasOwner && !hasHide) return items;
   return items.filter((it) => {
     if (keyword && !it.title.toLowerCase().includes(keyword)) return false;
     if (priority && (it.kind !== "task" || it.priority !== priority)) return false;
+    // 담당자 필터: ownerId가 있는 항목에만. 비공개 "자리비움"도 ownerId는 있어 자연히 걸러진다(우회 아님).
+    if (hasOwner && !ownerIds!.has(it.ownerId)) return false;
+    // 종류 숨김: task·meeting·external을 kind+eventSource로 매핑해 제거.
+    if (hasHide && hide!.has(itemScheduleKind(it))) return false;
     return true;
   });
 }

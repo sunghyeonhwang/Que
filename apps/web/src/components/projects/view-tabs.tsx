@@ -2,15 +2,15 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { ListChecks, LayoutGrid, Calendar, GanttChartSquare, type LucideIcon } from "lucide-react";
+import { ListChecks, LayoutGrid, GanttChartSquare, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export type ProjectView = "list" | "board" | "calendar" | "gantt";
+// 캘린더 뷰는 폐기(2026-07-15) — 팀 전체 캘린더는 /schedule이 담당한다.
+export type ProjectView = "list" | "board" | "gantt";
 
 const TABS: { key: ProjectView; label: string; icon: LucideIcon }[] = [
   { key: "list", label: "목록", icon: ListChecks },
   { key: "board", label: "보드", icon: LayoutGrid },
-  { key: "calendar", label: "캘린더", icon: Calendar },
   // 간트(E-9) — 작업 기간 막대 + 선행 작업 화살표 + 일정 주의.
   { key: "gantt", label: "간트", icon: GanttChartSquare },
 ];

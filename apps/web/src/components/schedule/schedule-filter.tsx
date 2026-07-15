@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { SlidersHorizontal } from "lucide-react";
 import type { Task } from "@que/core";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -15,6 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import type { ScheduleMember } from "./create-schedule-dialog";
 
 const ANY = "__any__";
 const PRIORITY_ITEMS: Record<string, string> = {
@@ -25,24 +27,68 @@ const PRIORITY_ITEMS: Record<string, string> = {
 };
 const PRIORITY_ORDER: (Task["priority"] | typeof ANY)[] = [ANY, "high", "normal", "low"];
 
-/** ?priority · ?q 로 서버 필터를 세팅/해제하는 팝오버. range/date는 pushParams로 보존한다. */
-export function ScheduleFilter() {
+// 일정 종류 4키(표시 토글). 서버 filterScheduleItems·page 파싱과 키 계약을 맞춘다
+// (task·meeting·external·milestone). 클라 번들에 서버 모듈(calendar-data)을 끌어오지 않도록
+// 라벨·순서는 여기서 로컬로 둔다.
+type ScheduleKind = "task" | "meeting" | "external" | "milestone";
+const KIND_ORDER: ScheduleKind[] = ["task", "meeting", "external", "milestone"];
+const KIND_LABELS: Record<ScheduleKind, string> = {
+  task: "작업",
+  meeting: "회의",
+  external: "외부 캘린더",
+  milestone: "마일스톤",
+};
+
+/** 콤마 구분 파라미터를 화이트리스트로 걸러 배열로. */
+function parseCsv(value: string | null, valid: (v: string) => boolean): string[] {
+  if (!value) return [];
+  return value
+    .split(",")
+    .map((s) => s.trim())
+    .filter((v) => v.length > 0 && valid(v));
+}
+
+/**
+ * ?priority · ?q · ?owner · ?hide 로 서버 필터를 세팅/해제하는 팝오버.
+ * range/date는 pushParams로 보존한다. 담당자·표시 종류는 신규(2026-07-15).
+ */
+export function ScheduleFilter({
+  members,
+  currentUserId,
+}: {
+  members: ScheduleMember[];
+  currentUserId: string;
+}) {
   const router = useRouter();
   const searchParams = useSearchParams();
 
+  const memberIds = new Set(members.map((m) => m.id));
+  const kindKeys = new Set<string>(KIND_ORDER);
+
   const urlPriority = searchParams.get("priority") ?? "";
   const urlKeyword = searchParams.get("q") ?? "";
-  const activeCount = (urlPriority ? 1 : 0) + (urlKeyword.trim() ? 1 : 0);
+  const urlOwners = parseCsv(searchParams.get("owner"), (v) => memberIds.has(v));
+  const urlHide = parseCsv(searchParams.get("hide"), (v) => kindKeys.has(v)) as ScheduleKind[];
+  const activeCount =
+    (urlPriority ? 1 : 0) +
+    (urlKeyword.trim() ? 1 : 0) +
+    (urlOwners.length > 0 ? 1 : 0) +
+    (urlHide.length > 0 ? 1 : 0);
 
   const [open, setOpen] = useState(false);
   const [priority, setPriority] = useState<string>(urlPriority || ANY);
   const [keyword, setKeyword] = useState(urlKeyword);
+  const [owners, setOwners] = useState<Set<string>>(new Set(urlOwners));
+  // hidden = 표시 토글에서 해제된 종류(체크 해제 = 숨김).
+  const [hidden, setHidden] = useState<Set<ScheduleKind>>(new Set(urlHide));
 
   // 팝오버를 열 때 URL의 현재 필터로 폼을 동기화한다(effect 대신 오픈 핸들러에서 — 캐스케이드 렌더 회피).
   const onOpenChange = (next: boolean) => {
     if (next) {
       setPriority(urlPriority || ANY);
       setKeyword(urlKeyword);
+      setOwners(new Set(urlOwners));
+      setHidden(new Set(urlHide));
     }
     setOpen(next);
   };
@@ -53,6 +99,26 @@ export function ScheduleFilter() {
     router.push(`/schedule?${params.toString()}`);
   };
 
+  // 표시 종류 토글 — 체크 해제 시 hidden에 추가(숨김), 체크 시 제거(표시).
+  const toggleKind = (kind: ScheduleKind, show: boolean) => {
+    setHidden((prev) => {
+      const next = new Set(prev);
+      if (show) next.delete(kind);
+      else next.add(kind);
+      return next;
+    });
+  };
+
+  // 담당자 개별 토글.
+  const toggleOwner = (id: string, on: boolean) => {
+    setOwners((prev) => {
+      const next = new Set(prev);
+      if (on) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  };
+
   const apply = () => {
     pushParams((p) => {
       if (priority && priority !== ANY) p.set("priority", priority);
@@ -60,6 +126,14 @@ export function ScheduleFilter() {
       const kw = keyword.trim();
       if (kw) p.set("q", kw);
       else p.delete("q");
+      // 담당자: 선택된 id만 콤마로. 없으면 전체 → 파라미터 제거.
+      const ownerList = [...owners].filter((id) => memberIds.has(id));
+      if (ownerList.length > 0) p.set("owner", ownerList.join(","));
+      else p.delete("owner");
+      // 표시: 숨긴 종류만 콤마로. 없으면 전부 표시 → 파라미터 제거.
+      const hideList = KIND_ORDER.filter((k) => hidden.has(k));
+      if (hideList.length > 0) p.set("hide", hideList.join(","));
+      else p.delete("hide");
     });
     setOpen(false);
   };
@@ -67,12 +141,19 @@ export function ScheduleFilter() {
   const reset = () => {
     setPriority(ANY);
     setKeyword("");
+    setOwners(new Set());
+    setHidden(new Set());
     pushParams((p) => {
       p.delete("priority");
       p.delete("q");
+      p.delete("owner");
+      p.delete("hide");
     });
     setOpen(false);
   };
+
+  const nothingSet =
+    priority === ANY && !keyword.trim() && owners.size === 0 && hidden.size === 0;
 
   return (
     <Popover open={open} onOpenChange={onOpenChange}>
@@ -92,12 +173,76 @@ export function ScheduleFilter() {
           </span>
         )}
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-72 gap-0 p-0">
-        <div className="border-b border-[var(--que-border)] px-3.5 py-3">
+      <PopoverContent align="end" className="flex max-h-[min(32rem,80vh)] w-80 flex-col gap-0 p-0">
+        <div className="shrink-0 border-b border-[var(--que-border)] px-3.5 py-3">
           <p className="text-sm font-semibold text-[var(--que-text)]">필터</p>
         </div>
 
-        <div className="flex flex-col gap-3.5 p-3.5">
+        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-3.5">
+          {/* 표시 — 일정 종류 4종 개별 on/off(기본 전부 표시). */}
+          <Field>
+            <FieldLabel>표시</FieldLabel>
+            <div className="flex flex-col gap-0.5">
+              {KIND_ORDER.map((kind) => (
+                <label
+                  key={kind}
+                  className="flex min-h-10 cursor-pointer items-center gap-2.5 rounded-md px-1.5 text-sm text-[var(--que-text)] hover:bg-[var(--que-bg-muted)]"
+                >
+                  <Checkbox
+                    checked={!hidden.has(kind)}
+                    onCheckedChange={(v) => toggleKind(kind, v === true)}
+                  />
+                  {KIND_LABELS[kind]}
+                </label>
+              ))}
+            </div>
+          </Field>
+
+          {/* 담당자 — 멤버별 다중선택(기본 전체). 상단 빠른 버튼 2개. */}
+          <Field>
+            <FieldLabel>담당자</FieldLabel>
+            <div className="flex gap-1.5">
+              <Button
+                type="button"
+                variant="outline"
+                className="h-9 flex-1 border-[var(--que-border)] px-2 text-xs font-medium"
+                aria-pressed={owners.size === 0}
+                onClick={() => setOwners(new Set())}
+              >
+                전체
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-9 flex-1 border-[var(--que-border)] px-2 text-xs font-medium"
+                aria-pressed={owners.size === 1 && owners.has(currentUserId)}
+                onClick={() => setOwners(new Set([currentUserId]))}
+              >
+                내 것만
+              </Button>
+            </div>
+            <div className="mt-1 flex max-h-56 flex-col gap-0.5 overflow-y-auto">
+              {members.map((m) => (
+                <label
+                  key={m.id}
+                  className="flex min-h-10 cursor-pointer items-center gap-2.5 rounded-md px-1.5 text-sm text-[var(--que-text)] hover:bg-[var(--que-bg-muted)]"
+                >
+                  <Checkbox
+                    checked={owners.has(m.id)}
+                    onCheckedChange={(v) => toggleOwner(m.id, v === true)}
+                  />
+                  <span
+                    className="size-2.5 shrink-0 rounded-full"
+                    style={{ backgroundColor: m.avatarColor }}
+                    aria-hidden
+                  />
+                  <span className="truncate">{m.name}</span>
+                </label>
+              ))}
+            </div>
+          </Field>
+
+          {/* 우선순위 — 기존 유지. */}
           <Field>
             <FieldLabel>우선순위</FieldLabel>
             <Select
@@ -121,6 +266,7 @@ export function ScheduleFilter() {
             </p>
           </Field>
 
+          {/* 키워드 — 기존 유지. */}
           <Field>
             <FieldLabel htmlFor="filter-keyword">키워드</FieldLabel>
             <Input
@@ -136,12 +282,12 @@ export function ScheduleFilter() {
           </Field>
         </div>
 
-        <div className="flex items-center justify-between gap-2 border-t border-[var(--que-border)] p-2.5">
+        <div className="flex shrink-0 items-center justify-between gap-2 border-t border-[var(--que-border)] p-2.5">
           <Button
             variant="ghost"
             className="h-10"
             onClick={reset}
-            disabled={activeCount === 0 && priority === ANY && !keyword.trim()}
+            disabled={activeCount === 0 && nothingSet}
           >
             초기화
           </Button>

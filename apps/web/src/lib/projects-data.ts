@@ -1,14 +1,4 @@
-import {
-  addDays,
-  addMonths,
-  differenceInCalendarDays,
-  format,
-  isSameDay,
-  isSameMonth,
-  startOfMonth,
-  startOfWeek,
-  subMonths,
-} from "date-fns";
+import { addDays, differenceInCalendarDays, format } from "date-fns";
 import { ko } from "date-fns/locale";
 import {
   canEditTask,
@@ -165,40 +155,6 @@ export interface ProjectMilestone {
   /** 중요 마일스톤(최종 런칭일 등) — 칩이 붉은 그라데이션으로 표기된다. */
   critical?: boolean;
   canManage: boolean;
-}
-
-// ---------- 캘린더 뷰 ----------
-
-export interface CalendarCard {
-  taskId: string;
-  title: string;
-  status: TaskStatus;
-  columnKey: BoardColumnKey;
-  /** 소속 프로젝트명. 전체 보기 pill에 표시. 없으면 null. */
-  projectName: string | null;
-  /** 마감이 지났고 아직 완료/취소/병합이 아닌 지연 상태인지. red 신호용. */
-  isOverdue: boolean;
-}
-
-export interface CalendarDay {
-  /** yyyy-MM-dd. */
-  date: string;
-  day: number;
-  inMonth: boolean;
-  isToday: boolean;
-  cards: CalendarCard[];
-  /** 이 날짜가 기한인 마일스톤(그라데이션 칩으로 셀 상단에 표시). */
-  milestones: ProjectMilestone[];
-}
-
-export interface ProjectCalendar {
-  /** 해석된 표시 월 "yyyy-MM". */
-  month: string;
-  monthLabel: string;
-  prevMonth: string;
-  nextMonth: string;
-  /** 6주 × 7일 = 42 셀(일요일 시작). */
-  days: CalendarDay[];
 }
 
 // ---------- 태스크 상세(드로어) ----------
@@ -534,93 +490,6 @@ export async function getProjectList(
 ): Promise<ProjectList> {
   const board = await getProjectBoard(actor, projectIds);
   return { columns: board.columns };
-}
-
-/** "yyyy-MM" 화이트리스트(01~12만). */
-const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
-
-function defaultAnchorMonth(tasks: Task[]): string {
-  const counts = new Map<string, number>();
-  for (const t of tasks) {
-    if (!t.endAt) continue;
-    counts.set(t.endAt.slice(0, 7), (counts.get(t.endAt.slice(0, 7)) ?? 0) + 1);
-  }
-  let best: string | null = null;
-  let bestCount = -1;
-  for (const [key, count] of counts) {
-    if (count > bestCount || (count === bestCount && best !== null && key < best)) {
-      best = key;
-      bestCount = count;
-    }
-  }
-  return best ?? format(new Date(), "yyyy-MM");
-}
-
-/**
- * 캘린더 뷰 — endAt(마감) 기준 배치. cancelled/merged 제외. 읽기 전용.
- * projectIds가 여러 개면(전체 보기) 스코프 내 프로젝트를 합산한다.
- */
-export async function getProjectCalendar(
-  actor: User,
-  projectIds: string[],
-  anchorMonth: string | null | undefined,
-): Promise<ProjectCalendar> {
-  const db = await getDb();
-  const projectById = projectByIdMap(db);
-  const tasks = boardTasksOf(db, projectIds);
-
-  // 마일스톤을 날짜(day)별로 묶어 해당 셀 상단에 그라데이션 칩으로 표시한다.
-  const milestonesByDay = new Map<string, ProjectMilestone[]>();
-  for (const m of buildProjectMilestones(db, projectIds, actor)) {
-    const list = milestonesByDay.get(m.day) ?? [];
-    list.push(m);
-    milestonesByDay.set(m.day, list);
-  }
-
-  const month =
-    anchorMonth && MONTH_RE.test(anchorMonth) ? anchorMonth : defaultAnchorMonth(tasks);
-  const anchorDate = new Date(`${month}-01T00:00:00`);
-  const gridStart = startOfWeek(startOfMonth(anchorDate), { weekStartsOn: 0 });
-  const today = new Date();
-
-  // yyyy-MM-dd → 카드[]
-  const byDate = new Map<string, CalendarCard[]>();
-  for (const task of tasks) {
-    const key = toDate(task.endAt);
-    if (!key) continue;
-    const card: CalendarCard = {
-      taskId: task.id,
-      title: task.title,
-      status: task.status,
-      columnKey: columnForStatus(task.status)!,
-      projectName: projectById.get(task.projectId ?? "")?.name ?? null,
-      isOverdue: isTaskOverdue(task),
-    };
-    const list = byDate.get(key) ?? [];
-    list.push(card);
-    byDate.set(key, list);
-  }
-
-  const days: CalendarDay[] = Array.from({ length: 42 }, (_, i) => {
-    const d = addDays(gridStart, i);
-    const key = format(d, "yyyy-MM-dd");
-    return {
-      date: key,
-      day: d.getDate(),
-      inMonth: isSameMonth(d, anchorDate),
-      isToday: isSameDay(d, today),
-      cards: byDate.get(key) ?? [],
-      milestones: milestonesByDay.get(key) ?? [],
-    };
-  });
-
-  return {
-    month,
-    monthLabel: format(anchorDate, "yyyy년 M월", { locale: ko }),
-    prevMonth: format(subMonths(anchorDate, 1), "yyyy-MM"),
-    nextMonth: format(addMonths(anchorDate, 1), "yyyy-MM"),
-    days,
-  };
 }
 
 /** 태스크 상세(드로어) — 취소/병합 태스크도 열람은 가능(드로어에서 상태 확인). id 없으면 null. */
