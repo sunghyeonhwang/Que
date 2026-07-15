@@ -755,6 +755,10 @@ export interface GanttTask {
   assignee: ListViewMember | null;
   /** 전체 보기에서 소속 표시용. 단일 프로젝트 보기면 null. */
   projectName: string | null;
+  /** 소속 프로젝트 id — 전체 보기 그룹핑 키(클라이언트→프로젝트). 미소속이면 null. */
+  projectId: string | null;
+  /** 소속 클라이언트명 — 그룹 헤더 "클라이언트 · 프로젝트명" 병기용. 미소속이면 null. */
+  clientName: string | null;
   /** 막대 구간(dateKey 'yyyy-MM-dd'). 한쪽만 있으면 같은 값(하루 막대). */
   startDay: string;
   endDay: string;
@@ -771,10 +775,15 @@ export interface GanttTask {
 export type GanttMilestone = ProjectMilestone;
 
 export interface ProjectGantt {
-  /** startDay 오름차순. */
+  /** 전체 보기: 클라이언트→프로젝트(sortOrder→이름) 그룹으로 묶어 시작일 순. 단일 보기: 시작일 순. */
   tasks: GanttTask[];
   /** 일정 없는 작업 — 간트에 못 그리므로 하단 칩으로 노출(날짜 지정 유도). */
-  unscheduled: { taskId: string; title: string; assigneeName: string | null }[];
+  unscheduled: {
+    taskId: string;
+    title: string;
+    assigneeName: string | null;
+    projectName: string | null;
+  }[];
   milestones: GanttMilestone[];
   /** 그리드 범위(dateKey, 양끝 포함). 작업·마일스톤·오늘을 덮고 앞뒤 2일 패딩. */
   rangeStart: string;
@@ -848,6 +857,7 @@ export async function getProjectGantt(
 ): Promise<ProjectGantt> {
   const db = await getDb();
   const projectById = projectByIdMap(db);
+  const clientById = new Map(db.clients.map((c) => [c.id, c]));
   const tasks = boardTasksOf(db, projectIds);
   const taskById = new Map(db.tasks.map((t) => [t.id, t]));
   const todayIso = now.toISOString();
@@ -862,6 +872,7 @@ export async function getProjectGantt(
       const start = toDay(t.startAt ?? t.endAt!);
       const end = toDay(t.endAt ?? t.startAt!);
       const project = projectById.get(t.projectId ?? "");
+      const client = project?.clientId ? clientById.get(project.clientId) : undefined;
       const reason = risks.get(t.id) ?? null;
       return {
         taskId: t.id,
@@ -869,6 +880,8 @@ export async function getProjectGantt(
         status: t.status,
         assignee: resolveMember(t.assigneeId),
         projectName: project?.name ?? null,
+        projectId: project?.id ?? null,
+        clientName: client?.name ?? null,
         startDay: start <= end ? start : end,
         endDay: start <= end ? end : start,
         predecessorIds: t.predecessorIds ?? [],
@@ -878,7 +891,26 @@ export async function getProjectGantt(
         riskReason: reason,
       };
     })
-    .sort((a, b) => a.startDay.localeCompare(b.startDay) || a.endDay.localeCompare(b.endDay));
+    // 전체 보기 그룹핑용 정렬: 클라이언트(sortOrder→이름) → 프로젝트(sortOrder→이름) → 시작일.
+    // 같은 프로젝트가 연속으로 모여 그룹 헤더를 한 번만 넣을 수 있다. 미소속은 뒤로.
+    // 단일 프로젝트 보기는 프로젝트 키가 모두 같아 시작일 정렬로 귀결(기존 동작과 동일).
+    .sort((a, b) => {
+      const pa = projectById.get(a.projectId ?? "");
+      const pb = projectById.get(b.projectId ?? "");
+      const ca = pa?.clientId ? clientById.get(pa.clientId) : undefined;
+      const cb = pb?.clientId ? clientById.get(pb.clientId) : undefined;
+      const csoA = ca?.sortOrder ?? Number.MAX_SAFE_INTEGER;
+      const csoB = cb?.sortOrder ?? Number.MAX_SAFE_INTEGER;
+      if (csoA !== csoB) return csoA - csoB;
+      const cCmp = (ca?.name ?? "").localeCompare(cb?.name ?? "", "ko");
+      if (cCmp !== 0) return cCmp;
+      const psoA = pa?.sortOrder ?? 0;
+      const psoB = pb?.sortOrder ?? 0;
+      if (psoA !== psoB) return psoA - psoB;
+      const pCmp = (pa?.name ?? "").localeCompare(pb?.name ?? "", "ko");
+      if (pCmp !== 0) return pCmp;
+      return a.startDay.localeCompare(b.startDay) || a.endDay.localeCompare(b.endDay);
+    });
 
   // 범위: 작업·마일스톤·오늘을 덮고 ±2일. 상한(180일)을 넘으면 오늘 주변을 우선 보존.
   const days = [
@@ -906,6 +938,7 @@ export async function getProjectGantt(
         taskId: t.id,
         title: t.title,
         assigneeName: resolveMember(t.assigneeId)?.name ?? null,
+        projectName: projectById.get(t.projectId ?? "")?.name ?? null,
       })),
     milestones,
     rangeStart,

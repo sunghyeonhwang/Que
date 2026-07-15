@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { useAnimate } from "motion/react";
 import { TriangleAlert, Check, ChevronLeft, ChevronRight, LocateFixed } from "lucide-react";
-import type { GanttMilestone, ProjectGantt } from "@/lib/projects-data";
+import type { GanttMilestone, GanttTask, ProjectGantt } from "@/lib/projects-data";
 import { updateMilestoneAction } from "@/app/(app)/planning/actions";
 import { useOptimisticAction } from "@/components/app/use-optimistic-action";
 import { TONE_STYLE, type StatusTone } from "@/lib/pm-columns";
@@ -63,6 +63,11 @@ function buildDays(rangeStart: string, rangeEnd: string): { key: string; dow: nu
 }
 
 const DOW_LABEL = ["일", "월", "화", "수", "목", "금", "토"];
+
+/** 본문 행 — 그룹 헤더(클라이언트·프로젝트) 또는 작업. taskIndex는 visibleTasks 내 원 index. */
+type LayoutRow =
+  | { kind: "group"; key: string; label: string }
+  | { kind: "task"; task: GanttTask; taskIndex: number };
 
 export function GanttView({
   data,
@@ -139,9 +144,45 @@ export function GanttView({
       source: "gantt-milestone-drag",
     });
   };
-  // 행 y 오프셋: (마일스톤 레인) + 작업 행들
-  const rowY = (taskRow: number) => (hasMilestoneLane ? ROW_H : 0) + taskRow * ROW_H;
-  const bodyH = rowY(visibleTasks.length);
+  // 전체 보기(showProject)면 클라이언트→프로젝트 그룹 헤더 행을 작업 행 사이에 끼운다.
+  // layout = 본문 행(마일스톤 레인 제외)의 순서. 각 항목은 그룹 헤더 또는 작업.
+  // 데이터가 이미 클라이언트→프로젝트 순으로 정렬돼 오므로 같은 프로젝트가 연속 → 헤더 1회.
+  const layout = useMemo<LayoutRow[]>(() => {
+    if (!showProject) {
+      return visibleTasks.map((t, i) => ({ kind: "task", task: t, taskIndex: i }));
+    }
+    const rows: LayoutRow[] = [];
+    let prevKey: string | null = null;
+    visibleTasks.forEach((t, i) => {
+      const key = t.projectId ?? "__none__";
+      if (key !== prevKey) {
+        rows.push({
+          kind: "group",
+          key,
+          label: t.clientName
+            ? `${t.clientName} · ${t.projectName ?? ""}`
+            : (t.projectName ?? "미소속 작업"),
+        });
+        prevKey = key;
+      }
+      rows.push({ kind: "task", task: t, taskIndex: i });
+    });
+    return rows;
+  }, [showProject, visibleTasks]);
+
+  // 작업 index → 본문 시각 행 번호(마일스톤 레인 아래, 헤더 행 포함). 오버레이 좌표 계산에 쓴다.
+  const taskVisualRow = useMemo(() => {
+    const m = new Map<number, number>();
+    layout.forEach((r, vi) => {
+      if (r.kind === "task") m.set(r.taskIndex, vi);
+    });
+    return m;
+  }, [layout]);
+
+  // 행 y 오프셋: (마일스톤 레인) + 본문 시각 행(vi). vi는 layout 인덱스(헤더 행 포함).
+  const laneOffset = hasMilestoneLane ? ROW_H : 0;
+  const rowY = (vi: number) => laneOffset + vi * ROW_H;
+  const bodyH = laneOffset + layout.length * ROW_H;
   const gridW = days.length * COL_W;
   const rowIndexByTask = useMemo(
     () => new Map(visibleTasks.map((t, i) => [t.taskId, i])),
@@ -260,38 +301,49 @@ export function GanttView({
                 <span className="text-xs font-medium text-[var(--que-text-tertiary)]">◆ 마일스톤</span>
               </div>
             )}
-            {visibleTasks.map((t) => (
-              <Link
-                key={t.taskId}
-                href={taskHref(t.taskId)}
-                scroll={false}
-                className="flex items-center gap-2 border-b border-[var(--que-bg-muted)] px-3.5 hover:bg-[var(--que-bg-muted)] focus-visible:outline-2 focus-visible:outline-[var(--que-brand)]"
-                style={{ height: ROW_H }}
-              >
-                {t.assignee ? (
-                  <span
-                    aria-hidden
-                    className="flex size-6 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold text-white"
-                    style={{ background: t.assignee.avatarColor }}
-                  >
-                    {t.assignee.name.slice(0, 1)}
+            {layout.map((r, vi) =>
+              r.kind === "group" ? (
+                // 그룹 헤더 행 — 낮은 톤 muted 배경 + 작은 "클라이언트 · 프로젝트명" 라벨.
+                <div
+                  key={`g-${r.key}-${vi}`}
+                  className="flex items-center border-b border-[var(--que-border)] bg-[var(--que-bg-muted)] px-3.5"
+                  style={{ height: ROW_H }}
+                >
+                  <span className="truncate text-[11px] font-semibold text-[var(--que-text-secondary)]">
+                    {r.label}
                   </span>
-                ) : (
-                  <span className="size-6 shrink-0 rounded-full bg-[var(--que-bg-muted)]" aria-hidden />
-                )}
-                <span className="min-w-0 flex-1">
-                  <span className={cn("block truncate text-[13px] font-medium text-[var(--que-text)]", t.status === "done" && "text-[var(--que-text-tertiary)] line-through")}>
-                    {t.title}
-                  </span>
-                  {showProject && t.projectName && (
-                    <span className="block truncate text-[11px] text-[var(--que-text-tertiary)]">{t.projectName}</span>
+                </div>
+              ) : (
+                <Link
+                  key={r.task.taskId}
+                  href={taskHref(r.task.taskId)}
+                  scroll={false}
+                  className="flex items-center gap-2 border-b border-[var(--que-bg-muted)] px-3.5 hover:bg-[var(--que-bg-muted)] focus-visible:outline-2 focus-visible:outline-[var(--que-brand)]"
+                  style={{ height: ROW_H }}
+                >
+                  {r.task.assignee ? (
+                    <span
+                      aria-hidden
+                      className="flex size-6 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold text-white"
+                      style={{ background: r.task.assignee.avatarColor }}
+                    >
+                      {r.task.assignee.name.slice(0, 1)}
+                    </span>
+                  ) : (
+                    <span className="size-6 shrink-0 rounded-full bg-[var(--que-bg-muted)]" aria-hidden />
                   )}
-                </span>
-                <span className="shrink-0 text-[11px] text-[var(--que-text-tertiary)]">
-                  {t.assignee?.name ?? ""}
-                </span>
-              </Link>
-            ))}
+                  <span className="min-w-0 flex-1">
+                    <span className={cn("block truncate text-[13px] font-medium text-[var(--que-text)]", r.task.status === "done" && "text-[var(--que-text-tertiary)] line-through")}>
+                      {r.task.title}
+                    </span>
+                    {/* 전체 보기에선 그룹 헤더가 프로젝트를 알려주므로 행 내 프로젝트 부제는 생략(중복 방지). */}
+                  </span>
+                  <span className="shrink-0 text-[11px] text-[var(--que-text-tertiary)]">
+                    {r.task.assignee?.name ?? ""}
+                  </span>
+                </Link>
+              ),
+            )}
           </div>
 
           {/* 타임라인 */}
@@ -337,7 +389,7 @@ export function GanttView({
                 }}
               />
               {/* 행 구분선 */}
-              {Array.from({ length: visibleTasks.length + (hasMilestoneLane ? 1 : 0) }, (_, r) => (
+              {Array.from({ length: layout.length + (hasMilestoneLane ? 1 : 0) }, (_, r) => (
                 <div
                   key={r}
                   aria-hidden
@@ -345,6 +397,18 @@ export function GanttView({
                   style={{ top: (r + 1) * ROW_H - 1 }}
                 />
               ))}
+
+              {/* 그룹 헤더 행 배경 — 좌측 라벨 행과 맞춘 낮은 톤 빈 밴드(타임라인 쪽은 빈 행). */}
+              {layout.map((r, vi) =>
+                r.kind === "group" ? (
+                  <div
+                    key={`gb-${r.key}-${vi}`}
+                    aria-hidden
+                    className="absolute right-0 left-0 bg-[var(--que-bg-muted)] opacity-60"
+                    style={{ top: rowY(vi), height: ROW_H }}
+                  />
+                ) : null,
+              )}
 
               {/* 마일스톤 레인 — /schedule과 동일한 그라데이션 칩(클릭 → 상세/수정, 권한 있을 때).
                   기한 날짜 컬럼 위치에 칩 왼쪽 끝(다이아 마커)을 맞춘다. */}
@@ -377,9 +441,9 @@ export function GanttView({
                     if (pRow === undefined) return null; // 선행이 화면 밖(일정 없음 등)이면 생략
                     const p = visibleTasks[pRow];
                     const x1 = (idx(p.endDay) + 1) * COL_W - 4;
-                    const y1 = rowY(pRow) + ROW_H / 2;
+                    const y1 = rowY(taskVisualRow.get(pRow) ?? pRow) + ROW_H / 2;
                     const x2 = idx(t.startDay) * COL_W + 2;
-                    const y2 = rowY(row) + ROW_H / 2;
+                    const y2 = rowY(taskVisualRow.get(row) ?? row) + ROW_H / 2;
                     const bend = Math.max(x1 + 12, x2 - 14);
                     const warn = t.atRisk;
                     return (
@@ -399,6 +463,7 @@ export function GanttView({
 
               {/* 작업 막대 */}
               {visibleTasks.map((t, row) => {
+                const vi = taskVisualRow.get(row) ?? row;
                 const s = idx(t.startDay);
                 const e = idx(t.endDay);
                 const tone = TONE_STYLE[toneOf(t.status)];
@@ -407,7 +472,7 @@ export function GanttView({
                 // 좁은 막대(3일 미만)는 제목이 안 들어가므로 막대 오른쪽 밖에 라벨을 뺀다.
                 const narrow = e - s + 1 < 3;
                 return (
-                  <div key={t.taskId} className="absolute" style={{ top: rowY(row), height: ROW_H, left: 0, right: 0 }}>
+                  <div key={t.taskId} className="absolute" style={{ top: rowY(vi), height: ROW_H, left: 0, right: 0 }}>
                     {t.atRisk && (
                       <span
                         title={t.riskReason ?? undefined}
@@ -493,6 +558,9 @@ export function GanttView({
               className="rounded-lg border border-[var(--que-border)] px-2.5 py-1 text-xs text-[var(--que-text)] hover:bg-[var(--que-bg-muted)]"
             >
               {u.title}
+              {showProject && u.projectName && (
+                <span className="text-[var(--que-text-tertiary)]"> · {u.projectName}</span>
+              )}
               {u.assigneeName && <span className="text-[var(--que-text-tertiary)]"> · {u.assigneeName}</span>}
             </Link>
           ))}
