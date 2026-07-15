@@ -118,6 +118,28 @@ export async function moveEventToDateAction(input: {
   });
 }
 
+/** Que 일정 시작·종료를 직접 지정(팝오버 일시 수정 — 드래그의 date+hour와 달리 종료 시각까지 설정).
+ *  드래그와 **같은 core mutation(db.moveCalendarEvent)**을 재사용한다(중복 mutation 없음).
+ *  권한(que 소스·이동 가능 여부)은 core가 최종 강제한다 — UI는 movable로 진입만 게이트한다. */
+export async function updateEventScheduleAction(input: {
+  eventId: string;
+  startAt: string;
+  endAt: string;
+}): Promise<ActionResult> {
+  if (Number.isNaN(Date.parse(input.startAt)) || Number.isNaN(Date.parse(input.endAt))) {
+    return { ok: false, error: "유효하지 않은 일시다." };
+  }
+  const user = await getCurrentUser();
+  return toResult((db) => {
+    const event = db.calendarEvents.find((e) => e.id === input.eventId);
+    if (!event) throw new QueRuleError("NOT_FOUND", `일정 없음: ${input.eventId}`);
+    db.moveCalendarEvent(
+      { actorId: user.id, via: "web" },
+      { eventId: input.eventId, startAt: input.startAt, endAt: input.endAt },
+    );
+  });
+}
+
 /** 마일스톤 마감일 이동 (시간은 유지). */
 export async function moveMilestoneToDateAction(input: {
   milestoneId: string;

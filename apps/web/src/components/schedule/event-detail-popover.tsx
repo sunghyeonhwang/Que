@@ -1,13 +1,34 @@
 "use client";
 
-import type { ReactElement } from "react";
+import { useState, type ReactElement } from "react";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 import { Calendar, Clock, Flag, FolderOpen, Lock, User, Users } from "lucide-react";
 import type { CalendarViewItem } from "@/lib/calendar-data";
+import { updateTaskScheduleAction } from "@/app/(app)/today/actions";
+import { updateEventScheduleAction } from "@/app/(app)/calendar/actions";
+import { useSafeAction } from "@/components/app/use-safe-action";
+import { DateRangePicker } from "@/components/app/date-range-picker";
 import { PriorityBadge } from "@/components/projects/priority-badge";
 import { TaskStatusSheet, type TaskRowData } from "@/components/app/task-status-sheet";
+import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+
+const pad = (n: number) => String(n).padStart(2, "0");
+function toDateStr(iso?: string): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+function toTimeStr(iso?: string): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+/** 로컬(KST) 날짜+시각 → ISO. 재일정 폼과 동일 규약. */
+function toIso(date: string, time: string): string {
+  return new Date(`${date}T${time}:00`).toISOString();
+}
 
 /** "9:00 - 10:30 AM" / "11:10 AM - 1:00 PM" — AM/PM이 같으면 끝에 한 번만. */
 function timeRangeLabel(startAt: string, endAt: string): string {
@@ -164,6 +185,20 @@ export function EventDetailPopover({
           )}
         </dl>
 
+        {/* 일시 수정(경량) — 시트를 거치지 않고 팝오버에서 바로. 편집 권한이 있을 때만. */}
+        {isTask && item.canEdit && (
+          <div className="border-t border-[var(--que-border)] p-2.5">
+            <p className="mb-1.5 text-xs font-medium text-[var(--que-text-tertiary)]">일시 수정</p>
+            <TaskRescheduleInline item={item} />
+          </div>
+        )}
+        {item.kind === "event" && item.movable && (
+          <div className="border-t border-[var(--que-border)] p-2.5">
+            <p className="mb-1.5 text-xs font-medium text-[var(--que-text-tertiary)]">일시 수정</p>
+            <EventRescheduleInline item={item} />
+          </div>
+        )}
+
         {isTask && item.taskStatus && (
           <div className="border-t border-[var(--que-border)] p-2.5">
             <TaskStatusSheet
@@ -176,6 +211,109 @@ export function EventDetailPopover({
         )}
       </PopoverContent>
     </Popover>
+  );
+}
+
+/** 작업 재일정(팝오버 내장) — 재일정 폼과 동일한 full 기간 DateRangePicker + updateTaskScheduleAction. */
+function TaskRescheduleInline({ item }: { item: CalendarViewItem }) {
+  const { run, pending } = useSafeAction();
+  const initDate = toDateStr(item.startAt) || toDateStr(new Date().toISOString());
+  const [startDate, setStartDate] = useState(initDate);
+  const [endDate, setEndDate] = useState(toDateStr(item.endAt) || initDate);
+  const [startTime, setStartTime] = useState(toTimeStr(item.startAt) || "09:00");
+  const [endTime, setEndTime] = useState(toTimeStr(item.endAt) || "10:00");
+
+  const rangeError = toIso(endDate, endTime) <= toIso(startDate, startTime);
+  const save = () => {
+    if (rangeError) return;
+    run(
+      () =>
+        updateTaskScheduleAction({
+          taskId: item.id,
+          startAt: toIso(startDate, startTime),
+          endAt: toIso(endDate, endTime),
+        }),
+      { success: `"${item.title}" 일정을 변경했습니다.` },
+    );
+  };
+
+  return (
+    <div className="flex flex-col gap-2">
+      <DateRangePicker
+        value={{ startDate, startTime, endDate, endTime }}
+        onChange={(r) => {
+          setStartDate(r.startDate);
+          setStartTime(r.startTime);
+          setEndDate(r.endDate);
+          setEndTime(r.endTime);
+        }}
+        emptyLabel="기간 미정"
+        triggerAriaLabel={`${item.title} 일정 설정`}
+      />
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs text-destructive">
+          {rangeError ? "마감은 시작보다 늦어야 합니다." : ""}
+        </span>
+        <Button
+          className="h-10 rounded-lg"
+          disabled={pending || rangeError}
+          onClick={save}
+        >
+          {pending ? "저장 중…" : "저장"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/** Que 일정 시간 수정(팝오버 내장) — singleDay DateRangePicker + updateEventScheduleAction(core moveCalendarEvent). */
+function EventRescheduleInline({ item }: { item: CalendarViewItem }) {
+  const { run, pending } = useSafeAction();
+  const initDate = toDateStr(item.startAt) || toDateStr(new Date().toISOString());
+  const [date, setDate] = useState(initDate);
+  const [startTime, setStartTime] = useState(toTimeStr(item.startAt) || "09:00");
+  const [endTime, setEndTime] = useState(toTimeStr(item.endAt) || "10:00");
+
+  const timeError = toIso(date, endTime) <= toIso(date, startTime);
+  const save = () => {
+    if (timeError) return;
+    run(
+      () =>
+        updateEventScheduleAction({
+          eventId: item.id,
+          startAt: toIso(date, startTime),
+          endAt: toIso(date, endTime),
+        }),
+      { success: `"${item.title}" 일정을 변경했습니다.` },
+    );
+  };
+
+  return (
+    <div className="flex flex-col gap-2">
+      <DateRangePicker
+        singleDay
+        value={{ startDate: date, startTime, endDate: date, endTime }}
+        onChange={(r) => {
+          setDate(r.startDate);
+          setStartTime(r.startTime);
+          setEndTime(r.endTime);
+        }}
+        emptyLabel="날짜 미정"
+        triggerAriaLabel={`${item.title} 일정 설정`}
+      />
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs text-destructive">
+          {timeError ? "종료는 시작보다 늦어야 합니다." : ""}
+        </span>
+        <Button
+          className="h-10 rounded-lg"
+          disabled={pending || timeError}
+          onClick={save}
+        >
+          {pending ? "저장 중…" : "저장"}
+        </Button>
+      </div>
+    </div>
   );
 }
 
