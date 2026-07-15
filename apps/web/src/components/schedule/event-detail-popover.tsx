@@ -29,9 +29,12 @@ function toTimeStr(iso?: string): string {
   const d = new Date(iso);
   return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
-/** 로컬(KST) 날짜+시각 → ISO. 재일정 폼과 동일 규약. */
+/** 로컬(KST) 날짜+시각 → ISO. 재일정 폼과 동일 규약. 부분 상태(빈 날짜/시각)는 ""로 반환해
+ *  Invalid Date → toISOString 크래시를 막는다(달력 첫 클릭 시 마감 날짜가 잠깐 빈 상태가 된다). */
 function toIso(date: string, time: string): string {
-  return new Date(`${date}T${time}:00`).toISOString();
+  if (!date || !time) return "";
+  const d = new Date(`${date}T${time}:00`);
+  return Number.isNaN(d.getTime()) ? "" : d.toISOString();
 }
 
 /** "9:00 - 10:30 AM" / "11:10 AM - 1:00 PM" — AM/PM이 같으면 끝에 한 번만. */
@@ -261,9 +264,12 @@ function TaskRescheduleInline({ item }: { item: CalendarViewItem }) {
   const [startTime, setStartTime] = useState(toTimeStr(item.startAt) || "09:00");
   const [endTime, setEndTime] = useState(toTimeStr(item.endAt) || "10:00");
 
-  const rangeError = toIso(endDate, endTime) <= toIso(startDate, startTime);
+  // 양쪽(시작·마감 날짜+시각)이 다 채워졌을 때만 검증·저장한다(부분 상태 크래시·오검증 방지).
+  const complete = Boolean(startDate && startTime && endDate && endTime);
+  const rangeError =
+    complete && toIso(endDate, endTime) <= toIso(startDate, startTime);
   const save = () => {
-    if (rangeError) return;
+    if (!complete || rangeError) return;
     run(
       () =>
         updateTaskScheduleAction({
@@ -304,7 +310,7 @@ function TaskRescheduleInline({ item }: { item: CalendarViewItem }) {
         </span>
         <Button
           className="h-10 rounded-lg"
-          disabled={pending || rangeError}
+          disabled={pending || !complete || rangeError}
           onClick={save}
         >
           {pending ? "저장 중…" : "저장"}
@@ -323,9 +329,10 @@ function EventRescheduleInline({ item }: { item: CalendarViewItem }) {
   const [startTime, setStartTime] = useState(toTimeStr(item.startAt) || "09:00");
   const [endTime, setEndTime] = useState(toTimeStr(item.endAt) || "10:00");
 
-  const timeError = toIso(date, endTime) <= toIso(date, startTime);
+  const complete = Boolean(date && startTime && endTime);
+  const timeError = complete && toIso(date, endTime) <= toIso(date, startTime);
   const save = () => {
-    if (timeError) return;
+    if (!complete || timeError) return;
     run(
       () =>
         updateEventScheduleAction({
@@ -366,7 +373,7 @@ function EventRescheduleInline({ item }: { item: CalendarViewItem }) {
         </span>
         <Button
           className="h-10 rounded-lg"
-          disabled={pending || timeError}
+          disabled={pending || !complete || timeError}
           onClick={save}
         >
           {pending ? "저장 중…" : "저장"}

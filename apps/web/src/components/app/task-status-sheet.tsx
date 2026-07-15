@@ -609,9 +609,12 @@ export function TaskStatusSheet({
 
 const NO_PROJECT = "__no_project__";
 
-/** 로컬 날짜/시간 문자열 → KST 기준 ISO. create-schedule-dialog toIso와 동일 규약. */
+/** 로컬 날짜/시간 문자열 → KST 기준 ISO. 부분 상태(빈 날짜/시각)는 ""로 반환해 Invalid Date
+ *  크래시를 막는다(기간 달력 첫 클릭 시 마감 날짜가 잠깐 빈 상태가 된다). */
 function toIso(date: string, time: string): string {
-  return new Date(`${date}T${time}:00`).toISOString();
+  if (!date || !time) return "";
+  const d = new Date(`${date}T${time}:00`);
+  return Number.isNaN(d.getTime()) ? "" : d.toISOString();
 }
 
 function toDateStr(iso?: string): string {
@@ -656,14 +659,16 @@ function ScheduleEditForm({
   const [selectedProject, setSelectedProject] = useState(projectId ?? NO_PROJECT);
   const { run, pending } = useSafeAction();
 
+  // 양쪽 날짜+시각이 다 채워졌을 때만 판정한다(달력 첫 클릭 시 마감 날짜가 잠깐 비어 크래시/오검증 방지).
+  const complete = Boolean(startDate && startTime && endDate && endTime);
   // end>start 판정을 날짜+시각 전체로(같은 날이면 시각, 다른 날이면 날짜 기준으로 자연 확장).
   const rangeError =
-    toIso(endDate, endTime) <= toIso(startDate, startTime)
+    complete && toIso(endDate, endTime) <= toIso(startDate, startTime)
       ? "마감은 시작보다 늦어야 합니다."
       : null;
 
   const submit = () => {
-    if (rangeError || !startDate || !endDate) return;
+    if (rangeError || !complete) return;
     // 바뀐 항목만 전송한다. 프로젝트는 NO_PROJECT → null(해제), 그 외는 id.
     const patch: Parameters<typeof updateTaskScheduleAction>[0] = { taskId };
     const nextStart = toIso(startDate, startTime);
@@ -731,7 +736,7 @@ function ScheduleEditForm({
       <Button
         variant="secondary"
         className="mt-3 h-10 w-full"
-        disabled={pending || !startDate || !endDate || !!rangeError}
+        disabled={pending || !complete || !!rangeError}
         onClick={submit}
       >
         {pending ? "변경 중…" : "일정 · 프로젝트 저장"}

@@ -56,9 +56,12 @@ const VISIBILITY_ITEMS: Record<CalendarEvent["visibility"], string> = {
 
 type Mode = "task" | "event";
 
-/** date("yyyy-MM-dd") + time("HH:mm") → 로컬 타임존(KST) 기준 ISO. 일정(미팅) 모드 전용. */
+/** date("yyyy-MM-dd") + time("HH:mm") → 로컬 타임존(KST) 기준 ISO. 일정(미팅) 모드 전용.
+ *  부분 상태(빈 날짜/시각)는 ""로 반환해 Invalid Date 크래시를 막는다. */
 function toIso(date: string, time: string): string {
-  return new Date(`${date}T${time}:00`).toISOString();
+  if (!date || !time) return "";
+  const d = new Date(`${date}T${time}:00`);
+  return Number.isNaN(d.getTime()) ? "" : d.toISOString();
 }
 
 /** 오늘 날짜 "yyyy-MM-dd"(로컬). Dialog 최초 오픈 시 날짜 기본값. */
@@ -117,7 +120,7 @@ export function CreateScheduleDialog({
   const canSubmit =
     mode === "task"
       ? !taskErrors.title && !taskErrors.range && !pending
-      : title.trim().length > 0 && !!date && !eventTimeError && !pending;
+      : title.trim().length > 0 && !!date && !!startTime && !!endTime && !eventTimeError && !pending;
 
   const reset = () => {
     setMode("task");
