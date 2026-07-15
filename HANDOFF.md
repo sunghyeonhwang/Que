@@ -41,6 +41,9 @@ mock 인증: 쿠키 `que-user=<id>` / PAT `que_pat_<id>` (예: `hwang-sunghyeon`
 
 **프로덕션은 GRIFF Pro 팀(`griff-fde0dc32/que`) · <https://que.griff.co.kr> · 실 DB(`QUE_DB=supabase`)+실 인증(Auth.js) 라이브.** 비밀값은 `data/.env`(gitignore). Vercel env로 기능 게이트(아래 참고).
 
+#### 📅 일정 팝오버 일시 수정 내장 (2026-07-15 사용자 — "시트 경유가 무겁다")
+/schedule event-detail-popover에 일시 수정 직접 내장: 작업=full 기간 DateRangePicker(+updateTaskScheduleAction 재사용), Que 이벤트=singleDay(+신규 `updateEventScheduleAction` — core moveCalendarEvent 얇은 래퍼), 외부 회사 일정·비공개=movable 판정 재사용으로 미노출. 시트(상세·상태 변경)는 유지. **라이브 디버그 2라운드 교훈**: ⑴중첩 Popover(부모 base-ui 안 자식 팝오버)는 자식 포털 클릭이 부모 outside-press로 판정돼 닫힘 → **DateRangePicker에 `inline` prop 신설**(팝오버 래핑 스킵, 본문만 렌더 — 부모 팝오버 안 아코디언 확장으로 중첩 제거) ⑵그 뒤에도 닫힘 재현 — 실원인은 **부분 선택 상태 크래시**: 달력 1클릭 시 endDate=""인데 rangeError가 매 렌더 `toIso("",…)`→`new Date("T10:00").toISOString()` RangeError→에러 바운더리 언마운트. 수정: 3개 파일(팝오버·task-status-sheet 재일정·create-schedule-dialog)의 `toIso` 크래시-프루프(빈 값·Invalid Date→"")+`complete` 게이트(검증·저장은 4값 완성 시만). 라이브 실측: 1클릭 생존·2클릭 기간 라벨 정상. **교훈: 팝오버가 "닫힌다"는 증상은 outside-press가 아니라 에러 바운더리 언마운트일 수 있다 — 콘솔부터 볼 것.**
+
 #### 📁 프로젝트 순서 조정 (2026-07-15 사용자 요청 — 클라이언트 순서처럼)
 Project에 `sortOrder` 신설(core zod default 0·createProject는 그룹 맨뒤 max+1) + `reorderProjects({clientId?, orderedIds})`(그룹 내 재정렬 — 그룹 밖/미존재/중복 전량 선검증·canManageProject 전건·ChangeLog 1건, 테스트 4 — 총 305) + `reorderProjectsAction` + client-groups에 프로젝트 위/아래 버튼(클라이언트 재정렬과 동일 낙관 규약, 1개 그룹 미노출). 정렬 소비처 2곳: clients/page.tsx 그룹핑·projects-data getActiveProjects(**sortOrder→이름**, `?? 0` 방어). **DB 마이그레이션 `add-project-sort-order.sql` 프로덕션 적용 완료(2026-07-15)** — ADD COLUMN IF NOT EXISTS+그룹별 created_at 백필+**재실행 가드**(sort_order<>0 존재 시 백필 스킵 — 글래도스 권고). ⚠️ 이 컬럼 없인 프로젝트 persist가 깨짐(write-through가 상시 전송) — 마이그레이션 선행 필수였음(이행됨). 알려진 엣지: 미필터 /projects 좌측 목록은 그룹 간 sortOrder 인터리브 가능(활성 필터 스코프 사용이 전제라 실사용 영향 소).
 
