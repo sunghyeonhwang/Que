@@ -6,6 +6,7 @@ import { getDb } from "@/lib/db";
 import { getCurrentUser } from "@/lib/current-user";
 import { draftMeetingMinutes } from "@/lib/meeting-minutes";
 import { verifyTranscript, type TranscriptVerification } from "@/lib/minutes-verify";
+import { fetchPlaudShare } from "@/lib/plaud-import";
 import type { ActionResult } from "@/app/(app)/today/actions";
 
 type Db = Awaited<ReturnType<typeof getDb>>;
@@ -84,6 +85,59 @@ export async function uploadMeetingNoteAction(input: {
       verification = await verifyTranscript(db, input.markdownBody, meetingAt);
     } catch (error) {
       console.error("[que-minutes] 업로드 후 전사 대조 실패(무시)", error);
+    }
+  }
+  return { ok: true, verification };
+}
+
+/**
+ * Plaud 공유 링크로 회의록 가져오기 — md 파일 업로드와 병행(링크만으로 업로드). 제목·회의 시각·본문은
+ * Plaud 값을 쓰고, 프로젝트·참석자·공개범위·종류는 폼 값을 받는다. 자동 추출은 하지 않는다(사람이 추출 버튼).
+ * SSRF 방어(shareId만 추출·plaud.ai 화이트리스트·리다이렉트 금지·타임아웃·크기 상한)는 fetchPlaudShare가 강제.
+ */
+export async function importPlaudShareAction(input: {
+  url: string;
+  projectIds?: string[];
+  attendeeIds?: string[];
+  visibility?: MeetingNote["visibility"];
+  restrictedUserIds?: string[];
+  kind?: MeetingNote["kind"];
+}): Promise<UploadNoteResult> {
+  // 인증 우선 — 미인증 POST가 우리 서버의 외부(plaud.ai) fetch를 트리거하지 못하게(글래도스 게이트).
+  const user = await getCurrentUser();
+  const fetched = await fetchPlaudShare(input.url);
+  if (!fetched.ok) return { ok: false, error: fetched.error };
+  const { title, markdownBody, fileName } = fetched.note;
+  // 회의 시각: Plaud start_time(ISO). 없으면 지금 시각으로 폴백.
+  const meetingAtIso = fetched.note.meetingAt ?? new Date().toISOString();
+
+  const saved = await toResult((db) =>
+    db.createMeetingNote(
+      { actorId: user.id, via: "web" },
+      {
+        title,
+        projectIds: input.projectIds?.length ? input.projectIds : undefined,
+        meetingAt: meetingAtIso,
+        attendeeIds: input.attendeeIds ?? [],
+        fileName,
+        markdownBody,
+        visibility: input.visibility,
+        restrictedUserIds:
+          input.visibility === "restricted" ? input.restrictedUserIds : undefined,
+        kind: input.kind,
+      },
+    ),
+  );
+  if (!saved.ok) return saved;
+
+  // 업로드 경로와 동일한 검증 게이트(weekly·milestone만 전사 대조 — 자동 병합 없음, 플래그만).
+  let verification: TranscriptVerification | undefined;
+  if (input.kind === "weekly" || input.kind === "milestone") {
+    try {
+      const db = await getDb();
+      verification = await verifyTranscript(db, markdownBody, new Date(meetingAtIso));
+    } catch (error) {
+      console.error("[que-minutes] Plaud 가져오기 후 전사 대조 실패(무시)", error);
     }
   }
   return { ok: true, verification };

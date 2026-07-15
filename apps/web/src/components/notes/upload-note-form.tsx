@@ -4,7 +4,10 @@ import { useRef, useState } from "react";
 import { CheckCircle2, Paperclip, TriangleAlert, X } from "lucide-react";
 import { toast } from "sonner";
 import { extractMeetingDateTime } from "@que/core";
-import { uploadMeetingNoteAction } from "@/app/(app)/meeting-notes/actions";
+import {
+  importPlaudShareAction,
+  uploadMeetingNoteAction,
+} from "@/app/(app)/meeting-notes/actions";
 import { useRoster } from "@/components/app/roster-provider";
 import { useSafeAction } from "@/components/app/use-safe-action";
 import { reportError } from "@/lib/report-error";
@@ -57,6 +60,8 @@ export function UploadNoteForm({ projects }: { projects: UploadNoteProjectOption
   const [attendeeIds, setAttendeeIds] = useState<string[]>([]);
   const [fileName, setFileName] = useState("");
   const [markdownBody, setMarkdownBody] = useState("");
+  // Plaud 공유 링크 — 입력되면 파일 대신 링크로 가져온다(제목·회의 시각은 Plaud 값).
+  const [plaudUrl, setPlaudUrl] = useState("");
   const [visibility, setVisibility] = useState<"team" | "project" | "admin" | "restricted">(
     "team",
   );
@@ -76,34 +81,67 @@ export function UploadNoteForm({ projects }: { projects: UploadNoteProjectOption
     if (draft) setMeetingDateTime(draft.dateTime);
   };
 
+  // 링크가 입력되면 링크 경로(파일·회의명 요구를 대체 — 제목/시각은 Plaud 값). 링크가 파일보다 우선한다.
+  const usingLink = plaudUrl.trim().length > 0;
   const missing: string[] = [];
-  if (!fileName || !markdownBody) missing.push("파일");
-  if (!title.trim()) missing.push("회의명");
+  if (usingLink) {
+    if (!/\/s\/pub_[A-Za-z0-9-]+::/.test(plaudUrl)) missing.push("올바른 Plaud 공유 링크");
+  } else {
+    if (!fileName || !markdownBody) missing.push("파일 또는 Plaud 링크");
+    if (!title.trim()) missing.push("회의명");
+  }
   if (visibility === "restricted" && restrictedUserIds.length === 0) missing.push("열람 인원");
 
   const canSubmit = missing.length === 0 && !pending;
 
+  const resetForm = () => {
+    setTitle("");
+    setProjectIds([]);
+    setFileName("");
+    setMarkdownBody("");
+    setPlaudUrl("");
+    setAttendeeIds([]);
+    setVisibility("team");
+    setRestrictedUserIds([]);
+    setKind("general");
+    if (fileRef.current) fileRef.current.value = "";
+  };
+
   const submit = () => {
-    const noteTitle = title;
+    const noteTitle = usingLink ? "Plaud" : title;
     const noteKind = kind;
+    const viaLink = usingLink;
     startTransition(async () => {
       try {
-        const result = await uploadMeetingNoteAction({
-          title,
-          projectIds: projectIds.length ? projectIds : undefined,
-          meetingDateTime,
-          attendeeIds,
-          fileName,
-          markdownBody,
-          visibility,
-          restrictedUserIds: visibility === "restricted" ? restrictedUserIds : undefined,
-          kind,
-        });
+        const result = viaLink
+          ? await importPlaudShareAction({
+              url: plaudUrl.trim(),
+              projectIds: projectIds.length ? projectIds : undefined,
+              attendeeIds,
+              visibility,
+              restrictedUserIds: visibility === "restricted" ? restrictedUserIds : undefined,
+              kind,
+            })
+          : await uploadMeetingNoteAction({
+              title,
+              projectIds: projectIds.length ? projectIds : undefined,
+              meetingDateTime,
+              attendeeIds,
+              fileName,
+              markdownBody,
+              visibility,
+              restrictedUserIds: visibility === "restricted" ? restrictedUserIds : undefined,
+              kind,
+            });
         if (!result.ok) {
           toast.error(result.error);
           return;
         }
-        toast.success(`"${noteTitle}" 회의록이 업로드됐습니다. Action 추출 대기 상태입니다.`);
+        toast.success(
+          viaLink
+            ? "Plaud 회의록을 가져왔습니다. Action 추출 대기 상태입니다."
+            : `"${noteTitle}" 회의록이 업로드됐습니다. Action 추출 대기 상태입니다.`,
+        );
         // weekly·milestone은 전사 대조 결과를 패널로 남긴다(일반 회의록은 검증 없음).
         if (noteKind === "weekly" || noteKind === "milestone") {
           setVerified(true);
@@ -112,15 +150,7 @@ export function UploadNoteForm({ projects }: { projects: UploadNoteProjectOption
           setVerified(false);
           setVerification(null);
         }
-        setTitle("");
-        setProjectIds([]);
-        setFileName("");
-        setMarkdownBody("");
-        setAttendeeIds([]);
-        setVisibility("team");
-        setRestrictedUserIds([]);
-        setKind("general");
-        if (fileRef.current) fileRef.current.value = "";
+        resetForm();
       } catch (error) {
         reportError(error, { source: "server-action" });
         toast.error("회의록 업로드 중 오류가 발생했습니다.");
@@ -174,6 +204,21 @@ export function UploadNoteForm({ projects }: { projects: UploadNoteProjectOption
               .md / .markdown / .txt 파일을 선택하세요. 회의명은 파일명으로 자동 채워집니다.
             </p>
           )}
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="note-plaud-url">또는 Plaud 공유 링크</FieldLabel>
+          <Input
+            id="note-plaud-url"
+            type="url"
+            inputMode="url"
+            placeholder="https://web.plaud.ai/s/pub_..."
+            value={plaudUrl}
+            onChange={(e) => setPlaudUrl(e.target.value)}
+          />
+          <p className="text-xs text-muted-foreground">
+            Plaud 공유 링크를 붙여넣으면 요약을 가져옵니다. 제목·회의 일시는 Plaud 값으로 자동 설정됩니다.
+            {usingLink && fileName ? " 링크가 입력되어 선택한 파일은 무시됩니다." : ""}
+          </p>
         </Field>
         <div className="grid grid-cols-2 gap-3">
           <Field>
@@ -397,7 +442,13 @@ export function UploadNoteForm({ projects }: { projects: UploadNoteProjectOption
             disabled={!canSubmit}
             onClick={submit}
           >
-            {pending ? "업로드 중…" : "회의록 업로드"}
+            {pending
+              ? usingLink
+                ? "가져오는 중…"
+                : "업로드 중…"
+              : usingLink
+                ? "Plaud 링크로 가져오기"
+                : "회의록 업로드"}
           </Button>
           {!pending && missing.length > 0 && (
             <p className="text-center text-xs text-muted-foreground">
