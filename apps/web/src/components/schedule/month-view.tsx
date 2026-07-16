@@ -3,6 +3,7 @@ import type { CalendarMilestone, CalendarViewItem } from "@/lib/calendar-data";
 import { cn } from "@/lib/utils";
 import { MilestoneChip } from "./milestone-chip";
 import { MonthChip } from "./month-chip";
+import { MonthMoreLink } from "./month-more-link";
 
 const WEEKDAYS = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
 
@@ -73,9 +74,7 @@ export function MonthView({
                       <MonthChip key={`${it.kind}-${it.id}`} item={it} />
                     ))}
                     {hiddenItems > 0 && (
-                      <span className="px-1 text-[10px] text-[var(--que-text-tertiary)]">
-                        +{hiddenItems}개 더
-                      </span>
+                      <MonthMoreLink dateKey={format(day, "yyyy-MM-dd")} count={hiddenItems} />
                     )}
                   </div>
                 </div>

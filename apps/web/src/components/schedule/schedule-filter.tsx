@@ -48,16 +48,26 @@ function parseCsv(value: string | null, valid: (v: string) => boolean): string[]
     .filter((v) => v.length > 0 && valid(v));
 }
 
+/** 담당자·표시 필터 기억 쿠키(JSON {owner?, hide?}, 1년). 우선순위·키워드는 일회성 탐색이라 기억 안 함. */
+const FILTERS_COOKIE = "que_schedule_filters";
+const FILTERS_COOKIE_MAX_AGE = 60 * 60 * 24 * 365; // 1년
+
 /**
  * ?priority · ?q · ?owner · ?hide 로 서버 필터를 세팅/해제하는 팝오버.
  * range/date는 pushParams로 보존한다. 담당자·표시 종류는 신규(2026-07-15).
+ * 담당자·표시의 현재 적용값(뱃지·폼 초기값)은 URL이 아니라 prop(appliedOwner·appliedHide)에서 읽는다
+ * — 쿠키 폴백까지 반영된 최종값이라야 폴백 시에도 뱃지가 켜진다. 우선순위·키워드는 URL 그대로.
  */
 export function ScheduleFilter({
   members,
   currentUserId,
+  appliedOwner,
+  appliedHide,
 }: {
   members: ScheduleMember[];
   currentUserId: string;
+  appliedOwner?: string;
+  appliedHide?: string;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -67,8 +77,9 @@ export function ScheduleFilter({
 
   const urlPriority = searchParams.get("priority") ?? "";
   const urlKeyword = searchParams.get("q") ?? "";
-  const urlOwners = parseCsv(searchParams.get("owner"), (v) => memberIds.has(v));
-  const urlHide = parseCsv(searchParams.get("hide"), (v) => kindKeys.has(v)) as ScheduleKind[];
+  // 담당자·표시는 prop(최종 적용값) 기준 — 쿠키 폴백 시에도 뱃지·폼이 켜지게.
+  const urlOwners = parseCsv(appliedOwner ?? null, (v) => memberIds.has(v));
+  const urlHide = parseCsv(appliedHide ?? null, (v) => kindKeys.has(v)) as ScheduleKind[];
   const activeCount =
     (urlPriority ? 1 : 0) +
     (urlKeyword.trim() ? 1 : 0) +
@@ -99,6 +110,20 @@ export function ScheduleFilter({
     router.push(`/schedule?${params.toString()}`);
   };
 
+  // 담당자·표시만 쿠키에 기억한다. 둘 다 비면 쿠키를 지운다(max-age=0).
+  const writeFiltersCookie = (owner: string, hide: string) => {
+    if (!owner && !hide) {
+      document.cookie = `${FILTERS_COOKIE}=; path=/; max-age=0; samesite=lax`;
+      return;
+    }
+    const payload: { owner?: string; hide?: string } = {};
+    if (owner) payload.owner = owner;
+    if (hide) payload.hide = hide;
+    document.cookie = `${FILTERS_COOKIE}=${encodeURIComponent(
+      JSON.stringify(payload),
+    )}; path=/; max-age=${FILTERS_COOKIE_MAX_AGE}; samesite=lax`;
+  };
+
   // 표시 종류 토글 — 체크 해제 시 hidden에 추가(숨김), 체크 시 제거(표시).
   const toggleKind = (kind: ScheduleKind, show: boolean) => {
     setHidden((prev) => {
@@ -120,21 +145,23 @@ export function ScheduleFilter({
   };
 
   const apply = () => {
+    // 담당자: 선택된 id만 콤마로. 없으면 전체.
+    const ownerCsv = [...owners].filter((id) => memberIds.has(id)).join(",");
+    // 표시: 숨긴 종류만 콤마로. 없으면 전부 표시.
+    const hideCsv = KIND_ORDER.filter((k) => hidden.has(k)).join(",");
     pushParams((p) => {
       if (priority && priority !== ANY) p.set("priority", priority);
       else p.delete("priority");
       const kw = keyword.trim();
       if (kw) p.set("q", kw);
       else p.delete("q");
-      // 담당자: 선택된 id만 콤마로. 없으면 전체 → 파라미터 제거.
-      const ownerList = [...owners].filter((id) => memberIds.has(id));
-      if (ownerList.length > 0) p.set("owner", ownerList.join(","));
+      if (ownerCsv) p.set("owner", ownerCsv);
       else p.delete("owner");
-      // 표시: 숨긴 종류만 콤마로. 없으면 전부 표시 → 파라미터 제거.
-      const hideList = KIND_ORDER.filter((k) => hidden.has(k));
-      if (hideList.length > 0) p.set("hide", hideList.join(","));
+      if (hideCsv) p.set("hide", hideCsv);
       else p.delete("hide");
     });
+    // 담당자·표시만 기억(우선순위·키워드 제외).
+    writeFiltersCookie(ownerCsv, hideCsv);
     setOpen(false);
   };
 
@@ -149,6 +176,8 @@ export function ScheduleFilter({
       p.delete("owner");
       p.delete("hide");
     });
+    // 기억된 담당자·표시 필터도 함께 삭제.
+    writeFiltersCookie("", "");
     setOpen(false);
   };
 
