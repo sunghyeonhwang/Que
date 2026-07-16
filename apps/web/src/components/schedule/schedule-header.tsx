@@ -19,12 +19,13 @@ import {
   type ScheduleProject,
 } from "./create-schedule-dialog";
 
-export type ScheduleRange = "day" | "3day" | "week" | "month";
+export type ScheduleRange = "day" | "3day" | "week" | "2week" | "month";
 
 const RANGE_LABELS: Record<ScheduleRange, string> = {
   day: "일간",
   "3day": "3일",
   week: "주간",
+  "2week": "2주",
   month: "월간",
 };
 
@@ -80,7 +81,7 @@ export function ScheduleHeader({
           ? addDays(base, 3 * dir)
           : range === "month"
             ? addMonths(base, dir)
-            : addWeeks(base, dir);
+            : addWeeks(base, range === "2week" ? 2 * dir : dir);
     pushParams((p) => p.set("date", format(next, "yyyy-MM-dd")));
   };
 
@@ -93,7 +94,7 @@ export function ScheduleHeader({
     document.cookie = `${RANGE_COOKIE}=${range}; path=/; max-age=${RANGE_COOKIE_MAX_AGE}; samesite=lax`;
   }, [range]);
 
-  // 키보드 내비게이션: ← 이전 · → 다음 · T 오늘 · D 일간 · 3 3일 · W 주간 · M 월간.
+  // 키보드 내비게이션: ← 이전 · → 다음 · T 오늘 · D 일간 · 3 3일 · W 주간 · 2 2주 · M 월간.
   // 수정키 동반·입력 중이면 무시(전역 ⌘K·?·/ 단축키와 충돌 방지).
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -114,7 +115,7 @@ export function ScheduleHeader({
               ? addDays(base, 3 * dir)
               : range === "month"
                 ? addMonths(base, dir)
-                : addWeeks(base, dir);
+                : addWeeks(base, range === "2week" ? 2 * dir : dir);
         setParam((p) => p.set("date", format(next, "yyyy-MM-dd")));
       };
 
@@ -141,6 +142,10 @@ export function ScheduleHeader({
           e.preventDefault();
           setParam((p) => p.set("range", "3day"));
           break;
+        case "2":
+          e.preventDefault();
+          setParam((p) => p.set("range", "2week"));
+          break;
         case "w":
         case "W":
           e.preventDefault();
@@ -158,7 +163,15 @@ export function ScheduleHeader({
   }, [range, anchorIso, router, searchParams]);
 
   const stepLabel =
-    range === "day" ? "일" : range === "3day" ? "3일" : range === "month" ? "월" : "주";
+    range === "day"
+      ? "일"
+      : range === "3day"
+        ? "3일"
+        : range === "2week"
+          ? "2주"
+          : range === "month"
+            ? "월"
+            : "주";
 
   return (
     <div className="flex flex-wrap items-center gap-2">

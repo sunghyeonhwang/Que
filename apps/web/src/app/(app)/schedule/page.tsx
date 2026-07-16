@@ -19,7 +19,9 @@ export const dynamic = "force-dynamic";
 
 /** range 파라미터 화이트리스트 — 쓰레기 입력은 주간으로 폴백. */
 function parseRange(value: string | undefined): ScheduleRange {
-  return value === "day" || value === "3day" || value === "month" ? value : "week";
+  return value === "day" || value === "3day" || value === "2week" || value === "month"
+    ? value
+    : "week";
 }
 
 /** priority 파라미터 화이트리스트 — 유효 우선순위만 필터로 인정, 그 외는 무시. */
@@ -83,6 +85,8 @@ export default async function SchedulePage({
   // 뷰별 표시 기간 계산
   const weekStart = startOfWeek(anchor, { weekStartsOn: 1 });
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
+  // 2주: anchor가 속한 주(월요일 시작)부터 14일 — 주간과 같은 시간축 캘린더에 열만 2배.
+  const twoWeekDays = Array.from({ length: 14 }, (_, i) => addDays(weekStart, i));
   const threeDays = Array.from({ length: 3 }, (_, i) => addDays(anchor, i));
   const monthGridStart = startOfWeek(startOfMonth(anchor), { weekStartsOn: 1 });
   const monthWeeks = Array.from({ length: 6 }, (_, w) =>
@@ -96,7 +100,9 @@ export default async function SchedulePage({
         ? [anchor, anchor]
         : range === "3day"
           ? [threeDays[0], threeDays[2]]
-          : [weekDays[0], weekDays[6]];
+          : range === "2week"
+            ? [twoWeekDays[0], twoWeekDays[13]]
+            : [weekDays[0], weekDays[6]];
 
   const rangeEndOfDay = new Date(rangeEnd);
   rangeEndOfDay.setHours(23, 59, 59, 999);
@@ -156,6 +162,8 @@ export default async function SchedulePage({
         <WeekCalendar days={[anchor]} items={items} milestones={milestones} />
       ) : range === "3day" ? (
         <WeekCalendar days={threeDays} items={items} milestones={milestones} />
+      ) : range === "2week" ? (
+        <WeekCalendar days={twoWeekDays} items={items} milestones={milestones} />
       ) : (
         <WeekCalendar days={weekDays} items={items} milestones={milestones} />
       )}
