@@ -143,7 +143,7 @@ export default async function ActionPage({
         <div className="flex max-h-[calc(100dvh-18rem)] flex-col gap-2 overflow-y-auto pr-0.5">
           {rows.length === 0 && (
             <p className="rounded-xl border border-dashed border-[var(--que-border)] bg-[var(--que-bg-muted)] py-10 text-center text-sm text-[var(--que-text-tertiary)]">
-              후보가 없습니다. 회의록 화면에서 Action을 추출해주세요.
+              후보가 없습니다. 회의록을 업로드하면 Action이 자동으로 추출됩니다.
             </p>
           )}
           {rows.map((row) => (

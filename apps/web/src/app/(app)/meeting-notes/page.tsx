@@ -6,6 +6,7 @@ import { NoteSummaryCards } from "@/components/notes/note-summary-cards";
 import { UploadNoteForm } from "@/components/notes/upload-note-form";
 import { getCurrentUser } from "@/lib/current-user";
 import { getNoteSummary } from "@/lib/notes-summary";
+import { getNoteSummaries } from "@/lib/meeting-summary";
 import { getDb } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
@@ -42,9 +43,12 @@ export default async function MeetingNotesPage({
     name: formatProjectLabel(p, p.clientId ? clientById.get(p.clientId) : undefined),
   }));
 
-  const notes: NoteListItem[] = [...db.meetingNotes]
-    // 공개 범위: admin 전용/지정 인원 전용 회의록은 관리자·업로더(+지정 인원)만
-    .filter((note) => canViewMeetingNote(user, note))
+  // 공개 범위: admin 전용/지정 인원 전용 회의록은 관리자·업로더(+지정 인원)만.
+  const visibleNotes = [...db.meetingNotes].filter((note) => canViewMeetingNote(user, note));
+  // 요약은 원문 파생물 — 열람 가능한 회의록의 요약만 일괄 조회해 내려보낸다(권한 필터 동일 등급).
+  const summaryByNote = await getNoteSummaries(visibleNotes.map((n) => n.id));
+
+  const notes: NoteListItem[] = visibleNotes
     .sort((a, b) => b.meetingAt.localeCompare(a.meetingAt))
     .map((note) => ({
       id: note.id,
@@ -60,13 +64,20 @@ export default async function MeetingNotesPage({
       restrictedCount: note.restrictedUserIds?.length,
       // 제목 편집 권한(업로더·관리자) — 서버 판정을 내려 연필 노출을 게이트(core가 재강제).
       canEdit: note.uploaderId === user.id || user.role === "admin",
+      // AI 요약(있으면) — 열람 가능한 회의록만. UI 렌더는 frontend 단계 몫(props 계약만 개방).
+      aiSummary: summaryByNote.get(note.id)
+        ? {
+            content: summaryByNote.get(note.id)!.content,
+            generatedAt: summaryByNote.get(note.id)!.generatedAt,
+          }
+        : undefined,
     }));
 
   return (
     <div>
       <PageHeader
         title="회의록"
-        subtitle="Plaud 회의록을 업로드하고 Action 추출 대상으로 관리합니다 — 원문은 항상 보존됩니다"
+        subtitle="회의록을 업로드하면 Action 추출과 AI 요약이 자동 실행됩니다 — 원문은 항상 보존됩니다"
       />
 
       <NoteSummaryCards summary={summary} />

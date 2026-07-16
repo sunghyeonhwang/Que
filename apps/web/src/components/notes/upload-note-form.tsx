@@ -41,6 +41,29 @@ interface VerificationView {
   mismatch: string[];
 }
 
+/**
+ * 업로드/가져오기 성공 토스트 문구 — 자동 후처리(Action 추출·AI 요약) 결과를 반영해 조합한다.
+ * extractedCount가 undefined면 추출을 건너뛴 것이므로 추출 언급을 생략한다(요약 결과만 안내).
+ */
+function uploadSuccessMessage(opts: {
+  head: string;
+  extractedCount?: number;
+  summaryGenerated: boolean;
+}): string {
+  const { head, extractedCount, summaryGenerated } = opts;
+  const hasExtract = extractedCount !== undefined;
+  if (hasExtract && summaryGenerated) {
+    return `${head} Action ${extractedCount}건 추출·AI 요약 생성 완료.`;
+  }
+  if (hasExtract && !summaryGenerated) {
+    return `${head} Action ${extractedCount}건 추출 완료(AI 요약은 실패 — 목록에서 재생성할 수 있습니다).`;
+  }
+  if (!hasExtract && summaryGenerated) {
+    return `${head} AI 요약 생성 완료.`;
+  }
+  return `${head} AI 요약은 실패했습니다 — 목록에서 재생성할 수 있습니다.`;
+}
+
 export function UploadNoteForm({ projects }: { projects: UploadNoteProjectOption[] }) {
   const roster = useRoster();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -138,9 +161,13 @@ export function UploadNoteForm({ projects }: { projects: UploadNoteProjectOption
           return;
         }
         toast.success(
-          viaLink
-            ? "Plaud 회의록을 가져왔습니다. Action 추출 대기 상태입니다."
-            : `"${noteTitle}" 회의록이 업로드됐습니다. Action 추출 대기 상태입니다.`,
+          uploadSuccessMessage({
+            head: viaLink
+              ? "Plaud 회의록을 가져왔습니다."
+              : `"${noteTitle}" 회의록이 업로드됐습니다.`,
+            extractedCount: result.extractedCount,
+            summaryGenerated: result.summaryGenerated,
+          }),
         );
         // weekly·milestone은 전사 대조 결과를 패널로 남긴다(일반 회의록은 검증 없음).
         if (noteKind === "weekly" || noteKind === "milestone") {

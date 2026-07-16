@@ -1,14 +1,17 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { format } from "date-fns";
-import { FileText, Pencil } from "lucide-react";
+import { FileText, Loader2, Pencil, RefreshCw, Sparkles } from "lucide-react";
+import { toast } from "sonner";
 import {
   extractActionsAction,
+  regenerateNoteSummaryAction,
   updateMeetingNoteTitleAction,
 } from "@/app/(app)/meeting-notes/actions";
 import { useSafeAction } from "@/components/app/use-safe-action";
+import { reportError } from "@/lib/report-error";
 import { ToneBadge } from "@/components/app/tone-badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,6 +41,8 @@ export interface NoteListItem {
   restrictedCount?: number;
   /** 제목 편집 가능(업로더·관리자 — 서버 조립). 연필 노출 게이트: UI 숨김+서버 강제 3중 관례. */
   canEdit?: boolean;
+  /** AI 요약(업로드 시 자동 생성) — 열람 가능한 회의록만 서버가 조립해 내린다. 렌더는 UI 몫. */
+  aiSummary?: { content: string; generatedAt: string };
 }
 
 /** 업로드된 회의록 목록. 원문 미리보기(Sheet)와 Action 추출 버튼을 제공한다.
@@ -189,7 +194,7 @@ function NoteRow({ note, highlighted }: { note: NoteListItem; highlighted: boole
         >
           원문
         </SheetTrigger>
-        <SheetContent side="right" className="w-full max-w-lg p-5">
+        <SheetContent side="right" className="flex w-full max-w-lg flex-col p-5">
           <SheetHeader className="p-0 pb-3 text-left">
             {editingTitle ? (
               <>
@@ -232,11 +237,19 @@ function NoteRow({ note, highlighted }: { note: NoteListItem; highlighted: boole
             )}
             <SheetDescription>{note.fileName} — 원문은 항상 보존됩니다</SheetDescription>
           </SheetHeader>
-          <ScrollArea className="h-[calc(100dvh-8rem)] rounded-lg border border-[var(--que-border)] p-3">
-            <div className="whitespace-pre-wrap text-xs leading-relaxed text-[var(--que-text-secondary)]">
-              {stripMarkdown(note.markdownBody)}
-            </div>
-          </ScrollArea>
+          <NoteSummaryPanel
+            noteId={note.id}
+            canEdit={!!note.canEdit}
+            initial={note.aiSummary}
+          />
+          <div className="flex min-h-0 flex-1 flex-col gap-1.5">
+            <p className="text-xs font-medium text-[var(--que-text-tertiary)]">원문</p>
+            <ScrollArea className="min-h-0 flex-1 rounded-lg border border-[var(--que-border)] p-3">
+              <div className="whitespace-pre-wrap text-xs leading-relaxed text-[var(--que-text-secondary)]">
+                {stripMarkdown(note.markdownBody)}
+              </div>
+            </ScrollArea>
+          </div>
         </SheetContent>
       </Sheet>
 
@@ -259,4 +272,148 @@ function NoteRow({ note, highlighted }: { note: NoteListItem; highlighted: boole
       )}
     </div>
   );
+}
+
+/**
+ * 원문 시트 안의 AI 요약 섹션. 업로드 시 자동 생성된 요약을 보여주고, 없으면 생성을,
+ * 있으면 재생성을 제공한다(둘 다 업로더·관리자만 — canEdit 게이트, 서버가 최종 강제).
+ * 재생성 성공 시 서버가 돌려준 새 요약으로 로컬 state를 즉시 갱신한다(refresh 대기 없이 반영).
+ */
+function NoteSummaryPanel({
+  noteId,
+  canEdit,
+  initial,
+}: {
+  noteId: string;
+  canEdit: boolean;
+  initial?: { content: string; generatedAt: string };
+}) {
+  const [summary, setSummary] = useState(initial);
+  const { pending, startTransition } = useSafeAction();
+
+  const regenerate = () => {
+    const isRegen = !!summary;
+    startTransition(async () => {
+      try {
+        const res = await regenerateNoteSummaryAction(noteId);
+        if (!res.ok) {
+          toast.error(res.error);
+          return;
+        }
+        setSummary({ content: res.summary.content, generatedAt: res.summary.generatedAt });
+        toast.success(isRegen ? "AI 요약을 다시 생성했습니다." : "AI 요약을 생성했습니다.");
+      } catch (error) {
+        reportError(error, { source: "server-action" });
+        toast.error("AI 요약 생성 중 오류가 발생했습니다.");
+      }
+    });
+  };
+
+  return (
+    <section
+      aria-label="AI 요약"
+      className="rounded-lg border border-[var(--que-border)] bg-[var(--que-bg-muted)] p-3"
+    >
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-1.5">
+          <Sparkles className="size-4 shrink-0 text-[var(--que-brand)]" aria-hidden />
+          <h3 className="text-sm font-semibold text-[var(--que-text)]">AI 요약</h3>
+          {summary && (
+            <span className="truncate text-xs text-[var(--que-text-tertiary)]">
+              · {format(new Date(summary.generatedAt), "M/d HH:mm")} 생성
+            </span>
+          )}
+        </div>
+        {canEdit && summary && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-8 shrink-0 gap-1.5 rounded-md px-2 text-xs text-[var(--que-text-secondary)]"
+            disabled={pending}
+            onClick={regenerate}
+          >
+            {pending ? (
+              <Loader2 className="size-3.5 animate-spin" aria-hidden />
+            ) : (
+              <RefreshCw className="size-3.5" aria-hidden />
+            )}
+            재생성
+          </Button>
+        )}
+      </div>
+      {summary ? (
+        <NoteSummaryBody content={summary.content} />
+      ) : (
+        <div className="mt-2 flex flex-col items-start gap-2">
+          <p className="text-sm text-[var(--que-text-tertiary)]">AI 요약이 없습니다.</p>
+          {canEdit && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-9 gap-1.5 rounded-lg"
+              disabled={pending}
+              onClick={regenerate}
+            >
+              {pending ? (
+                <Loader2 className="size-4 animate-spin" aria-hidden />
+              ) : (
+                <Sparkles className="size-4" aria-hidden />
+              )}
+              {pending ? "생성 중…" : "AI 요약 생성"}
+            </Button>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
+
+/** 요약 본문(md 불릿 텍스트)을 React 요소로 렌더한다 — 불릿 줄은 목록, 그 외는 문단.
+ *  텍스트를 React children으로만 넣으므로(자동 이스케이프) dangerouslySetInnerHTML 없이 XSS 안전하다.
+ *  강조·코드 마커(**, `)는 표시용으로만 벗긴다(요약 프롬프트는 애초에 이들을 쓰지 않는다). */
+function NoteSummaryBody({ content }: { content: string }) {
+  const cleanInline = (s: string) =>
+    s.replace(/\*\*(.+?)\*\*/g, "$1").replace(/`([^`]+)`/g, "$1");
+  const blocks: ReactNode[] = [];
+  let bullets: string[] = [];
+  const flush = () => {
+    if (bullets.length === 0) return;
+    const items = bullets;
+    blocks.push(
+      <ul
+        key={`ul-${blocks.length}`}
+        className="flex list-disc flex-col gap-1 pl-4 text-sm leading-relaxed text-[var(--que-text-secondary)]"
+      >
+        {items.map((b, i) => (
+          <li key={i}>{cleanInline(b)}</li>
+        ))}
+      </ul>,
+    );
+    bullets = [];
+  };
+  for (const raw of content.replace(/\r\n/g, "\n").split("\n")) {
+    const line = raw.trim();
+    if (!line) {
+      flush();
+      continue;
+    }
+    const bullet = line.match(/^[-*]\s+(.*)$/);
+    if (bullet) {
+      bullets.push(bullet[1]);
+    } else {
+      flush();
+      blocks.push(
+        <p
+          key={`p-${blocks.length}`}
+          className="text-sm leading-relaxed text-[var(--que-text-secondary)]"
+        >
+          {cleanInline(line)}
+        </p>,
+      );
+    }
+  }
+  flush();
+  return <div className="mt-2 flex flex-col gap-2">{blocks}</div>;
 }
