@@ -23,6 +23,7 @@ import {
   ListTodo,
   Palette,
   Type,
+  ClipboardList,
   type LucideIcon,
 } from "lucide-react";
 
@@ -171,7 +172,7 @@ export const MENU_SECTIONS: MenuSection[] = [
     ],
   },
   {
-    // 바로가기 — Que 밖의 전용 화면(다른 도메인) 5개. 순서 고정(간트→뷰→투두→컬러→폰트).
+    // 바로가기 — Que 밖의 전용 화면(다른 도메인) 6개. 순서 고정(간트→뷰→투두→컬러→폰트→인터뷰).
     // 전부 external 링크라 새 탭으로 열리고 active 하이라이트가 없다. 아이콘에만 포인트 컬러를 입힌다
     // (상태색 의미와 분리 — 배경·뱃지 금지). '기타' 위에 둬 자주 여는 외부 도구를 가깝게 배치한다.
     // 풀 사이드바(SidebarNav)는 이 섹션을 2열 버튼 칩 그리드로 렌더한다(리스트 행 대신 — 아이콘 틴트+라벨,
@@ -220,6 +221,15 @@ export const MENU_SECTIONS: MenuSection[] = [
         icon: Type,
         external: true,
         accentColor: "#ec5a29",
+      },
+      // 인터뷰(interview.griff.co.kr): 대표 인터뷰·질문지 앱(별도 도메인, DB만 Que Supabase 공유 — iv_ 접두
+      // 테이블). 바이올렛 — 기존 5색(시안·블루·그린·핑크·코럴)과 구분되는 아이콘 틴트 전용(배경·뱃지 금지).
+      {
+        href: "https://interview.griff.co.kr",
+        label: "인터뷰",
+        icon: ClipboardList,
+        external: true,
+        accentColor: "#8b5cf6",
       },
     ],
   },
