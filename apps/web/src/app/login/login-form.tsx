@@ -1,9 +1,12 @@
 "use client";
 
-import { useActionState, useState, useSyncExternalStore } from "react";
-import { Eye, EyeOff } from "lucide-react";
+import { useActionState, useState, useSyncExternalStore, useTransition } from "react";
+import { Eye, EyeOff, Fingerprint } from "lucide-react";
+import { toast } from "sonner";
 import { Checkbox } from "@/components/ui/checkbox";
 import { loginAction, type LoginState } from "./actions";
+import { passkeyLoginAction } from "./passkey-login-action";
+import { authenticatePasskey, usePasskeySupported } from "@/lib/auth/webauthn-client";
 
 const initial: LoginState = {};
 
@@ -34,6 +37,31 @@ export function LoginForm({ notice, callbackUrl }: { notice?: string; callbackUr
   const savedEmail = useRememberedEmail();
   const [rememberEdit, setRememberEdit] = useState<boolean | null>(null);
   const remember = rememberEdit ?? savedEmail !== "";
+
+  // 패스키 로그인 — 지원 브라우저에서만 노출(SSR/hydration 안전).
+  const passkeySupported = usePasskeySupported();
+  const [passkeyPending, startPasskey] = useTransition();
+  const [passkeyError, setPasskeyError] = useState<string | null>(null);
+
+  function onPasskeyLogin() {
+    setPasskeyError(null);
+    startPasskey(async () => {
+      const result = await authenticatePasskey();
+      if (result.status === "cancelled") return; // 사용자가 프롬프트를 닫음 — 조용히 무시
+      if (result.status === "disabled") {
+        toast.info("이 환경에서는 패스키를 사용할 수 없습니다.");
+        return;
+      }
+      if (result.status === "error") {
+        setPasskeyError("패스키 로그인에 실패했습니다. 비밀번호로 로그인해 주세요.");
+        return;
+      }
+      // 성공: 원타임 토큰을 서버 액션으로 교환한다. 성공하면 signIn이 redirect를 throw해
+      // 비밀번호 로그인과 동일한 경로(callbackUrl 또는 /home)로 이동한다.
+      const res = await passkeyLoginAction(result.token, callbackUrl);
+      if (res?.error) setPasskeyError(res.error);
+    });
+  }
 
   // 제출 시점에 저장/삭제 — 로그인 성공 시 signIn이 redirect를 던져 이후 훅이 없으므로 여기서 처리.
   // 값은 state가 아니라 폼 DOM에서 읽는다 — 브라우저 자동완성(autofill)은 onChange를 안 태워
@@ -133,6 +161,33 @@ export function LoginForm({ notice, callbackUrl }: { notice?: string; callbackUr
           {pending ? "로그인 중…" : "로그인"}
         </button>
       </form>
+
+      {/* 패스키 로그인 — 지원 브라우저 + 등록한 사용자용. 비밀번호 로그인과 공존한다. */}
+      {passkeySupported && (
+        <div className="flex w-full flex-col gap-4">
+          <div className="flex items-center gap-3">
+            <span className="h-px flex-1 bg-[var(--que-border)]" />
+            <span className="text-xs text-[var(--que-text-tertiary)]">또는</span>
+            <span className="h-px flex-1 bg-[var(--que-border)]" />
+          </div>
+
+          <button
+            type="button"
+            onClick={onPasskeyLogin}
+            disabled={passkeyPending}
+            className="flex h-12 items-center justify-center gap-2 rounded-lg border border-[var(--que-border-strong)] bg-[var(--que-bg)] text-sm font-semibold text-[var(--que-text)] transition-colors hover:bg-[var(--que-bg-muted)] disabled:opacity-60"
+          >
+            <Fingerprint className="size-5" aria-hidden />
+            {passkeyPending ? "패스키 확인 중…" : "패스키로 로그인"}
+          </button>
+
+          {passkeyError && (
+            <p role="alert" className="-mt-1 text-center text-sm text-[var(--que-error)]">
+              {passkeyError}
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 }

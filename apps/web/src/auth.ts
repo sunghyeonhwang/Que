@@ -1,6 +1,11 @@
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import { verifyCredentials } from "@/lib/auth/verify";
+import {
+  verifyLoginToken,
+  consumeLoginNonce,
+  loadPasskeySessionUser,
+} from "@/lib/auth/webauthn";
 
 // Auth.js v5 — 이메일+비밀번호(Credentials) + JWT 세션(어댑터 불필요).
 // getCurrentUser·서버 액션·[...nextauth] 라우트가 여기서 나온 handlers/auth/signIn/signOut을 쓴다.
@@ -36,6 +41,27 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const password = typeof creds?.password === "string" ? creds.password : "";
         const user = await verifyCredentials(email, password);
         return user ?? null; // null → 로그인 거부
+      },
+    }),
+    // 패스키(WebAuthn) — 이메일+비밀번호와 공존하는 추가 옵션. 자격증명 대신 원타임 토큰을 받는다.
+    // 흐름: /api/webauthn/login/verify가 패스키를 검증하고 60초짜리 서명 토큰을 발급 → 프론트가
+    // signIn("passkey", { token })으로 여기에 넘긴다. 아래 authorize가 토큰을 최종 검증한다.
+    Credentials({
+      id: "passkey",
+      name: "Passkey",
+      credentials: { token: {} },
+      authorize: async (creds) => {
+        const token = typeof creds?.token === "string" ? creds.token : "";
+        if (!token) return null;
+        // 1) 토큰 서명·aud·exp 검증.
+        const claims = await verifyLoginToken(token);
+        if (!claims) return null;
+        // 2) jti 논스 소진 — 이미 사용된 토큰(리플레이)이면 거부. 원타임을 여기서 강제한다.
+        const fresh = await consumeLoginNonce(claims.jti);
+        if (!fresh) return null;
+        // 3) 사용자 로드 + active 재확인. 기존 프로바이더와 동일한 user shape로 반환한다.
+        const user = await loadPasskeySessionUser(claims.userId);
+        return user ?? null;
       },
     }),
   ],
