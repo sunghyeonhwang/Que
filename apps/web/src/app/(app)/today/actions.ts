@@ -15,6 +15,7 @@ import {
 } from "@que/core";
 import { getDb } from "@/lib/db";
 import { getCurrentUser } from "@/lib/current-user";
+import { nextBusinessDay } from "@/lib/business-day";
 import { notifyTaskCreated, notifyTaskStatusChanged } from "@/lib/notifications/dispatch";
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
@@ -201,7 +202,10 @@ export async function acceptConflictSuggestionAction(input: {
   return toResult((db) => db.moveTask({ actorId: user.id, via: "web" }, input));
 }
 
-/** 하루 마감 — 미완료 작업을 내일 같은 시간으로 이동한다 (드래그 이동과 동일 규칙/로그). */
+/** 하루 마감 — 미완료 작업을 "다음 영업일" 같은 시간으로 이동한다 (드래그 이동과 동일 규칙/로그).
+ *  단순 +1일이 아니라 다음 영업일로 옮긴다: 금요일 작업은 월요일로, 토·일 작업은 그 주 월요일로.
+ *  (주말로 밀면 아무도 보지 않아 재확인이 지연되므로. KST 요일 기준 — nextBusinessDay 참고.)
+ *  함수명·시그니처는 그대로 유지한다("내일로" 문구는 UI가 실제 이동 날짜를 토스트에 병기한다). */
 export async function deferTaskToTomorrowAction(taskId: string): Promise<ActionResult> {
   const user = await getCurrentUser();
   // 사전 읽기·검증·mutation·persist를 모두 같은 db 인스턴스에서 처리한다(콜백 안).
@@ -210,8 +214,8 @@ export async function deferTaskToTomorrowAction(taskId: string): Promise<ActionR
     if (!task) throw new QueRuleError("NOT_FOUND", `작업 없음: ${taskId}`);
     if (!task.startAt) throw new QueRuleError("INVALID_INPUT", "시작 시간이 없는 작업은 이동할 수 없다");
 
-    const start = new Date(task.startAt);
-    start.setDate(start.getDate() + 1);
+    // 시:분은 유지하고 날짜만 다음 영업일로. 주말이 끼면 월요일까지 건너뛴다.
+    const start = nextBusinessDay(new Date(task.startAt));
     const durationMs = task.endAt
       ? new Date(task.endAt).getTime() - new Date(task.startAt).getTime()
       : 60 * 60 * 1000;

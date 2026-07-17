@@ -9,19 +9,68 @@ import type { ListViewMember } from "./pm-types";
 
 export type MyTaskTab = "all" | "today" | "upcoming" | "done";
 
+/** 표시용 정렬 기준. due=마감순(기본·기존), priority=우선순위순(high→normal→low, 동순위는 마감순). */
+export type TaskSortKey = "due" | "priority";
+/** 표시용 그룹 기준. none=그룹 없음(기본), project=프로젝트별 소제목. */
+export type TaskGroupKey = "none" | "project";
+
 export interface MyTaskItem {
   id: string;
   title: string;
   description?: string;
   status: TaskStatus;
+  /** 작업 우선순위(core Task.priority). 정렬·표시에 쓴다. */
+  priority: "low" | "normal" | "high";
   startAt?: string;
   endAt?: string;
   /** 정렬/표시용: 마감(endAt) 우선, 없으면 시작(startAt) */
   dueAt?: string;
   /** 소속 프로젝트 — 상세 시트 프로젝트 Select 초기값에 필요(TimelineRow와 동일). */
   projectId?: string;
+  /** 소속 프로젝트 이름 — 프로젝트별 그룹 소제목에 쓴다. 미지정이면 undefined. */
+  projectName?: string;
   /** 담당자(+소유자) 아바타 스택용. 기존 모델은 단일 담당자라 대부분 1~2명. */
   assignees: ListViewMember[];
+}
+
+/** 프로젝트 그룹 섹션(그룹 없음이면 label=null인 단일 섹션). */
+export interface TaskSection {
+  key: string;
+  label: string | null;
+  items: MyTaskItem[];
+}
+
+const PRIORITY_RANK: Record<MyTaskItem["priority"], number> = { high: 0, normal: 1, low: 2 };
+
+function byDue(a: MyTaskItem, b: MyTaskItem): number {
+  return (a.dueAt ?? "9999").localeCompare(b.dueAt ?? "9999");
+}
+
+/** 표시용 정렬. 데이터는 이미 전부 내려왔으므로 서버 재조회 없이 배열만 재정렬한다. */
+export function sortMyTasksForView(items: MyTaskItem[], sort: TaskSortKey): MyTaskItem[] {
+  if (sort === "priority") {
+    // 우선순위(high→normal→low) 우선, 동순위는 마감순으로.
+    return [...items].sort((a, b) => PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority] || byDue(a, b));
+  }
+  return [...items].sort(byDue);
+}
+
+/** 표시용 그룹. none=헤더 없는 단일 섹션. project=프로젝트별(첫 등장 순 유지, "프로젝트 미지정"은 맨 뒤). */
+export function groupMyTasksForView(items: MyTaskItem[], group: TaskGroupKey): TaskSection[] {
+  if (group !== "project") return [{ key: "all", label: null, items }];
+  const NO_PROJECT = "__none__";
+  const sections = new Map<string, TaskSection>();
+  for (const item of items) {
+    const key = item.projectId ?? NO_PROJECT;
+    if (!sections.has(key)) {
+      sections.set(key, { key, label: item.projectName ?? "프로젝트 미지정", items: [] });
+    }
+    sections.get(key)!.items.push(item);
+  }
+  // 첫 등장 순(정렬 결과 반영)을 유지하되 "프로젝트 미지정"만 맨 뒤로 민다(안정 정렬).
+  return [...sections.values()].sort(
+    (a, b) => (a.key === NO_PROJECT ? 1 : 0) - (b.key === NO_PROJECT ? 1 : 0),
+  );
 }
 
 export interface MyTaskListData {
@@ -88,9 +137,10 @@ export async function getMyTaskList(
   clientId?: string,
 ): Promise<MyTaskListData> {
   const db = await getDb();
-  // 목록/카운트 소스만 클라이언트 필터. userById는 이름 조회라 전체 유지.
+  // 목록/카운트 소스만 클라이언트 필터. userById·projectById는 이름 조회라 전체 유지.
   const clientTasks = db.tasksForClient(clientId);
   const userById = new Map(db.users.map((u) => [u.id, u]));
+  const projectById = new Map(db.projects.map((p) => [p.id, p]));
 
   const toMember = (id: string): ListViewMember | null => {
     const u = userById.get(id);
@@ -109,10 +159,12 @@ export async function getMyTaskList(
         title: t.title,
         description: t.description,
         status: t.status,
+        priority: t.priority,
         startAt: t.startAt,
         endAt: t.endAt,
         dueAt: t.endAt ?? t.startAt,
         projectId: t.projectId,
+        projectName: t.projectId ? projectById.get(t.projectId)?.name : undefined,
         assignees,
       };
     })

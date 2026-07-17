@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/app/page-header";
 import { LinkTabs } from "@/components/app/link-tabs";
 import { MyTaskTabs } from "@/components/app/my-task-tabs";
 import { MyTaskTable } from "@/components/app/my-task-table";
+import { TaskViewControls } from "@/components/app/task-view-controls";
 import { ConflictSuggestions } from "@/components/app/conflict-suggestions";
 import { DayWrap } from "@/components/app/day-wrap";
 import { QuickAdd } from "@/components/app/quick-add";
@@ -21,8 +22,23 @@ import { getClientFilter } from "@/lib/client-filter";
 import { getCurrentUser } from "@/lib/current-user";
 import { getTodayData, type TodayTimelineItem } from "@/lib/today-data";
 import { dateKeyOfIso } from "@/lib/daily-data";
-import { filterMyTasks, getMyTaskList, type MyTaskTab } from "@/lib/my-tasks-data";
-import { buildTodayHref, parseTodayPanel, type TodayPanel } from "@/lib/today-nav";
+import {
+  filterMyTasks,
+  getMyTaskList,
+  groupMyTasksForView,
+  sortMyTasksForView,
+  type MyTaskItem,
+  type MyTaskTab,
+  type TaskGroupKey,
+  type TaskSortKey,
+} from "@/lib/my-tasks-data";
+import {
+  buildTodayHref,
+  parseTodayGroup,
+  parseTodayPanel,
+  parseTodaySort,
+  type TodayPanel,
+} from "@/lib/today-nav";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -34,11 +50,13 @@ function parseTab(value: string | undefined): MyTaskTab {
 export default async function TodayPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string; panel?: string }>;
+  searchParams: Promise<{ tab?: string; panel?: string; sort?: string; group?: string }>;
 }) {
-  const { tab: tabParam, panel: panelParam } = await searchParams;
+  const { tab: tabParam, panel: panelParam, sort: sortParam, group: groupParam } = await searchParams;
   const tab = parseTab(tabParam);
   const panel = parseTodayPanel(panelParam);
+  const sort = parseTodaySort(sortParam);
+  const group = parseTodayGroup(groupParam);
   const user = await getCurrentUser();
   const clientId = await getClientFilter();
   const now = new Date();
@@ -89,8 +107,8 @@ export default async function TodayPage({
         label="작업 목록 보기 전환"
         active={panel}
         tabs={[
-          { key: "status", label: "현황", href: buildTodayHref(tab, "status") },
-          { key: "input", label: "입력", href: buildTodayHref(tab, "input") },
+          { key: "status", label: "현황", href: buildTodayHref(tab, "status", { sort, group }) },
+          { key: "input", label: "입력", href: buildTodayHref(tab, "input", { sort, group }) },
         ]}
       />
 
@@ -109,6 +127,9 @@ export default async function TodayPage({
           <TaskListSection
             tab={tab}
             panel={panel}
+            sort={sort}
+            group={group}
+            viewerId={user.id}
             counts={taskList.counts}
             items={visibleTasks}
             commentsByTask={commentsByTask}
@@ -131,6 +152,9 @@ export default async function TodayPage({
               </Card>
             ))}
           </section>
+
+          {/* 오늘 계획 부하 — 하루 작업 예상 시간 합계. 8시간 초과면 amber로 조정 권유(문제 아님, 주의). */}
+          <PlannedHoursCard planned={data.plannedHours} />
 
           {/* 보조 현황 — 한 번에 접고 펼치는 상세. 기본 펼침(권장), 목록 공간이 필요하면 접는다. */}
           <CollapsibleDetails
@@ -233,6 +257,9 @@ export default async function TodayPage({
           <TaskListSection
             tab={tab}
             panel={panel}
+            sort={sort}
+            group={group}
+            viewerId={user.id}
             counts={taskList.counts}
             items={visibleTasks}
             commentsByTask={commentsByTask}
@@ -243,25 +270,70 @@ export default async function TodayPage({
   );
 }
 
-/** 작업 리스트(필터 탭 + 테이블). 현황/입력 두 패널에서 공유한다. */
+/** 작업 리스트(필터 탭 + 정렬/그룹 컨트롤 + 테이블). 현황/입력 두 패널에서 공유한다. */
 function TaskListSection({
   tab,
   panel,
+  sort,
+  group,
+  viewerId,
   counts,
   items,
   commentsByTask,
 }: {
   tab: MyTaskTab;
   panel: TodayPanel;
+  sort: TaskSortKey;
+  group: TaskGroupKey;
+  viewerId: string;
   counts: Record<MyTaskTab, number>;
-  items: Parameters<typeof MyTaskTable>[0]["items"];
+  items: MyTaskItem[];
   commentsByTask: Parameters<typeof MyTaskTable>[0]["commentsByTask"];
 }) {
+  // 정렬·그룹은 이미 내려온 배열만 재구성한다(서버 재조회 없음). 정렬 후 그룹으로 섹션을 만든다.
+  const sections = groupMyTasksForView(sortMyTasksForView(items, sort), group);
   return (
     <section aria-label="내 작업 리스트" className="flex min-w-0 flex-col gap-3">
-      <MyTaskTabs active={tab} counts={counts} panel={panel} />
-      <MyTaskTable items={items} commentsByTask={commentsByTask} />
+      <MyTaskTabs active={tab} counts={counts} panel={panel} sort={sort} group={group} />
+      <div className="flex justify-end">
+        <TaskViewControls sort={sort} group={group} />
+      </div>
+      <MyTaskTable sections={sections} commentsByTask={commentsByTask} viewerId={viewerId} />
     </section>
+  );
+}
+
+/** 오늘 계획 부하 카드. 예상 시간이 입력된 작업이 하나도 없으면(합계 0) 렌더하지 않는다. */
+function PlannedHoursCard({
+  planned,
+}: {
+  planned: { total: number; withEstimate: number; taskCount: number };
+}) {
+  if (planned.withEstimate === 0) return null; // 전부 미입력이면 카드 생략(합계 0)
+  const missing = planned.taskCount - planned.withEstimate;
+  const over = planned.total > 8; // 8시간 초과 = 과부하 주의(문제 아님 → red 금지, amber)
+  const hours =
+    planned.total % 1 === 0 ? String(planned.total) : planned.total.toFixed(1);
+
+  return (
+    <Card
+      className={cn(
+        "py-3",
+        over && "border-[var(--que-warning)] bg-[var(--que-warning-bg)]",
+      )}
+    >
+      <CardContent className="flex flex-wrap items-center gap-x-2 gap-y-1 px-4">
+        <span className={cn("text-sm", over && "text-[var(--que-warning)]")}>
+          오늘 계획 약 <span className="font-semibold tabular-nums">{hours}</span>시간
+        </span>
+        {over && (
+          <span className="text-xs font-medium text-[var(--que-warning)]">조정을 권합니다</span>
+        )}
+        {missing > 0 && (
+          <span className="text-xs text-muted-foreground">(미입력 {missing}건 제외)</span>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

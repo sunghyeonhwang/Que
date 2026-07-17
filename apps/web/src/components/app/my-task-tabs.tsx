@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { MyTaskTab } from "@/lib/my-tasks-data";
+import type { MyTaskTab, TaskGroupKey, TaskSortKey } from "@/lib/my-tasks-data";
 import { buildTodayHref, type TodayPanel } from "@/lib/today-nav";
 import { cn } from "@/lib/utils";
 
@@ -15,11 +15,16 @@ export function MyTaskTabs({
   active,
   counts,
   panel = "status",
+  sort = "due",
+  group = "none",
 }: {
   active: MyTaskTab;
   counts: Record<MyTaskTab, number>;
   /** 상단 패널(현황/입력)을 유지한 채 리스트 필터만 바꾸기 위해 전달. */
   panel?: TodayPanel;
+  /** 표 보기 옵션(정렬·그룹)을 필터 전환 링크에 보존한다. */
+  sort?: TaskSortKey;
+  group?: TaskGroupKey;
 }) {
   return (
     <nav
@@ -31,7 +36,7 @@ export function MyTaskTabs({
         return (
           <Link
             key={tab.key}
-            href={buildTodayHref(tab.key, panel)}
+            href={buildTodayHref(tab.key, panel, { sort, group })}
             aria-current={isActive ? "page" : undefined}
             className={cn(
               "flex h-11 items-center gap-1.5 border-b-2 px-3 text-sm font-medium transition-colors",

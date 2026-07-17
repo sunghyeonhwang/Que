@@ -5,6 +5,7 @@ import { ArrowRight, Check } from "lucide-react";
 import type { Task } from "@que/core";
 import { deferTaskToTomorrowAction } from "@/app/(app)/today/actions";
 import { Button } from "@/components/ui/button";
+import { nextBusinessDayLabel } from "@/lib/business-day";
 import { StatusBadge } from "./status-badge";
 import { useSafeAction } from "./use-safe-action";
 
@@ -19,8 +20,10 @@ export function DayWrap({
   const { run, pending } = useSafeAction();
 
   const defer = (task: Task) => {
+    // 실제 이동 날짜(다음 영업일)를 토스트에 병기한다 — "내일로"가 주말이면 월요일이 되므로.
+    const label = task.startAt ? nextBusinessDayLabel(task.startAt) : "내일";
     run(() => deferTaskToTomorrowAction(task.id), {
-      success: `"${task.title}" 작업을 내일로 옮기고 변경 로그에 기록했습니다.`,
+      success: `"${task.title}" 작업을 ${label}로 옮기고 변경 로그에 기록했습니다.`,
     });
   };
 

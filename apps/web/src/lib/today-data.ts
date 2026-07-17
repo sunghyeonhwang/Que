@@ -61,6 +61,9 @@ export interface TodayData {
   wrapUp: { doneToday: Task[]; unfinished: Task[] };
   /** 나에게 온 도움 요청 댓글 (최근 순) */
   helpRequests: (TaskComment & { taskTitle: string; authorName: string })[];
+  /** 오늘 계획 부하 — 하루짜리 내 작업(done 제외)의 예상 시간 합계와 입력 현황.
+   *  total=시간 합계, withEstimate=예상 시간 입력된 작업 수, taskCount=집계 대상 전체 수. */
+  plannedHours: { total: number; withEstimate: number; taskCount: number };
 }
 
 const ACTIVE_STATUSES = new Set(["scheduled", "in_progress", "needs_reschedule", "on_hold", "issue"]);
@@ -232,6 +235,21 @@ export async function getTodayData(
     unfinished: myTasks.filter((t) => UNFINISHED.has(t.status)),
   };
 
+  // 오늘 계획 부하: 오늘 내 작업 중 done 제외, "기간 작업"(여러 날에 걸친 작업)은 제외한 하루 작업만
+  // estimatedHours를 합산한다. 기간 작업은 "오늘 몫"을 나눌 근거가 없어 전체 예상 시간을 그대로 더하면
+  // 과대 계상되므로 제외한다(하루 작업만 합산). myTasks는 이미 cancelled·merged를 뺀 상태다.
+  const plannedTasks = myTasks.filter(
+    (t) =>
+      t.status !== "done" &&
+      !(t.startAt && t.endAt && dateKeyOfIso(t.startAt) !== dateKeyOfIso(t.endAt)),
+  );
+  const estimatedTasks = plannedTasks.filter((t) => typeof t.estimatedHours === "number");
+  const plannedHours = {
+    total: estimatedTasks.reduce((sum, t) => sum + (t.estimatedHours ?? 0), 0),
+    withEstimate: estimatedTasks.length,
+    taskCount: plannedTasks.length,
+  };
+
   // 나에게 온 도움 요청 + 작업별 댓글 뷰
   const helpRequests = db.taskComments
     .filter((c) => helpUserIdsOf(c).includes(user.id))
@@ -252,6 +270,7 @@ export async function getTodayData(
     conflictSuggestions,
     wrapUp,
     helpRequests,
+    plannedHours,
   };
 }
 
