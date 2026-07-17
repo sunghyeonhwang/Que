@@ -14,6 +14,7 @@ import {
   TaskFormFields,
   emptyTaskFormValue,
   taskFormErrors,
+  taskFormEstimatedHours,
   taskFormToIso,
   type TaskFormValue,
 } from "@/components/app/task-form-fields";
@@ -148,6 +149,7 @@ export function CreateScheduleDialog({
               priority: task.priority,
               ...taskFormToIso(task),
               description: task.description.trim() || undefined,
+              estimatedHours: taskFormEstimatedHours(task),
             })
         : () =>
             createCalendarEventAction({

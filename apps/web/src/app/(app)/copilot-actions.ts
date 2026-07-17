@@ -120,6 +120,7 @@ export async function executeCopilotDraftAction(draft: CopilotDraft): Promise<Ac
             endAt: d.endAt,
             description: d.description,
             priority: d.priority,
+            estimatedHours: d.estimatedHours,
             source: "manual",
           });
           createdId = task.id;

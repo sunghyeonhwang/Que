@@ -11,6 +11,9 @@ export interface TaskDraft {
   assigneeName?: string;
   startAt?: string;
   endAt?: string;
+  /** 예상 소요시간(시간 단위). "2시간"→2, "30분"→0.5, "반나절"→4, "하루종일"→8.
+   *  부하 카드/업무 부하 표/리포트 분포가 이 값을 집계한다. 못 알아들으면 미추출(undefined)이 정답. */
+  estimatedHours?: number;
   /** 확정 전 사용자에게 확인해야 할 항목 (기획: 모호하면 확정 전에 확인한다) */
   questions: string[];
 }
@@ -91,6 +94,38 @@ export function parseTaskInput(input: {
     }
   }
 
+  // ---- 예상 소요시간 (시각 파싱보다 먼저) ----
+  // "2시간"의 '시'가 아래 시각 파서(…시)에 hour=2로 오인되므로, 시간(hour) 단위 소요는
+  // 시각 파싱 앞에서 먼저 뽑아 제거한다. 분(minute) 단위 소요는 "3시 30분"의 분과 겹치므로
+  // 시각 파싱을 마친 뒤(아래) 처리한다.
+  let estimatedHours: number | undefined;
+  // 시점 표현 방어: "N시간/분 후·뒤·전·까지"는 소요가 아니라 시점이다. 소요로 뽑지 않고,
+  // 시각 파서가 "N시"를 시각으로 오인하지 않도록 통째로 제거만 한다(시각도 설정하지 않음).
+  const timePointMatch = rest.match(
+    /(\d+(?:\.\d+)?|한|두|세|반)\s*(시간|분)\s*(후|뒤|전|까지)\s*(에)?/,
+  );
+  if (timePointMatch) {
+    rest = rest.replace(timePointMatch[0], " ");
+  } else if (/반나절/.test(rest)) {
+    estimatedHours = 4; // 반나절 = 4시간
+    rest = rest.replace(/반나절/, " ");
+  } else if (/하루\s*종일|종일/.test(rest)) {
+    estimatedHours = 8; // 하루종일/종일 = 8시간
+    rest = rest.replace(/하루\s*종일|종일/, " ");
+  } else {
+    // "2시간", "1.5시간", "2시간짜리" — 숫자 시간
+    const hourMatch = rest.match(/(\d+(?:\.\d+)?)\s*시간(\s*짜리)?/);
+    // "한 시간"·"두 시간" — 한글 수사는 무리하지 않고 1·2만 인정
+    const hanMatch = rest.match(/(한|두)\s*시간(\s*짜리)?/);
+    if (hourMatch) {
+      estimatedHours = Number(hourMatch[1]);
+      rest = rest.replace(hourMatch[0], " ");
+    } else if (hanMatch) {
+      estimatedHours = hanMatch[1] === "한" ? 1 : 2;
+      rest = rest.replace(hanMatch[0], " ");
+    }
+  }
+
   // ---- 시간 ----
   let hasTime = false;
   let hour = 9;
@@ -109,6 +144,18 @@ export function parseTaskInput(input: {
     }
     rest = rest.replace(timeMatch[0], " ");
     hasTime = true;
+  }
+
+  // ---- 분 단위 예상 소요 (시각 파싱 후) ----
+  // "3시 30분"의 분은 위 시각 파서가 이미 소비했으므로, 여기 남은 "30분"만 소요로 본다.
+  // 시간(hour) 소요를 이미 뽑았으면 덮어쓰지 않는다.
+  if (estimatedHours === undefined) {
+    const minuteMatch = rest.match(/(\d+)\s*분(\s*짜리)?/);
+    if (minuteMatch) {
+      // 30분 → 0.5. 소수 둘째 자리까지 반올림(20분 등 무한소수 방지).
+      estimatedHours = Math.round((Number(minuteMatch[1]) / 60) * 100) / 100;
+      rest = rest.replace(minuteMatch[0], " ");
+    }
   }
 
   let startAt: string | undefined;
@@ -144,6 +191,7 @@ export function parseTaskInput(input: {
     assigneeName: assignee?.name,
     startAt,
     endAt,
+    estimatedHours,
     questions,
   };
 }

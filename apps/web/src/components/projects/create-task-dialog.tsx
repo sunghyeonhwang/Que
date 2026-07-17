@@ -10,6 +10,7 @@ import {
   TaskFormFields,
   emptyTaskFormValue,
   taskFormErrors,
+  taskFormEstimatedHours,
   taskFormToIso,
   type TaskFormValue,
 } from "@/components/app/task-form-fields";
@@ -58,6 +59,7 @@ export function CreateTaskDialog({ projectId, meta }: { projectId: string; meta:
           endAt,
           priority: value.priority,
           assigneeId: value.assigneeId === ASSIGNEE_ME ? undefined : value.assigneeId,
+          estimatedHours: taskFormEstimatedHours(value),
         }),
       {
         success: `"${value.title.trim()}" 작업을 추가했습니다.`,

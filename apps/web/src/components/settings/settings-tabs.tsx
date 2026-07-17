@@ -17,6 +17,7 @@ export function SettingsTabs({ isAdmin }: { isAdmin: boolean }) {
   const pathname = usePathname();
   const tabs: TabDef[] = [
     { href: "/settings", label: "모양" },
+    { href: "/settings/notifications", label: "알림" },
     { href: "/settings/security", label: "보안" },
     { href: "/settings/tokens", label: "토큰" },
     // 가져오기(CSV 일괄 등록)는 전원 노출 — 작업 생성은 전원 가능, 권한 필요한 행은 core가 거부.

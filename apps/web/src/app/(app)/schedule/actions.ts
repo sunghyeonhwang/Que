@@ -43,6 +43,8 @@ export async function createScheduleTaskAction(input: {
   startAt?: string;
   endAt?: string;
   description?: string;
+  /** 예상 소요(시간 단위). 부하 집계용 — core가 >0 검증. */
+  estimatedHours?: number;
 }): Promise<ActionResult> {
   const user = await getCurrentUser();
   return toResult(

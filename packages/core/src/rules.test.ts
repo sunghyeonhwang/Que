@@ -715,6 +715,66 @@ describe("자연어 작업 해석 (parseTaskInput)", () => {
     expect(draft.questions.some((q) => q.includes("날짜"))).toBe(true);
     expect(draft.questions.some((q) => q.includes("본인 작업"))).toBe(true);
   });
+
+  it("예상 소요시간을 추출하고 제목에서 제거한다 (시간·짜리·소수·분·반나절·종일)", async () => {
+    const { parseTaskInput } = await import("./parse-task");
+    const { USERS } = await import("./mock/users");
+    const P = (text: string) => parseTaskInput({ text, users: USERS, now: NOW });
+
+    // "N시간" — 값 추출 + 제목에서 제거
+    const twoHours = P("2시간 상세페이지 QA");
+    expect(twoHours.estimatedHours).toBe(2);
+    expect(twoHours.title).toBe("상세페이지 QA");
+
+    // "N시간짜리"
+    const jjari = P("2시간짜리 디자인 작업");
+    expect(jjari.estimatedHours).toBe(2);
+    expect(jjari.title).toBe("디자인 작업");
+
+    // 소수 "1.5시간"
+    expect(P("1.5시간 코드 리뷰").estimatedHours).toBe(1.5);
+
+    // "30분" = 0.5
+    const halfHour = P("30분 배너 검토");
+    expect(halfHour.estimatedHours).toBe(0.5);
+    expect(halfHour.title).toBe("배너 검토");
+
+    // "반나절" = 4, "하루종일" = 8, "한 시간" = 1
+    expect(P("반나절 기획서 정리").estimatedHours).toBe(4);
+    expect(P("하루종일 리팩터링").estimatedHours).toBe(8);
+    expect(P("한 시간 회의 준비").estimatedHours).toBe(1);
+  });
+
+  it("시점 표현('N시간 후/뒤')은 소요로 뽑지 않는다 (오추출 방어)", async () => {
+    const { parseTaskInput } = await import("./parse-task");
+    const { USERS } = await import("./mock/users");
+    const P = (text: string) => parseTaskInput({ text, users: USERS, now: NOW });
+
+    // "2시간 후" — 시점이므로 estimatedHours 미추출. "2시간 후에"를 통째로 제거해
+    // "2시"가 시각(startAt)으로도 오인되지 않는다.
+    const after = P("2시간 후에 회의");
+    expect(after.estimatedHours).toBeUndefined();
+    expect(after.title).toBe("회의");
+    expect(after.startAt).toBeUndefined();
+
+    // "3시간 뒤" 도 미추출
+    expect(P("3시간 뒤 배포 점검").estimatedHours).toBeUndefined();
+  });
+
+  it("마감시각(17시)은 소요와 혼동하지 않는다 (시각 파싱과 충돌 없음)", async () => {
+    const { parseTaskInput } = await import("./parse-task");
+    const { USERS } = await import("./mock/users");
+    // "17시"는 마감시각 → 시각으로 파싱되고 estimatedHours는 없어야 한다
+    const draft = parseTaskInput({ text: "17시 보고서 검토", users: USERS, now: NOW });
+    expect(draft.estimatedHours).toBeUndefined();
+    expect(new Date(draft.startAt!).getHours()).toBe(17);
+
+    // "3시 30분"의 30분은 시각의 분이지 소요가 아니다
+    const withMinute = parseTaskInput({ text: "오후 3시 30분 배너 검토", users: USERS, now: NOW });
+    expect(withMinute.estimatedHours).toBeUndefined();
+    expect(new Date(withMinute.startAt!).getHours()).toBe(15);
+    expect(new Date(withMinute.startAt!).getMinutes()).toBe(30);
+  });
 });
 
 describe("작업 생성 (createTask)", () => {

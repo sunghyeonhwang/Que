@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { DateRangePicker } from "@/components/app/date-range-picker";
+import { HourPresetChips } from "@/components/app/date-preset-chips";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -38,6 +39,8 @@ export interface TaskFormValue {
   dueDate: string;
   /** ""=미지정(기본 18:00으로 해석). */
   dueTime: string;
+  /** 예상 소요(시간 단위 문자열). ""=미지정. 제출 시 taskFormEstimatedHours로 number|undefined 변환. */
+  estimatedHours: string;
 }
 
 export function emptyTaskFormValue(overrides?: Partial<TaskFormValue>): TaskFormValue {
@@ -51,6 +54,7 @@ export function emptyTaskFormValue(overrides?: Partial<TaskFormValue>): TaskForm
     startTime: "",
     dueDate: "",
     dueTime: "",
+    estimatedHours: "",
     ...overrides,
   };
 }
@@ -76,6 +80,17 @@ export function taskFormToIso(v: TaskFormValue): { startAt?: string; endAt?: str
     startAt: v.startDate ? toIso(v.startDate, v.startTime || "09:00") : undefined,
     endAt: v.dueDate ? toIso(v.dueDate, v.dueTime || "18:00") : undefined,
   };
+}
+
+/**
+ * 폼의 예상 소요 문자열 → core createTask용 number|undefined. 빈 값·0·음수·NaN은 undefined
+ * (core가 estimatedHours>0을 검증하므로 미지정으로 넘긴다). 페이로드 전달용.
+ */
+export function taskFormEstimatedHours(v: TaskFormValue): number | undefined {
+  const raw = v.estimatedHours.trim();
+  if (raw === "") return undefined;
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? n : undefined;
 }
 
 /** 공통 검증 — 제목 필수 · 마감은 시작보다 늦어야 한다(동일 시각=길이 0 작업도 거부 —
@@ -249,6 +264,35 @@ export function TaskFormFields({
           </Field>
         </div>
       )}
+
+      <Field>
+        <FieldLabel htmlFor={`${idPrefix}-est`}>
+          예상 소요
+          <span className="ml-1 text-[var(--que-text-tertiary)]">(선택)</span>
+        </FieldLabel>
+        <HourPresetChips
+          value={taskFormEstimatedHours(value)}
+          onSelect={(h) => set({ estimatedHours: h === undefined ? "" : String(h) })}
+        />
+        <div className="flex items-center gap-2">
+          <Input
+            id={`${idPrefix}-est`}
+            type="number"
+            inputMode="decimal"
+            min={0}
+            step={0.5}
+            value={value.estimatedHours}
+            onChange={(e) => set({ estimatedHours: e.target.value })}
+            placeholder="직접 입력"
+            aria-label="예상 소요 시간(시간 단위)"
+            className="h-10 w-28"
+          />
+          <span className="text-sm text-[var(--que-text-secondary)]">시간</span>
+        </div>
+        <p className="text-xs text-[var(--que-text-tertiary)]">
+          입력하면 오늘 계획 시간과 업무 부하 집계에 반영됩니다.
+        </p>
+      </Field>
 
       <Field>
         <FieldLabel htmlFor={`${idPrefix}-desc`}>설명</FieldLabel>

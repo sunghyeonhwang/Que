@@ -172,6 +172,8 @@ export async function createTaskAction(input: {
   endAt?: string;
   priority?: "low" | "normal" | "high";
   description?: string;
+  /** 자연어에서 추출한 예상 소요시간(시간 단위). 부하 집계용 — core가 >0 검증. */
+  estimatedHours?: number;
 }): Promise<ActionResult> {
   const user = await getCurrentUser();
   return toResult(

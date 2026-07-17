@@ -17,6 +17,7 @@ import {
   TaskFormFields,
   emptyTaskFormValue,
   taskFormErrors,
+  taskFormEstimatedHours,
   taskFormToIso,
   type TaskFormValue,
 } from "./task-form-fields";
@@ -96,6 +97,9 @@ export function QuickAddForm({
             startTime: toLocalTime(result.startAt),
             dueDate: toLocalDate(result.endAt),
             dueTime: toLocalTime(result.endAt),
+            // 파서가 뽑은 예상 소요를 확인 카드에 프리필(칩·Input에 노출·수정 가능).
+            estimatedHours:
+              result.estimatedHours !== undefined ? String(result.estimatedHours) : "",
           }),
         );
       } catch (error) {
@@ -119,6 +123,8 @@ export function QuickAddForm({
           priority: value.priority,
           ...taskFormToIso(value),
           description: value.description.trim() || undefined,
+          // 확인 카드에서 편집한 예상 소요가 우선(파서 값은 프리필로만 반영). 부하 집계용.
+          estimatedHours: taskFormEstimatedHours(value),
         }),
       {
         success: `"${value.title.trim()}" 작업이 등록되어 캘린더와 담당자 오늘 화면에 표시됩니다.`,

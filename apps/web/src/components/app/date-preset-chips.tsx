@@ -106,6 +106,54 @@ export function DatePresetChips({
   );
 }
 
+// 예상 소요 프리셋(시간 단위). 값은 core estimatedHours와 동일 단위(시간).
+export const HOUR_PRESETS: readonly { label: string; value: number }[] = [
+  { label: "30분", value: 0.5 },
+  { label: "1시간", value: 1 },
+  { label: "2시간", value: 2 },
+  { label: "4시간", value: 4 },
+  { label: "하루", value: 8 },
+] as const;
+
+/**
+ * 예상 소요 프리셋 칩([30분][1시간][2시간][4시간][하루]). value(시간)가 칩과 일치하면 활성.
+ * 활성 칩을 다시 누르면 해제(undefined). 직접 입력 Input과 병행 사용한다.
+ */
+export function HourPresetChips({
+  value,
+  onSelect,
+  ariaLabel = "예상 소요 빠른 선택",
+  className,
+}: {
+  value?: number;
+  onSelect: (hours: number | undefined) => void;
+  ariaLabel?: string;
+  className?: string;
+}) {
+  return (
+    <div
+      role="group"
+      aria-label={ariaLabel}
+      className={cn("flex flex-wrap gap-1.5", className)}
+    >
+      {HOUR_PRESETS.map((p) => {
+        const active = value === p.value;
+        return (
+          <button
+            key={p.label}
+            type="button"
+            aria-pressed={active}
+            onClick={() => onSelect(active ? undefined : p.value)}
+            className={cn(CHIP_BASE, active ? CHIP_ON : CHIP_OFF)}
+          >
+            {p.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 /** 마감 시각 프리셋 칩([10:00][14:00][18:00]). value(HH:mm)가 일치하면 활성. */
 export function TimePresetChips({
   value,

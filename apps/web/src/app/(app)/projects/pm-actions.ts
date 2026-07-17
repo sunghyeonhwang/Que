@@ -53,6 +53,8 @@ export async function createTaskAction(input: {
   startAt?: string;
   endAt?: string;
   priority?: Task["priority"];
+  /** 예상 소요(시간 단위). 부하 집계용 — core가 >0 검증. */
+  estimatedHours?: number;
 }): Promise<ActionResult> {
   const user = await getCurrentUser();
   return toResult(
@@ -67,6 +69,7 @@ export async function createTaskAction(input: {
           endAt: input.endAt,
           description: input.description,
           priority: input.priority,
+          estimatedHours: input.estimatedHours,
           source: "manual",
         },
       ),

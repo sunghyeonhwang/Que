@@ -30,6 +30,7 @@ import {
 } from "./config";
 import { buildCheckinPromptIntents } from "./checkin-prompt";
 import { buildPersonalDigestIntents } from "./personal-digest";
+import { filterMutedIntents } from "./prefs";
 import { postToSlack } from "./slack";
 import { postDmToSlack, resolveSlackUserId } from "./slack-bot";
 import { absentUserIdsToday } from "@/lib/away";
@@ -183,16 +184,21 @@ export async function enqueueAndSend(
   if (intents.some((i) => !isDm(i)) && !webhookEnabled()) return counts;
   if (intents.some(isDm) && !personalDigestEnabled()) return counts;
   try {
+    // 개인 알림 설정 필터(공통 지점) — 리듬성 개인 DM(MUTABLE)을 끈 수신자의 intent를 여기서 제거한다.
+    // ALWAYS_ON·CHANNEL kind는 화이트리스트 밖이라 필터를 타지 않는다(그대로 통과). 스킵은 아웃박스
+    // 미적재라 dedup을 오염시키지 않는다. mock/dev·오류는 원본 그대로(fail-open — 발송 우선).
+    const toSend = await filterMutedIntents(intents);
+    if (toSend.length === 0) return counts; // 전부 muted로 걸러짐
     const quiet = quietHoursConfig();
     if (quiet && inQuietHours(now, quiet)) {
-      const held = db.enqueueNotifications(intents, {
+      const held = db.enqueueNotifications(toSend, {
         holdUntil: quietWindowEnd(now, quiet).toISOString(),
       });
       counts.held = held.length;
       if (held.length > 0) await db.persist();
       return counts;
     }
-    const created = db.enqueueNotifications(intents);
+    const created = db.enqueueNotifications(toSend);
     counts.enqueued = created.length;
     if (created.length === 0) return counts; // 전부 dedup됨(같은 이벤트 재요청)
     await db.persist(); // 적재를 먼저 커밋 — 발송 실패해도 크론이 재시도
