@@ -31,6 +31,7 @@ import { buildCheckinPromptIntents } from "./checkin-prompt";
 import { buildPersonalDigestIntents } from "./personal-digest";
 import { postToSlack } from "./slack";
 import { postDmToSlack, resolveSlackUserId } from "./slack-bot";
+import { absentUserIdsToday } from "@/lib/away";
 
 // Slack 알림 오케스트레이터 (B-1, web 계층). core 규칙(무엇을 보낼지)과 어댑터(어떻게 보낼지)를 잇는다.
 //
@@ -299,6 +300,45 @@ export async function notifyTaskCreated(
   }
 }
 
+/**
+ * 데일리 "내가 도울게요" 도움 제안 DM(명세 C). **막힌 당사자(targetUserId)에게 개인 DM.** **절대 throw하지 않는다.**
+ * 게이트: Bot Token(personalDigestEnabled). dedup `standup_help:<date>:<targetUserId>:<actorId>`(같은 날·조합당 평생 1회).
+ * ⚠️ digestRecipientAllowlist를 **적용하지 않는다** — 당사자 간 직접 액션인 트랜잭셔널 알림이라 반드시 도달해야 한다
+ *    (결제 DM notifyPaymentCreated/Done과 동일 결정 · enqueueAndSend가 allowlist를 보지 않으므로 그대로 우회).
+ * 방해금지(22-8) 창 안이면 enqueueAndSend가 hold(창 종료 후 발송). 반환: 발송 성공 여부(토스트 분기용).
+ */
+export async function notifyStandupHelpOffered(
+  db: MockQueDb,
+  input: { actorId: string; targetUserId: string; blockerSummary?: string; date: string },
+  now: Date = new Date(),
+): Promise<boolean> {
+  if (!personalDigestEnabled()) return false; // 개인 DM — Bot Token 게이트
+  try {
+    const nameOf = (id: string) => db.users.find((u) => u.id === id)?.name ?? id;
+    const lines = [`${nameOf(input.actorId)} 님이 데일리 막힘을 보고 돕겠다고 나섰습니다.`];
+    if (input.blockerSummary) lines.push(`막힘: ${input.blockerSummary}`);
+    const intent: NotificationIntent = {
+      kind: "standup_help",
+      entityType: "user",
+      entityId: input.targetUserId,
+      // dedupKeyFor(standup_help)가 marker를 그대로 유일키로 쓴다 → <날짜>:<대상>:<제안자>.
+      marker: `${input.date}:${input.targetUserId}:${input.actorId}`,
+      recipient: input.targetUserId, // 발송 직전 Slack member ID로 해석
+      payload: {
+        title: "도움 제안",
+        text: lines.join("\n"),
+        deeplinkPath: "/daily",
+        tone: "blue", // 예정/정보(도움은 긍정 신호)
+      },
+    };
+    const counts = await enqueueAndSend(db, [intent], now);
+    return counts.sent > 0;
+  } catch (error) {
+    console.error("[que-notify] notifyStandupHelpOffered 실패(무시)", error);
+    return false;
+  }
+}
+
 /** 금액 원화 콤마 포맷("1,234,000원"). 결제 DM 표시용(계좌번호와 무관 — 금액만). */
 function formatWon(amount: number): string {
   return `${Math.round(amount).toLocaleString("ko-KR")}원`;
@@ -556,9 +596,13 @@ export async function postStandupReminders(db: MockQueDb, now: Date): Promise<Di
     const dateKey = kstDateKey(now);
     const submitted = new Set(db.standupEntriesByDate(dateKey).map((e) => e.userId));
     const allow = digestRecipientAllowlist();
+    // (명세 A) 오늘 부재자(자리비움·외부 일정)는 재촉하지 않는다 — 발송 후 억제가 아니라 **아예 스킵**
+    // (dedup 키는 그대로: 스킵이라 아웃박스에 적재조차 안 함 → 복귀 후 다른 창에서 재적재 가능).
+    const absent = absentUserIdsToday(db, now);
     const deeplink = `${appBaseUrl()}/daily`;
     const intents: NotificationIntent[] = db.users
       .filter((u) => u.active !== false && !submitted.has(u.id))
+      .filter((u) => !absent.has(u.id)) // 부재자 스킵
       .filter((u) => !allow || allow.includes(u.id))
       .map((u) => ({
         kind: "standup_remind",
@@ -630,11 +674,31 @@ export async function postStandupTeamSummary(
       (u) => !summary!.submittedUserIds.includes(u.id),
     );
     const header = missing.length > 0 ? `제출 ${entries.length}/${activeUsers.length} · ${missing.length}인 미제출` : `전원 제출(${activeUsers.length}인)`;
+
+    // (명세 E) 막힘 있는 제출자를 Slack 멘션(<@U…>)으로. AI 본문 파싱에 의존하지 않고 standup_entries의
+    // 막힘 보유자 목록에서 **결정적으로** 뽑는다(막힘서술 또는 blockedTaskIds). slack_user_id 매핑이 없으면
+    // 이름 텍스트로 폴백(resolveSlackUserId가 undefined면 이름). "도울 사람"은 entries에서 결정적으로
+    // 산출할 근거가 없어 생략한다(요약 본문 파싱 금지 원칙). 게시 트리거·시각·dedup은 무변경.
+    const nameOf = (id: string) => db.users.find((u) => u.id === id)?.name ?? id;
+    const blockerHolders = entries.filter(
+      (e) => (e.blockerText && e.blockerText.trim()) || (e.blockedTaskIds && e.blockedTaskIds.length > 0),
+    );
+    let text = header;
+    if (blockerHolders.length > 0) {
+      const mentions = await Promise.all(
+        blockerHolders.map(async (e) => {
+          const slackId = await resolveSlackUserId(e.userId);
+          return slackId ? `<@${slackId}>` : nameOf(e.userId);
+        }),
+      );
+      text = `${header}\n막힘 있는 팀원: ${mentions.join(" ")}`;
+    }
+
     const intent: NotificationIntent = {
       ...probe,
       payload: {
         title: "데일리 스탠드업 팀 요약",
-        text: header,
+        text,
         deeplinkPath: "/daily",
         tone: "violet",
         detail: summary.content,

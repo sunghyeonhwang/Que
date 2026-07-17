@@ -7,7 +7,7 @@ import {
   type StandupTeamSummary,
 } from "@que/core";
 import { getStandupData } from "./team-data";
-import { kstDateKey } from "./daily-data";
+import { computeBlockerStreaks, kstDateKey } from "./daily-data";
 import { currentMonthKey } from "./okr-data";
 import { generateAnalysis } from "./ai/gemini";
 
@@ -26,6 +26,7 @@ const SUMMARY_SYSTEM = [
   "- 반드시 한국어 존댓말. 데이터에 없는 사실을 지어내지 않는다. 사람 평가·질책 금지.",
   "- 아래 세 섹션 구조를 그대로 지킨다(각 섹션 머리글 포함, 마크다운 굵게 없이 plain text):",
   "  [막힘 클러스터] 서로 얽힌 막힘을 묶고, 도울 수 있는 사람을 이름으로 제안(근거 있을 때만). 없으면 '막힘 없음'.",
+  "    - '연속막힘일수'가 2 이상인 사람은 오래 막힌 것이므로 이 섹션 **최상단**에서 'N일째 막힘'으로 먼저 다룬다.",
   "  [어제→오늘 흐름] 이월이 몰린 곳·모멘텀(잘 나가는 흐름)을 2~3문장으로.",
   "  [추천 액션] 오늘 팀이 할 구체적 행동 2~3개를 번호로. 각 1문장, 실행 가능하게.",
   "- 전체 12줄 이내. 미제출자 수가 주어지면 [어제→오늘 흐름] 끝에 'n인 미제출'을 덧붙인다.",
@@ -38,6 +39,8 @@ interface MemberPayload {
   포커스?: string;
   부연?: string;
   막힘서술?: string;
+  /** 연속 막힘 일수(영업일 기준, 오늘=1). 2 이상일 때만 주입 — [막힘 클러스터] 최상단 우선 처리 근거. */
+  연속막힘일수?: number;
   "어제 완료": string[];
   "어제 미완(이월)": string[];
   "오늘 예정": string[];
@@ -63,9 +66,12 @@ export async function generateTeamSummary(
   const rows = await getStandupData(now);
   const rowByUser = new Map(rows.map((r) => [r.user.id, r]));
   const nameById = new Map(db.users.map((u) => [u.id, u.name]));
+  // 연속 막힘(명세 B) — daily-data와 같은 계산기를 공유(이중 로직 금지). 2 이상만 프롬프트에 싣는다.
+  const streakByUser = computeBlockerStreaks(db.standupEntries, now);
 
   const members: MemberPayload[] = entries.map((entry) => {
     const row = rowByUser.get(entry.userId);
+    const streak = streakByUser.get(entry.userId);
     const blocked = (row?.blocked ?? []).map((t) => {
       const log = latestStatusLog(db.statusLogs, t.id, t.status);
       return {
@@ -80,6 +86,7 @@ export async function generateTeamSummary(
       포커스: entry.focus,
       부연: entry.note,
       막힘서술: entry.blockerText,
+      연속막힘일수: streak && streak >= 2 ? streak : undefined,
       "어제 완료": row?.yesterdayDone.map((t) => t.title) ?? [],
       "어제 미완(이월)": row?.yesterdayUnfinished.map((t) => t.title) ?? [],
       "오늘 예정": row?.todayPlanned.map((t) => t.title) ?? [],

@@ -7,6 +7,7 @@ import { PageHeader } from "@/components/app/page-header";
 import { LinkTabs } from "@/components/app/link-tabs";
 import { StandupForm, type BlockerCandidate } from "@/components/daily/standup-form";
 import { StandupBoard, type BoardMember } from "@/components/daily/standup-board";
+import { WeeklyRetro } from "@/components/daily/weekly-retro";
 import { TeamSummaryPanel } from "@/components/daily/team-summary-panel";
 import {
   CrisisDecisionCards,
@@ -23,7 +24,8 @@ import {
 } from "@/components/change/create-change-request-dialog";
 import { detectCrisisTriggers } from "@/lib/notifications/crisis";
 import { getCurrentUser } from "@/lib/current-user";
-import { getDailyData } from "@/lib/daily-data";
+import { getDailyData, kstDateKey } from "@/lib/daily-data";
+import { getWeeklyRetroData } from "@/lib/weekly-retro-data";
 import { getOkrData } from "@/lib/okr-data";
 import { getOpenChangeRequests } from "@/lib/change-request-data";
 import { getDb } from "@/lib/db";
@@ -33,6 +35,7 @@ export const dynamic = "force-dynamic";
 const DAILY_TABS = [
   { key: "today", label: "오늘", href: "/daily" },
   { key: "okr", label: "OKR", href: "/daily?tab=okr" },
+  { key: "retro", label: "회고", href: "/daily?tab=retro" },
 ];
 
 // 데일리(기획 §4) — URL 탭(오늘 보드 | OKR). 전사 리듬이라 클라이언트 필터와 무관하게 전원을 본다.
@@ -40,9 +43,9 @@ const DAILY_TABS = [
 export default async function DailyPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string; period?: string }>;
+  searchParams: Promise<{ tab?: string; period?: string; week?: string }>;
 }) {
-  const { tab, period } = await searchParams;
+  const { tab, period, week } = await searchParams;
   const user = await getCurrentUser();
   const now = new Date();
 
@@ -67,6 +70,38 @@ export default async function DailyPage({
           canManageObjectives={okr.canManageObjectives}
           members={members}
           currentMonth={okr.month}
+        />
+      </div>
+    );
+  }
+
+  // 회고 탭 — 오늘 보드 데이터는 건너뛰고 주간 회고만 조회한다. `?week=YYYY-MM-DD`(그 주 월요일)로 이동.
+  if (tab === "retro") {
+    const retro = await getWeeklyRetroData(user, week, now);
+    // 주 이동 링크 계산(정오 파싱으로 경계 흔들림 방지). 미래 주는 이동 불가.
+    const shiftKey = (key: string, days: number): string => {
+      const d = new Date(`${key}T12:00:00`);
+      d.setDate(d.getDate() + days);
+      return kstDateKey(d);
+    };
+    const prevWeek = shiftKey(retro.weekStart, -7);
+    const nextWeek = shiftKey(retro.weekStart, 7);
+    const todayKey = kstDateKey(now);
+    // 다음 주 월요일이 오늘 이후면 미래 → 이동 불가. 미래가 불가하므로 !canGoNext ⇔ 이번 주.
+    const canGoNext = nextWeek <= todayKey;
+
+    return (
+      <div className="flex flex-col gap-4">
+        <PageHeader
+          title="데일리"
+          subtitle="지난 한 주(월~금)의 스탠드업을 되돌아봅니다 — 제출 흐름·포커스·막힘·AI 요약."
+        />
+        <LinkTabs label="데일리 보기 전환" active="retro" tabs={DAILY_TABS} />
+        <WeeklyRetro
+          data={retro}
+          prevHref={`/daily?tab=retro&week=${prevWeek}`}
+          nextHref={canGoNext ? `/daily?tab=retro&week=${nextWeek}` : undefined}
+          isCurrentWeek={!canGoNext}
         />
       </div>
     );
@@ -183,6 +218,9 @@ export default async function DailyPage({
       blockedTitles: (entry?.blockedTaskIds ?? [])
         .map((id) => titleById.get(id))
         .filter((t): t is string => Boolean(t)),
+      blockedTaskIds: entry?.blockedTaskIds ?? [],
+      absence: m.absence,
+      blockerStreak: m.blockerStreak,
       counts,
       krChips: m.krChips,
     };
@@ -240,7 +278,7 @@ export default async function DailyPage({
             {data.submittedCount}/{data.totalCount} 제출
           </span>
         </div>
-        <StandupBoard members={members} />
+        <StandupBoard members={members} date={data.date} />
       </section>
 
       {/* ⑶ AI 팀 요약 패널 — 전원 제출 즉시 또는 11:00 생성. 생성 전엔 대기 카드. */}

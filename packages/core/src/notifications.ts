@@ -41,7 +41,11 @@ export type NotificationTone = "red" | "amber" | "violet" | "blue";
  *  payment_done은 결제 완료(status=done) 시 **등록자(requesterId) + active 관리자 전원** 개인 DM(중복 제거) —
  *  recipient=수신자 userId, entityType="payment_request", entityId=paymentId,
  *  dedup_key `payment_done:<paymentId>:<lastChangedAt ISO>:<recipientId>`로 **완료 이벤트·수신자당 1회**
- *  (crisis 수신자별 dedup 패턴 · 재완료 시 lastChangedAt이 바뀌어 재발송 가능). 계좌번호 미포함 동일. */
+ *  (crisis 수신자별 dedup 패턴 · 재완료 시 lastChangedAt이 바뀌어 재발송 가능). 계좌번호 미포함 동일.
+ *  standup_help는 데일리 막힘에 "내가 도울게요"를 누른 사람이 막힌 당사자에게 보내는 개인 DM(명세 C) —
+ *  recipient=대상자 userId, entityType="user", entityId=대상자 userId,
+ *  dedup_key `standup_help:<KST날짜>:<targetUserId>:<actorId>`로 **같은 날·같은 조합당 평생 1회**
+ *  (같은 사람이 같은 날 중복 제안해도 1회). 트랜잭셔널 알림이라 allowlist 우회(payment 선례). */
 export type NotificationKind =
   | "issue"
   | "on_hold"
@@ -61,7 +65,8 @@ export type NotificationKind =
   | "change_remind"
   | "change_esc"
   | "payment_created"
-  | "payment_done";
+  | "payment_done"
+  | "standup_help";
 
 /** 아웃박스 status 컬럼. */
 export type NotificationStatus = "pending" | "held" | "sent" | "skipped" | "failed";
@@ -143,6 +148,9 @@ export function dedupKeyFor(intent: NotificationIntent): string {
   // 재완료 시 marker가 바뀌어 재발송 가능(crisis 수신자별 dedup 패턴).
   if (intent.kind === "payment_done")
     return `payment_done:${intent.entityId}:${intent.marker}:${intent.recipient ?? ""}`;
+  // standup_help는 <KST날짜>:<targetUserId>:<actorId> 조합을 marker에 담아 그대로 유일키로 쓴다
+  // (같은 날·같은 도움 제안자·같은 대상당 평생 1회).
+  if (intent.kind === "standup_help") return `standup_help:${intent.marker}`;
   return `${intent.kind}:${intent.entityId}:${intent.marker}`;
 }
 

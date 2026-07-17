@@ -97,6 +97,7 @@ export const MENU_SECTIONS: MenuSection[] = [
         children: [
           { label: "오늘", href: "/daily" },
           { label: "OKR", href: "/daily?tab=okr" },
+          { label: "회고", href: "/daily?tab=retro" },
         ],
       },
       // Copilot(/copilot)은 사이드바 메뉴에서 상단바 '작업 추가' 옆으로 이관했다(2026-07-15 사용자 확정 —

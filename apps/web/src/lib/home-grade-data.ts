@@ -1,15 +1,14 @@
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 import {
-  canViewPrivateEventDetail,
   formatProjectLabel,
   gradeForUser,
   personScopeForGrade,
-  type CalendarEvent,
   type Task,
   type User,
 } from "@que/core";
 import { getDb } from "./db";
+import { computeAwayChip, type HomeAwayChip, type HomeAwayEntry } from "./away";
 import type { ListViewMember } from "./pm-types";
 import {
   getHomeData,
@@ -81,19 +80,8 @@ export interface HomeKpi {
   tone?: "default" | "info" | "warning" | "danger" | "success";
 }
 
-export interface HomeAwayEntry {
-  name: string;
-  /** "오전"·"오후"·"종일"(자리비움) 또는 "HH:mm"(외부 일정). */
-  when: string;
-}
-
-/** 오늘 일정 카드 하단 부재 칩(전 역할 공통, §2). 비공개는 사유 없이 이름만. */
-export interface HomeAwayChip {
-  /** 오늘 자리비움(비공개 포함 — 사유 없이 이름·시간대만). */
-  away: HomeAwayEntry[];
-  /** 오늘 외부 회사 일정(source=company). */
-  external: HomeAwayEntry[];
-}
+// 오늘 부재 칩 타입·조립은 away.ts로 이관(홈·데일리 공유). 기존 import 경로 호환을 위해 재노출한다.
+export type { HomeAwayEntry, HomeAwayChip };
 
 /** 사원 오늘 요약(규칙 기반, AI 폴백 겸 기본). */
 export interface StaffTodaySummary {
@@ -306,42 +294,6 @@ function base(home: HomeData, awayChip: HomeAwayChip): HomeBase {
 
 const isOverdue = (t: Task, nowMs: number): boolean =>
   !!t.endAt && OPEN.has(t.status) && new Date(t.endAt).getTime() < nowMs;
-
-/** 오늘 팀 부재 칩(자리비움·외부 일정). 비공개는 사유 없이 이름·시간대만(§2·기존 규칙). */
-function computeAwayChip(db: Db, viewer: User, now: Date): HomeAwayChip {
-  const dayStart = new Date(now);
-  dayStart.setHours(0, 0, 0, 0);
-  const dayEnd = new Date(now);
-  dayEnd.setHours(23, 59, 59, 999);
-  const userById = new Map(db.users.map((u) => [u.id, u]));
-  const overlaps = (e: CalendarEvent): boolean =>
-    new Date(e.startAt) <= dayEnd && new Date(e.endAt) >= dayStart;
-  const whenOf = (e: CalendarEvent): string => {
-    const s = new Date(e.startAt);
-    const spanH = (new Date(e.endAt).getTime() - s.getTime()) / 3.6e6;
-    if (spanH >= 8) return "종일";
-    return s.getHours() < 12 ? "오전" : "오후";
-  };
-
-  const away: HomeAwayEntry[] = [];
-  const external: HomeAwayEntry[] = [];
-  const seenAway = new Set<string>();
-  const seenExt = new Set<string>();
-  for (const e of db.calendarEvents.filter(overlaps)) {
-    const name = userById.get(e.ownerId)?.name ?? e.ownerId;
-    // 비공개 자리비움(뷰어에게 상세 비노출) → 사유 없이 이름·시간대만.
-    if (e.visibility === "private" && !canViewPrivateEventDetail(e, viewer)) {
-      if (seenAway.has(name)) continue;
-      seenAway.add(name);
-      away.push({ name, when: whenOf(e) });
-    } else if (e.source === "company") {
-      if (seenExt.has(name)) continue;
-      seenExt.add(name);
-      external.push({ name, when: format(new Date(e.startAt), "HH:mm") });
-    }
-  }
-  return { away, external };
-}
 
 /** 본인 응답 대기 자동 체크인 → '작업 상태 확인'(Home/CheckIn) 리스트 행.
  *  전 역할 공통(사원·관리자·대표 모두 본인 스코프로 산출). done/cancelled/merged 작업은 제외. */
