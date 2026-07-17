@@ -3,6 +3,7 @@ import "server-only";
 import {
   buildDeadlineIntents,
   buildStatusChangeIntents,
+  canViewMeetingNote,
   dedupKeyFor,
   messageFor,
   TASK_STATUS_LABELS,
@@ -336,6 +337,74 @@ export async function notifyStandupHelpOffered(
   } catch (error) {
     console.error("[que-notify] notifyStandupHelpOffered 실패(무시)", error);
     return false;
+  }
+}
+
+/**
+ * 회의록 업로드 참석자 DM(meeting_note) 훅(명세 A-2). **회의록 persist·요약 생성 후** 호출한다. **절대 throw하지 않는다.**
+ * 수신자: 회의록 attendeeIds 중 **canViewMeetingNote 통과자**(restricted/admin 방어) − **업로더 본인 제외**.
+ * 각자 개인 DM. 게이트: Bot Token(personalDigestEnabled). dedup `meeting_note:<noteId>:<recipientId>`(회의록·수신자당 평생 1회).
+ * ⚠️ digestRecipientAllowlist를 **적용하지 않는다** — 참석자에게 반드시 도달해야 하는 **트랜잭셔널 알림**이라
+ *    allowlist를 우회한다(결제·standup_help 선례. enqueueAndSend가 allowlist를 보지 않으므로 그대로 우회).
+ * 요약(summaryContent)이 있으면 앞 3불릿을 동봉하고, 없거나(요약 실패) 불릿이 없으면 생략한다.
+ * 방해금지(22-8) 창 안이면 enqueueAndSend가 hold(창 종료 후 발송). 후처리 실패 격리 규약(호출부가 try-catch로 흡수).
+ */
+export async function notifyMeetingNoteUploaded(
+  db: MockQueDb,
+  noteId: string,
+  uploaderId: string,
+  summaryContent: string | null,
+  now: Date = new Date(),
+): Promise<void> {
+  if (!personalDigestEnabled()) return; // 개인 DM — Bot Token 게이트
+  try {
+    const note = db.meetingNotes.find((n) => n.id === noteId);
+    if (!note) return;
+    const userById = new Map(db.users.map((u) => [u.id, u]));
+
+    // 요약 앞 3불릿('- ' 접두 라인만). 없으면 요약 줄을 통째로 생략한다.
+    const summaryBullets = summaryContent
+      ? summaryContent
+          .split(/\r?\n/)
+          .map((l) => l.trim())
+          .filter((l) => l.startsWith("- "))
+          .slice(0, 3)
+      : [];
+    const lines = [
+      `제목: ${note.title}`,
+      `회의 일시: ${formatKstDateTime(note.meetingAt)}`,
+    ];
+    if (summaryBullets.length > 0) {
+      lines.push("", "요약", ...summaryBullets);
+    }
+    const text = lines.join("\n");
+
+    // 참석자 중 열람 권한 통과자 − 업로더 본인 제외(중복 없이). 활성 여부는 묻지 않는다(참석자면 대상).
+    const recipientIds = [...new Set(note.attendeeIds)].filter((id) => {
+      if (id === uploaderId) return false; // 업로더 본인 제외
+      const user = userById.get(id);
+      if (!user) return false; // 미상 사용자 방어
+      return canViewMeetingNote(user, note); // restricted/admin 회의록 방어(요약이 권한 밖으로 새지 않게)
+    });
+    if (recipientIds.length === 0) return;
+
+    const intents: NotificationIntent[] = recipientIds.map((rid) => ({
+      kind: "meeting_note",
+      entityType: "meeting_note",
+      entityId: note.id,
+      marker: rid, // dedupKeyFor 기본 규칙 `meeting_note:<noteId>:<rid>` → 회의록·수신자당 평생 1회
+      recipient: rid, // 발송 직전 Slack member ID로 해석
+      payload: {
+        title: "회의록 업로드",
+        text,
+        deeplinkPath: `/meeting-notes?note=${note.id}`,
+        tone: "violet", // 회의록 계열
+      },
+    }));
+    await enqueueAndSend(db, intents, now);
+  } catch (error) {
+    // 발송 로직 실패가 업로드를 되돌리지 않게 흡수한다(dispatch 기존 원칙).
+    console.error("[que-notify] notifyMeetingNoteUploaded 실패(무시)", error);
   }
 }
 
@@ -746,6 +815,7 @@ export async function postWeeklyAgenda(db: MockQueDb, now: Date): Promise<boolea
       `마감 마일스톤 ${agenda.thisWeek.dueMilestones.length}`,
       `위험 ${agenda.milestoneAgenda.risky.length}`,
       `결정 필요 ${agenda.decisions.length}`,
+      `미처리 Action ${agenda.staleActions.count}`,
       `팀 라운드 ${agenda.teamRound.length}인`,
     ].join(" · ");
     const intent: NotificationIntent = {

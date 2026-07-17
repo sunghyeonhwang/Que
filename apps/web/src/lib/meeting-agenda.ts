@@ -5,7 +5,7 @@ import { computeHomeLoad } from "@/lib/home-load";
 import { retroWeekSummary } from "@/lib/retro-data";
 import { getAdminReportData } from "@/lib/report-data";
 import { generateAnalysis } from "@/lib/ai/gemini";
-import { dateKeyOfIso, kstDateKey } from "@/lib/daily-data";
+import { businessDaysElapsed, dateKeyOfIso, kstDateKey } from "@/lib/daily-data";
 
 // AI 주간 아젠다(기획 §1-f "회의 전") — 월요일 주간 통합 회의의 5섹션 데이터를 수집한다. server-only.
 // 조회형(저장하지 않음). 회의 화면(다음 에이전트)·팀채널 게시(dispatch.postWeeklyAgenda)가 재사용한다.
@@ -40,6 +40,17 @@ export interface AgendaDecision {
   kind: "action" | "payment" | "help";
   label: string;
   detail: string;
+}
+
+/** 지난 회의 미처리 Action 한 줄(명세 A-1) — 3영업일 이상 미처리(needs_review·candidate). */
+export interface AgendaStaleAction {
+  id: string;
+  /** 30자 절단 제목. */
+  title: string;
+  /** 출처 회의록명(제목). */
+  noteName: string;
+  /** 생성 기준 경과 영업일(KST, 주말 스킵). */
+  ageBusinessDays: number;
 }
 
 /** ⑸ 팀 라운드 한 줄(인원별 최근 focus 후보). */
@@ -86,6 +97,8 @@ export interface WeeklyAgendaData {
   };
   /** ⑷ 결정 필요. */
   decisions: AgendaDecision[];
+  /** 지난 회의 미처리 Action(명세 A-1) — 3영업일 이상 미처리. count 0이면 절 생략(items 빈 배열). */
+  staleActions: { count: number; items: AgendaStaleAction[] };
   /** ⑸ 팀 라운드. */
   teamRound: AgendaTeamRound[];
   /** (선택) pro 요약문. 생성 실패 시 undefined — 데이터 섹션은 그대로다. */
@@ -224,6 +237,29 @@ export async function buildWeeklyAgenda(
     });
   }
 
+  // 지난 회의 미처리 Action(명세 A-1) — needs_review·candidate 중 3영업일 이상 미처리. 오래된 순 상위 5건.
+  // (기존 아젠다처럼 뷰어 권한 필터 없이 팀채널 아젠다 관점으로 집계 — decisions 섹션과 동일한 스코프.)
+  // NOTE(범위 밖): 업로더 대상 "주 1회 미처리 리마인드 DM"은 사용자 '선택' 표기분이라 이번 구현에서 제외했다.
+  //   필요 시 이 staleActions 집계를 업로더별로 재그룹핑해 dispatch에 새 kind로 추가하면 된다(후속 세션).
+  const noteNameById = new Map(db.meetingNotes.map((n) => [n.id, n.title]));
+  const truncate30 = (s: string) => (s.length > 30 ? `${s.slice(0, 30)}…` : s);
+  const staleAll = db.actionItems
+    .filter((a) => a.status === "needs_review" || a.status === "candidate")
+    .map((a) => ({
+      id: a.id,
+      title: a.title,
+      noteName: noteNameById.get(a.meetingNoteId) ?? a.meetingNoteId,
+      ageBusinessDays: businessDaysElapsed(a.createdAt, now),
+    }))
+    .filter((a) => a.ageBusinessDays >= 3);
+  const staleActions = {
+    count: staleAll.length,
+    items: staleAll
+      .sort((a, b) => b.ageBusinessDays - a.ageBusinessDays)
+      .slice(0, 5)
+      .map((a) => ({ ...a, title: truncate30(a.title) })),
+  };
+
   // ⑸ 팀 라운드 — 인원별 최근 focus 후보 + 오늘 제출 여부·막힘 수.
   const submittedToday = new Set(db.standupEntriesByDate(date).map((e) => e.userId));
   const teamRound: AgendaTeamRound[] = db.users
@@ -261,6 +297,7 @@ export async function buildWeeklyAgenda(
     },
     milestoneAgenda: { risky, dueSoon },
     decisions,
+    staleActions,
     teamRound,
   };
 
@@ -279,6 +316,7 @@ const AGENDA_SYSTEM = [
   "  [이번 주 조망] 이번 주 마감 마일스톤과 부하 쏠림을 짚는다.",
   "  [마일스톤 안건] 위험(주의/지연)·마감 임박 마일스톤을 묶는다. 없으면 '없음'.",
   "  [결정 필요] 미배정 Action·결제 대기·응답 없는 도움 요청을 정리한다. 없으면 '없음'.",
+  "  [지난 회의 미처리 Action] 3영업일 이상 미처리된 Action 건수와 오래된 순 상위를 짚는다. 없으면 '없음'.",
   "  [팀 라운드] 막힘 있는 사람을 먼저 호명하도록 순서를 제안한다.",
   "- 전체 14줄 이내. 실행 가능한 문장으로.",
 ].join("\n");
@@ -304,6 +342,10 @@ async function buildAgendaSummary(data: WeeklyAgendaData): Promise<string | null
         "마감 임박": data.milestoneAgenda.dueSoon.map((m) => `${m.title}(${m.dueDateKey})`),
       },
       "결정 필요": data.decisions.map((d) => `${d.label}: ${d.detail}`),
+      "지난 회의 미처리 Action": {
+        건수: data.staleActions.count,
+        상위: data.staleActions.items.map((a) => `${a.title}(${a.noteName}, ${a.ageBusinessDays}영업일)`),
+      },
       "팀 라운드": data.teamRound.map((t) => ({
         이름: t.name,
         막힘: t.blockedCount,

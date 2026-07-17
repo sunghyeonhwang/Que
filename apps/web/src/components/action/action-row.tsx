@@ -56,6 +56,9 @@ export interface ActionRowData {
   dueDate?: string; // YYYY-MM-DD
   dueTime?: string; // HH:mm
   projectName?: string;
+  /** 미처리(needs_review·candidate) 항목의 생성 기준 경과 영업일(KST, 주말 스킵·오늘=0, 명세 A-1).
+   *  처리된 항목엔 없다. 에이징 뱃지 렌더는 UI 몫(계약만 개방). */
+  ageBusinessDays?: number;
 }
 
 // 상태 색상 의미 고정: 확인 필요=violet(응답대기) · 후보=blue(정보) · 생성=green(완료) ·
@@ -115,6 +118,15 @@ export function ActionRow({
   const [createError, setCreateError] = useState<string | null>(null);
 
   const resolved = item.status === "created" || item.status === "ignored";
+
+  // (명세 A-1) 3영업일 이상 미처리면 "N일째 미처리" 주의(amber) 뱃지 — 데일리 "N일째"와 동일 톤·문법.
+  // 3 미만은 노이즈라 미표시. 처리(생성/무시)된 항목엔 ageBusinessDays가 없어 자연히 숨는다.
+  const showAging = item.ageBusinessDays !== undefined && item.ageBusinessDays >= 3;
+  const agingBadge = showAging ? (
+    <ToneBadge tone="amber" ariaLabel={`${item.ageBusinessDays}일째 미처리`}>
+      {item.ageBusinessDays}일째 미처리
+    </ToneBadge>
+  ) : null;
 
   const allProjects = useMemo(() => {
     const seen = new Set(projects.map((p) => p.id));
@@ -243,6 +255,7 @@ export function ActionRow({
           <ToneBadge tone={STATUS_TONE[item.status]}>
             {ACTION_ITEM_STATUS_LABELS[item.status]}
           </ToneBadge>
+          {agingBadge}
           <span className="min-w-0 flex-1 truncate text-sm font-medium text-[var(--que-text)]">
             {title}
           </span>
@@ -261,6 +274,7 @@ export function ActionRow({
             <ToneBadge tone={STATUS_TONE[item.status]}>
               {ACTION_ITEM_STATUS_LABELS[item.status]}
             </ToneBadge>
+            {agingBadge}
             {editingTitle ? (
               <Input
                 autoFocus

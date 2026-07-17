@@ -2,6 +2,7 @@ import Link from "next/link";
 import { format } from "date-fns";
 import { canViewMeetingNote, formatProjectLabel } from "@que/core";
 import { ActionRow, type ActionRowData } from "@/components/action/action-row";
+import { CarryoverFollowup } from "@/components/action/carryover-followup";
 import {
   NoteFilterSelect,
   type NoteFilterOption,
@@ -12,6 +13,8 @@ import { NoteSummaryCards } from "@/components/notes/note-summary-cards";
 import { StatusBadge } from "@/components/app/status-badge";
 import { getCurrentUser } from "@/lib/current-user";
 import { getNoteSummary } from "@/lib/notes-summary";
+import { businessDaysElapsed } from "@/lib/daily-data";
+import { getPreviousNoteCarryover } from "@/lib/meeting-carryover";
 import { getDb } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
@@ -22,6 +25,7 @@ export default async function ActionPage({
   searchParams: Promise<{ note?: string }>;
 }) {
   const params = await searchParams;
+  const now = new Date();
   const user = await getCurrentUser();
   const db = await getDb();
   const summary = await getNoteSummary(user);
@@ -77,6 +81,10 @@ export default async function ActionPage({
         : (unresolvedNotes[0]?.id ?? "all");
   const noteFilter = selected === "all" ? undefined : selected;
 
+  // (명세 B-6) 지난 회의 팔로업 — 선택된 회의록의 직전 동종 회의록에서 미처리로 남은 Action.
+  // 열람 불가·미처리 0건이면 null(존재 노출 금지·절 생략). 상세 UI(배너 정식 디자인)는 frontend 단계 몫.
+  const carryover = noteFilter ? getPreviousNoteCarryover(db, user, noteFilter, now) : null;
+
   // 드롭다운 옵션(서버 조립): 전체 + 미처리 회의록 + (딥링크로 온 처리완료 회의록 동적 포함).
   const optionNotes = [...unresolvedNotes];
   if (selected !== "all" && !optionNotes.some((n) => n.id === selected)) {
@@ -114,6 +122,11 @@ export default async function ActionPage({
       dueDate: item.dueAt ? format(new Date(item.dueAt), "yyyy-MM-dd") : undefined,
       dueTime: item.dueAt ? format(new Date(item.dueAt), "HH:mm") : undefined,
       projectName: projectLabel(item.projectId),
+      // (명세 A-1) 미처리(확인필요·후보)만 에이징 표기 — 생성 기준 경과 영업일(오늘=0).
+      ageBusinessDays:
+        item.status === "needs_review" || item.status === "candidate"
+          ? businessDaysElapsed(item.createdAt, now)
+          : undefined,
     }));
 
   const needsReview = rows.filter((r) => r.status === "needs_review").length;
@@ -141,6 +154,8 @@ export default async function ActionPage({
       {/* 우측 '생성된 Task' 24rem→36rem(1.5배 — 2026-07-15 사용자 요청). */}
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,36rem)]">
         <div className="flex max-h-[calc(100dvh-18rem)] flex-col gap-2 overflow-y-auto pr-0.5">
+          {/* (명세 B-6) 지난 회의 팔로업 — 접이식 정식 블록. carryover가 null이면 미렌더. */}
+          {carryover && <CarryoverFollowup carryover={carryover} />}
           {rows.length === 0 && (
             <p className="rounded-xl border border-dashed border-[var(--que-border)] bg-[var(--que-bg-muted)] py-10 text-center text-sm text-[var(--que-text-tertiary)]">
               후보가 없습니다. 회의록을 업로드하면 Action이 자동으로 추출됩니다.

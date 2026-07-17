@@ -82,6 +82,32 @@ function previousBusinessDayKeys(now: Date, count: number): string[] {
   return keys;
 }
 
+/**
+ * fromIso(생성 시각) 이후 now까지 **경과 영업일**(KST, 주말 스킵). 생성 다음 영업일부터 오늘까지를 센다.
+ * 오늘 생성(또는 미래)=0, 어제(영업일) 생성=1, 금요일 생성·오늘 월요일=1(주말 스킵). 파싱 실패=0.
+ * 명세 A-1(미처리 Action 에이징)·B-6(팔로업) 공유. computeBlockerStreaks의 영업일 산술과 같은 술어(주말=0/6 스킵).
+ */
+export function businessDaysElapsed(fromIso: string, now: Date): number {
+  const ms = Date.parse(fromIso);
+  if (Number.isNaN(ms)) return 0;
+  const from = new Date(ms);
+  from.setHours(12, 0, 0, 0); // 자정 경계·시각 흔들림 방지(KST 고정, DST 없음)
+  const today = new Date(now);
+  today.setHours(12, 0, 0, 0);
+  const todayKey = kstDateKey(today);
+  if (kstDateKey(from) >= todayKey) return 0; // 오늘/미래 생성
+  let count = 0;
+  const d = new Date(from);
+  // 상한: 무한 방지(약 10년). 생성 다음날부터 오늘까지 평일만 카운트.
+  for (let guard = 0; guard < 3660; guard += 1) {
+    d.setDate(d.getDate() + 1);
+    const dow = d.getDay(); // 0=일, 6=토 — 주말 스킵
+    if (dow !== 0 && dow !== 6) count += 1;
+    if (kstDateKey(d) >= todayKey) break;
+  }
+  return count;
+}
+
 /** 역추적 상한(영업일). 무한 역추적 방지 — 14영업일(약 3주)이면 "장기 막힘"으로 충분. */
 const BLOCKER_STREAK_LOOKBACK_BUSINESS_DAYS = 14;
 

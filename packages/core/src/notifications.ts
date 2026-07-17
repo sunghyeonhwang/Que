@@ -45,7 +45,11 @@ export type NotificationTone = "red" | "amber" | "violet" | "blue";
  *  standup_help는 데일리 막힘에 "내가 도울게요"를 누른 사람이 막힌 당사자에게 보내는 개인 DM(명세 C) —
  *  recipient=대상자 userId, entityType="user", entityId=대상자 userId,
  *  dedup_key `standup_help:<KST날짜>:<targetUserId>:<actorId>`로 **같은 날·같은 조합당 평생 1회**
- *  (같은 사람이 같은 날 중복 제안해도 1회). 트랜잭셔널 알림이라 allowlist 우회(payment 선례). */
+ *  (같은 사람이 같은 날 중복 제안해도 1회). 트랜잭셔널 알림이라 allowlist 우회(payment 선례).
+ *  meeting_note는 회의록 업로드 시 참석자(열람 권한 통과자, 업로더 제외)에게 요약을 동봉해 보내는 개인 DM(명세 A-2) —
+ *  recipient=참석자 userId, entityType="meeting_note", entityId=noteId, marker=recipientId,
+ *  dedup_key `meeting_note:<noteId>:<recipientId>`(기본 dedupKeyFor `<kind>:<entityId>:<marker>`로 그대로 성립)로
+ *  **회의록·수신자당 평생 1회**. 트랜잭셔널 알림이라 allowlist 우회(payment/standup_help 선례). */
 export type NotificationKind =
   | "issue"
   | "on_hold"
@@ -66,7 +70,8 @@ export type NotificationKind =
   | "change_esc"
   | "payment_created"
   | "payment_done"
-  | "standup_help";
+  | "standup_help"
+  | "meeting_note";
 
 /** 아웃박스 status 컬럼. */
 export type NotificationStatus = "pending" | "held" | "sent" | "skipped" | "failed";

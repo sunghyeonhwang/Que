@@ -14,18 +14,22 @@ const TONE: Record<BadgeTone, string> = {
   neutral: "bg-[var(--que-bg-muted)] text-[var(--que-text-secondary)]",
 };
 
-/** 알약형 상태 뱃지. 프로젝트/성과 재설계 화면의 PriorityBadge와 같은 룩앤필. */
+/** 알약형 상태 뱃지. 프로젝트/성과 재설계 화면의 PriorityBadge와 같은 룩앤필.
+ *  ariaLabel: 축약 표기(예: "처리 3/5")를 스크린리더에 풀어 읽히고 싶을 때 지정한다. */
 export function ToneBadge({
   tone,
   className,
+  ariaLabel,
   children,
 }: {
   tone: BadgeTone;
   className?: string;
+  ariaLabel?: string;
   children: ReactNode;
 }) {
   return (
     <span
+      aria-label={ariaLabel}
       className={cn(
         "inline-flex h-6 shrink-0 items-center gap-1 rounded-full px-2.5 text-xs font-medium whitespace-nowrap",
         "[&>svg]:size-3",

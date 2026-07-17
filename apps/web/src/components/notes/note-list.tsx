@@ -36,6 +36,10 @@ export interface NoteListItem {
   uploaderName: string;
   extractionStatus: "pending" | "done";
   candidateCount: number;
+  /** 이 회의록발 Action 중 처리됨(created·ignored·held) 수(명세 A-3). 진행률 = resolvedCount/totalCount. */
+  resolvedCount: number;
+  /** 이 회의록발 Action 전체 수(명세 A-3). 0이면 진행률 표시 생략(추출 전/후보 없음). */
+  totalCount: number;
   markdownBody: string;
   visibility: "team" | "project" | "admin" | "restricted";
   restrictedCount?: number;
@@ -46,29 +50,72 @@ export interface NoteListItem {
 }
 
 /** 업로드된 회의록 목록. 원문 미리보기(Sheet)와 Action 추출 버튼을 제공한다.
- *  highlightId(전역 검색 딥링크 /meeting-notes?note=<id>)가 있으면 해당 행을 강조·스크롤한다. */
+ *  highlightId(전역 검색 딥링크 /meeting-notes?note=<id>)가 있으면 해당 행을 강조·스크롤한다.
+ *  searchQuery(?q= 본문 전문 검색어, 명세 B-5)는 서버에서 이미 필터된 결과에 대한 하이라이트 힌트다(선택 — UI 몫). */
 export function NoteList({
   notes,
   highlightId,
+  searchQuery,
 }: {
   notes: NoteListItem[];
   highlightId?: string;
+  searchQuery?: string;
 }) {
   return (
     <div className="flex flex-col gap-2">
       {notes.length === 0 && (
         <p className="rounded-xl border border-dashed border-[var(--que-border)] bg-[var(--que-bg-muted)] py-10 text-center text-sm text-[var(--que-text-tertiary)]">
-          업로드된 회의록이 없습니다.
+          {searchQuery ? "검색 결과가 없습니다." : "업로드된 회의록이 없습니다."}
         </p>
       )}
       {notes.map((note) => (
-        <NoteRow key={note.id} note={note} highlighted={note.id === highlightId} />
+        <NoteRow
+          key={note.id}
+          note={note}
+          highlighted={note.id === highlightId}
+          searchQuery={searchQuery}
+        />
       ))}
     </div>
   );
 }
 
-function NoteRow({ note, highlighted }: { note: NoteListItem; highlighted: boolean }) {
+/** 제목 내 검색어 부분을 옅은 배경으로 강조한다(제목만 — 본문 하이라이트는 과설계라 생략, 명세 B-5).
+ *  대소문자 무시로 매칭하되 표시는 원문 그대로. query가 없으면 그냥 텍스트를 돌려준다. */
+function HighlightedTitle({ text, query }: { text: string; query?: string }) {
+  const q = query?.trim();
+  if (!q) return <>{text}</>;
+  const lower = text.toLowerCase();
+  const needle = q.toLowerCase();
+  const parts: ReactNode[] = [];
+  let cursor = 0;
+  let from = lower.indexOf(needle, cursor);
+  while (from !== -1) {
+    if (from > cursor) parts.push(text.slice(cursor, from));
+    parts.push(
+      <mark
+        key={from}
+        className="rounded-sm bg-[var(--que-warning-bg)] px-0.5 text-[var(--que-text)]"
+      >
+        {text.slice(from, from + q.length)}
+      </mark>,
+    );
+    cursor = from + q.length;
+    from = lower.indexOf(needle, cursor);
+  }
+  if (cursor < text.length) parts.push(text.slice(cursor));
+  return <>{parts}</>;
+}
+
+function NoteRow({
+  note,
+  highlighted,
+  searchQuery,
+}: {
+  note: NoteListItem;
+  highlighted: boolean;
+  searchQuery?: string;
+}) {
   const { run, pending } = useSafeAction();
   const rowRef = useRef<HTMLDivElement | null>(null);
 
@@ -154,7 +201,7 @@ function NoteRow({ note, highlighted }: { note: NoteListItem; highlighted: boole
         ) : (
           <div className="flex items-center gap-1">
             <p className="min-w-0 flex-1 truncate text-sm font-medium text-[var(--que-text)]">
-              {title}
+              <HighlightedTitle text={title} query={searchQuery} />
             </p>
             {note.canEdit && (
               <Button
@@ -185,7 +232,15 @@ function NoteRow({ note, highlighted }: { note: NoteListItem; highlighted: boole
       {note.extractionStatus === "pending" ? (
         <ToneBadge tone="amber">추출 대기</ToneBadge>
       ) : (
-        <ToneBadge tone="blue">후보 {note.candidateCount}건</ToneBadge>
+        note.totalCount > 0 && (
+          // (명세 A-3) 처리 진행률 — 전량 처리(M===N)는 완료 톤 green, 잔여가 있으면 정보 톤 blue.
+          <ToneBadge
+            tone={note.resolvedCount >= note.totalCount ? "green" : "blue"}
+            ariaLabel={`Action ${note.totalCount}건 중 ${note.resolvedCount}건 처리됨`}
+          >
+            처리 {note.resolvedCount}/{note.totalCount}
+          </ToneBadge>
+        )
       )}
 
       <Sheet>

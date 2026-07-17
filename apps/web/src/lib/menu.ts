@@ -138,6 +138,8 @@ export const MENU_SECTIONS: MenuSection[] = [
         children: [
           { label: "회의록", href: "/meeting-notes" },
           { label: "확인필요", href: "/action" },
+          // 결정 로그(명세 B-4) — 회의록 라우트의 ?tab= 분기. AI가 추출한 "명시된 결정" 조회 전용.
+          { label: "결정", href: "/meeting-notes?tab=decisions" },
         ],
       },
       // Now 운영표(/now) — 회의 Action·캘린더 일정 연결 확인 팀 운영표. 운영 성격이라 팀 현황 옆에 둔다.

@@ -13,6 +13,8 @@ import {
   upsertNoteSummary,
   type NoteSummary,
 } from "@/lib/meeting-summary";
+import { replaceNoteDecisions } from "@/lib/meeting-decisions";
+import { notifyMeetingNoteUploaded } from "@/lib/notifications/dispatch";
 import type { ActionResult } from "@/app/(app)/today/actions";
 
 type Db = Awaited<ReturnType<typeof getDb>>;
@@ -30,8 +32,9 @@ function withTimeout<T>(p: Promise<T>, ms: number): Promise<T | null> {
 /**
  * 업로드/가져오기 성공(회의록 persist 완료) 직후 자동 후처리:
  *  (1) Action 자동 추출 — extractionStatus가 "pending"일 때만(중복 추출 가드는 core에도 있음).
- *  (2) AI 요약 생성 → meeting_note_summaries upsert.
- * 두 단계는 개별 try-catch로 격리한다 — 어느 쪽이 실패해도 업로드 자체는 이미 성공이다.
+ *  (2) AI 요약 + 결정사항 생성(한 호출) → meeting_note_summaries upsert · meeting_note_decisions 교체.
+ *  (3) 참석자 요약 동봉 개인 DM(명세 A-2) — 열람 권한 통과자·업로더 제외.
+ * 각 단계는 개별 try-catch로 격리한다 — 어느 쪽이 실패해도 업로드 자체는 이미 성공이다.
  * 요약은 응답을 오래 붙잡지 않도록 15초 상한을 둔다.
  */
 async function postProcessUploadedNote(
@@ -42,6 +45,9 @@ async function postProcessUploadedNote(
   let summaryGenerated = false;
   let markdownBody = "";
   let title = "";
+  let meetingAt = "";
+  // (3) DM에 동봉할 요약 본문(생성/저장 성공 시에만). 실패·타임아웃이면 null → DM은 요약 없이 보낸다.
+  let summaryContent: string | null = null;
 
   // (1) Action 자동 추출 — pending일 때만. core mutation 경유 + persist(추출 버튼 경로와 동일).
   try {
@@ -50,6 +56,7 @@ async function postProcessUploadedNote(
     if (note) {
       markdownBody = note.markdownBody;
       title = note.title;
+      meetingAt = note.meetingAt;
       if (note.extractionStatus === "pending") {
         const created = db.extractActionItems({ actorId: uploaderId, via: "web" }, noteId);
         await db.persist();
@@ -60,21 +67,32 @@ async function postProcessUploadedNote(
     console.error("[que-minutes] 업로드 후 Action 자동 추출 실패(무시)", error);
   }
 
-  // (2) AI 요약 — 15초 가드. 실패·타임아웃이면 summaryGenerated=false(업로드는 그대로 성공).
+  // (2) AI 요약 + 결정사항 — 15초 가드. 실패·타임아웃이면 summaryGenerated=false(업로드는 그대로 성공).
   try {
     if (markdownBody) {
-      const summary = await withTimeout(generateNoteSummary(markdownBody, title), 15_000);
-      if (summary) {
+      const analysis = await withTimeout(generateNoteSummary(markdownBody, title), 15_000);
+      if (analysis) {
+        summaryContent = analysis.content;
         summaryGenerated = await upsertNoteSummary(
           noteId,
-          summary,
+          analysis.content,
           NOTE_SUMMARY_MODEL,
           uploaderId,
         );
+        // 결정사항(0~10건)도 함께 교체 저장 — decidedAt은 회의 일시 근사(파싱 실패 시 빈 배열이라 delete만).
+        await replaceNoteDecisions(noteId, analysis.decisions, meetingAt || new Date().toISOString());
       }
     }
   } catch (error) {
-    console.error("[que-minutes] 업로드 후 AI 요약 생성 실패(무시)", error);
+    console.error("[que-minutes] 업로드 후 AI 요약/결정 생성 실패(무시)", error);
+  }
+
+  // (3) 참석자 요약 동봉 개인 DM(명세 A-2) — throw 금지·후처리 실패 격리. Bot Token·권한·dedup은 dispatch가 강제.
+  try {
+    const db = await getDb();
+    await notifyMeetingNoteUploaded(db, noteId, uploaderId, summaryContent);
+  } catch (error) {
+    console.error("[que-minutes] 업로드 후 참석자 DM 실패(무시)", error);
   }
 
   return { extractedCount, summaryGenerated };
@@ -275,17 +293,19 @@ export async function regenerateNoteSummaryAction(
     return { ok: false, error: "요약 재생성은 업로더 또는 관리자만 할 수 있습니다." };
   }
 
-  const content = await generateNoteSummary(note.markdownBody, note.title);
-  if (!content) {
+  const analysis = await generateNoteSummary(note.markdownBody, note.title);
+  if (!analysis) {
     return { ok: false, error: "AI 요약 생성에 실패했습니다. 잠시 후 다시 시도하세요." };
   }
-  const saved = await upsertNoteSummary(noteId, content, NOTE_SUMMARY_MODEL, user.id);
+  const saved = await upsertNoteSummary(noteId, analysis.content, NOTE_SUMMARY_MODEL, user.id);
   if (!saved) {
     return { ok: false, error: "요약 저장에 실패했습니다 (이 환경에서 비활성일 수 있습니다)." };
   }
+  // 결정사항도 재생성분으로 교체(note_id 기준 delete 후 재삽입) — 요약 저장 성공 시에만. 실패해도 요약은 유효.
+  await replaceNoteDecisions(noteId, analysis.decisions, note.meetingAt);
   return {
     ok: true,
-    summary: { content, model: NOTE_SUMMARY_MODEL, generatedAt: new Date().toISOString() },
+    summary: { content: analysis.content, model: NOTE_SUMMARY_MODEL, generatedAt: new Date().toISOString() },
   };
 }
 
