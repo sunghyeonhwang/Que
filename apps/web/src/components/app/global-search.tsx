@@ -10,6 +10,7 @@ import {
   MessageSquareText,
   Receipt,
   Users,
+  Gavel,
   type LucideIcon,
 } from "lucide-react";
 import { searchAction } from "@/app/(app)/search-actions";
@@ -22,6 +23,7 @@ const KIND_ICON: Record<SearchKind, LucideIcon> = {
   action: MessageSquareText,
   payment: Receipt,
   member: Users,
+  decision: Gavel,
 };
 
 /** 상단바 전역 검색 — 입력 시 서버액션으로 조회해 그룹 결과를 드롭다운으로 보여준다. */

@@ -1,10 +1,11 @@
 import { canViewMeetingNote, departmentForUser, rankForUser, type User } from "@que/core";
 import { getDb } from "./db";
+import { getDecisionLog } from "./meeting-decisions";
 
 // 전역 검색 데이터 계층 — 상단바 검색이 실제로 조회하는 곳.
 // 조회 전용. 열람 권한(회의록)·민감정보(결제 금액/계좌 미노출)를 지킨다.
 
-export type SearchKind = "task" | "note" | "action" | "payment" | "member";
+export type SearchKind = "task" | "note" | "action" | "payment" | "member" | "decision";
 
 export interface SearchHit {
   kind: SearchKind;
@@ -30,6 +31,7 @@ const GROUP_LABEL: Record<SearchKind, string> = {
   action: "Action",
   payment: "결제",
   member: "팀원",
+  decision: "결정",
 };
 
 /** 각 종류의 '전체 보기'가 향하는 목록 화면. */
@@ -39,6 +41,7 @@ const GROUP_LIST_HREF: Record<SearchKind, string> = {
   action: "/action",
   payment: "/payments",
   member: "/members",
+  decision: "/meeting-notes?tab=decisions",
 };
 
 /** 그룹별 최대 노출 수 */
@@ -141,6 +144,24 @@ export async function searchWorkspace(query: string, user: User): Promise<Search
         title: u.name,
         subtitle: [departmentForUser(u), rankForUser(u)].filter(Boolean).join(" · "),
         href: `/members/${u.id}`,
+      })),
+  );
+
+  // 결정 로그 — AI가 회의록에서 추출한 명시된 결정(명세 B-4). getDecisionLog가 열람 권한 필터를
+  // 내장하므로(비공개 회의록 결정은 제외) 여기서 별도 권한 처리는 하지 않는다.
+  // 클릭 시 개별 결정이 아니라 결정 탭 딥링크(?tab=decisions)로 이동한다(단일 항목 앵커 없음).
+  // mock/dev(DB 키 없음)에서는 빈 배열이라 그룹이 뜨지 않는다(우아한 비활성).
+  const decisions = await getDecisionLog(user);
+  push(
+    "decision",
+    decisions
+      .filter((d) => match(d.content, q))
+      .map((d) => ({
+        kind: "decision" as const,
+        id: d.id,
+        title: d.content,
+        subtitle: [d.noteTitle, d.projectName].filter(Boolean).join(" · "),
+        href: "/meeting-notes?tab=decisions",
       })),
   );
 

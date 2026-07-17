@@ -74,13 +74,22 @@ export function DatePresetChips({
   onSelect,
   ariaLabel = "마감일 빠른 선택",
   className,
+  refreshKey,
 }: {
   value?: string;
   onSelect: (key: string) => void;
   ariaLabel?: string;
   className?: string;
+  /** 값이 바뀔 때마다 프리셋(오늘·내일 등)을 재계산한다 — 소비처(DuePicker)가 팝오버 열 때마다
+   *  bump 해서 자정 넘김 스테일을 없앤다. 미전달이면 마운트 시 1회만 계산(기존 동작). */
+  refreshKey?: unknown;
 }) {
-  const presets = useMemo(() => computeDatePresets(), []);
+  const presets = useMemo(
+    () => computeDatePresets(),
+    // refreshKey 변화(팝오버 열림)마다 강제 재계산. computeDatePresets는 인자 없이 현재 시각을 읽는다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [refreshKey],
+  );
   return (
     <div
       role="group"

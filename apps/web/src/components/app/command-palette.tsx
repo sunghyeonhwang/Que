@@ -13,6 +13,7 @@ import {
   Milestone,
   CornerDownLeft,
   Sparkles,
+  Gavel,
   type LucideIcon,
 } from "lucide-react";
 import { searchAction } from "@/app/(app)/search-actions";
@@ -34,6 +35,7 @@ const KIND_ICON: Record<SearchKind, LucideIcon> = {
   action: MessageSquareText,
   payment: Receipt,
   member: Users,
+  decision: Gavel,
 };
 
 // 이동 대상 라우트 — menu.ts를 단일 소스로 사용(홈/일정/성과/작업 목록/팀/팀 현황/확인필요/결제요청/설정).

@@ -775,6 +775,51 @@ describe("자연어 작업 해석 (parseTaskInput)", () => {
     expect(new Date(withMinute.startAt!).getHours()).toBe(15);
     expect(new Date(withMinute.startAt!).getMinutes()).toBe(30);
   });
+
+  it("날짜 범위 'A부터 B까지'·'A~B'는 시작일 09:00 ~ 종료일 17:00으로 잡는다", async () => {
+    const { parseTaskInput } = await import("./parse-task");
+    const P = (text: string) => parseTaskInput({ text, users: USERS, now: NOW });
+
+    // "부터 … 까지" — 두 날짜 모두 인식 → 범위. 제목은 두 날짜·연결어 제거 후 본문만 남는다.
+    const range = P("7월 2일부터 7월 5일까지 상세페이지 QA");
+    const rs = new Date(range.startAt!);
+    const re = new Date(range.endAt!);
+    expect(rs.getDate()).toBe(2);
+    expect(rs.getHours()).toBe(9);
+    expect(re.getDate()).toBe(5);
+    expect(re.getHours()).toBe(17);
+    expect(range.title).toBe("상세페이지 QA");
+    // 범위는 시각을 09:00~17:00으로 확정하므로 "시간 없음" 질문을 남기지 않는다.
+    expect(range.questions.some((q) => q.includes("시간이 없"))).toBe(false);
+
+    // "A~B" 물결표 형태도 동일하게 범위로 본다(종료일 우측의 제목 본문은 보존).
+    const tilde = P("7월 2일~7월 5일 배너 검토");
+    expect(new Date(tilde.startAt!).getDate()).toBe(2);
+    expect(new Date(tilde.endAt!).getDate()).toBe(5);
+    expect(new Date(tilde.endAt!).getHours()).toBe(17);
+    expect(tilde.title).toBe("배너 검토");
+  });
+
+  it("한쪽 날짜만 인식되면 범위를 포기하고 단일 날짜(마감 +1시간)로 폴백한다", async () => {
+    const { parseTaskInput } = await import("./parse-task");
+    // "까지" 없이 "부터"만 — 범위 아님. 단일 "7월 2일"만 잡히고 endAt은 start+1h(범위 17:00 아님).
+    const draft = parseTaskInput({ text: "7월 2일부터 회의 준비", users: USERS, now: NOW });
+    const s = new Date(draft.startAt!);
+    const e = new Date(draft.endAt!);
+    expect(s.getDate()).toBe(2);
+    expect(s.getHours()).toBe(9);
+    expect(e.getHours()).toBe(10); // 단일: 기본 1시간(범위였다면 17:00)
+  });
+
+  it("범위 표현이 없는 단일 입력은 기존 동작을 그대로 유지한다 (무회귀)", async () => {
+    const { parseTaskInput } = await import("./parse-task");
+    const draft = parseTaskInput({ text: "내일 오후 3시에 상세페이지 QA", users: USERS, now: NOW });
+    const s = new Date(draft.startAt!);
+    expect(s.getDate()).toBe(3); // 7/2 기준 내일
+    expect(s.getHours()).toBe(15);
+    expect(new Date(draft.endAt!).getHours()).toBe(16); // 단일: +1시간
+    expect(draft.title).toBe("상세페이지 QA");
+  });
 });
 
 describe("작업 생성 (createTask)", () => {

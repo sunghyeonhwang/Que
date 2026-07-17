@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { SlidersHorizontal } from "lucide-react";
 import type { Task } from "@que/core";
+import type { ScheduleKind } from "@/lib/calendar-data";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -28,9 +29,9 @@ const PRIORITY_ITEMS: Record<string, string> = {
 const PRIORITY_ORDER: (Task["priority"] | typeof ANY)[] = [ANY, "high", "normal", "low"];
 
 // 일정 종류 4키(표시 토글). 서버 filterScheduleItems·page 파싱과 키 계약을 맞춘다
-// (task·meeting·external·milestone). 클라 번들에 서버 모듈(calendar-data)을 끌어오지 않도록
-// 라벨·순서는 여기서 로컬로 둔다.
-type ScheduleKind = "task" | "meeting" | "external" | "milestone";
+// (task·meeting·external·milestone). **타입**은 calendar-data의 ScheduleKind로 단일화한다(type import=번들 0).
+// 반면 **상수 배열**(SCHEDULE_KINDS)은 값 import 시 calendar-data → getDb(서버 DB 모듈)까지
+// 클라 번들로 끌려오므로 여기 로컬로 유지한다(순서·라벨 로컬 소유).
 const KIND_ORDER: ScheduleKind[] = ["task", "meeting", "external", "milestone"];
 const KIND_LABELS: Record<ScheduleKind, string> = {
   task: "작업",

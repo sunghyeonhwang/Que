@@ -10,6 +10,8 @@ import { getOkrData } from "@/lib/okr-data";
 import { searchWorkspace } from "@/lib/search-data";
 import { computeHomeLoad } from "@/lib/home-load";
 import { getPaymentData } from "@/lib/payment-data";
+import { getDecisionLog } from "@/lib/meeting-decisions";
+import { getWeeklyRetroData } from "@/lib/weekly-retro-data";
 import {
   getActiveProjects,
   getProjectBoard,
@@ -119,6 +121,44 @@ export const COPILOT_READ_TOOL_DECLARATIONS: GeminiFunctionDeclaration[] = [
       required: ["query"],
     },
   },
+  {
+    name: "get_decisions",
+    description:
+      "회의에서 결정된 사항(결정 로그). '지난 회의에서 뭘 정했나·~하기로 한 것·무슨 결정이 났나' 같은 질문에 쓴다. AI가 회의록 원문에서 뽑은 파생물이라 정확한 문구는 원문 대조가 필요하다(답변에 이 점을 덧붙여라). 비공개 회의록 결정은 열람 권한이 있는 것만 나온다.",
+    parameters: {
+      type: "object",
+      properties: {
+        projectId: {
+          type: "string",
+          description: "특정 프로젝트의 결정만 볼 때 그 프로젝트 ID(모르면 생략 — 전체 회의 결정).",
+        },
+        limit: {
+          type: "number",
+          description: "최대 개수(기본 10, 최대 30). 최신순으로 반환.",
+        },
+      },
+    },
+  },
+  {
+    name: "get_weekly_retro",
+    description:
+      "한 주(월~금) 스탠드업 회고: 일자별 제출 현황·사람별 포커스와 완료 작업 수·그 주 막힘 목록. '지난주 어땠나·이번 주 회고·누가 뭐에 집중했나·막힌 게 뭐였나' 같은 질문에 쓴다.",
+    parameters: {
+      type: "object",
+      properties: {
+        week: {
+          type: "string",
+          description: "조회할 주의 월요일(YYYY-MM-DD). 생략하면 이번 주. '지난주'면 지난 월요일 날짜를 넣는다.",
+        },
+      },
+    },
+  },
+  {
+    name: "get_today_load",
+    description:
+      "지금 로그인한 사용자 '본인'의 오늘 업무 부하: 오늘 할 일 개수·예상 소요시간 합계·예상시간 입력 현황. '오늘 얼마나 바쁜가·부하가 어떤가·오늘 일이 많은가' 같은 질문에 쓴다. **본인만 조회 가능** — 다른 사람의 부하는 이 도구로 볼 수 없다(팀 전체 부하는 get_workload, 특정인 상황은 get_team_blockers/search_items로 안내).",
+    parameters: { type: "object", properties: {} },
+  },
 ];
 
 /** 읽기 도구 이름 집합(copilot.ts에서 propose_*와 구분). */
@@ -130,6 +170,8 @@ export const COPILOT_READ_TOOL_NAMES = new Set(
 
 type Args = Record<string, unknown>;
 const str = (v: unknown): string | undefined => (typeof v === "string" ? v : undefined);
+const num = (v: unknown): number | undefined =>
+  typeof v === "number" && Number.isFinite(v) ? v : undefined;
 
 const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
 const DOW_KO = ["일", "월", "화", "수", "목", "금", "토"];
@@ -184,6 +226,12 @@ export async function runCopilotReadTool(
       );
     case "search_items":
       return searchItems(user, str(args.query) ?? "");
+    case "get_decisions":
+      return getDecisions(user, str(args.projectId), num(args.limit));
+    case "get_weekly_retro":
+      return getWeeklyRetro(user, str(args.week), now);
+    case "get_today_load":
+      return getTodayLoad(user, now);
     default:
       throw new Error(`알 수 없는 도구: ${name}`);
   }
@@ -435,6 +483,110 @@ async function searchItems(user: User, query: string): Promise<ToolResult> {
       .flatMap((g) => g.hits.slice(0, 2))
       .slice(0, 6)
       .map((h) => ({ label: h.title, href: h.href })),
+  };
+}
+
+/**
+ * 회의 결정 로그(최신순). getDecisionLog를 그대로 재사용해 **뷰어의 회의록 열람 권한**(canViewMeetingNote)을
+ * 위임한다 — 비공개(admin/restricted) 회의록 결정은 권한 없는 뷰어에게 새지 않는다(우회 경로 없음).
+ * mock/dev(SUPABASE 키 없음)에서는 게이트로 항상 빈 배열 → "이 환경엔 결정 데이터 없음"으로 정직하게 응답.
+ * 회의 일시는 *Human을 병기해 답변 본문이 ISO 원문 대신 사람 표기를 쓰게 한다.
+ */
+async function getDecisions(
+  user: User,
+  projectId: string | undefined,
+  limit: number | undefined,
+): Promise<ToolResult> {
+  // limit 기본 10·최대 30(도구 계약). 음수·0 방어.
+  const capped = Math.max(1, Math.min(limit ?? 10, 30));
+  const entries = await getDecisionLog(user, { projectId, limit: capped });
+  return {
+    data: {
+      count: entries.length,
+      // AI 추출 파생물임을 모델에 명시 — 답변에 "원문 대조 권고"를 붙이도록 유도한다.
+      note: "결정 로그는 AI가 회의록 원문에서 추출한 것이라 정확한 문구는 원문 대조가 필요하다. 답변에 이 점을 짧게 덧붙여라.",
+      ...(entries.length === 0 && {
+        hint: "열람 가능한 회의 결정 데이터가 없다(이 환경에 결정 로그가 없거나, 해당 프로젝트/권한 범위에 결정이 없음). 없는 결정을 지어내지 말고 그대로 전하라.",
+      }),
+      decisions: entries.map((e) => ({
+        content: e.content,
+        noteTitle: e.noteTitle,
+        project: e.projectName ?? null,
+        meetingAt: e.noteDate,
+        meetingAtHuman: humanizeKst(e.noteDate),
+        aiExtracted: e.aiExtracted,
+      })),
+    },
+    sources: [{ label: "회의록 · 결정", href: "/meeting-notes?tab=decisions" }],
+  };
+}
+
+/**
+ * 주간 회고(월~금). getWeeklyRetroData를 재사용한다 — 전사 리듬이라 마스킹 대상이 없고(막힘은 본인 서술),
+ * 뷰어는 본인 하이라이트(isMe)용으로만 쓰인다(권한 상승 없음). 막힘 해소는 단정하지 않고
+ * "이후 언급 없음"(unmentionedSince) 라벨을 그대로 실어 보낸다.
+ */
+async function getWeeklyRetro(
+  user: User,
+  week: string | undefined,
+  now: Date,
+): Promise<ToolResult> {
+  const retro = await getWeeklyRetroData(user, week, now);
+  return {
+    data: {
+      weekLabel: retro.weekLabel,
+      weekStart: retro.weekStart,
+      weekEnd: retro.weekEnd,
+      // 일자별 제출 현황(N/전체).
+      days: retro.days.map((d) => ({
+        label: d.label,
+        date: d.date,
+        submitted: d.submitted,
+        total: d.total,
+      })),
+      // 사람별 포커스·완료 수(제출 없는 사람은 focuses 빈 배열).
+      people: retro.people.map((p) => ({
+        name: p.userName,
+        isMe: p.isMe,
+        submittedDays: p.submittedDays,
+        doneCount: p.doneCount,
+        focuses: p.focuses.map((f) => f.focus),
+      })),
+      blockers: retro.blockers.map((b) => ({
+        who: b.userName,
+        text: b.text,
+        lastMentioned: b.lastMentionedDate,
+        // 해소 단정 금지 — "이후 언급 없음" 라벨을 모델에 그대로 넘긴다.
+        note: b.unmentionedSince ? "이후 언급 없음(해소 여부 불명)" : "그 주 마지막까지 언급됨",
+      })),
+    },
+    sources: [{ label: "주간 회고", href: `/daily?tab=retro&week=${retro.weekStart}` }],
+  };
+}
+
+/**
+ * **본인** 오늘 부하만 요약(getTodayData의 plannedHours + 오늘 작업 수). 타인 부하 조회는 지원하지 않는다 —
+ * 개인 평가 오용을 막기 위한 의도적 제약(파라미터를 받지 않아 URL로도 확대 불가). 팀 부하는 get_workload로.
+ */
+async function getTodayLoad(user: User, now: Date): Promise<ToolResult> {
+  const today = await getTodayData(user, now);
+  const p = today.plannedHours;
+  return {
+    data: {
+      scope: "본인만(타인 부하는 이 도구로 조회 불가 — 팀 부하는 get_workload)",
+      todayTaskCount: today.myTasks.length,
+      plannedHoursTotal: p.total,
+      tasksWithEstimate: p.withEstimate,
+      // 예상시간 입력이 부분적이면 합계가 실제보다 적을 수 있음을 모델에 알린다(과소 계상 방어).
+      estimateCoverageNote:
+        p.taskCount > 0 && p.withEstimate < p.taskCount
+          ? `오늘 하루 작업 ${p.taskCount}건 중 ${p.withEstimate}건만 예상 시간이 입력돼 합계가 실제보다 적을 수 있다.`
+          : null,
+      dueSoonCount: today.dueSoon.length,
+      blockedCount: today.attention.length,
+      conflictCount: today.conflictCount,
+    },
+    sources: [{ label: "오늘 할 일", href: "/today" }],
   };
 }
 

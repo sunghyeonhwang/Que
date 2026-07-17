@@ -25,6 +25,51 @@ const TRAILING_COMMAND_PHRASE =
 // 경계가 있을 때만 제거한다 — "작업등록"의 등록은 남기고 "작업 등록"·"작업을 등록"만 제거.
 const TRAILING_COMMAND_WORD = /(\s|을|를|좀|하나)\s*(넣어|추가|등록)\s*[.!]?\s*$/;
 
+/**
+ * 텍스트 조각에서 단일 날짜 표현 1개를 뽑는다(상대·요일·명시일). 없으면 null.
+ * 반환하는 date는 now의 시각(시/분)을 그대로 물려받는다 — 시각은 호출부가 별도로 덮는다.
+ * 단일 날짜 흐름과 "A부터 B까지"·"A~B" 범위 흐름이 **같은 파서**를 공유하도록 분리했다.
+ */
+function detectDate(text: string, now: Date): { date: Date; matched: string } | null {
+  const date = new Date(now);
+  const relative: [RegExp, number][] = [
+    [/오늘/, 0],
+    [/내일\s*모레|모레/, 2],
+    [/내일/, 1],
+    [/글피/, 3],
+  ];
+  for (const [pattern, offset] of relative) {
+    const m = text.match(pattern);
+    if (m) {
+      date.setDate(date.getDate() + offset);
+      return { date, matched: m[0] };
+    }
+  }
+  // 요일 표현: "(다음 주|이번 주)? X요일" — 없으면 다가오는 해당 요일(오늘 포함)
+  const weekdayMatch = text.match(/(다음\s*주|담주|이번\s*주)?\s*([월화수목금토일])요일/);
+  if (weekdayMatch) {
+    const DOW: Record<string, number> = { 일: 0, 월: 1, 화: 2, 수: 3, 목: 4, 금: 5, 토: 6 };
+    const target = DOW[weekdayMatch[2]];
+    const current = date.getDay();
+    if (/다음\s*주|담주/.test(weekdayMatch[1] ?? "")) {
+      // 다음 주(월요일 시작)의 해당 요일
+      const daysToNextMonday = ((8 - current) % 7) || 7;
+      date.setDate(date.getDate() + daysToNextMonday + ((target + 6) % 7));
+    } else {
+      date.setDate(date.getDate() + ((target - current + 7) % 7));
+    }
+    return { date, matched: weekdayMatch[0] };
+  }
+  const explicit =
+    text.match(/(\d{1,2})\s*월\s*(\d{1,2})\s*일/) ?? text.match(/(\d{1,2})\/(\d{1,2})/);
+  if (explicit) {
+    date.setMonth(Number(explicit[1]) - 1, Number(explicit[2]));
+    if (date < now) date.setFullYear(date.getFullYear() + 1); // 지난 날짜면 내년으로
+    return { date, matched: explicit[0] };
+  }
+  return null;
+}
+
 export function parseTaskInput(input: {
   text: string;
   users: User[];
@@ -49,47 +94,40 @@ export function parseTaskInput(input: {
     }
   }
 
-  // ---- 날짜 ----
+  // ---- 날짜 범위: "A부터 B까지" · "A~B"(〜 포함) ----
+  // 양쪽 조각을 단일 날짜 파서(detectDate)에 태워 둘 다 인식되면 범위로 본다.
+  // 관례: startAt=시작일 09:00, endAt=종료일 17:00(아래 startAt/endAt 계산에서 적용).
+  // 한쪽만 인식되면 범위를 포기하고 아래 단일 날짜 흐름으로 폴백한다(기존 동작 유지).
   const date = new Date(now);
-  let hasDate = false;
-  const relative: [RegExp, number][] = [
-    [/오늘/, 0],
-    [/내일\s*모레|모레/, 2],
-    [/내일/, 1],
-    [/글피/, 3],
-  ];
-  for (const [pattern, offset] of relative) {
-    if (pattern.test(rest)) {
-      date.setDate(date.getDate() + offset);
-      rest = rest.replace(pattern, " ");
-      hasDate = true;
-      break;
-    }
-  }
-  // 요일 표현: "(다음 주|이번 주)? X요일" — 없으면 다가오는 해당 요일(오늘 포함)
-  if (!hasDate) {
-    const weekdayMatch = rest.match(/(다음\s*주|담주|이번\s*주)?\s*([월화수목금토일])요일/);
-    if (weekdayMatch) {
-      const DOW: Record<string, number> = { 일: 0, 월: 1, 화: 2, 수: 3, 목: 4, 금: 5, 토: 6 };
-      const target = DOW[weekdayMatch[2]];
-      const current = date.getDay();
-      if (/다음\s*주|담주/.test(weekdayMatch[1] ?? "")) {
-        // 다음 주(월요일 시작)의 해당 요일
-        const daysToNextMonday = ((8 - current) % 7) || 7;
-        date.setDate(date.getDate() + daysToNextMonday + ((target + 6) % 7));
-      } else {
-        date.setDate(date.getDate() + ((target - current + 7) % 7));
+  let rangeStart: Date | undefined;
+  let rangeEnd: Date | undefined;
+  {
+    // "부터…까지"(까지 필수)를 먼저, 없으면 "~/〜"를 본다.
+    const rangeMatch =
+      rest.match(/(.+?)\s*부터\s*(.+?)\s*까지/) ?? rest.match(/(.+?)\s*[~〜]\s*(.+)/);
+    if (rangeMatch) {
+      const left = detectDate(rangeMatch[1], now);
+      const right = detectDate(rangeMatch[2], now);
+      if (left && right) {
+        rangeStart = left.date;
+        rangeEnd = right.date;
+        // 매치된 두 날짜 표현과 연결어(부터/까지/~)만 제목에서 제거한다(제목 본문은 보존).
+        rest = rest
+          .replace(left.matched, " ")
+          .replace(right.matched, " ")
+          .replace(/부터|까지|[~〜]/g, " ");
       }
-      rest = rest.replace(weekdayMatch[0], " ");
-      hasDate = true;
     }
   }
+
+  // ---- 날짜(단일) ----
+  // 범위가 잡혔으면 hasDate=true로 두고 단일 파싱은 건너뛴다.
+  let hasDate = Boolean(rangeStart && rangeEnd);
   if (!hasDate) {
-    const explicit = rest.match(/(\d{1,2})\s*월\s*(\d{1,2})\s*일/) ?? rest.match(/(\d{1,2})\/(\d{1,2})/);
-    if (explicit) {
-      date.setMonth(Number(explicit[1]) - 1, Number(explicit[2]));
-      if (date < now) date.setFullYear(date.getFullYear() + 1); // 지난 날짜면 내년으로
-      rest = rest.replace(explicit[0], " ");
+    const single = detectDate(rest, now);
+    if (single) {
+      date.setTime(single.date.getTime());
+      rest = rest.replace(single.matched, " ");
       hasDate = true;
     }
   }
@@ -160,7 +198,13 @@ export function parseTaskInput(input: {
 
   let startAt: string | undefined;
   let endAt: string | undefined;
-  if (hasDate || hasTime) {
+  if (rangeStart && rangeEnd) {
+    // 범위: 시작일 09:00 ~ 종료일 17:00 관례(시각 표현이 함께 있어도 범위 관례를 우선).
+    rangeStart.setHours(9, 0, 0, 0);
+    rangeEnd.setHours(17, 0, 0, 0);
+    startAt = rangeStart.toISOString();
+    endAt = rangeEnd.toISOString();
+  } else if (hasDate || hasTime) {
     date.setHours(hour, minute, 0, 0);
     startAt = date.toISOString();
     endAt = new Date(date.getTime() + 60 * 60 * 1000).toISOString(); // 기본 1시간
@@ -182,7 +226,9 @@ export function parseTaskInput(input: {
 
   if (!title) questions.push("작업명을 알 수 없습니다 — 무엇을 등록할까요?");
   if (!hasDate) questions.push("날짜가 없습니다 — 오늘로 등록할까요?");
-  if (!hasTime && hasDate) questions.push("시간이 없습니다 — 09:00으로 등록할까요?");
+  // 범위는 09:00~17:00으로 시각을 확정하므로 "시간 없음" 질문을 남기지 않는다.
+  if (!hasTime && hasDate && !(rangeStart && rangeEnd))
+    questions.push("시간이 없습니다 — 09:00으로 등록할까요?");
   if (!assignee) questions.push("담당자가 없어 본인 작업으로 등록됩니다.");
 
   return {

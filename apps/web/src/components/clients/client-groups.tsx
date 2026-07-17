@@ -229,6 +229,8 @@ function ClientCard({
   const handleDrop = (event: DragEvent) => {
     if (!event.dataTransfer.types.includes(DRAG_MIME)) return;
     event.preventDefault();
+    // 재정렬 진행 중(pending)이면 드롭도 무시한다 — 버튼과 동일하게 연타 레이스를 막는다.
+    if (reorderPending) return;
     onDropOn();
   };
 
@@ -252,7 +254,8 @@ function ClientCard({
   };
 
   // 편집 중에는 드래그를 끈다 — draggable 부모가 자식 input의 텍스트 선택을 방해하지 않도록.
-  const canDrag = reorderable && !editing;
+  // 재정렬 pending 중에도 드래그를 끈다(위/아래 버튼과 동일한 연타 레이스 방지).
+  const canDrag = reorderable && !editing && !reorderPending;
 
   return (
     <div

@@ -147,10 +147,23 @@ export function DuePicker({
   triggerClassName,
 }: DuePickerProps) {
   const slots = useMemo(() => buildSlots(timeMin, timeMax), [timeMin, timeMax]);
-  const todayKey = useMemo(() => kstTodayKey(), []);
+  // 오늘 키·프리셋은 팝오버를 열 때마다 갱신한다(자정 넘겨 열어두면 "오늘" 하이라이트·프리셋이 굳는 문제).
+  const [open, setOpen] = useState(false);
+  const [todayKey, setTodayKey] = useState(() => kstTodayKey());
+  // DatePresetChips에 넘겨 열 때마다 프리셋을 재계산시키는 nonce(값 자체는 의미 없음).
+  const [presetNonce, setPresetNonce] = useState(0);
   // 보이는 달: 선택일 있으면 그 달, 없으면 오늘 달. 마운트 시 1회 초기화.
   const init = parseKey(dueDate || todayKey);
   const [view, setView] = useState({ y: init.y, m: init.m }); // m 1-based
+
+  // 팝오버 열림 시 오늘 키·프리셋 nonce를 갱신(effect 대신 오픈 핸들러 — 캐스케이드 렌더 회피).
+  const onOpenChange = (next: boolean) => {
+    if (next) {
+      setTodayKey(kstTodayKey());
+      setPresetNonce((n) => n + 1);
+    }
+    setOpen(next);
+  };
 
   const shift = (delta: number) =>
     setView((v) => {
@@ -176,7 +189,7 @@ export function DuePicker({
   const hasDue = Boolean(dueDate);
 
   return (
-    <Popover>
+    <Popover open={open} onOpenChange={onOpenChange}>
       <PopoverTrigger
         aria-label={triggerAriaLabel}
         className={cn(
@@ -207,7 +220,7 @@ export function DuePicker({
           <p className="text-xs font-medium text-[var(--que-text-tertiary)]">
             빠른 선택
           </p>
-          <DatePresetChips value={dueDate} onSelect={onSelectDate} />
+          <DatePresetChips value={dueDate} onSelect={onSelectDate} refreshKey={presetNonce} />
           {showTime && <TimePresetChips value={dueTime} onSelect={onSelectDueTime} />}
         </div>
 

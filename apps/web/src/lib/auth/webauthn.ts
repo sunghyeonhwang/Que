@@ -54,14 +54,16 @@ function isLocalHost(host: string | null): boolean {
   return h === "localhost" || h === "127.0.0.1";
 }
 
-/** 요청 host를 참고해 dev/prod RP를 고른다. host로 origin을 만들지 않고, dev 판정에만 쓴다.
- *  (production 빌드를 로컬에서 띄우는 경우까지 localhost로 처리하기 위함.) */
+/** dev/prod RP를 고른다. host로 origin을 만들지 않고, dev 판정에만 참고한다.
+ *  프로덕션(NODE_ENV==="production")에서는 host를 무시하고 prod RP를 고정한다 —
+ *  요청 Host 헤더를 localhost로 위조해 RP를 dev로 다운그레이드하는 것을 차단한다(글래도스 권고).
+ *  따라서 localhost 분기는 **비프로덕션에서만** 유효하다(프로덕션 로컬 빌드도 prod RP로 처리). */
 export function resolveRp(host: string | null): {
   rpName: string;
   rpID: string;
   expectedOrigin: string[];
 } {
-  const dev = process.env.NODE_ENV !== "production" || isLocalHost(host);
+  const dev = process.env.NODE_ENV !== "production" && isLocalHost(host);
   return dev
     ? { rpName: RP_NAME, rpID: DEV_RP_ID, expectedOrigin: DEV_ORIGINS }
     : { rpName: RP_NAME, rpID: PROD_RP_ID, expectedOrigin: PROD_ORIGINS };
