@@ -41,6 +41,9 @@ mock 인증: 쿠키 `que-user=<id>` / PAT `que_pat_<id>` (예: `hwang-sunghyeon`
 
 **프로덕션은 GRIFF Pro 팀(`griff-fde0dc32/que`) · <https://que.griff.co.kr> · 실 DB(`QUE_DB=supabase`)+실 인증(Auth.js) 라이브.** 비밀값은 `data/.env`(gitignore). Vercel env로 기능 게이트(아래 참고).
 
+#### 🔄 DayBlocks 개인 데이터 서버 저장 + See→체크인 연계 (2026-07-19 사용자 "1-3 진행, 2(Capacitor)는 대기")
+**Que 측**: 신규 `db_blocks`(id=클라 uuid PK·payload jsonb — **블록 스키마 정본은 DayBlocks 레포**, Que는 소유·날짜만)·`db_day_reviews`(PK user_id+date_key) — **적용+RLS 완료**, `db_` 접두=DayBlocks 네임스페이스(iv_ 선례). `/api/blocks` GET/PUT/DELETE·`/api/day-reviews` GET/PUT — PAT Bearer·본인 스코프·상한(31일/100건/8KB·16KB)·**id 탈취 방지**(upsert 전 소유 대조→타인 소유 rejected. TOCTOU 창은 uuid 엔트로피로 계량 수용 — 글래도스 판정). CORS_ALLOW_METHODS에 PUT 추가(1줄). **See→체크인**: generateStandupDraftAction이 어제(달력 역탐색 3일) db_day_reviews+db_blocks에서 "계획 N건 중 M건 실행, 밀린 것…" 1줄을 초안 프롬프트에 주입(있을 때만·방어 파싱·**제목 개행 제거+60자 절단** — 글래도스 조건 이행). **DayBlocks 측**(todo_griff): `personalSync.ts` — 로컬 우선 불변(§14.1), 풀 14일 LWW(편집시각·아웃박스 잔존 시 로컬 승), 푸시 아웃박스 코얼레스·백오프, **Que 연동 블록 3중 제외**(이중 저장 금지·전환 시 서버 DELETE 인계), See 스냅샷 불변 채우기, 미로그인=로컬 전용 완전 동작. DESIGN §14.10. 라이브: API 401·todo 오리진 PUT 프리플라이트 204·양 레포 배포. **이제 개인 블록·회고가 기기 간 동기화**되고 네이티브 앱(대기 중)이 같은 API를 쓸 수 있다.
+
 #### 📱 DayBlocks(todo.griff.co.kr) 개선 3건 + 네이티브 앱 트랙 확정 (2026-07-18 사용자)
 **별도 레포 `~/Desktop/todo_griff`**(상세는 그쪽 PROGRESS.md·DESIGN.md — 여기는 인수인계 요지만). ⑴10분 스냅+보조 눈금+창작 최소 20분(렌더 하한 24px 분리 — 레거시 15분 블록 무손실) ⑵`lib/notify.ts` 알림 어댑터 신설+블록 종료 알림 옵트인+진행 중 "남은 N분"(useNow 재사용) ⑶하루 마감 See 카드(Plan-Do-See의 See — 날짜당 1회 계획 스냅샷 vs 실행, 최근 7일, **개인 시간 회고 전용 — Que 데일리 팀 회고와 분업**). 글래도스 승인·별도 vercel 배포 완료. **사용자 확정 결정(중요)**: ①그리드 전면 재작성 안 함(스냅 통일로 대체) ②**PWA+Web Push 서버는 하지 않음** ③**네이티브 앱 추후 트랙 — Capacitor 우선 검토**(정시 로컬 알람이 동기, 알림 교체점은 notify.ts 1곳으로 격리됨) ④**DayBlocks 데이터도 Que Supabase 공유로 전환 예정**(현 localStorage 우선+Que 미러 → 서버 저장, reviewStore/blocksStore 교체점 격리됨). iOS 개발자 계정($99/yr)이 네이티브 트랙 선행 준비물.
 
