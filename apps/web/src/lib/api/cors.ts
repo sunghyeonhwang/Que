@@ -25,7 +25,8 @@ export function resolveAllowedOrigin(origin: string | null): string | null {
   return allowedOrigins().has(origin) ? origin : null;
 }
 
-export const CORS_ALLOW_METHODS = "GET, POST, PATCH, DELETE, OPTIONS";
+// PUT은 DayBlocks 저장 API(/api/blocks·/api/day-reviews bulk upsert) 프리플라이트 통과용으로 추가.
+export const CORS_ALLOW_METHODS = "GET, POST, PUT, PATCH, DELETE, OPTIONS";
 export const CORS_ALLOW_HEADERS = "Authorization, Content-Type, X-Que-Via";
 export const CORS_MAX_AGE = "86400";
 

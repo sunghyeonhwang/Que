@@ -23,18 +23,26 @@ export function apiError(status: number, code: string, message: string): Respons
   return Response.json({ error: { code, message } }, { status });
 }
 
-/** API 본문 크기 상한 — 공개 API의 DoS 표면 축소. 회의록 업로드는 API가 아니라 서버 액션 경유라 무관. */
+/** API 본문 크기 상한(기본) — 공개 API의 DoS 표면 축소. 회의록 업로드는 API가 아니라 서버 액션 경유라 무관. */
 const MAX_BODY_BYTES = 100_000;
+
+/** withApi 옵션 — maxBodyBytes로 라우트별 본문 상한을 올린다(예: DayBlocks bulk upsert는 100건×8KB). */
+export interface WithApiOptions {
+  /** 이 라우트 한정 본문 바이트 상한(미지정 시 기본 100KB). */
+  maxBodyBytes?: number;
+}
 
 /** 인증 + 에러 매핑을 감싼 핸들러 러너. */
 export async function withApi(
   request: Request,
   handler: (ctx: ApiContext) => Promise<Response> | Response,
+  options?: WithApiOptions,
 ): Promise<Response> {
   try {
+    const limit = options?.maxBodyBytes ?? MAX_BODY_BYTES;
     const contentLength = Number(request.headers.get("content-length") ?? 0);
-    if (contentLength > MAX_BODY_BYTES) {
-      return apiError(413, "PAYLOAD_TOO_LARGE", `본문은 ${MAX_BODY_BYTES.toLocaleString()}바이트 이내여야 한다`);
+    if (contentLength > limit) {
+      return apiError(413, "PAYLOAD_TOO_LARGE", `본문은 ${limit.toLocaleString()}바이트 이내여야 한다`);
     }
     const ctx = await authenticate(request);
     return await handler(ctx);

@@ -8,6 +8,7 @@ import { getDailyData } from "@/lib/daily-data";
 import { getStandupData } from "@/lib/team-data";
 import { generateAnalysis } from "@/lib/ai/gemini";
 import { generateTeamSummary } from "@/lib/standup-summary";
+import { getYesterdaySeeSummary } from "@/lib/dayblocks";
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
 
@@ -110,13 +111,17 @@ export async function generateStandupDraftAction(): Promise<StandupDraftResult> 
       return { 제목: t.title, 상태: t.status, 사유: log?.reason ?? "", "다음 액션": log?.nextAction ?? "" };
     });
 
-    const payload = {
+    const payload: Record<string, unknown> = {
       대상: `${user.name}(본인)`,
       "어제 완료": mine.yesterdayDone.map((t) => t.title),
       "어제 미완(이월 후보)": mine.yesterdayUnfinished.map((t) => t.title),
       "오늘 예정": mine.todayPlanned.map((t) => t.title),
       막힘: blockedDetail,
     };
+
+    // DayBlocks 어제 See 회고가 있으면 초안 재료로 곁들인다(있을 때만 — 프롬프트 비대 금지, 실패는 무시).
+    const seeReview = await getYesterdaySeeSummary(user.id, now);
+    if (seeReview) payload["어제 개인 시간 회고"] = seeReview;
 
     const text = await generateAnalysis(DRAFT_SYSTEM, JSON.stringify(payload, null, 1), {
       model: "flash",
