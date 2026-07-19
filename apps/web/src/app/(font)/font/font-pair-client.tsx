@@ -9,6 +9,8 @@ import {
 import { useSearchParams } from "next/navigation";
 import {
   Check,
+  Code2,
+  Columns2,
   Copy,
   ExternalLink,
   Lock,
@@ -30,8 +32,11 @@ import {
   CURATED_PAIRS,
   CURATED_PAIRS_EN,
   FONTS,
+  licenseOf,
+  LICENSE_META,
   MOOD_LABEL,
   poolFor,
+  sizeSumKb,
   type CuratedPair,
   type FontDef,
   type Mood,
@@ -75,6 +80,17 @@ interface ShowcaseCopy {
   uiSummaryDesc: string;
   rows: [string, string][];
   glyph: string;
+  iface: {
+    nav: string[];
+    heroTitle: string;
+    heroDesc: string;
+    ctaPrimary: string;
+    ctaGhost: string;
+    cards: { title: string; body: string; meta: string }[];
+    formLabel: string;
+    formPlaceholder: string;
+    formHelper: string;
+  };
 }
 const COPY: Record<Lang, ShowcaseCopy> = {
   ko: {
@@ -97,6 +113,29 @@ const COPY: Record<Lang, ShowcaseCopy> = {
       ["대기", "2건"],
     ],
     glyph: "가나다라마바사 아자차카타파하 1234567890 AaBbCc",
+    iface: {
+      nav: ["제품", "가격", "고객사", "문서"],
+      heroTitle: "팀의 속도를 한 화면에서",
+      heroDesc:
+        "흩어진 일정과 작업을 모아 병목을 먼저 드러냅니다. 설치 없이 바로 시작하세요.",
+      ctaPrimary: "무료로 시작",
+      ctaGhost: "데모 보기",
+      cards: [
+        {
+          title: "실시간 현황",
+          body: "누가 무엇을 하고 있는지 한눈에. 지연되는 작업은 자동으로 위로 올라옵니다.",
+          meta: "업데이트 2분 전",
+        },
+        {
+          title: "일정 충돌 감지",
+          body: "캘린더와 마감을 겹쳐 보고 부딪히는 지점을 미리 알려 드립니다.",
+          meta: "이번 주 3건",
+        },
+      ],
+      formLabel: "업무용 이메일",
+      formPlaceholder: "name@company.com",
+      formHelper: "회사 도메인 이메일로 팀에 자동 연결됩니다.",
+    },
   },
   en: {
     edHead: "Type has a voice",
@@ -119,6 +158,29 @@ const COPY: Record<Lang, ShowcaseCopy> = {
       ["Waiting", "2"],
     ],
     glyph: "Handgloves AaBbCc 1234567890 The quick brown fox",
+    iface: {
+      nav: ["Product", "Pricing", "Customers", "Docs"],
+      heroTitle: "Your team's pace, on one screen",
+      heroDesc:
+        "Bring scattered schedules and tasks together to surface bottlenecks first. No install, start right away.",
+      ctaPrimary: "Start free",
+      ctaGhost: "See demo",
+      cards: [
+        {
+          title: "Live status",
+          body: "See who is working on what at a glance. Delayed work floats to the top automatically.",
+          meta: "Updated 2 min ago",
+        },
+        {
+          title: "Conflict detection",
+          body: "Overlay calendars and deadlines to catch clashes before they happen.",
+          meta: "3 this week",
+        },
+      ],
+      formLabel: "Work email",
+      formPlaceholder: "name@company.com",
+      formHelper: "We connect you to your team by your company domain.",
+    },
   },
 };
 
@@ -249,6 +311,116 @@ function buildCss(h: FontDef, s: FontDef, b: FontDef, t: TuningState) {
     .join("\n\n");
 }
 
+// ── 개발 인수인계 코드 팩(next/font · @font-face · Tailwind) ──────────────
+/** 구글 폰트 여부 = 스타일시트가 fonts.googleapis.com에서 오는가. */
+function isGoogleFont(f: FontDef) {
+  return !!f.stylesheet && f.stylesheet.startsWith("https://fonts.googleapis.com");
+}
+/** next/font/google 익스포트 이름(공백·기호 → 밑줄). */
+function nextImportName(family: string) {
+  return family.replace(/[^A-Za-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+}
+/** 인스턴스 변수명(카멜케이스). */
+function camelVar(family: string) {
+  const parts = family
+    .replace(/[^A-Za-z0-9]+/g, " ")
+    .trim()
+    .split(/\s+/);
+  return parts
+    .map((p, i) =>
+      i === 0
+        ? p.toLowerCase()
+        : p.charAt(0).toUpperCase() + p.slice(1).toLowerCase(),
+    )
+    .join("");
+}
+const SERIF_HINT =
+  /Serif|Myeongjo|Batang|Buri|Hahmlet|Song|Playfair|Lora|명조|바탕|세리프/i;
+function genericFallback(f: FontDef): "serif" | "sans-serif" {
+  return SERIF_HINT.test(f.family) || SERIF_HINT.test(f.label)
+    ? "serif"
+    : "sans-serif";
+}
+function fallbackArr(f: FontDef): string[] {
+  return genericFallback(f) === "serif"
+    ? [`'${f.family}'`, "Georgia", "serif"]
+    : [`'${f.family}'`, "system-ui", "sans-serif"];
+}
+
+/** ① next/font/google 코드(구글 폰트만). 비구글 슬롯은 @font-face 탭 안내. */
+function buildNextFont(h: FontDef, s: FontDef, b: FontDef, t: TuningState) {
+  const slots: [string, FontDef, SlotTune][] = [
+    ["heading", h, t.h],
+    ["sub", s, t.s],
+    ["body", b, t.b],
+  ];
+  const uniq = new Map<string, { def: FontDef; weights: Set<number> }>();
+  for (const [, f, tune] of slots) {
+    if (!isGoogleFont(f)) continue;
+    const e = uniq.get(f.family) ?? { def: f, weights: new Set<number>() };
+    e.weights.add(tune.weight);
+    e.weights.add(400);
+    uniq.set(f.family, e);
+  }
+  if (uniq.size === 0) {
+    return "// 선택한 3종 모두 구글 폰트가 아닙니다.\n// next/font/google로는 불러올 수 없습니다 — [@font-face / @import] 탭의 코드를 사용하세요.";
+  }
+  const importLine = `import { ${[...uniq.values()]
+    .map((e) => nextImportName(e.def.family))
+    .join(", ")} } from "next/font/google";`;
+  const consts = [...uniq.values()]
+    .map((e) => {
+      const weights = [...e.weights]
+        .sort((a, z) => a - z)
+        .map((w) => `"${w}"`)
+        .join(", ");
+      return `const ${camelVar(e.def.family)} = ${nextImportName(
+        e.def.family,
+      )}({\n  subsets: ["latin"],\n  weight: [${weights}],\n  display: "swap",\n});`;
+    })
+    .join("\n\n");
+  const map = slots
+    .map(([role, f]) =>
+      isGoogleFont(f)
+        ? `// ${role} → className={${camelVar(f.family)}.className}`
+        : `// ${role} → ${f.label}: 구글 폰트 아님 → [@font-face] 탭 코드 사용`,
+    )
+    .join("\n");
+  const hangulNote = [...uniq.values()].some((e) => !e.def.latinOnly)
+    ? '\n// 한글 글리프가 필요하면 subsets에 "korean"을 추가하세요(폰트가 지원할 때).'
+    : "";
+  return `${importLine}\n\n${consts}\n\n${map}${hangulNote}`;
+}
+
+/** ③ Tailwind fontFamily 설정(폴백 스택 포함). */
+function buildTailwind(h: FontDef, s: FontDef, b: FontDef) {
+  const row = (key: string, f: FontDef) =>
+    `        ${key}: [${fallbackArr(f)
+      .map((x) => `"${x}"`)
+      .join(", ")}],`;
+  return [
+    "// tailwind.config — theme.extend.fontFamily",
+    "export default {",
+    "  theme: {",
+    "    extend: {",
+    "      fontFamily: {",
+    row("heading", h),
+    row("sub", s),
+    row("body", b),
+    "      },",
+    "    },",
+    "  },",
+    "};",
+    "",
+    '// 사용: className="font-heading" · "font-sub" · "font-body"',
+  ].join("\n");
+}
+
+/** UI 용량 라벨. */
+function kbLabel(kb?: number): string | null {
+  return kb != null ? `~${kb}KB` : null;
+}
+
 // ── 저장 페어 · localStorage 외부 스토어(useSyncExternalStore로 hydration 안전) ──
 interface SavedPair {
   h: string;
@@ -336,6 +508,30 @@ function RoleBadges({ font }: { font: FontDef }) {
   );
 }
 
+// 라이선스 뱃지 — 소스 카테고리 분류. Adobe는 amber 톤 주의 표시.
+function LicenseBadge({ font }: { font: FontDef }) {
+  const lic = licenseOf(font);
+  const meta = LICENSE_META[lic];
+  const amber = meta.tone === "amber";
+  return (
+    <span
+      title={meta.title}
+      className="inline-flex shrink-0 items-center rounded px-1.5 py-0.5 text-[10px] font-semibold"
+      style={
+        amber
+          ? { background: "#f59e0b1f", color: "#d18700", border: "1px solid #f59e0b66" }
+          : {
+              background: "var(--fp-surface-2)",
+              color: "var(--fp-muted)",
+              border: "1px solid var(--fp-border)",
+            }
+      }
+    >
+      {meta.label}
+    </span>
+  );
+}
+
 function MoodBadge({ mood }: { mood: MoodKey }) {
   return (
     <span
@@ -382,7 +578,7 @@ export function FontPairClient() {
   const [listOpen, setListOpen] = useState(false);
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [tuneOpen, setTuneOpen] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const [codePackOpen, setCodePackOpen] = useState(false);
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
 
   const saved = useSavedPairs();
@@ -483,17 +679,6 @@ export function FontPairClient() {
   // 한글 모드에서만 라틴 폴백 안내(영문 모드는 폴백 오해가 없어 숨김).
   const showLatinNotice =
     lang === "ko" && [heading, sub, body].some((f) => f.latinOnly);
-
-  const handleCopyCss = async () => {
-    try {
-      await navigator.clipboard.writeText(buildCss(heading, sub, body, tuning));
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 2000);
-    } catch {
-      setSaveMsg("복사 실패");
-      window.setTimeout(() => setSaveMsg(null), 2000);
-    }
-  };
 
   const handleSave = () => {
     const cur = readSaved();
@@ -818,8 +1003,121 @@ export function FontPairClient() {
           </article>
         </Section>
 
-        {/* ③ UI 카드 */}
-        <Section n="03" title="UI 카드">
+        {/* ③ 인터페이스 — 현재 페어를 적용한 절제된 UI 목업 */}
+        <Section n="03" title="인터페이스">
+          <div className="overflow-hidden rounded-xl border border-[var(--fp-border)] bg-[var(--fp-surface)]">
+            {/* 내비게이션 */}
+            <nav className="flex items-center gap-4 border-b border-[var(--fp-border)] px-5 py-3.5">
+              <span
+                className="break-keep"
+                style={slot(heading, "h", "1.125rem")}
+              >
+                {brandVal || def.brand}
+              </span>
+              <div
+                className="ml-auto hidden items-center gap-5 text-[var(--fp-muted)] sm:flex"
+                style={slot(body, "b", "0.875rem")}
+              >
+                {c.iface.nav.map((item) => (
+                  <span key={item}>{item}</span>
+                ))}
+              </div>
+              <span
+                className="ml-auto inline-flex h-9 items-center rounded-lg px-3.5 text-sm font-semibold sm:ml-0"
+                style={{
+                  background: "var(--fp-accent)",
+                  color: "var(--fp-accent-fg)",
+                  fontFamily: ff(body),
+                }}
+              >
+                {c.iface.ctaPrimary}
+              </span>
+            </nav>
+
+            {/* 히어로 */}
+            <div className="px-6 py-12 text-center sm:px-10 sm:py-16">
+              <h3
+                className="mx-auto max-w-2xl break-keep"
+                style={slot(heading, "h", "clamp(1.75rem, 5vw, 2.75rem)")}
+              >
+                {c.iface.heroTitle}
+              </h3>
+              <p
+                className="mx-auto mt-4 max-w-xl break-keep text-[var(--fp-muted)]"
+                style={slot(body, "b", "clamp(0.9375rem, 2.2vw, 1.0625rem)")}
+              >
+                {c.iface.heroDesc}
+              </p>
+              <div className="mt-6 flex flex-wrap items-center justify-center gap-2.5">
+                <button
+                  type="button"
+                  className="inline-flex h-11 items-center rounded-lg px-6 text-sm font-semibold"
+                  style={{
+                    background: "var(--fp-accent)",
+                    color: "var(--fp-accent-fg)",
+                    fontFamily: ff(body),
+                  }}
+                >
+                  {c.iface.ctaPrimary}
+                </button>
+                <button
+                  type="button"
+                  className="inline-flex h-11 items-center rounded-lg border border-[var(--fp-border)] px-6 text-sm font-semibold hover:bg-[var(--fp-surface-2)]"
+                  style={{ fontFamily: ff(body) }}
+                >
+                  {c.iface.ctaGhost}
+                </button>
+              </div>
+            </div>
+
+            {/* 카드 2장 + 폼 */}
+            <div className="grid gap-4 border-t border-[var(--fp-border)] bg-[var(--fp-bg)] p-5 sm:grid-cols-2">
+              {c.iface.cards.map((card) => (
+                <div
+                  key={card.title}
+                  className="rounded-lg border border-[var(--fp-border)] bg-[var(--fp-surface)] p-4"
+                >
+                  <h4 className="break-keep" style={slot(sub, "s", "1.125rem")}>
+                    {card.title}
+                  </h4>
+                  <p
+                    className="mt-2 break-keep text-[var(--fp-muted)]"
+                    style={slot(body, "b", "0.875rem")}
+                  >
+                    {card.body}
+                  </p>
+                  <p
+                    className="mt-3 text-xs text-[var(--fp-muted)]"
+                    style={{ fontFamily: ff(body) }}
+                  >
+                    {card.meta}
+                  </p>
+                </div>
+              ))}
+              <label className="flex flex-col gap-1.5 rounded-lg border border-[var(--fp-border)] bg-[var(--fp-surface)] p-4 sm:col-span-2">
+                <span style={slot(body, "b", "0.875rem")}>
+                  {c.iface.formLabel}
+                </span>
+                <input
+                  readOnly
+                  value={c.iface.formPlaceholder}
+                  aria-label={c.iface.formLabel}
+                  className="h-11 rounded-lg border border-[var(--fp-border)] bg-[var(--fp-bg)] px-3.5 text-sm outline-none focus:border-[var(--fp-accent)]"
+                  style={{ fontFamily: ff(body) }}
+                />
+                <span
+                  className="text-xs text-[var(--fp-muted)]"
+                  style={{ fontFamily: ff(body) }}
+                >
+                  {c.iface.formHelper}
+                </span>
+              </label>
+            </div>
+          </div>
+        </Section>
+
+        {/* ④ UI 카드 */}
+        <Section n="04" title="UI 카드">
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="rounded-xl border border-[var(--fp-border)] bg-[var(--fp-surface)] p-5">
               <span
@@ -887,8 +1185,8 @@ export function FontPairClient() {
           </div>
         </Section>
 
-        {/* ④ 글리프 시트(3장) */}
-        <Section n="04" title="글리프 시트">
+        {/* ⑤ 글리프 시트(3장) */}
+        <Section n="05" title="글리프 시트">
           <div className="grid gap-4 sm:grid-cols-3">
             {(
               [
@@ -968,18 +1266,17 @@ export function FontPairClient() {
               onToggleLock={() => setBodyLocked((v) => !v)}
             />
           </div>
+          <SizeSummary
+            families={[heading.family, sub.family, body.family]}
+          />
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={handleCopyCss}
+              onClick={() => setCodePackOpen(true)}
               className="inline-flex h-10 flex-1 items-center justify-center gap-1.5 rounded-lg border border-[var(--fp-border)] text-sm font-medium hover:bg-[var(--fp-surface-2)]"
             >
-              {copied ? (
-                <Check className="h-4 w-4" aria-hidden />
-              ) : (
-                <Copy className="h-4 w-4" aria-hidden />
-              )}
-              {copied ? "복사됨 ✓" : "CSS 복사"}
+              <Code2 className="h-4 w-4" aria-hidden />
+              코드 내보내기
             </button>
             <button
               type="button"
@@ -1008,11 +1305,148 @@ export function FontPairClient() {
         <GalleryOverlay
           lang={lang}
           saved={saved}
+          current={{
+            h: heading.family,
+            s: sub.family,
+            b: body.family,
+            eyebrow: eyebrowVal,
+            brand: brandVal,
+            slogan: sloganVal,
+          }}
           onApply={applyPair}
           onDelete={handleDelete}
           onClose={() => setGalleryOpen(false)}
         />
       )}
+      {codePackOpen && (
+        <CodePackOverlay
+          heading={heading}
+          sub={sub}
+          body={body}
+          tuning={tuning}
+          onClose={() => setCodePackOpen(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── 코드 팩 오버레이(개발 인수인계 · 3형식 탭) ───────────────────────────
+type CodeTab = "next" | "face" | "tw";
+function CodePackOverlay({
+  heading,
+  sub,
+  body,
+  tuning,
+  onClose,
+}: {
+  heading: FontDef;
+  sub: FontDef;
+  body: FontDef;
+  tuning: TuningState;
+  onClose: () => void;
+}) {
+  useEscClose(onClose);
+  const [tab, setTab] = useState<CodeTab>("next");
+  const [copied, setCopied] = useState(false);
+
+  const codeFor = (t: CodeTab): string => {
+    if (t === "next") return buildNextFont(heading, sub, body, tuning);
+    if (t === "face") return buildCss(heading, sub, body, tuning);
+    return buildTailwind(heading, sub, body);
+  };
+  const code = codeFor(tab);
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch {
+      /* 클립보드 차단 환경 — 무시(텍스트는 선택 복사 가능) */
+    }
+  };
+
+  const tabs: { key: CodeTab; label: string }[] = [
+    { key: "next", label: "next/font" },
+    { key: "face", label: "@font-face / @import" },
+    { key: "tw", label: "Tailwind config" },
+  ];
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-0 sm:items-center sm:p-6"
+      role="dialog"
+      aria-modal="true"
+      aria-label="개발 인수인계 코드"
+    >
+      <button
+        type="button"
+        aria-label="코드 팩 닫기"
+        onClick={onClose}
+        className="absolute inset-0 -z-10"
+      />
+      <div className="flex max-h-[90dvh] w-full max-w-3xl flex-col rounded-t-2xl border border-[var(--fp-border)] bg-[var(--fp-surface)] shadow-2xl sm:rounded-2xl">
+        <div className="flex items-center justify-between border-b border-[var(--fp-border)] px-4 py-3 sm:px-5">
+          <div className="flex items-center gap-2">
+            <Code2 className="h-4 w-4 text-[var(--fp-accent)]" aria-hidden />
+            <h2 className="text-base font-semibold">개발 인수인계 코드</h2>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="닫기"
+            className="grid h-10 w-10 place-items-center rounded-lg border border-[var(--fp-border)] hover:bg-[var(--fp-surface-2)]"
+          >
+            <X className="h-4 w-4" aria-hidden />
+          </button>
+        </div>
+
+        <div className="flex flex-wrap gap-1 border-b border-[var(--fp-border)] px-4 py-2 sm:px-5">
+          {tabs.map(({ key, label }) => {
+            const active = tab === key;
+            return (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setTab(key)}
+                aria-pressed={active}
+                className="h-10 rounded-lg px-3 text-sm font-medium transition"
+                style={
+                  active
+                    ? { background: "var(--fp-accent)", color: "var(--fp-accent-fg)" }
+                    : { color: "var(--fp-muted)" }
+                }
+              >
+                {label}
+              </button>
+            );
+          })}
+          <button
+            type="button"
+            onClick={copy}
+            className="ml-auto inline-flex h-10 items-center gap-1.5 rounded-lg border border-[var(--fp-border)] px-3.5 text-sm font-medium hover:bg-[var(--fp-surface-2)]"
+          >
+            {copied ? (
+              <Check className="h-4 w-4" aria-hidden />
+            ) : (
+              <Copy className="h-4 w-4" aria-hidden />
+            )}
+            {copied ? "복사됨 ✓" : "이 탭 복사"}
+          </button>
+        </div>
+
+        <p className="px-4 pt-3 text-xs text-[var(--fp-muted)] sm:px-5">
+          현재 선택한 제목·부제·본문 3슬롯 기준으로 생성됩니다. 파인튜닝(자간·행간·굵기)이 반영됩니다.
+        </p>
+        <div className="flex-1 overflow-auto px-4 py-3 sm:px-5">
+          <pre className="overflow-x-auto rounded-lg border border-[var(--fp-border)] bg-[var(--fp-bg)] p-4 text-[13px] leading-relaxed">
+            <code className="whitespace-pre font-mono text-[var(--fp-text)]">
+              {code}
+            </code>
+          </pre>
+        </div>
+      </div>
     </div>
   );
 }
@@ -1206,6 +1640,31 @@ function TuneRange({
   );
 }
 
+// ── 웹폰트 용량 합계(하단 바) ────────────────────────────────────────────
+function SizeSummary({ families }: { families: string[] }) {
+  const { totalKb, measuredCount, fontCount } = sizeSumKb(families);
+  if (measuredCount === 0) return null;
+  const heavy = totalKb > 500;
+  const partial = measuredCount < fontCount;
+  return (
+    <p className="flex flex-wrap items-center gap-x-1.5 text-[11px] text-[var(--fp-muted)]">
+      <span>웹폰트 합계</span>
+      <span
+        className="font-mono font-semibold"
+        style={heavy ? { color: "#d18700" } : { color: "var(--fp-text)" }}
+      >
+        ~{totalKb} KB
+      </span>
+      {heavy && <span style={{ color: "#d18700" }}>· 무겁습니다</span>}
+      {partial && (
+        <span title="일부 폰트는 실측 불가(구글 서브셋·Adobe 동적)로 합계에서 제외됩니다">
+          · 실측 {measuredCount}/{fontCount}종
+        </span>
+      )}
+    </p>
+  );
+}
+
 // ── 하단 페어 슬롯 ──────────────────────────────────────────────────────
 function PairSlot({
   role,
@@ -1235,6 +1694,15 @@ function PairSlot({
         <span className="truncate">{font.label}</span>
         <ExternalLink className="h-3 w-3 shrink-0 text-[var(--fp-muted)]" aria-hidden />
       </a>
+      {kbLabel(font.sizeKb) && (
+        <span
+          className="shrink-0 font-mono text-[10px] font-medium text-[var(--fp-muted)]"
+          title="woff2 실측 용량(대표 파일)"
+        >
+          {kbLabel(font.sizeKb)}
+        </span>
+      )}
+      <LicenseBadge font={font} />
       {showLatinBadge && font.latinOnly && (
         <span
           className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold"
@@ -1295,8 +1763,19 @@ function FontListOverlay({
             className="flex flex-col rounded-xl border border-[var(--fp-border)] bg-[var(--fp-surface)] p-4"
           >
             <div className="flex items-center justify-between gap-2">
-              <span className="truncate text-xs text-[var(--fp-muted)]">{f.label}</span>
+              <span className="flex min-w-0 items-center gap-1.5">
+                <span className="truncate text-xs text-[var(--fp-muted)]">{f.label}</span>
+                {kbLabel(f.sizeKb) && (
+                  <span
+                    className="shrink-0 font-mono text-[10px] text-[var(--fp-muted)]"
+                    title="woff2 실측 용량(대표 파일)"
+                  >
+                    {kbLabel(f.sizeKb)}
+                  </span>
+                )}
+              </span>
               <div className="flex shrink-0 items-center gap-1">
+                <LicenseBadge font={f} />
                 {f.latinOnly ? (
                   <span
                     className="rounded-full px-1.5 py-0.5 text-[10px] font-semibold"
@@ -1351,15 +1830,25 @@ function FontListOverlay({
 }
 
 // ── 추천/저장 갤러리 오버레이 ───────────────────────────────────────────
+interface CurrentCombo {
+  h: string;
+  s: string;
+  b: string;
+  eyebrow: string;
+  brand: string;
+  slogan: string;
+}
 function GalleryOverlay({
   lang,
   saved,
+  current,
   onApply,
   onDelete,
   onClose,
 }: {
   lang: Lang;
   saved: SavedPair[];
+  current: CurrentCombo;
   onApply: (
     h: string,
     s: string,
@@ -1374,7 +1863,44 @@ function GalleryOverlay({
   const [tab, setTab] = useState<"curated" | "saved">("curated");
   // 추천 탭의 언어는 현재 쇼케이스 언어로 시작(ko 모드에서도 영문 페어 열람 가능).
   const [curatedLang, setCuratedLang] = useState<Lang>(lang);
+  // A/B 비교: 저장 페어에서 최대 2개 선택. savedAt 배열.
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [compare, setCompare] = useState<[CompareItem, CompareItem] | null>(null);
   useEscClose(onClose);
+
+  const toggleSelect = (savedAt: number) =>
+    setSelectedIds((prev) => {
+      if (prev.includes(savedAt)) return prev.filter((x) => x !== savedAt);
+      if (prev.length >= 2) return [prev[1], savedAt]; // 3번째 선택 시 가장 오래된 것 밀어냄
+      return [...prev, savedAt];
+    });
+  const itemFor = (p: SavedPair, label: string): CompareItem => ({
+    label,
+    h: p.h,
+    s: p.s,
+    b: p.b,
+  });
+  const currentItem: CompareItem = {
+    label: "현재 편집 중",
+    h: current.h,
+    s: current.s,
+    b: current.b,
+  };
+  const compareSelected = () => {
+    const picks = selectedIds
+      .map((id) => saved.find((p) => p.savedAt === id))
+      .filter((p): p is SavedPair => !!p);
+    if (picks.length !== 2) return;
+    setCompare([
+      itemFor(picks[0], "저장 A"),
+      itemFor(picks[1], "저장 B"),
+    ]);
+  };
+  const compareWithCurrent = () => {
+    const first = saved.find((p) => p.savedAt === selectedIds[0]);
+    if (!first) return;
+    setCompare([itemFor(first, "저장 페어"), currentItem]);
+  };
 
   const curatedList = curatedLang === "en" ? CURATED_PAIRS_EN : CURATED_PAIRS;
 
@@ -1479,18 +2005,64 @@ function GalleryOverlay({
             아직 저장한 페어가 없습니다. 하단 바의 [저장] 버튼으로 현재 조합을 담아 보세요.
           </div>
         ) : (
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {saved.map((p) => (
-              <SavedCard
-                key={p.savedAt}
-                pair={p}
-                onApply={() => applySaved(p)}
-                onDelete={() => onDelete(p.savedAt)}
-              />
-            ))}
-          </div>
+          <>
+            {/* A/B 비교 액션 바 */}
+            <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-[var(--fp-border)] bg-[var(--fp-surface)] px-3 py-2.5 text-sm">
+              <Columns2 className="h-4 w-4 text-[var(--fp-accent)]" aria-hidden />
+              <span className="text-[var(--fp-muted)]">
+                {selectedIds.length === 0
+                  ? "카드를 선택해 두 조합을 비교하세요"
+                  : `${selectedIds.length}개 선택됨`}
+              </span>
+              <div className="ml-auto flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={compareWithCurrent}
+                  disabled={selectedIds.length === 0}
+                  className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[var(--fp-border)] px-3 text-sm font-medium enabled:hover:bg-[var(--fp-surface-2)] disabled:opacity-40"
+                >
+                  현재 조합과 비교
+                </button>
+                <button
+                  type="button"
+                  onClick={compareSelected}
+                  disabled={selectedIds.length !== 2}
+                  className="inline-flex h-9 items-center gap-1.5 rounded-lg px-3.5 text-sm font-semibold disabled:opacity-40"
+                  style={{
+                    background: "var(--fp-accent)",
+                    color: "var(--fp-accent-fg)",
+                  }}
+                >
+                  <Columns2 className="h-4 w-4" aria-hidden />
+                  비교
+                </button>
+              </div>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {saved.map((p) => (
+                <SavedCard
+                  key={p.savedAt}
+                  pair={p}
+                  selected={selectedIds.includes(p.savedAt)}
+                  onToggleSelect={() => toggleSelect(p.savedAt)}
+                  onApply={() => applySaved(p)}
+                  onDelete={() => onDelete(p.savedAt)}
+                />
+              ))}
+            </div>
+          </>
         )}
       </div>
+      {compare && (
+        <CompareOverlay
+          left={compare[0]}
+          right={compare[1]}
+          eyebrow={current.eyebrow}
+          brand={current.brand}
+          slogan={current.slogan}
+          onClose={() => setCompare(null)}
+        />
+      )}
     </OverlayShell>
   );
 }
@@ -1572,28 +2144,59 @@ function CuratedCard({
 
 function SavedCard({
   pair,
+  selected,
+  onToggleSelect,
   onApply,
   onDelete,
 }: {
   pair: SavedPair;
+  selected: boolean;
+  onToggleSelect: () => void;
   onApply: () => void;
   onDelete: () => void;
 }) {
   const hLabel = BY_FAMILY.get(pair.h)?.label ?? pair.h;
   const sLabel = BY_FAMILY.get(pair.s)?.label ?? pair.s;
   const bLabel = BY_FAMILY.get(pair.b)?.label ?? pair.b;
+  const totalKb = sizeSumKb([pair.h, pair.s, pair.b]).totalKb;
   return (
-    <div className="flex flex-col rounded-xl border border-[var(--fp-border)] bg-[var(--fp-surface)] p-5">
+    <div
+      className="flex flex-col rounded-xl border bg-[var(--fp-surface)] p-5"
+      style={{
+        borderColor: selected ? "var(--fp-accent)" : "var(--fp-border)",
+      }}
+    >
       <div className="mb-3 flex items-center justify-between gap-2">
         <MoodBadge mood={pair.mood} />
-        <button
-          type="button"
-          onClick={onDelete}
-          aria-label="저장한 페어 삭제"
-          className="grid h-8 w-8 place-items-center rounded-lg border border-[var(--fp-border)] text-[var(--fp-muted)] hover:text-[var(--fp-text)]"
-        >
-          <Trash2 className="h-4 w-4" aria-hidden />
-        </button>
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={onToggleSelect}
+            aria-pressed={selected}
+            aria-label={selected ? "비교 선택 해제" : "비교에 선택"}
+            className="inline-flex h-8 items-center gap-1 rounded-lg border px-2 text-xs font-medium transition"
+            style={
+              selected
+                ? {
+                    background: "var(--fp-accent)",
+                    color: "var(--fp-accent-fg)",
+                    borderColor: "var(--fp-accent)",
+                  }
+                : { borderColor: "var(--fp-border)", color: "var(--fp-muted)" }
+            }
+          >
+            {selected ? <Check className="h-3.5 w-3.5" aria-hidden /> : <Columns2 className="h-3.5 w-3.5" aria-hidden />}
+            비교
+          </button>
+          <button
+            type="button"
+            onClick={onDelete}
+            aria-label="저장한 페어 삭제"
+            className="grid h-8 w-8 place-items-center rounded-lg border border-[var(--fp-border)] text-[var(--fp-muted)] hover:text-[var(--fp-text)]"
+          >
+            <Trash2 className="h-4 w-4" aria-hidden />
+          </button>
+        </div>
       </div>
       <button type="button" onClick={onApply} className="text-left">
         <p
@@ -1614,10 +2217,166 @@ function SavedCard({
         >
           {bLabel} · 가나다 AaBb 123
         </p>
-        <span className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-[var(--fp-accent)]">
-          {pair.tuning ? "튜닝 포함 적용 →" : "이 페어 적용 →"}
+        <span className="mt-3 flex items-center gap-2 text-xs font-medium">
+          <span className="text-[var(--fp-accent)]">
+            {pair.tuning ? "튜닝 포함 적용 →" : "이 페어 적용 →"}
+          </span>
+          {totalKb > 0 && (
+            <span className="font-mono text-[var(--fp-muted)]">~{totalKb}KB</span>
+          )}
         </span>
       </button>
+    </div>
+  );
+}
+
+// ── A/B 비교 오버레이 ───────────────────────────────────────────────────
+interface CompareItem {
+  label: string;
+  h: string;
+  s: string;
+  b: string;
+}
+
+function CompareColumn({
+  item,
+  eyebrow,
+  brand,
+  slogan,
+}: {
+  item: CompareItem;
+  eyebrow: string;
+  brand: string;
+  slogan: string;
+}) {
+  const hf = BY_FAMILY.get(item.h);
+  const sf = BY_FAMILY.get(item.s);
+  const bf = BY_FAMILY.get(item.b);
+  const { totalKb, measuredCount, fontCount } = sizeSumKb([
+    item.h,
+    item.s,
+    item.b,
+  ]);
+  const heavy = totalKb > 500;
+  const rows: [string, FontDef | undefined][] = [
+    ["제목", hf],
+    ["부제", sf],
+    ["본문", bf],
+  ];
+  return (
+    <div className="flex flex-col rounded-xl border border-[var(--fp-border)] bg-[var(--fp-surface)] p-5">
+      <span className="mb-4 inline-flex w-fit items-center rounded-full bg-[var(--fp-surface-2)] px-2.5 py-1 text-xs font-semibold text-[var(--fp-muted)]">
+        {item.label}
+      </span>
+      {/* 브랜드 아이덴티티 축약 미리보기 */}
+      <p
+        className="text-[10px] font-semibold uppercase tracking-[0.3em] text-[var(--fp-muted)]"
+        style={{ fontFamily: ff(sf) }}
+      >
+        {eyebrow}
+      </p>
+      <p
+        className="mt-2 break-keep text-3xl leading-tight"
+        style={{ fontFamily: ff(hf), fontWeight: 700 }}
+      >
+        {brand}
+      </p>
+      <p
+        className="mt-2 break-keep text-base text-[var(--fp-muted)]"
+        style={{ fontFamily: ff(sf) }}
+      >
+        {slogan}
+      </p>
+      {/* 3슬롯 폰트명 */}
+      <div className="mt-4 space-y-1.5 border-t border-[var(--fp-border)] pt-4">
+        {rows.map(([role, f]) => (
+          <div key={role} className="flex items-center gap-2 text-sm">
+            <span className="w-8 shrink-0 text-xs text-[var(--fp-muted)]">
+              {role}
+            </span>
+            <span className="min-w-0 flex-1 truncate font-medium">
+              {f?.label ?? "—"}
+            </span>
+            {f && kbLabel(f.sizeKb) && (
+              <span className="shrink-0 font-mono text-[10px] text-[var(--fp-muted)]">
+                {kbLabel(f.sizeKb)}
+              </span>
+            )}
+          </div>
+        ))}
+      </div>
+      {/* 용량 합계 */}
+      {measuredCount > 0 && (
+        <p className="mt-4 flex flex-wrap items-center gap-x-1.5 text-xs text-[var(--fp-muted)]">
+          <span>웹폰트 합계</span>
+          <span
+            className="font-mono font-semibold"
+            style={heavy ? { color: "#d18700" } : { color: "var(--fp-text)" }}
+          >
+            ~{totalKb} KB
+          </span>
+          {heavy && <span style={{ color: "#d18700" }}>· 무겁습니다</span>}
+          {measuredCount < fontCount && (
+            <span>· 실측 {measuredCount}/{fontCount}종</span>
+          )}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function CompareOverlay({
+  left,
+  right,
+  eyebrow,
+  brand,
+  slogan,
+  onClose,
+}: {
+  left: CompareItem;
+  right: CompareItem;
+  eyebrow: string;
+  brand: string;
+  slogan: string;
+  onClose: () => void;
+}) {
+  useEscClose(onClose);
+  // 두 열의 폰트 lazy 로드(갤러리 로딩 패턴 재사용).
+  useEffect(() => {
+    for (const it of [left, right]) {
+      ensureFamily(it.h);
+      ensureFamily(it.s);
+      ensureFamily(it.b);
+    }
+  }, [left, right]);
+
+  return (
+    <div
+      className="fixed inset-0 z-[60] flex flex-col bg-[var(--fp-bg)]"
+      role="dialog"
+      aria-modal="true"
+      aria-label="A/B 비교"
+    >
+      <div className="sticky top-0 flex items-center justify-between border-b border-[var(--fp-border)] px-4 py-3 sm:px-6">
+        <div className="flex items-center gap-2">
+          <Columns2 className="h-4 w-4 text-[var(--fp-accent)]" aria-hidden />
+          <h2 className="text-base font-semibold">A/B 비교</h2>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="닫기"
+          className="grid h-10 w-10 place-items-center rounded-lg border border-[var(--fp-border)] hover:bg-[var(--fp-surface-2)]"
+        >
+          <X className="h-4 w-4" aria-hidden />
+        </button>
+      </div>
+      <div className="flex-1 overflow-y-auto px-4 py-6 sm:px-6">
+        <div className="mx-auto grid max-w-5xl gap-4 md:grid-cols-2">
+          <CompareColumn item={left} eyebrow={eyebrow} brand={brand} slogan={slogan} />
+          <CompareColumn item={right} eyebrow={eyebrow} brand={brand} slogan={slogan} />
+        </div>
+      </div>
     </div>
   );
 }

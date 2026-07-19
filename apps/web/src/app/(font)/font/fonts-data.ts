@@ -5,6 +5,8 @@
 
 export type Mood = "warm" | "minimal" | "bold" | "retro" | "elegant";
 export type Role = "heading" | "body";
+/** 소스 카테고리 기반 라이선스 분류(개별 폰트 단정 아님). licenseOf()로 파생. */
+export type License = "ofl" | "adobe" | "free-cdn";
 
 export interface FontDef {
   /** CSS font-family 값(따옴표 없이). */
@@ -27,6 +29,13 @@ export interface FontDef {
   latinOnly?: boolean;
   /** Adobe Fonts kit 소스 — CSS 복사 시 @font-face 대신 kit 안내로 처리(도메인 제한). */
   adobe?: boolean;
+  /**
+   * woff2/woff 실측 용량(KB). 측정 가능한 폰트만 기록 — 추정 없음.
+   * 수집: 2026-07-19, `curl -sI` HEAD content-length(대표 파일 1개). bytes/1024 반올림.
+   * 구글 폰트(UA·서브셋 분할), Pretendard(92 다이내믹 서브셋), Adobe kit(동적 서브셋)은 대표값이 없어 생략.
+   * 다중 weight 파일은 대표(Regular)를 기준으로 한다.
+   */
+  sizeKb?: number;
 }
 
 /** Adobe Fonts kit(도메인 제한). 5종이 같은 stylesheet URL을 공유 — 삽입 시 dedup 필요. */
@@ -47,7 +56,7 @@ export const FONTS: FontDef[] = [
   {
     family: "SUIT Variable", label: "수트",
     stylesheet: "https://fastly.jsdelivr.net/gh/sun-typeface/SUIT@2/fonts/variable/woff2/SUIT-Variable.css",
-    moods: ["minimal"], roles: ["heading", "body"], infoUrl: noonnu("SUIT"),
+    moods: ["minimal"], roles: ["heading", "body"], infoUrl: noonnu("SUIT"), sizeKb: 610,
   },
   {
     family: "Noto Sans KR", label: "본고딕 (Noto Sans KR)",
@@ -108,7 +117,7 @@ export const FONTS: FontDef[] = [
   {
     family: "MaruBuri", label: "마루 부리",
     stylesheet: "https://hangeul.pstatic.net/hangeul_static/css/maru-buri.css",
-    moods: ["elegant", "warm"], roles: ["heading", "body"], infoUrl: noonnu("마루 부리"),
+    moods: ["elegant", "warm"], roles: ["heading", "body"], infoUrl: noonnu("마루 부리"), sizeKb: 424, // Regular 대표
   },
   // ── 디스플레이·제목 ────────────────────────────────────────────────
   {
@@ -119,22 +128,22 @@ export const FONTS: FontDef[] = [
   {
     family: "GmarketSansMedium", label: "지마켓 산스",
     woff: "https://fastly.jsdelivr.net/gh/projectnoonnu/noonfonts_2001@1.1/GmarketSansMedium.woff",
-    moods: ["bold", "minimal"], roles: ["heading"], infoUrl: noonnu("지마켓 산스"),
+    moods: ["bold", "minimal"], roles: ["heading"], infoUrl: noonnu("지마켓 산스"), sizeKb: 596,
   },
   {
     family: "S-CoreDream-6Bold", label: "에스코어 드림 (Bold)",
     woff: "https://fastly.jsdelivr.net/gh/projectnoonnu/noonfonts_six@1.2/S-CoreDream-6Bold.woff",
-    moods: ["bold", "minimal"], roles: ["heading"], infoUrl: noonnu("에스코어 드림"),
+    moods: ["bold", "minimal"], roles: ["heading"], infoUrl: noonnu("에스코어 드림"), sizeKb: 346,
   },
   {
     family: "S-CoreDream-3Light", label: "에스코어 드림 (Light)",
     woff: "https://fastly.jsdelivr.net/gh/projectnoonnu/noonfonts_six@1.2/S-CoreDream-3Light.woff",
-    moods: ["minimal"], roles: ["body"], infoUrl: noonnu("에스코어 드림"),
+    moods: ["minimal"], roles: ["body"], infoUrl: noonnu("에스코어 드림"), sizeKb: 351,
   },
   {
     family: "yg-jalnan", label: "여기어때 잘난체",
     woff: "https://fastly.jsdelivr.net/gh/projectnoonnu/noonfonts_four@1.2/JalnanOTF00.woff",
-    moods: ["bold"], roles: ["heading"], infoUrl: noonnu("잘난체"),
+    moods: ["bold"], roles: ["heading"], infoUrl: noonnu("잘난체"), sizeKb: 538,
   },
   {
     family: "Jua", label: "주아체",
@@ -149,22 +158,22 @@ export const FONTS: FontDef[] = [
   {
     family: "BMHANNAAir", label: "한나체 Air",
     woff: "https://fastly.jsdelivr.net/gh/projectnoonnu/noonfonts_four@1.2/BMHANNAAir.woff",
-    moods: ["retro", "bold"], roles: ["heading"], infoUrl: noonnu("한나체"),
+    moods: ["retro", "bold"], roles: ["heading"], infoUrl: noonnu("한나체"), sizeKb: 262,
   },
   {
     family: "BMKIRANGHAERANG", label: "기랑해랑체",
     woff: "https://fastly.jsdelivr.net/gh/projectnoonnu/noonfonts_one@1.0/BMKIRANGHAERANG.woff",
-    moods: ["retro"], roles: ["heading"], infoUrl: noonnu("기랑해랑"),
+    moods: ["retro"], roles: ["heading"], infoUrl: noonnu("기랑해랑"), sizeKb: 967,
   },
   {
     family: "BMYEONSUNG", label: "연성체",
     woff: "https://fastly.jsdelivr.net/gh/projectnoonnu/noonfonts_one@1.0/BMYEONSUNG.woff",
-    moods: ["retro", "warm"], roles: ["heading"], infoUrl: noonnu("연성체"),
+    moods: ["retro", "warm"], roles: ["heading"], infoUrl: noonnu("연성체"), sizeKb: 773,
   },
   {
     family: "Cafe24Ssurround", label: "카페24 써라운드",
     woff: "https://fastly.jsdelivr.net/gh/projectnoonnu/noonfonts_2105_2@1.0/Cafe24Ssurround.woff",
-    moods: ["warm", "bold"], roles: ["heading"], infoUrl: noonnu("카페24 써라운드"),
+    moods: ["warm", "bold"], roles: ["heading"], infoUrl: noonnu("카페24 써라운드"), sizeKb: 398,
   },
   // ── 손글씨·감성 ────────────────────────────────────────────────────
   {
@@ -275,6 +284,61 @@ export const FONTS: FontDef[] = [
     moods: ["elegant"], roles: ["heading", "body"], infoUrl: google("Lora"),
   },
 ];
+
+// ── 라이선스 분류(소스 카테고리 기반 · 개별 폰트 단정 아님) ──
+// adobe kit=구독 종속, 구글 폰트=OFL 계열, 그 외(눈누·CDN)=무료 상업용(조건은 크레딧 링크 확인).
+export function licenseOf(f: FontDef): License {
+  if (f.adobe) return "adobe";
+  if (f.infoUrl.includes("fonts.google.com")) return "ofl";
+  return "free-cdn";
+}
+
+export const LICENSE_META: Record<
+  License,
+  { label: string; tone: "neutral" | "amber"; title: string }
+> = {
+  ofl: {
+    label: "OFL",
+    tone: "neutral",
+    title:
+      "오픈 폰트 라이선스(SIL OFL) 계열 — 상업적 사용 가능. 폰트 파일 단독 판매만 금지됩니다.",
+  },
+  adobe: {
+    label: "Adobe 구독",
+    tone: "amber",
+    title:
+      "Adobe Fonts 구독에 종속됩니다. kit 도메인 제한이 있어 시안·납품 전 구독/도메인 조건을 반드시 확인하세요.",
+  },
+  "free-cdn": {
+    label: "무료(상업 가능)",
+    tone: "neutral",
+    title:
+      "무료 상업용 배포 폰트 — 구체 조건은 크레딧 링크(눈누 등)에서 확인하세요.",
+  },
+};
+
+/** 폰트 3종(패밀리명)의 실측 용량 합계. family 중복은 1회만 계산. */
+export function sizeSumKb(families: string[]): {
+  totalKb: number;
+  measuredCount: number;
+  fontCount: number;
+} {
+  const seen = new Set<string>();
+  let totalKb = 0;
+  let measuredCount = 0;
+  let fontCount = 0;
+  for (const fam of families) {
+    if (seen.has(fam)) continue;
+    seen.add(fam);
+    fontCount += 1;
+    const f = FONTS.find((x) => x.family === fam);
+    if (f?.sizeKb != null) {
+      totalKb += f.sizeKb;
+      measuredCount += 1;
+    }
+  }
+  return { totalKb, measuredCount, fontCount };
+}
 
 export const MOOD_LABEL: Record<Mood | "free", string> = {
   free: "자유 조합",
