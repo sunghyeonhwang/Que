@@ -22,6 +22,10 @@ export interface ViewSettings {
   includeBoard: boolean;
   /** 순회에 스케줄 포함. */
   includeSchedule: boolean;
+  /** 순회에 마일스톤 스트립 페이지 포함. */
+  includeMilestones: boolean;
+  /** 순회에 위험 보드(문제·홀드) 페이지 포함. */
+  includeRisk: boolean;
 }
 
 export const VIEW_SETTINGS_STORAGE_KEY = "que-view-settings";
@@ -37,6 +41,8 @@ export const DEFAULT_VIEW_SETTINGS: ViewSettings = {
   boardMode: "paged",
   includeBoard: true,
   includeSchedule: true,
+  includeMilestones: false,
+  includeRisk: false,
 };
 
 /** 초 값을 [MIN, MAX]로 clamp하고 정수로 반올림. 숫자가 아니면 fallback. */
@@ -74,6 +80,14 @@ export function normalizeSettings(raw: unknown): ViewSettings {
       typeof o.includeSchedule === "boolean"
         ? o.includeSchedule
         : DEFAULT_VIEW_SETTINGS.includeSchedule,
+    includeMilestones:
+      typeof o.includeMilestones === "boolean"
+        ? o.includeMilestones
+        : DEFAULT_VIEW_SETTINGS.includeMilestones,
+    includeRisk:
+      typeof o.includeRisk === "boolean"
+        ? o.includeRisk
+        : DEFAULT_VIEW_SETTINGS.includeRisk,
   };
 }
 

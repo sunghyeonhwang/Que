@@ -59,6 +59,25 @@ function scheduleParams(range: ViewSlideScheduleRange): URLSearchParams {
   return p;
 }
 
+/** 마일스톤 스트립 스텝 URL. */
+function milestoneParams(): URLSearchParams {
+  const p = new URLSearchParams();
+  p.set("view", "milestones");
+  p.set("play", "1");
+  return p;
+}
+
+/** 위험 보드(문제·홀드) 스텝 URL. */
+function riskParams(): URLSearchParams {
+  const p = new URLSearchParams();
+  p.set("view", "risk");
+  p.set("play", "1");
+  return p;
+}
+
+/** 순회 스톱 종류(설정에서 활성화된 페이지들). 순서 고정: 보드→스케줄→마일스톤→위험. */
+type StopKind = "board" | "schedule" | "milestones" | "risk";
+
 export function SlideshowController({ boardPages }: { boardPages: number }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -66,7 +85,15 @@ export function SlideshowController({ boardPages }: { boardPages: number }) {
 
   const pages = Math.max(1, boardPages);
   const playing = searchParams.get("play") === "1";
-  const view = searchParams.get("view") === "week" ? "week" : "board";
+  const rawView = searchParams.get("view");
+  const current: StopKind =
+    rawView === "week"
+      ? "schedule"
+      : rawView === "milestones"
+        ? "milestones"
+        : rawView === "risk"
+          ? "risk"
+          : "board";
   const hideCompleted = searchParams.get("hc") === "1";
 
   const bpRaw = Number(searchParams.get("bp"));
@@ -80,6 +107,8 @@ export function SlideshowController({ boardPages }: { boardPages: number }) {
     boardMode,
     includeBoard,
     includeSchedule,
+    includeMilestones,
+    includeRisk,
   } = settings;
 
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -91,56 +120,67 @@ export function SlideshowController({ boardPages }: { boardPages: number }) {
       timerRef.current = null;
     }
     if (!playing) return;
-    if (!includeBoard && !includeSchedule) return; // 방어: 순회 대상 없음 → 무동작.
 
     const boardMs = boardSeconds * 1000;
     const scheduleMs = scheduleSeconds * 1000;
-    // 보드 진입 스텝: 모드에 따라 전체 화면 또는 1페이지.
-    const boardEnter = () =>
-      boardMode === "all"
-        ? boardAllParams(hideCompleted)
-        : boardPagedParams(1, hideCompleted);
+
+    // 활성화된 순회 스톱을 고정 순서로 만든다.
+    const stops: StopKind[] = [];
+    if (includeBoard) stops.push("board");
+    if (includeSchedule) stops.push("schedule");
+    if (includeMilestones) stops.push("milestones");
+    if (includeRisk) stops.push("risk");
+    if (stops.length === 0) return; // 방어: 순회 대상 없음 → 무동작.
+
+    // 각 스톱 진입 URL.
+    const enterStop = (kind: StopKind): URLSearchParams => {
+      switch (kind) {
+        case "board":
+          return boardMode === "all"
+            ? boardAllParams(hideCompleted)
+            : boardPagedParams(1, hideCompleted);
+        case "schedule":
+          return scheduleParams(scheduleRange);
+        case "milestones":
+          return milestoneParams();
+        case "risk":
+          return riskParams();
+      }
+    };
+    // 현재 스톱을 얼마나 보여준 뒤 넘어갈지(표시 시간). 단일 정보 페이지는 보드 시간 재사용.
+    const durationOf = (kind: StopKind): number =>
+      kind === "schedule" ? scheduleMs : boardMs;
 
     let next: URLSearchParams | null = null;
     let delay = 0;
 
-    if (view === "week") {
-      // 현재 스케줄. 스케줄 제외 상태로 여기 있으면 보드로 복귀, 아니면 다음 스텝.
-      if (!includeSchedule) {
-        if (!includeBoard) return; // 방어(도달 불가): 둘 다 없음.
-        next = boardEnter();
-        delay = 300;
-      } else if (includeBoard) {
-        next = boardEnter();
-        delay = scheduleMs;
-      } else {
-        return; // 스케줄만: 정적 유지(타이머 없음).
-      }
+    if (
+      current === "board" &&
+      includeBoard &&
+      boardMode === "paged" &&
+      bp < pages
+    ) {
+      // 보드(2명/페이지) 하위 페이지 순회.
+      next = boardPagedParams(bp + 1, hideCompleted);
+      delay = boardMs;
     } else {
-      // 현재 보드.
-      if (!includeBoard) {
-        // 보드 제외인데 보드에 있음 → 스케줄로.
-        next = scheduleParams(scheduleRange);
+      const idx = stops.indexOf(current);
+      if (idx === -1) {
+        // 현재 뷰가 비활성(설정에서 방금 꺼짐 등) → 첫 활성 스톱으로 빠르게 이동.
+        next = enterStop(stops[0]);
         delay = 300;
-      } else if (boardMode === "paged") {
-        if (bp < pages) {
-          next = boardPagedParams(bp + 1, hideCompleted);
-          delay = boardMs;
-        } else if (includeSchedule) {
-          next = scheduleParams(scheduleRange);
+      } else if (stops.length === 1) {
+        // 단일 스톱: 보드·paged면 페이지 순환, 그 외(보드-all·스케줄·마일스톤·위험)는 정적 유지.
+        if (current === "board" && boardMode === "paged") {
+          next = boardPagedParams(1, hideCompleted);
           delay = boardMs;
         } else {
-          next = boardPagedParams(1, hideCompleted); // 보드만: 페이지 순환.
-          delay = boardMs;
+          return; // 타이머 없음(정적 단일 페이지).
         }
       } else {
-        // boardMode=all: 단일 화면.
-        if (includeSchedule) {
-          next = scheduleParams(scheduleRange);
-          delay = boardMs;
-        } else {
-          return; // 보드만 + 전체: 정적 유지(순회할 페이지 없음).
-        }
+        // 다음 스톱으로 순환.
+        next = enterStop(stops[(idx + 1) % stops.length]);
+        delay = durationOf(current);
       }
     }
 
@@ -158,7 +198,7 @@ export function SlideshowController({ boardPages }: { boardPages: number }) {
     };
   }, [
     playing,
-    view,
+    current,
     bp,
     pages,
     hideCompleted,
@@ -168,6 +208,8 @@ export function SlideshowController({ boardPages }: { boardPages: number }) {
     boardMode,
     includeBoard,
     includeSchedule,
+    includeMilestones,
+    includeRisk,
     router,
   ]);
 
@@ -211,7 +253,7 @@ export function SlideshowController({ boardPages }: { boardPages: number }) {
   );
 }
 
-/** 재생 시작 스텝: 보드 포함이면 보드, 아니면 스케줄. 둘 다 없으면 null. */
+/** 재생 시작 스텝: 활성화된 첫 스톱(보드→스케줄→마일스톤→위험). 전부 없으면 null. */
 function startParams(
   settings: ViewSettings,
   hideCompleted: boolean,
@@ -223,6 +265,12 @@ function startParams(
   }
   if (settings.includeSchedule) {
     return scheduleParams(settings.scheduleRange);
+  }
+  if (settings.includeMilestones) {
+    return milestoneParams();
+  }
+  if (settings.includeRisk) {
+    return riskParams();
   }
   return null;
 }

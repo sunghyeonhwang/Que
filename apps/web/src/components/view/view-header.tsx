@@ -1,5 +1,6 @@
 import { addDays, format, parseISO } from "date-fns";
 import { cn } from "@/lib/utils";
+import type { ViewSignals } from "@/lib/view-data";
 import { FullscreenButton } from "@/components/view/fullscreen-button";
 import { ViewClock } from "./view-clock";
 import { BoardHeaderControls } from "./board-header-controls";
@@ -38,6 +39,8 @@ interface ViewHeaderProps {
   weekRange?: WeekRange;
   /** 주간 모드: prev/next/today·범위 라벨 계산의 기준 앵커일 ISO. */
   weekAnchorISO?: string;
+  /** 헤더 신호 티커(집계 숫자 + 다가오는 마일스톤 1개). */
+  signals?: ViewSignals;
 }
 
 export function ViewHeader({
@@ -49,6 +52,7 @@ export function ViewHeader({
   boardMode = "all",
   weekRange,
   weekAnchorISO,
+  signals,
 }: ViewHeaderProps) {
   return (
     <header
@@ -74,6 +78,12 @@ export function ViewHeader({
           <>
             <Dot />
             <span className="font-semibold">{Math.round(temperature)}°</span>
+          </>
+        ) : null}
+        {signals ? (
+          <>
+            <Dot />
+            <SignalTicker signals={signals} />
           </>
         ) : null}
       </div>
@@ -140,4 +150,62 @@ function WeekModeControls({
 
 function Dot() {
   return <span className="text-neutral-300">·</span>;
+}
+
+// ---------- 헤더 신호 티커 ----------
+// 문제>0 red 점, 홀드>0 amber 점, 전부 0이고 마일스톤 임박 없으면 green 점 + "이상 없음".
+// 마일스톤은 D-7 이내만(getViewSignals가 이미 필터), risk=late/at_risk면 red/amber 강조.
+
+function SignalTicker({ signals }: { signals: ViewSignals }) {
+  const { issues, holds, dueToday, nextMilestone } = signals;
+  const allClear = issues === 0 && holds === 0 && dueToday === 0 && !nextMilestone;
+
+  // 선두 점 색: 문제>0 red, 아니면 홀드>0 amber, 아니면 green.
+  const dotColor =
+    issues > 0 ? "bg-red-500" : holds > 0 ? "bg-amber-500" : "bg-green-500";
+
+  const mlRisk = nextMilestone?.riskStatus;
+  const mlClass =
+    mlRisk === "late"
+      ? "text-red-600"
+      : mlRisk === "at_risk"
+        ? "text-amber-600"
+        : "text-neutral-800";
+
+  return (
+    <span className="flex items-center gap-2.5">
+      <span
+        aria-hidden
+        className={cn("inline-block shrink-0 rounded-full", dotColor, scale("size-3", "size-4", "size-5", "size-6"))}
+      />
+      {allClear ? (
+        <span className="text-green-700">이상 없음</span>
+      ) : (
+        <span className="flex items-center gap-2.5 tabular-nums">
+          <span className={issues > 0 ? "font-semibold text-red-600" : "text-neutral-500"}>
+            문제 {issues}
+          </span>
+          <Dot />
+          <span className={holds > 0 ? "font-semibold text-amber-600" : "text-neutral-500"}>
+            홀드 {holds}
+          </span>
+          <Dot />
+          <span className={dueToday > 0 ? "font-semibold text-neutral-800" : "text-neutral-500"}>
+            오늘 마감 {dueToday}
+          </span>
+          {nextMilestone ? (
+            <>
+              <Dot />
+              <span className={cn("flex items-center gap-1.5 font-semibold", mlClass)}>
+                <span className="max-w-[16ch] truncate">{nextMilestone.title}</span>
+                <span className="tabular-nums">
+                  {nextMilestone.dday === 0 ? "D-DAY" : `D-${nextMilestone.dday}`}
+                </span>
+              </span>
+            </>
+          ) : null}
+        </span>
+      )}
+    </span>
+  );
 }

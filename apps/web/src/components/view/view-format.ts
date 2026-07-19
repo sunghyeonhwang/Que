@@ -52,6 +52,25 @@ export function scale(base: string, s2420: string, s2994: string, s3540: string)
   return `${base} ${pre(2420, s2420)} ${pre(2994, s2994)} ${pre(3540, s3540)}`;
 }
 
+/** 마일스톤 riskStatus → 상태 점 색 클래스. late=red, at_risk=amber, on_track=green(상태색 의미 고정). */
+export function milestoneRiskDot(risk: "on_track" | "at_risk" | "late"): string {
+  if (risk === "late") return "bg-red-500";
+  if (risk === "at_risk") return "bg-amber-500";
+  return "bg-green-500";
+}
+
+/** 마일스톤 riskStatus → 강조 텍스트 색. late=red, at_risk=amber, on_track=중립. */
+export function milestoneRiskText(risk: "on_track" | "at_risk" | "late"): string {
+  if (risk === "late") return "text-red-600";
+  if (risk === "at_risk") return "text-amber-600";
+  return "text-neutral-700";
+}
+
+/** D-day 라벨. 0=D-DAY, 양수=D-n. */
+export function ddayLabel(dday: number): string {
+  return dday === 0 ? "D-DAY" : `D-${dday}`;
+}
+
 const timeFmt = new Intl.DateTimeFormat("en-US", {
   timeZone: "Asia/Seoul",
   hour: "numeric",

@@ -65,6 +65,12 @@ export function ViewSettings() {
   const [includeSchedule, setIncludeSchedule] = useState(
     DEFAULT_VIEW_SETTINGS.includeSchedule,
   );
+  const [includeMilestones, setIncludeMilestones] = useState(
+    DEFAULT_VIEW_SETTINGS.includeMilestones,
+  );
+  const [includeRisk, setIncludeRisk] = useState(
+    DEFAULT_VIEW_SETTINGS.includeRisk,
+  );
 
   // 다이얼로그를 열 때 저장된 값으로 폼을 리셋한다(취소 후 재오픈 시 최신 반영).
   // effect가 아니라 open 전환 이벤트 핸들러에서 처리한다(cascading render 회피).
@@ -77,11 +83,14 @@ export function ViewSettings() {
       setBoardMode(s.boardMode);
       setIncludeBoard(s.includeBoard);
       setIncludeSchedule(s.includeSchedule);
+      setIncludeMilestones(s.includeMilestones);
+      setIncludeRisk(s.includeRisk);
     }
     setOpen(next);
   };
 
-  const bothOff = !includeBoard && !includeSchedule;
+  const bothOff =
+    !includeBoard && !includeSchedule && !includeMilestones && !includeRisk;
 
   const save = () => {
     if (bothOff) return; // 방어: 순회 대상이 없으면 저장하지 않는다.
@@ -92,6 +101,8 @@ export function ViewSettings() {
       boardMode,
       includeBoard,
       includeSchedule,
+      includeMilestones,
+      includeRisk,
     });
     saveViewSettings(next);
     setOpen(false);
@@ -197,10 +208,24 @@ export function ViewSettings() {
                 />
                 스케줄
               </Label>
+              <Label className="gap-2 py-1 font-normal">
+                <Checkbox
+                  checked={includeMilestones}
+                  onCheckedChange={(v) => setIncludeMilestones(v === true)}
+                />
+                마일스톤
+              </Label>
+              <Label className="gap-2 py-1 font-normal">
+                <Checkbox
+                  checked={includeRisk}
+                  onCheckedChange={(v) => setIncludeRisk(v === true)}
+                />
+                위험 보드
+              </Label>
             </div>
             {bothOff ? (
               <p className="text-xs text-destructive">
-                보드·스케줄 중 최소 하나는 포함해야 합니다.
+                순회할 페이지를 최소 하나는 포함해야 합니다.
               </p>
             ) : null}
           </div>
