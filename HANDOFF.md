@@ -41,6 +41,9 @@ mock 인증: 쿠키 `que-user=<id>` / PAT `que_pat_<id>` (예: `hwang-sunghyeon`
 
 **프로덕션은 GRIFF Pro 팀(`griff-fde0dc32/que`) · <https://que.griff.co.kr> · 실 DB(`QUE_DB=supabase`)+실 인증(Auth.js) 라이브.** 비밀값은 `data/.env`(gitignore). Vercel env로 기능 게이트(아래 참고).
 
+#### 🔤 font.griff.co.kr(폰트페어) 개선 5건 (2026-07-19 사용자 "1-2-3-4-5진행" — 6 PNG 내보내기는 미선택)
+Que 레포 `(font)` 라우트(호스트 라우팅 — view·gantt 선례). ⑴**코드 내보내기 3탭**([CSS 복사] 대체): next/font(구글만 생성 — 패밀리명 언더스코어 규약·weight 합집합, 비구글은 안내)·@font-face(기존 buildCss 흡수)·Tailwind config(세리프 휴리스틱 폴백). 사용자 입력(브랜드명 등)은 코드 팩에 미삽입(주입 표면 0). ⑵**라이선스 뱃지** — 순수 소스 카테고리 파생만(google→OFL·adobe 5종→구독 amber 주의·나머지→무료 상업+크레딧 확인, 개별 단정 금지 — 오분류=법적 오안내 위험 봉인). ⑶**"03 인터페이스" 섹션**(내비·히어로·카드·폼 목업, 섹션 03→04→05 리넘버·한/영 분기). ⑷**용량 실측** — curl HEAD 10종만 sizeKb 하드코딩(수집일 2026-07-19 주석, 글래도스 독립 재실측 바이트 일치), 동적 서브셋(구글·Pretendard·Adobe)은 **미표기**(추정 금지), 합계+500KB amber+"실측 N/3종" 정직 표기. ⑸**A/B 비교** — 저장 갤러리 2개 선택(3번째=오래된 것 교체)+현재 조합 비교, CompareOverlay 양열 lazy 로드. URL 파라미터(h/s/b/m/lang)·저장 스키마·EN·무드 계약 불변(diff grep 증명). 글래도스 승인·배포·라이브 확인. **이로써 바로가기 도구 개선 완료: 간트·뷰·투두·컬러·폰트 5종**(인터뷰는 별도 세션 소관).
+
 #### 🎨 color.griff.co.kr(Colorable) 개선 5건 (2026-07-19 사용자 "전체적으로 진행")
 **별도 레포 `~/Desktop/colorable`. 핵심 발견: 배포물=단일 정적 `index.html`(바닐라 JS)** — React 0.13 `docs/`는 `.vercelignore`로 배포 제외된 잔재(최근 그리프 커밋 8개도 전부 index.html 직접 편집). 앞으로 이 레포 작업은 index.html이 정본. ⑴그리프 프리셋(Que 상태색 5·브랜드·바로가기 6·DayBlocks 8 — 전부 실소스 추출, 클릭=글자색·Shift/우클릭=배경) ⑵색각 시뮬 3종(SVG feColorMatrix, 샘플 영역 한정 — 대비 수치는 원본 유지) ⑶커스텀 샘플(textContent — XSS 불가) ⑷APCA-W3 Lc 병기(무의존 구현 — 글래도스가 독립 재계산으로 참조값 일치 확인, 등급 판정은 WCAG 2 유지 "reference only") ⑸favicon.svg(콘솔 404 해소). 전면 현대화는 보류(정적 도구로 완결 — 사용자 가치 0 판단 유지). 글래도스 승인·배포·라이브 확인(APCA Lc +76 표기). 레거시 webpack 체인은 node24에서 설치 불가·배포 무관이라 미사용 기록.
 
