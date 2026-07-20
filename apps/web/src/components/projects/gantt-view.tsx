@@ -16,6 +16,7 @@ import {
   ChevronLeft,
   ChevronRight,
   LocateFixed,
+  CalendarOff,
   Pencil,
   Scissors,
   GripVertical,
@@ -66,12 +67,18 @@ function dayDiff(a: string, b: string): number {
   return Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86_400_000);
 }
 
-function buildDays(rangeStart: string, rangeEnd: string): { key: string; dow: number; label: string }[] {
+function buildDays(
+  rangeStart: string,
+  rangeEnd: string,
+  hideWeekends = false,
+): { key: string; dow: number; label: string }[] {
   const out: { key: string; dow: number; label: string }[] = [];
   const count = dayDiff(rangeStart, rangeEnd) + 1;
   const start = new Date(`${rangeStart}T00:00:00`);
   for (let i = 0; i < count; i++) {
     const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
+    // 주말 제외 켜짐 → 토(6)·일(0) 컬럼을 배열에서 아예 뺀다. idx()가 Map 조회라 인덱스는 자동 정렬.
+    if (hideWeekends && (d.getDay() === 0 || d.getDay() === 6)) continue;
     const mm = d.getMonth() + 1;
     const dd = d.getDate();
     out.push({
@@ -107,8 +114,43 @@ export function GanttView({
   hideDone?: boolean;
 }) {
   const COL_W = colWidth;
-  const days = useMemo(() => buildDays(data.rangeStart, data.rangeEnd), [data.rangeStart, data.rangeEnd]);
-  const idx = (day: string) => Math.min(Math.max(dayDiff(data.rangeStart, day), 0), days.length - 1);
+  // 주말 제외 — 토·일 컬럼을 숨겨 평일만 이어 보이게(2026-07-21 사용자 요청). 통합 간트
+  // (showProject/hideDone prop 경로)에서도 동작하도록 GanttView 내부 상태로 둔다(세션 로컬).
+  const [hideWeekends, setHideWeekends] = useState(false);
+  const days = useMemo(
+    () => buildDays(data.rangeStart, data.rangeEnd, hideWeekends),
+    [data.rangeStart, data.rangeEnd, hideWeekends],
+  );
+  // dateKey→컬럼 index Map. idx()를 산술(dayDiff)이 아니라 조회로 바꿔 주말 제외 시에도 맞게
+  // 매핑한다. 주말 미제외(연속 배열)일 때도 결과가 동일해 회귀가 없다.
+  const dayIndexByKey = useMemo(() => {
+    const m = new Map<string, number>();
+    days.forEach((d, i) => m.set(d.key, i));
+    return m;
+  }, [days]);
+  // 보이는 컬럼의 index. 주말(제외 시 Map에 없음)·범위 밖은 가장 가까운 이전 평일로 스냅하고,
+  // 범위 앞쪽 경계보다 이르면 첫 컬럼(다음 평일)으로 폴백한다.
+  const idx = (day: string): number => {
+    const hit = dayIndexByKey.get(day);
+    if (hit !== undefined) return hit;
+    if (days.length === 0) return 0;
+    if (day <= days[0].key) return 0;
+    if (day >= days[days.length - 1].key) return days.length - 1;
+    // dateKey는 'yyyy-MM-dd'라 문자열 정렬이 날짜 정렬과 일치 — 이진 탐색으로 day 이하 최대 컬럼.
+    let lo = 0;
+    let hi = days.length - 1;
+    let ans = 0;
+    while (lo <= hi) {
+      const mid = (lo + hi) >> 1;
+      if (days[mid].key <= day) {
+        ans = mid;
+        lo = mid + 1;
+      } else {
+        hi = mid - 1;
+      }
+    }
+    return ans;
+  };
   const todayIdx = days.findIndex((d) => d.key === data.today);
   const hasMilestoneLane = data.milestones.length > 0;
 
@@ -367,6 +409,22 @@ export function GanttView({
           <TriangleAlert className="size-3.5" aria-hidden />
           일정 주의
         </span>
+        {/* 주말 제외 — 토·일 컬럼을 숨겨 평일만 이어 본다. 통합 간트 경로에서도 항상 노출. */}
+        <button
+          type="button"
+          onClick={() => setHideWeekends((v) => !v)}
+          aria-pressed={hideWeekends}
+          className={
+            "ml-auto inline-flex min-h-10 items-center gap-1.5 rounded-lg border px-3 text-xs font-medium transition-colors " +
+            (hideWeekends
+              ? "border-[var(--que-brand)] bg-[var(--que-brand-subtle)] text-[var(--que-brand)]"
+              : "border-[var(--que-border)] text-[var(--que-text-secondary)] hover:bg-[var(--que-bg-muted)]")
+          }
+        >
+          <CalendarOff className={"size-3.5 " + (hideWeekends ? "" : "opacity-30")} aria-hidden />
+          주말 제외
+        </button>
+
         {/* 미완료만 보기 — 완료 행을 숨겨 남은 일에 집중(즉시 반응, 클라 필터).
             상위 공통 토글(hideDone prop)이 있으면 중복이라 렌더하지 않는다. */}
         {hideDoneProp === undefined && (
@@ -375,7 +433,7 @@ export function GanttView({
           onClick={() => setHideDoneLocal((v) => !v)}
           aria-pressed={hideDone}
           className={
-            "ml-auto inline-flex min-h-10 items-center gap-1.5 rounded-lg border px-3 text-xs font-medium transition-colors " +
+            "inline-flex min-h-10 items-center gap-1.5 rounded-lg border px-3 text-xs font-medium transition-colors " +
             (hideDone
               ? "border-[var(--que-brand)] bg-[var(--que-brand-subtle)] text-[var(--que-brand)]"
               : "border-[var(--que-border)] text-[var(--que-text-secondary)] hover:bg-[var(--que-bg-muted)]")
@@ -387,7 +445,7 @@ export function GanttView({
         )}
 
         {/* 차트 좌우 이동(2026-07-11 요청) — 한 번에 7일치, '오늘'로 즉시 복귀 버튼 포함. */}
-        <span className="ml-auto inline-flex items-center gap-1">
+        <span className="inline-flex items-center gap-1">
           <button
             type="button"
             aria-label="이전 7일 보기"

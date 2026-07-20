@@ -184,10 +184,18 @@ export interface TaskDetail {
   columnKey: BoardColumnKey;
   statusLabel: string;
   priority: TaskPriority;
+  /** 시작 ISO datetime. 없으면 null. */
+  startAt: string | null;
+  /** 편집 피커용 원시 시작일 yyyy-MM-dd. 없으면 null. */
+  startDate: string | null;
+  /** 편집 피커용 원시 시작시각 HH:mm. 없으면 null. */
+  startTime: string | null;
   /** 마감 ISO datetime. 없으면 null. */
   endAt: string | null;
   /** 편집 피커용 원시 마감일 yyyy-MM-dd. 없으면 null. */
   dueDate: string | null;
+  /** 편집 피커용 원시 마감시각 HH:mm. 없으면 null. */
+  dueTime: string | null;
   /** "2025년 9월 12일 금요일". 없으면 null. */
   dueLabel: string | null;
   /** 마감이 지났고 아직 완료/취소/병합이 아닌 지연 상태인지. red 신호용. */
@@ -251,6 +259,12 @@ function isTaskOverdue(task: Task): boolean {
 function toDate(endAt: string | undefined): string | null {
   if (!endAt) return null;
   return format(new Date(endAt), "yyyy-MM-dd");
+}
+
+/** 편집 피커용 원시 시각 HH:mm(로컬/KST 벽시계). 없으면 null. */
+function toTime(at: string | undefined): string | null {
+  if (!at) return null;
+  return format(new Date(at), "HH:mm");
 }
 
 /** 분/시간/일 전 상대 시각(members-data.ts와 동일 규칙). */
@@ -610,8 +624,12 @@ export async function getTaskDetail(
     columnKey,
     statusLabel: STATUS_LABEL[task.status],
     priority: task.priority,
+    startAt: task.startAt ?? null,
+    startDate: toDate(task.startAt),
+    startTime: toTime(task.startAt),
     endAt: task.endAt ?? null,
     dueDate: toDate(task.endAt),
+    dueTime: toTime(task.endAt),
     dueLabel: formatDue(task.endAt),
     isOverdue: isTaskOverdue(task),
     assignee: resolveMember(task.assigneeId),

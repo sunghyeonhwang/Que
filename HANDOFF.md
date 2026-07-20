@@ -41,6 +41,10 @@ mock 인증: 쿠키 `que-user=<id>` / PAT `que_pat_<id>` (예: `hwang-sunghyeon`
 
 **프로덕션은 GRIFF Pro 팀(`griff-fde0dc32/que`) · <https://que.griff.co.kr> · 실 DB(`QUE_DB=supabase`)+실 인증(Auth.js) 라이브.** 비밀값은 `data/.env`(gitignore). Vercel env로 기능 게이트(아래 참고).
 
+#### 🛠 드로어 시작일 수정 + 간트 주말 제외 (2026-07-21 사용자 리포트 2건)
+- **시작일 수정 불가**: 드로어 일정 편집이 마감 전용 DuePicker였고 TaskDetail에 시작 필드 자체가 없었다. TaskDetail에 startAt/startDate/startTime/dueTime 추가(projects-data), 드로어를 DateRangePicker(기간) 편집으로 교체 — 변경분만 patch(시작/마감 각각, 시각 기본 09:00/18:00·기존 시각 프리필 보존), updateTaskDetailsAction은 이미 startAt 지원이라 서버 무변경. 라이브: 마감만 있던 작업에 7/20~7/22 설정→간트 막대 즉시 반영.
+- **간트 [주말 제외] 토글**(gantt-view 내부 state — 통합 간트도 동작): buildDays에서 토·일 제거 + **idx()를 dayDiff 산술→dateKey Map 조회로 교체**(주말·범위 밖은 이진 탐색으로 직전 평일 스냅, 미제외 시 결과 동일=무회귀). 주말 음영·헤더·gridW 자동 축소, 오늘이 주말이면 기존 todayIdx<0 가드로 안전. 라이브: 7/10(금)→7/13(월) 스킵 확인.
+
 #### 📥 일정시트 임포트 (/import, 2026-07-21 사용자 "일정시트 임포트 기능 만들어줘")
 **관리자 전용 3중 가드**(menu.ts adminOnly + 페이지 role 안내 + 액션 role 거부). 형식 정본 `data/docs/que-import-template.md` v1(다른 Claude Code가 채우는 YAML — 문서에 복사용 프롬프트 포함). 신규: `lib/schedule-import.ts`(zod 스키마·`buildImportPlan`·`executeScheduleImport` — 순수 함수, `yaml@2` 의존 추가), `app/(app)/import/actions.ts`(preview/execute 액션), `app/(app)/import/page.tsx`+`components/import/import-workbench.tsx`(붙여넣기→미리보기→[N건 등록]→결과). 핵심 시맨틱: **미리보기=계획만**(생성/기존연결/중복스킵/차단오류 red/경고 amber/질문 violet), **실행=서버 재파싱·재계획**(클라 계획 불신, errors 있으면 거부), 생성 순서 클라이언트→프로젝트→마일스톤→작업(source manual)→선행 일괄(title→id, 신규+기존)→상태 전이(in_progress/done)→회의, 전부 core ctx via:"web"·persist 1회. 담당자 미일치=차단("'OOO'는 팀 로스터에 없습니다"), 중복(동명)=스킵+기존 연결, depends_on은 양식 내·기존 프로젝트 작업 title 참조. mock 라이브 e2e: 오류 검출→수정→6건 등록→간트에 선행 화살표까지 확인. 실 DB 스키마 변경 없음(마이그레이션 불필요).
 

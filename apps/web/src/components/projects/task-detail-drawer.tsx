@@ -22,7 +22,6 @@ import {
   SIMPLE_COLUMN_STATUS,
   TONE_STYLE,
   COLUMN_TONE,
-  dueDateToIso,
 } from "@/lib/pm-columns";
 import {
   deleteTaskAction,
@@ -37,7 +36,7 @@ import { useOptimisticAction } from "@/components/app/use-optimistic-action";
 import { Sheet, SheetClose, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { DuePicker } from "@/components/app/due-picker";
+import { DateRangePicker, formatRangeLabel } from "@/components/app/date-range-picker";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
@@ -82,6 +81,11 @@ const PRIORITY_ITEMS: Record<TaskPriority, string> = {
 
 /** KR 연결 Select의 '연결 안 함'(해제) 센티널 값. 빈 문자열은 placeholder와 충돌해 별도 값을 쓴다. */
 const KR_NONE = "__none__";
+
+/** date("yyyy-MM-dd") + time("HH:mm") → 로컬(KST) ISO. task-form-fields.tsx toIso와 동일 규약. */
+function toIso(date: string, time: string): string {
+  return new Date(`${date}T${time}:00`).toISOString();
+}
 
 /**
  * 태스크 상세/편집 드로어 — 열림 상태는 URL(`?task=<id>`)로 관리한다.
@@ -154,7 +158,10 @@ function DrawerBody({
   const [title, setTitle] = useState(detail.title);
   const [description, setDescription] = useState(detail.description ?? "");
   const [priority, setPriority] = useState<TaskPriority>(detail.priority);
+  const [startDate, setStartDate] = useState(detail.startDate ?? "");
+  const [startTime, setStartTime] = useState(detail.startTime ?? "");
   const [dueDate, setDueDate] = useState(detail.dueDate ?? "");
+  const [dueTime, setDueTime] = useState(detail.dueTime ?? "");
   const [predecessorIds, setPredecessorIds] = useState(detail.predecessorIds);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [blockedOpen, setBlockedOpen] = useState(false);
@@ -163,14 +170,21 @@ function DrawerBody({
   const titleEmpty = title.trim().length === 0;
 
   const normDesc = description.trim() === "" ? null : description.trim();
-  const normDue = dueDate === "" ? null : dueDate;
+
+  // 시작·마감은 (날짜, 시각) 쌍을 원본과 비교해 변경 여부를 판정한다. 시각이 비면 기본값으로
+  // 보정(시작 09:00 · 마감 18:00)하고, 날짜만 바꾸면 프리필된 시각이 유지돼 시각이 보존된다.
+  const startChanged =
+    (startDate || "") !== (detail.startDate ?? "") || (startTime || "") !== (detail.startTime ?? "");
+  const dueChanged =
+    (dueDate || "") !== (detail.dueDate ?? "") || (dueTime || "") !== (detail.dueTime ?? "");
 
   // 바뀐 필드만 추려 patch를 만든다.
   const patch: Parameters<typeof updateTaskDetailsAction>[0] = { taskId: detail.taskId };
   if (title.trim() !== detail.title) patch.title = title.trim();
   if (normDesc !== detail.description) patch.description = normDesc;
   if (priority !== detail.priority) patch.priority = priority;
-  if (normDue !== detail.dueDate) patch.endAt = normDue ? dueDateToIso(normDue) : null;
+  if (startChanged) patch.startAt = startDate ? toIso(startDate, startTime || "09:00") : null;
+  if (dueChanged) patch.endAt = dueDate ? toIso(dueDate, dueTime || "18:00") : null;
   const dirty = Object.keys(patch).length > 1; // taskId 외에 하나라도 있으면 dirty
 
   const assigneeItems = Object.fromEntries(meta.members.map((m) => [m.id, m.name]));
@@ -367,18 +381,19 @@ function DrawerBody({
             )}
           </FieldRow>
 
-          <FieldRow icon={<CalendarDays className="size-4" aria-hidden />} label="마감일">
+          <FieldRow icon={<CalendarDays className="size-4" aria-hidden />} label="일정">
             {canEdit ? (
               <div className="w-full">
-                <DuePicker
-                  dueDate={dueDate}
-                  dueTime=""
-                  showTime={false}
-                  emptyLabel="마감일 미정"
-                  onSelectDate={setDueDate}
-                  onSelectDueTime={() => {}}
-                  onClear={() => setDueDate("")}
-                  triggerAriaLabel="마감일 설정"
+                <DateRangePicker
+                  value={{ startDate, startTime, endDate: dueDate, endTime: dueTime }}
+                  onChange={(next) => {
+                    setStartDate(next.startDate);
+                    setStartTime(next.startTime);
+                    setDueDate(next.endDate);
+                    setDueTime(next.endTime);
+                  }}
+                  emptyLabel="일정 미정"
+                  triggerAriaLabel="일정(시작·마감) 설정"
                 />
                 {detail.isOverdue ? (
                   <p className="mt-1 flex items-center gap-1 text-xs font-medium text-[var(--que-error)]">
@@ -397,7 +412,14 @@ function DrawerBody({
                 {detail.isOverdue ? (
                   <AlertTriangle className="size-3.5 shrink-0" aria-hidden />
                 ) : null}
-                {detail.dueLabel ?? "미정"}
+                {detail.startDate
+                  ? formatRangeLabel(
+                      detail.startDate,
+                      detail.startTime ?? "",
+                      detail.dueDate ?? "",
+                      detail.dueTime ?? "",
+                    )
+                  : (detail.dueLabel ?? "미정")}
                 {detail.isOverdue ? <span className="sr-only"> (기한 초과)</span> : null}
               </span>
             )}
