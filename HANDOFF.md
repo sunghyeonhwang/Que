@@ -41,6 +41,9 @@ mock 인증: 쿠키 `que-user=<id>` / PAT `que_pat_<id>` (예: `hwang-sunghyeon`
 
 **프로덕션은 GRIFF Pro 팀(`griff-fde0dc32/que`) · <https://que.griff.co.kr> · 실 DB(`QUE_DB=supabase`)+실 인증(Auth.js) 라이브.** 비밀값은 `data/.env`(gitignore). Vercel env로 기능 게이트(아래 참고).
 
+#### 📥 일정시트 임포트 (/import, 2026-07-21 사용자 "일정시트 임포트 기능 만들어줘")
+**관리자 전용 3중 가드**(menu.ts adminOnly + 페이지 role 안내 + 액션 role 거부). 형식 정본 `data/docs/que-import-template.md` v1(다른 Claude Code가 채우는 YAML — 문서에 복사용 프롬프트 포함). 신규: `lib/schedule-import.ts`(zod 스키마·`buildImportPlan`·`executeScheduleImport` — 순수 함수, `yaml@2` 의존 추가), `app/(app)/import/actions.ts`(preview/execute 액션), `app/(app)/import/page.tsx`+`components/import/import-workbench.tsx`(붙여넣기→미리보기→[N건 등록]→결과). 핵심 시맨틱: **미리보기=계획만**(생성/기존연결/중복스킵/차단오류 red/경고 amber/질문 violet), **실행=서버 재파싱·재계획**(클라 계획 불신, errors 있으면 거부), 생성 순서 클라이언트→프로젝트→마일스톤→작업(source manual)→선행 일괄(title→id, 신규+기존)→상태 전이(in_progress/done)→회의, 전부 core ctx via:"web"·persist 1회. 담당자 미일치=차단("'OOO'는 팀 로스터에 없습니다"), 중복(동명)=스킵+기존 연결, depends_on은 양식 내·기존 프로젝트 작업 title 참조. mock 라이브 e2e: 오류 검출→수정→6건 등록→간트에 선행 화살표까지 확인. 실 DB 스키마 변경 없음(마이그레이션 불필요).
+
 #### ☑️ /action 일괄 보류·무시 (2026-07-21 사용자 — "셀렉터로 선택 후 전체 무시/보류")
 미처리(확인필요·후보·보류) 행 왼쪽 체크박스 + 상단 툴바(전체 선택·N건 선택·[선택 보류]/[선택 무시]). 신규 `setActionItemStatusBulkAction`(action/actions.ts): 같은 db 인스턴스에서 전량 mutation 후 persist 1회, **부분 성공 시맨틱**(권한 없는 항목만 건너뛰고 "N건 제외" 토스트 — 항목별 권한은 core setActionItemStatus 그대로), 중복 제거+상한 200. UI는 신규 `ActionBulkList`(action-bulk-list.tsx — page.tsx의 rows.map 대체): 처리된 행(생성/무시)은 선택 불가·들여쓰기 정렬만, revalidate 후 잔존 선택은 렌더 시 교집합으로 소거, **무시만 건수 확인 Dialog**(이 화면에서 못 되돌리는 종결이라 — 보류는 미처리로 남으니 즉시 실행). ?note= 필터와 자연 결합(회의록 단위 일괄 처리). 라이브 검증: 전체 선택→2건 보류→1건 무시 Dialog→'무시됨' 전환.
 
