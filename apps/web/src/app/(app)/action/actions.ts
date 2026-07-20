@@ -124,6 +124,51 @@ export async function setActionItemStatusAction(input: {
   return toResult((db) => db.setActionItemStatus({ actorId: user.id, via: "web" }, input));
 }
 
+/**
+ * 선택한 후보 일괄 보류/무시(2026-07-21 사용자 — 회의록 단위로 한 번에 처리).
+ * 항목별 권한(담당자·업로더·관리자)은 core setActionItemStatus가 개별 판정한다 —
+ * 권한 없는 항목만 건너뛰고 나머지는 처리하는 부분 성공 시맨틱(전부 실패 시에만 ok:false).
+ * mutation은 같은 db 인스턴스에서 모두 수행 후 persist 1회(개별 액션 N번 왕복 방지).
+ */
+export async function setActionItemStatusBulkAction(input: {
+  actionItemIds: string[];
+  to: "held" | "ignored";
+}): Promise<{ ok: true; done: number; skipped: number } | { ok: false; error: string }> {
+  const user = await getCurrentUser();
+  // 방어: 중복 제거 + 상한(화면 목록 규모를 한참 넘는 요청은 비정상).
+  const ids = [...new Set(input.actionItemIds)].slice(0, 200);
+  if (ids.length === 0) return { ok: false, error: "선택된 항목이 없습니다." };
+  try {
+    const db = await getDb();
+    let done = 0;
+    let skipped = 0;
+    let firstError: string | null = null;
+    for (const actionItemId of ids) {
+      try {
+        db.setActionItemStatus({ actorId: user.id, via: "web" }, { actionItemId, to: input.to });
+        done += 1;
+      } catch (error) {
+        // 규칙 위반(권한 없음·이미 처리 등)은 그 항목만 건너뛴다. 예상 밖 예외는 전파.
+        if (isQueRuleError(error)) {
+          skipped += 1;
+          firstError ??= error.message;
+          continue;
+        }
+        throw error;
+      }
+    }
+    if (done === 0) return { ok: false, error: firstError ?? "처리할 수 있는 항목이 없습니다." };
+    await db.persist();
+    revalidatePath("/action");
+    revalidatePath("/now");
+    revalidatePath("/today");
+    return { ok: true, done, skipped };
+  } catch (error) {
+    if (isQueRuleError(error)) return { ok: false, error: error.message };
+    throw error;
+  }
+}
+
 /** Action 후보 나누기 — 한 후보를 N건으로 분할(원본은 ignored, 신규는 담당·프로젝트·원문 상속).
  *  각 part의 dueDate(+dueTime, 기본 17:00)는 toIso로 ISO 마감일로 변환한다. Task 자동 생성 없음. */
 export async function splitActionItemAction(input: {

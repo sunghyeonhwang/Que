@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { format } from "date-fns";
 import { canViewMeetingNote, formatProjectLabel } from "@que/core";
-import { ActionRow, type ActionRowData } from "@/components/action/action-row";
+import { type ActionRowData } from "@/components/action/action-row";
+import { ActionBulkList } from "@/components/action/action-bulk-list";
 import { CarryoverFollowup } from "@/components/action/carryover-followup";
 import {
   NoteFilterSelect,
@@ -161,14 +162,8 @@ export default async function ActionPage({
               후보가 없습니다. 회의록을 업로드하면 Action이 자동으로 추출됩니다.
             </p>
           )}
-          {rows.map((row) => (
-            <ActionRow
-              key={row.id}
-              item={row}
-              projects={projectOptions}
-              clients={clientOptions}
-            />
-          ))}
+          {/* 일괄 처리 목록 — 미처리 행 체크박스 선택 + 전체 보류/무시(2026-07-21). */}
+          <ActionBulkList rows={rows} projects={projectOptions} clients={clientOptions} />
         </div>
 
         <section className="flex h-fit flex-col rounded-xl border border-[var(--que-border)] bg-[var(--que-bg)]">

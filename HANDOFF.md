@@ -41,6 +41,9 @@ mock 인증: 쿠키 `que-user=<id>` / PAT `que_pat_<id>` (예: `hwang-sunghyeon`
 
 **프로덕션은 GRIFF Pro 팀(`griff-fde0dc32/que`) · <https://que.griff.co.kr> · 실 DB(`QUE_DB=supabase`)+실 인증(Auth.js) 라이브.** 비밀값은 `data/.env`(gitignore). Vercel env로 기능 게이트(아래 참고).
 
+#### ☑️ /action 일괄 보류·무시 (2026-07-21 사용자 — "셀렉터로 선택 후 전체 무시/보류")
+미처리(확인필요·후보·보류) 행 왼쪽 체크박스 + 상단 툴바(전체 선택·N건 선택·[선택 보류]/[선택 무시]). 신규 `setActionItemStatusBulkAction`(action/actions.ts): 같은 db 인스턴스에서 전량 mutation 후 persist 1회, **부분 성공 시맨틱**(권한 없는 항목만 건너뛰고 "N건 제외" 토스트 — 항목별 권한은 core setActionItemStatus 그대로), 중복 제거+상한 200. UI는 신규 `ActionBulkList`(action-bulk-list.tsx — page.tsx의 rows.map 대체): 처리된 행(생성/무시)은 선택 불가·들여쓰기 정렬만, revalidate 후 잔존 선택은 렌더 시 교집합으로 소거, **무시만 건수 확인 Dialog**(이 화면에서 못 되돌리는 종결이라 — 보류는 미처리로 남으니 즉시 실행). ?note= 필터와 자연 결합(회의록 단위 일괄 처리). 라이브 검증: 전체 선택→2건 보류→1건 무시 Dialog→'무시됨' 전환.
+
 #### 🗓 /schedule 블록 드래그 이동·리사이즈 + 프로젝트 서브메뉴 3종 (2026-07-20 사용자 후속 2건)
 - **캘린더 드래그**(week-calendar.tsx 단독 수정, 백엔드 무추가): canEdit 블록 본문 드래그=시간 이동(30분 스냅·기간 보존·세로 08~21 clamp·가로 요일 이동 — 비연속 요일도 인덱스 매핑), **하단 10px ns-resize 핸들=endAt만 연장/단축**(30분 스냅·최소 30분·21:00 clamp). task→updateTaskScheduleAction·event→updateEventScheduleAction(core가 외부·비공개·타인 최종 거부), useOptimisticAction 오버라이드→layoutDay 재계산, 5px 임계 미만=클릭(팝오버) 공존, 드래그 확정 후 click은 onClickCapture로 삼킴. **터치(pointerType touch)는 이번 범위 제외**(touch-action 무변경으로 손가락 스크롤 보존 — 코드 주석 명시, 후속 후보). updater 안 부수효과 금지 규율 준수. 라이브 검증: 이동 1:00→1:30(기간 보존)·리사이즈 마감 3:30→4:00·클릭 팝오버·새로고침 영속 모두 확인.
 - **프로젝트 서브메뉴**: menu.ts children 간트 1개→**목록·보드·간트 3종**(사용자 "서브 메뉴 안 보임"). 간트 child href는 `/projects`(view 무지정=간트 기본이라 동작 동일 + matchChild score-0 폴백으로 기본 진입 시에도 하이라이트 — `view=gantt` 명시 href면 누락). CLAUDE.md 서브메뉴 규약 절 동기 갱신(간트 1개만 방침 폐기 기록). view=board에서 보드 child 활성 확인.
