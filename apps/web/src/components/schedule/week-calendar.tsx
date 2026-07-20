@@ -76,6 +76,7 @@ interface BlockDnd {
   onResizePointerDown: (e: ReactPointerEvent, item: CalendarViewItem) => void;
   onPointerMove: (e: ReactPointerEvent) => void;
   onPointerUp: (e: ReactPointerEvent) => void;
+  onPointerCancel: () => void;
   onClickCapture: (e: ReactMouseEvent) => void;
 }
 
@@ -210,6 +211,15 @@ export function WeekCalendar({
     const dayIndex = days.findIndex((d) => isSameDay(d, start));
     if (dayIndex < 0) return;
     justDraggedRef.current = false;
+    // 캡처는 pointerdown 즉시 잡는다 — 임계값 이후로 미루면 커서가 원소를 벗어난 뒤엔
+    // pointermove가 원소에 오지 않아 캡처 기회 자체가 없다. 특히 10여 px짜리 리사이즈
+    // 핸들은 아래로 끄는 순간 이탈해 "잡아도 안 끌리는" 증상이 됐다(2026-07-21 사용자 리포트).
+    // 캡처해도 클릭 합성은 그대로라 임계값 미만 클릭(팝오버)은 영향 없다.
+    try {
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    } catch {
+      /* 캡처 미지원 무시 */
+    }
     setDrag({
       key: keyOf(item),
       kind: item.kind as "task" | "event",
@@ -242,18 +252,12 @@ export function WeekCalendar({
   const onBlockPointerMove = (e: ReactPointerEvent) => {
     const s = drag;
     if (!s) return;
-    if (!s.active) {
-      if (
-        Math.abs(e.clientX - s.startX) < DRAG_THRESHOLD &&
-        Math.abs(e.clientY - s.startY) < DRAG_THRESHOLD
-      ) {
-        return; // 임계값 미만 — 아직 클릭일 수 있어 팝오버 트리거를 살려둔다.
-      }
-      try {
-        (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-      } catch {
-        /* 캡처 미지원 무시 */
-      }
+    if (
+      !s.active &&
+      Math.abs(e.clientX - s.startX) < DRAG_THRESHOLD &&
+      Math.abs(e.clientY - s.startY) < DRAG_THRESHOLD
+    ) {
+      return; // 임계값 미만 — 아직 클릭일 수 있어 팝오버 트리거를 살려둔다(캡처는 down에서 이미 잡음).
     }
     const p = computePreview(s, e.clientX, e.clientY);
     setDrag({ ...s, active: true, ...p });
@@ -272,6 +276,11 @@ export function WeekCalendar({
         commitMove(s);
       }
     }
+    setDrag(null);
+  };
+
+  // 포인터가 시스템에 의해 취소되면(스크롤 제스처 전환 등) 커밋 없이 드래그만 중단한다.
+  const onBlockPointerCancel = () => {
     setDrag(null);
   };
 
@@ -312,6 +321,7 @@ export function WeekCalendar({
     onResizePointerDown,
     onPointerMove: onBlockPointerMove,
     onPointerUp: onBlockPointerUp,
+    onPointerCancel: onBlockPointerCancel,
     onClickCapture: onBlockClickCapture,
   };
 
@@ -494,6 +504,7 @@ function EventBlock({ pos, dnd }: { pos: PositionedItem; dnd: BlockDnd }) {
       onPointerDown={draggable ? (e) => dnd.onPointerDown(e, item) : undefined}
       onPointerMove={draggable ? dnd.onPointerMove : undefined}
       onPointerUp={draggable ? dnd.onPointerUp : undefined}
+      onPointerCancel={draggable ? dnd.onPointerCancel : undefined}
       onClickCapture={draggable ? dnd.onClickCapture : undefined}
       className={cn(
         "group/block absolute overflow-hidden rounded-lg border px-2 py-1.5 text-left shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--que-brand)]",
@@ -555,8 +566,9 @@ function EventBlock({ pos, dnd }: { pos: PositionedItem; dnd: BlockDnd }) {
           onPointerDown={(e) => dnd.onResizePointerDown(e, item)}
           onPointerMove={dnd.onPointerMove}
           onPointerUp={dnd.onPointerUp}
+          onPointerCancel={dnd.onPointerCancel}
           onClickCapture={dnd.onClickCapture}
-          className="absolute inset-x-0 bottom-0 z-10 flex h-2.5 cursor-ns-resize items-end justify-center"
+          className="absolute inset-x-0 bottom-0 z-10 flex h-4 cursor-ns-resize items-end justify-center"
         >
           <span
             className={cn(
