@@ -41,8 +41,8 @@ mock 인증: 쿠키 `que-user=<id>` / PAT `que_pat_<id>` (예: `hwang-sunghyeon`
 
 **프로덕션은 GRIFF Pro 팀(`griff-fde0dc32/que`) · <https://que.griff.co.kr> · 실 DB(`QUE_DB=supabase`)+실 인증(Auth.js) 라이브.** 비밀값은 `data/.env`(gitignore). Vercel env로 기능 게이트(아래 참고).
 
-#### 📋 테스트 피드백 일괄 처리 10건 (2026-07-20 사용자 목록) — ⚠️ **배포 대기: 마이그레이션 선적용 필요**
-**⚠️ 미배포.** `db/supabase/add-task-sort-order.sql`(tasks.sort_order, additive)을 **먼저 실 DB에 적용한 뒤** `vercel --prod` — 자동 적용은 권한 정책상 사용자 몫(세션이 시도했다 거부됨). 마이그레이션 없이 배포하면 간트 순서 드래그 저장만 실패(다른 기능 무영향).
+#### 📋 테스트 피드백 일괄 처리 10건 (2026-07-20 사용자 목록) — ✅ 배포 완료
+`db/supabase/add-task-sort-order.sql`(tasks.sort_order, additive)을 사용자 허용 후 MCP로 실 DB 적용(컬럼 실재 확인) → `vercel --prod` 배포·라이브 확인(<https://que.griff.co.kr>). 마이그레이션→코드 배포 순서 규약 준수.
 - **① 간트에서 만든 작업 프로젝트 미설정**: 원인=전역 상단바 '작업 추가'(quick-add)가 프로젝트 컨텍스트를 모름. 처방: ProjectView가 선택 프로젝트를 URL로 정규화(`router.replace` `?project=<id>` — 공유 링크도 개선)하고 QuickAddForm이 `/projects`의 `?project=`를 확인 카드에 프리필. 프로젝트 헤더의 '새로 추가'는 원래 정상(projectId 고정).
 - **② 로딩 개선**: /projects page가 board+list+gantt+milestones **전부** 계산하던 것을 활성 뷰만 페치(ProjectView props `| null`). `/projects`·`/schedule`에 loading.tsx 스켈레톤(첫 loading.tsx 도입), 스코프 필터 전환에 useTransition '불러오는 중' 스피너.
 - **③ 시작시각 +1h 자동**: DateRangePicker 시작 시각 선택 시 마감=+1시간 자동(마감이 비었거나 같은 날 마감≤시작일 때만 덮어씀·23:30 상한).
