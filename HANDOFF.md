@@ -41,6 +41,9 @@ mock 인증: 쿠키 `que-user=<id>` / PAT `que_pat_<id>` (예: `hwang-sunghyeon`
 
 **프로덕션은 GRIFF Pro 팀(`griff-fde0dc32/que`) · <https://que.griff.co.kr> · 실 DB(`QUE_DB=supabase`)+실 인증(Auth.js) 라이브.** 비밀값은 `data/.env`(gitignore). Vercel env로 기능 게이트(아래 참고).
 
+#### 💳 결제 요청 내역 수정 (2026-07-20 사용자 — 과거 "의도적 미구현(감사 무결성)" 재확인 해제)
+core `updatePaymentRequest`: **waiting만**(done·cancelled는 admin도 거부 — 정당 우회는 updatePaymentStatus로 되돌린 뒤 수정, 그 사슬 전체가 ChangeLog에 남아 추적·CSV 완료일 기준도 자동 재정렬), 등록자·admin, 최소 1필드, 검증은 create와 공유 `assertPaymentFields`(무회귀 — 테스트 319), 옵셔널 클리어(빈 문자열=제거), status 제외. **ChangeLog reason-only 설계**: 은행·계좌 원본이 들어갈 조립 지점 자체가 없음("입금 정보 변경" 고정 문구, 테스트로 고정), 금액 before→after 콤마·제목 30자 절단. Slack 미발송(트랜잭셔널 아님). UI: PaymentRow.canEdit(waiting+등록자/admin — **canSee의 진부분집합이라 원본 계좌 프리필 정당**), 진행 중 탭만 연필·히스토리 미노출, 변경 필드만 전송, dueDate 3상(YYYY-MM-DD/""제거/undefined 유지), 도움말 반영. 글래도스 승인. 라이브 화면 스팟은 세션 만료로 미수행(자동 로그인은 권한 게이트 항목) — 사용자 실사용 확인 대기.
+
 #### 🖼 인터뷰 앱 image 문항 + 로고 vision 분석 (2026-07-20 사용자 "기존 로고 업로드해서 분석")
 QuestionType `"image"` 신설(값=storage path) — 1호 로고 개선 템플릿 섹션1에 **로고 업로드 필수 문항**(런타임 계수 23문항·필수 12). `POST /api/i/[token]/upload`: 세션 토큰(만료 410·**제출 후 409 — 답변 본 라우트와 일관**)·questionId 소속+유형 inner 조인 검증(경로 주입 차단)·**매직바이트 화이트리스트**(PNG/JPG/WebP만·SVG 거부·5MB·Content-Type 불신·신설 sniffUploadImage — 기존 sniffMediaType은 미상→PNG 가정이라 게이트 부적합해 분리)·`iv-uploads/{session}/{question}` upsert. **비공개 버킷 iv-uploads 생성 완료**(service role만). RespondentForm 업로드·썸네일(본인 세션 한정 서명 URL 1h), admin 프록시(isAdmin·버킷 하드코딩 — 타 버킷 불가). **브리프 vision**: image 답변 download→base64 첨부(실패 격리), BRIEF_SCHEMA `current_logo_analysis`(형태·색·서체 인상·강점·개선 여지) + Pipeline 카드. 파이프라인 후속 단계(컨셉 생성) 전달은 범위 외 — 확장 지점 주석. 글래도스 승인(공개 업로드 표면 전수 — polyglot은 supabase 도메인 서빙이라 실행 표면 없음, vision 인젝션은 admin 전용 산출물이라 수용. **글래도스가 중간 오계수(13문항)를 스스로 런타임 검증으로 기각한 회차** — 공유 상수 참조 구조는 grep 계수 불가, tsx 평가가 정본). 라이브: 가짜 토큰 404·admin 프록시 401.
 
