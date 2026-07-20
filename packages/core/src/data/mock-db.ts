@@ -1460,6 +1460,8 @@ export class MockQueDb implements QueDb {
       title?: string;
       dueAt?: string;
       riskStatus?: Milestone["riskStatus"];
+      /** 소속 프로젝트 변경 — 실존·활성 프로젝트여야 하고, 원 프로젝트와 대상 프로젝트 양쪽 관리 권한이 필요하다. */
+      projectId?: string;
       /** 중요 마일스톤 토글(최종 런칭일 등) — 붉은 그라데이션 표기. */
       critical?: boolean;
       /** 위험 상태 변경 등 결정 사유(선택) — ChangeLog afterValue에 남긴다("사유는 남기는 것"). */
@@ -1472,11 +1474,44 @@ export class MockQueDb implements QueDb {
       throw new QueRuleError("NOT_FOUND", `마일스톤 없음: ${input.milestoneId}`);
     }
     const project = this.projects.find((p) => p.id === milestone.projectId);
-    if (actor.role !== "admin" && project?.ownerId !== actor.id) {
+    if (!canManageMilestone(actor, project)) {
       throw new QueRuleError(
         "NOT_AUTHORIZED",
         "마일스톤은 프로젝트 담당자 또는 관리자만 수정할 수 있다",
       );
+    }
+    // 소속 프로젝트 변경 — 원 프로젝트 권한(위에서 확인)에 더해 대상 프로젝트 권한도 재검사한다.
+    // 담당자가 자기 마일스톤을 남의 프로젝트로 밀어넣지 못하게 막는다(admin은 canManageMilestone로 자동 통과).
+    if (input.projectId !== undefined && input.projectId !== milestone.projectId) {
+      const target = this.projects.find((p) => p.id === input.projectId);
+      if (!target) {
+        throw new QueRuleError("NOT_FOUND", `프로젝트 없음: ${input.projectId}`);
+      }
+      if (target.status !== "active") {
+        throw new QueRuleError("INVALID_INPUT", "보관된 프로젝트로는 마일스톤을 옮길 수 없다");
+      }
+      if (!canManageMilestone(actor, target)) {
+        throw new QueRuleError(
+          "NOT_AUTHORIZED",
+          "옮길 프로젝트의 담당자 또는 관리자만 마일스톤을 이동할 수 있다",
+        );
+      }
+      const beforeName = project?.name ?? milestone.projectId;
+      // 파생 milestoneIds 정리(in-memory 충실성) — 원 프로젝트에서 빼고 대상 프로젝트에 추가.
+      if (project) {
+        project.milestoneIds = project.milestoneIds.filter((id) => id !== milestone.id);
+      }
+      if (!target.milestoneIds.includes(milestone.id)) {
+        target.milestoneIds.push(milestone.id);
+      }
+      milestone.projectId = target.id;
+      this.logChange(ctx, {
+        entityType: "milestone",
+        entityId: milestone.id,
+        changeType: "update",
+        beforeValue: beforeName,
+        afterValue: `프로젝트 변경: ${beforeName} → ${target.name}`,
+      });
     }
     if (input.title !== undefined) {
       if (!input.title.trim()) {
@@ -1511,6 +1546,51 @@ export class MockQueDb implements QueDb {
         : milestone.title,
     });
     return milestone;
+  }
+
+  /**
+   * 마일스톤 삭제(하드 삭제) — 프로젝트 담당자 또는 관리자만(canManageMilestone).
+   * 회고(milestoneRetros)나 변경 접수(changeRequests)가 참조하면 삭제를 거부한다 — 이력 보존.
+   * DB의 milestone_retros/change_requests.milestone_id는 ON DELETE CASCADE가 없어 참조가 남으면
+   * persist 시 FK 위반으로 실패한다. 여기서 먼저 거부해 런타임 오류 대신 명확한 규칙 위반으로 돌려준다.
+   * 간트 칩·주간 아젠다 등 파생 뷰는 db.milestones를 실시간으로 읽으므로 삭제 후 자연히 사라진다.
+   */
+  deleteMilestone(ctx: ActorContext, input: { milestoneId: string }): void {
+    const actor = this.requireUser(ctx.actorId);
+    const milestone = this.milestones.find((m) => m.id === input.milestoneId);
+    if (!milestone) {
+      throw new QueRuleError("NOT_FOUND", `마일스톤 없음: ${input.milestoneId}`);
+    }
+    const project = this.projects.find((p) => p.id === milestone.projectId);
+    if (!canManageMilestone(actor, project)) {
+      throw new QueRuleError(
+        "NOT_AUTHORIZED",
+        "마일스톤은 프로젝트 담당자 또는 관리자만 삭제할 수 있다",
+      );
+    }
+    if (this.milestoneRetros.some((r) => r.milestoneId === milestone.id)) {
+      throw new QueRuleError(
+        "INVALID_INPUT",
+        "회고 기록이 있는 마일스톤은 삭제할 수 없다 — 이력 보존",
+      );
+    }
+    if (this.changeRequests.some((c) => c.milestoneId === milestone.id)) {
+      throw new QueRuleError(
+        "INVALID_INPUT",
+        "변경 접수 이력이 있는 마일스톤은 삭제할 수 없다 — 이력 보존",
+      );
+    }
+    this.milestones = this.milestones.filter((m) => m.id !== milestone.id);
+    // 파생 milestoneIds도 정리(in-memory 충실성).
+    if (project) {
+      project.milestoneIds = project.milestoneIds.filter((id) => id !== milestone.id);
+    }
+    this.logChange(ctx, {
+      entityType: "milestone",
+      entityId: milestone.id,
+      changeType: "delete",
+      beforeValue: `${milestone.title} (${project?.name ?? milestone.projectId})`,
+    });
   }
 
   /**

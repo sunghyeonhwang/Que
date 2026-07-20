@@ -46,11 +46,24 @@ export async function createMilestoneAction(input: {
   return toResult((db) => db.createMilestone({ actorId: user.id, via: "web" }, input));
 }
 
+/**
+ * 마일스톤 삭제 — 프로젝트 담당·admin만(core canManageMilestone 강제).
+ * 회고·변경 접수 이력이 있으면 core가 거부하고 그 사유 문구가 그대로 토스트로 노출된다(이력 보존).
+ */
+export async function deleteMilestoneAction(input: {
+  milestoneId: string;
+}): Promise<ActionResult> {
+  const user = await getCurrentUser();
+  return toResult((db) => db.deleteMilestone({ actorId: user.id, via: "web" }, input));
+}
+
 export async function updateMilestoneAction(input: {
   milestoneId: string;
   title?: string;
   dueAt?: string;
   riskStatus?: Milestone["riskStatus"];
+  /** 소속 프로젝트 변경 — core가 대상 프로젝트 실존·활성·양쪽 관리 권한을 강제한다. */
+  projectId?: string;
   critical?: boolean;
   /** true면 기한 변경을 '결정(연기)'으로 기록한다(recordMilestoneDecision defer) — 간트 드래그 전용.
    *  결정 기록이 없으면 긴급 결정 카드가 드래그 조정을 인식하지 못해 당일 내내 잔존한다(글래도스 이월). */
@@ -68,7 +81,8 @@ export async function updateMilestoneAction(input: {
       input.dueAt &&
       input.title === undefined &&
       input.riskStatus === undefined &&
-      input.critical === undefined
+      input.critical === undefined &&
+      input.projectId === undefined
     ) {
       return db.recordMilestoneDecision(
         { actorId: user.id, via: "web" },

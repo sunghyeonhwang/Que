@@ -1833,6 +1833,115 @@ describe("마일스톤 안건 결정 기록", () => {
   });
 });
 
+describe("마일스톤 삭제", () => {
+  it("무관한 팀원은 마일스톤을 삭제할 수 없다", () => {
+    const d = db();
+    // ms-summer-report는 prj-summer(담당 황성현) 소속, lee-hyejin은 아무 프로젝트도 소유하지 않음
+    expect(() =>
+      d.deleteMilestone(
+        { actorId: "lee-hyejin", via: "web" },
+        { milestoneId: "ms-summer-report" },
+      ),
+    ).toThrowError(/프로젝트 담당자 또는 관리자만/);
+  });
+
+  it("프로젝트 담당자는 자기 마일스톤을 삭제할 수 있고 ChangeLog가 남는다", () => {
+    const d = db();
+    // lee-yejin(멤버)은 prj-cs 담당 — 이력 없는 새 마일스톤을 만들어 삭제한다.
+    const created = d.createMilestone(
+      { actorId: "lee-yejin", via: "web" },
+      { projectId: "prj-cs", title: "임시 마일스톤", dueAt: "2026-08-01T09:00:00.000Z" },
+    );
+    d.deleteMilestone({ actorId: "lee-yejin", via: "web" }, { milestoneId: created.id });
+    expect(d.milestones.find((m) => m.id === created.id)).toBeUndefined();
+    const clog = d.changeLogs.at(-1)!;
+    expect(clog.entityType).toBe("milestone");
+    expect(clog.changeType).toBe("delete");
+    expect(clog.entityId).toBe(created.id);
+  });
+
+  it("회고 기록이 있는 마일스톤은 삭제할 수 없다 — 관리자여도 거부", () => {
+    const d = db();
+    // ms-payment-qa에는 retro-payment-qa 회고가 있다. oh-seunghoon은 admin·담당이지만 이력 보존이 우선.
+    expect(() =>
+      d.deleteMilestone(
+        { actorId: "oh-seunghoon", via: "web" },
+        { milestoneId: "ms-payment-qa" },
+      ),
+    ).toThrowError(/회고 기록/);
+    expect(d.milestones.find((m) => m.id === "ms-payment-qa")).toBeDefined();
+  });
+
+  it("변경 접수 이력이 있는 마일스톤은 삭제할 수 없다", () => {
+    const d = db();
+    // ms-summer-open은 chgreq-summer-scope 변경 접수가 참조한다.
+    expect(() =>
+      d.deleteMilestone(
+        { actorId: "hwang-sunghyeon", via: "web" },
+        { milestoneId: "ms-summer-open" },
+      ),
+    ).toThrowError(/변경 접수 이력/);
+  });
+
+  it("관리자는 이력 없는 마일스톤을 삭제하고 프로젝트 milestoneIds가 정리된다", () => {
+    const d = db();
+    d.deleteMilestone(
+      { actorId: "hwang-sunghyeon", via: "web" },
+      { milestoneId: "ms-summer-report" },
+    );
+    expect(d.milestones.find((m) => m.id === "ms-summer-report")).toBeUndefined();
+    const project = d.projects.find((p) => p.id === "prj-summer")!;
+    expect(project.milestoneIds).not.toContain("ms-summer-report");
+  });
+});
+
+describe("마일스톤 프로젝트 변경", () => {
+  it("관리자는 다른 프로젝트로 옮길 수 있고 ChangeLog에 프로젝트 변경이 남는다", () => {
+    const d = db();
+    const updated = d.updateMilestone(
+      { actorId: "hwang-sunghyeon", via: "web" },
+      { milestoneId: "ms-summer-report", projectId: "prj-payment" },
+    );
+    expect(updated.projectId).toBe("prj-payment");
+    // 파생 milestoneIds가 원/대상 프로젝트에서 정리된다.
+    expect(d.projects.find((p) => p.id === "prj-summer")!.milestoneIds).not.toContain(
+      "ms-summer-report",
+    );
+    expect(d.projects.find((p) => p.id === "prj-payment")!.milestoneIds).toContain(
+      "ms-summer-report",
+    );
+    const clog = d.changeLogs.find(
+      (c) => c.entityId === "ms-summer-report" && c.afterValue?.includes("프로젝트 변경"),
+    );
+    expect(clog).toBeDefined();
+  });
+
+  it("담당자는 자기가 관리하지 않는 프로젝트로는 옮길 수 없다", () => {
+    const d = db();
+    // lee-yejin은 prj-cs만 담당 — prj-summer(담당 황성현)로는 밀어넣을 수 없다.
+    const created = d.createMilestone(
+      { actorId: "lee-yejin", via: "web" },
+      { projectId: "prj-cs", title: "이관 시도", dueAt: "2026-08-01T09:00:00.000Z" },
+    );
+    expect(() =>
+      d.updateMilestone(
+        { actorId: "lee-yejin", via: "web" },
+        { milestoneId: created.id, projectId: "prj-summer" },
+      ),
+    ).toThrowError(/옮길 프로젝트의 담당자 또는 관리자만/);
+  });
+
+  it("존재하지 않는 프로젝트로는 옮길 수 없다", () => {
+    const d = db();
+    expect(() =>
+      d.updateMilestone(
+        { actorId: "hwang-sunghyeon", via: "web" },
+        { milestoneId: "ms-summer-report", projectId: "prj-nope" },
+      ),
+    ).toThrowError(/프로젝트 없음/);
+  });
+});
+
 describe("자연어 요일 파싱", () => {
   it("'금요일'은 다가오는 금요일, '다음주 화요일'은 다음 주로 해석된다", async () => {
     const { parseTaskInput } = await import("./parse-task");

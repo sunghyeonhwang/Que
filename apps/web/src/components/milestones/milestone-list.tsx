@@ -3,13 +3,22 @@
 import { useState } from "react";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
-import { AlertTriangle, ClipboardList } from "lucide-react";
-import { updateMilestoneAction } from "@/app/(app)/planning/actions";
+import { AlertTriangle, ClipboardList, Trash2 } from "lucide-react";
+import { deleteMilestoneAction, updateMilestoneAction } from "@/app/(app)/planning/actions";
 import { useSafeAction } from "@/components/app/use-safe-action";
 import { ToneBadge, type BadgeTone } from "@/components/app/tone-badge";
 import { MilestoneRetroDialog } from "@/components/retro/milestone-retro-dialog";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import {
   DuePicker,
@@ -34,9 +43,12 @@ const RISK: Record<Risk, { label: string; tone: BadgeTone }> = {
 
 export function MilestoneList({
   milestones,
+  manageableProjects = [],
   canCreate = false,
 }: {
   milestones: MilestoneRow[];
+  /** 마일스톤을 옮길 수 있는 프로젝트(관리자·담당자만) — 수정 폼의 프로젝트 Select 소스. */
+  manageableProjects?: { id: string; name: string }[];
   /** 관리 가능한 프로젝트가 있어 위 등록 폼을 쓸 수 있는지. 빈 상태 안내 문구 분기용. */
   canCreate?: boolean;
 }) {
@@ -63,19 +75,27 @@ export function MilestoneList({
   return (
     <div className="flex flex-col gap-2">
       {milestones.map((m) => (
-        <MilestoneRowItem key={m.id} milestone={m} />
+        <MilestoneRowItem key={m.id} milestone={m} manageableProjects={manageableProjects} />
       ))}
     </div>
   );
 }
 
-function MilestoneRowItem({ milestone: m }: { milestone: MilestoneRow }) {
+function MilestoneRowItem({
+  milestone: m,
+  manageableProjects,
+}: {
+  milestone: MilestoneRow;
+  manageableProjects: { id: string; name: string }[];
+}) {
   const { run, pending } = useSafeAction();
   const [editing, setEditing] = useState(false);
   const [retroOpen, setRetroOpen] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [title, setTitle] = useState(m.title);
   const [dueAt, setDueAt] = useState(toLocalInput(m.dueAt));
   const [critical, setCritical] = useState(m.critical === true);
+  const [projectId, setProjectId] = useState(m.projectId);
 
   // 기한이 지났는데 리스크가 아직 '지연'이 아니면 시각 힌트만 덧붙인다(리스크 값 자동 변경 안 함).
   const overdue = new Date(m.dueAt) < new Date() && m.riskStatus !== "late";
@@ -95,10 +115,19 @@ function MilestoneRowItem({ milestone: m }: { milestone: MilestoneRow }) {
           milestoneId: m.id,
           title,
           dueAt: new Date(dueAt).toISOString(),
+          // projectId가 바뀌었을 때만 전달 — core가 대상 프로젝트 실존·활성·양쪽 권한을 강제한다.
+          projectId: projectId !== m.projectId ? projectId : undefined,
           critical,
         }),
       { success: "마일스톤을 수정했습니다.", onSuccess: () => setEditing(false) },
     );
+  };
+
+  const removeMilestone = () => {
+    run(() => deleteMilestoneAction({ milestoneId: m.id }), {
+      success: "마일스톤을 삭제했습니다.",
+      onSuccess: () => setConfirmDelete(false),
+    });
   };
 
   return (
@@ -168,6 +197,16 @@ function MilestoneRowItem({ milestone: m }: { milestone: MilestoneRow }) {
             >
               {editing ? "닫기" : "수정"}
             </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="마일스톤 삭제"
+              className="size-10 text-[var(--que-text-tertiary)] hover:bg-[var(--que-error)]/10 hover:text-[var(--que-error)]"
+              disabled={pending}
+              onClick={() => setConfirmDelete(true)}
+            >
+              <Trash2 className="size-4" aria-hidden />
+            </Button>
           </div>
         )}
         {!m.canManage && (
@@ -179,6 +218,28 @@ function MilestoneRowItem({ milestone: m }: { milestone: MilestoneRow }) {
 
       {editing && m.canManage && (
         <div className="mt-2.5 flex flex-wrap items-end gap-2 border-t border-[var(--que-border)] pt-2.5">
+          {/* 소속 프로젝트 변경 — 내가 관리하는 프로젝트로만 옮길 수 있다(core가 양쪽 권한 재검사). */}
+          {manageableProjects.length > 0 && (
+            <div className="flex w-48 flex-col gap-1 text-xs text-[var(--que-text-secondary)]">
+              프로젝트
+              <Select
+                items={Object.fromEntries(manageableProjects.map((p) => [p.id, p.name]))}
+                value={projectId}
+                onValueChange={(v) => v && setProjectId(v)}
+              >
+                <SelectTrigger aria-label="프로젝트 변경" size="lg">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {manageableProjects.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           <label className="flex flex-1 flex-col gap-1 text-xs text-[var(--que-text-secondary)]">
             제목
             <Input className="h-10" value={title} onChange={(e) => setTitle(e.target.value)} />
@@ -223,6 +284,31 @@ function MilestoneRowItem({ milestone: m }: { milestone: MilestoneRow }) {
           contextLabel={`${m.projectName} · 기한 ${format(new Date(m.dueAt), "M월 d일", { locale: ko })}`}
           managed={m.managed}
         />
+      )}
+
+      {m.canManage && (
+        <Dialog open={confirmDelete} onOpenChange={setConfirmDelete}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>마일스톤 삭제</DialogTitle>
+              <DialogDescription>
+                &quot;{m.title}&quot; 마일스톤을 삭제하면 되돌릴 수 없습니다. 회고나 변경 접수
+                이력이 있는 마일스톤은 이력 보존을 위해 삭제되지 않습니다.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <DialogClose render={<Button variant="outline" className="h-10" />}>취소</DialogClose>
+              <Button
+                variant="destructive"
+                className="h-10"
+                disabled={pending}
+                onClick={removeMilestone}
+              >
+                {pending ? "삭제 중…" : "삭제"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   );
