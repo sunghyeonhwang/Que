@@ -41,6 +41,12 @@ mock 인증: 쿠키 `que-user=<id>` / PAT `que_pat_<id>` (예: `hwang-sunghyeon`
 
 **프로덕션은 GRIFF Pro 팀(`griff-fde0dc32/que`) · <https://que.griff.co.kr> · 실 DB(`QUE_DB=supabase`)+실 인증(Auth.js) 라이브.** 비밀값은 `data/.env`(gitignore). Vercel env로 기능 게이트(아래 참고).
 
+#### 🚪 로그아웃 회귀 수정 (2026-07-20 사용자 리포트 "로그아웃을 눌러도 안 됨")
+**근인**: 7/16 쿠키 도메인 확대(a0a6ea0) 이전 로그인 브라우저에 같은 이름 세션 쿠키 2개 공존(구형=호스트 전용·신형=Domain=.griff.co.kr) — signOut은 현 설정(도메인)만 소거해 구형 잔존(만료 7/23까지 증상 지속층). **1차 처방(서버 액션 소거) 글래도스 반려** — Next cookies() 저장소가 이름 키 대체라 같은 이름 두 변형을 한 응답에 못 실음(ResponseCookies 실증). **최종 처방**: 신규 `POST /api/auth/logout` Route Handler — headers.append로 존재하는 세션 쿠키 전부(청크·구명 포함)를 호스트 전용+도메인 두 변형 Set-Cookie로 발신(JWT 세션이라 쿠키 소거=로그아웃 완결·signOut 미경유, CSRF=비파괴+Lax). 소비처 이관: user-switcher(fetch 라우트)·change-password(액션 {ok}→클라 effect가 라우트+이동, 실패해도 mustChange 게이트 안전망). 서버 액션 logout(app/actions.ts) 삭제. **라이브 실증**: 가짜 쿠키 3종 POST→Set-Cookie 6개(글래도스 독립 재현 일치·재심사 승인). 교훈 기록: 쿠키 이름/도메인 전환 시 잔존 변형 소거 라우트가 상시 방어선.
+
+#### 🎯 마일스톤 삭제·프로젝트 변경 (2026-07-20 사용자 리포트 2건 — /planning)
+core `deleteMilestone`: canManageMilestone, **하드 삭제 + 이력 참조 선제 거부**(milestone_retros·change_requests가 CASCADE 없는 FK — persist 역순 delete가 터지기 전에 core가 "회고 기록이 있는 마일스톤은 삭제할 수 없다 — 이력 보존"으로 거부, **admin도 예외 없음**·테스트 고정). 참조 테이블 전수 확인(2개뿐 — status_logs·아웃박스는 무FK 텍스트). `updateMilestone`에 projectId 변경: 실존·활성 검증+**원·대상 양쪽 canManageMilestone**(밀어넣기 방지·보관 프로젝트 거부), ChangeLog "프로젝트 변경: A→B", asDecision(간트 드래그) projectId undefined 분기 무회귀. milestoneIds 생성·이동·삭제 3경로 대칭 정리. UI: 수정 폼 프로젝트 Select+삭제 파괴 Dialog(간트 칩 진입점은 범위 외 주석). 테스트 +8(총 327). 글래도스 승인.
+
 #### 💳 결제 요청 내역 수정 (2026-07-20 사용자 — 과거 "의도적 미구현(감사 무결성)" 재확인 해제)
 core `updatePaymentRequest`: **waiting만**(done·cancelled는 admin도 거부 — 정당 우회는 updatePaymentStatus로 되돌린 뒤 수정, 그 사슬 전체가 ChangeLog에 남아 추적·CSV 완료일 기준도 자동 재정렬), 등록자·admin, 최소 1필드, 검증은 create와 공유 `assertPaymentFields`(무회귀 — 테스트 319), 옵셔널 클리어(빈 문자열=제거), status 제외. **ChangeLog reason-only 설계**: 은행·계좌 원본이 들어갈 조립 지점 자체가 없음("입금 정보 변경" 고정 문구, 테스트로 고정), 금액 before→after 콤마·제목 30자 절단. Slack 미발송(트랜잭셔널 아님). UI: PaymentRow.canEdit(waiting+등록자/admin — **canSee의 진부분집합이라 원본 계좌 프리필 정당**), 진행 중 탭만 연필·히스토리 미노출, 변경 필드만 전송, dueDate 3상(YYYY-MM-DD/""제거/undefined 유지), 도움말 반영. 글래도스 승인. 라이브 화면 스팟은 세션 만료로 미수행(자동 로그인은 권한 게이트 항목) — 사용자 실사용 확인 대기.
 
