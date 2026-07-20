@@ -8,6 +8,7 @@ import { useSafeAction } from "@/components/app/use-safe-action";
 import { ToneBadge, type BadgeTone } from "@/components/app/tone-badge";
 import { CopyButton } from "@/components/app/copy-button";
 import { DoneCircle } from "@/components/app/done-circle";
+import { PaymentEditDialog } from "@/components/payments/payment-edit-dialog";
 import type { PaymentRow } from "@/lib/payment-data";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -22,7 +23,16 @@ const STATUS_TONE: Record<PaymentStatus, BadgeTone> = {
 /** 결제 요청 목록 — view.griff task 카드처럼 얇은 단일 행 카드 나열.
  *  마감 초과 대기 항목이 상단에 온다.
  *  highlightId(전역 검색 딥링크 /payments?payment=<id>)가 있으면 해당 행을 강조·스크롤한다. */
-export function PaymentList({ rows, highlightId }: { rows: PaymentRow[]; highlightId?: string }) {
+export function PaymentList({
+  rows,
+  highlightId,
+  categories = [],
+}: {
+  rows: PaymentRow[];
+  highlightId?: string;
+  /** 수정 다이얼로그 분류 select 옵션(활성 분류명). 히스토리 탭 등 수정 미노출 시 생략 가능. */
+  categories?: string[];
+}) {
   return (
     <div className="max-h-[calc(100dvh-19rem)] overflow-y-auto pr-0.5">
       <div className="flex flex-col gap-1.5">
@@ -32,14 +42,27 @@ export function PaymentList({ rows, highlightId }: { rows: PaymentRow[]; highlig
           </p>
         )}
         {rows.map((row) => (
-          <PaymentRowView key={row.id} row={row} highlighted={row.id === highlightId} />
+          <PaymentRowView
+            key={row.id}
+            row={row}
+            highlighted={row.id === highlightId}
+            categories={categories}
+          />
         ))}
       </div>
     </div>
   );
 }
 
-function PaymentRowView({ row, highlighted }: { row: PaymentRow; highlighted: boolean }) {
+function PaymentRowView({
+  row,
+  highlighted,
+  categories,
+}: {
+  row: PaymentRow;
+  highlighted: boolean;
+  categories: string[];
+}) {
   const { run, pending } = useSafeAction();
   const rowRef = useRef<HTMLDivElement | null>(null);
 
@@ -138,6 +161,9 @@ function PaymentRowView({ row, highlighted }: { row: PaymentRow; highlighted: bo
         </span>
 
         <ToneBadge tone={STATUS_TONE[row.status]}>{PAYMENT_STATUS_LABELS[row.status]}</ToneBadge>
+
+        {/* 수정: 대기 상태 + 등록자 본인/관리자에게만(row.canEdit). 히스토리 행에는 canEdit=false로 미노출. */}
+        {row.canEdit && <PaymentEditDialog row={row} categories={categories} />}
 
         {row.status === "waiting" && row.canCancel && (
           <Button

@@ -2224,6 +2224,42 @@ export class MockQueDb implements QueDb {
     return checkIn;
   }
 
+  /**
+   * 결제 요청 필드 공통 검증. create/update가 함께 쓴다(중복 방지).
+   * 여기 들어오는 값은 이미 트림·클리어(빈 문자열→undefined)가 끝난 "확정 값"이라고 가정한다.
+   * 필수값(제목·은행·계좌·분류)이 비어 있으면 거부, 길이 상한·금액 범위·dueAt 파싱을 강제한다.
+   */
+  private assertPaymentFields(fields: {
+    title: string;
+    recipientName?: string;
+    bankName: string;
+    accountNumber: string;
+    amount: number;
+    description?: string;
+    dueAt?: string;
+    category: string;
+  }): void {
+    if (!fields.title || !fields.bankName || !fields.accountNumber || !fields.category) {
+      throw new QueRuleError("INVALID_INPUT", "제목, 은행명, 계좌번호, 분류는 필수다");
+    }
+    if (
+      fields.title.length > 200 ||
+      (fields.recipientName?.length ?? 0) > 100 ||
+      fields.bankName.length > 50 ||
+      fields.accountNumber.length > 50 ||
+      fields.category.length > 50 ||
+      (fields.description?.length ?? 0) > 2000
+    ) {
+      throw new QueRuleError("INVALID_INPUT", "입력 길이 상한 초과 (제목 200, 수신자명 100, 은행/계좌/분류 50, 내용 2000자)");
+    }
+    if (!Number.isFinite(fields.amount) || fields.amount <= 0 || fields.amount > 1_000_000_000_000) {
+      throw new QueRuleError("INVALID_INPUT", "금액은 0보다 크고 1조 이하의 숫자여야 한다");
+    }
+    if (fields.dueAt) {
+      parseScheduleRange({ startAt: fields.dueAt, endAt: fields.dueAt });
+    }
+  }
+
   /** 결제 요청 등록. 요청자는 본인(actor), 기본 상태 대기. */
   createPaymentRequest(
     ctx: ActorContext,
@@ -2239,35 +2275,9 @@ export class MockQueDb implements QueDb {
     },
   ): PaymentRequest {
     const actor = this.requireUser(ctx.actorId);
-    if (
-      !input.title.trim() ||
-      !input.bankName.trim() ||
-      !input.accountNumber.trim() ||
-      !input.category.trim()
-    ) {
-      throw new QueRuleError("INVALID_INPUT", "제목, 은행명, 계좌번호, 분류는 필수다");
-    }
-    if (
-      input.title.length > 200 ||
-      (input.recipientName?.length ?? 0) > 100 ||
-      input.bankName.length > 50 ||
-      input.accountNumber.length > 50 ||
-      input.category.length > 50 ||
-      (input.description?.length ?? 0) > 2000
-    ) {
-      throw new QueRuleError("INVALID_INPUT", "입력 길이 상한 초과 (제목 200, 수신자명 100, 은행/계좌/분류 50, 내용 2000자)");
-    }
-    if (!Number.isFinite(input.amount) || input.amount <= 0 || input.amount > 1_000_000_000_000) {
-      throw new QueRuleError("INVALID_INPUT", "금액은 0보다 크고 1조 이하의 숫자여야 한다");
-    }
-    if (input.dueAt) {
-      parseScheduleRange({ startAt: input.dueAt, endAt: input.dueAt });
-    }
-
-    const payment: PaymentRequest = {
-      id: this.nextId("pay"),
+    // 트림·클리어를 먼저 확정한 뒤 공통 검증에 넘긴다(update와 동일 규칙 공유).
+    const fields = {
       title: input.title.trim(),
-      requesterId: actor.id,
       recipientName: input.recipientName?.trim() || undefined,
       bankName: input.bankName.trim(),
       accountNumber: input.accountNumber.trim(),
@@ -2275,6 +2285,13 @@ export class MockQueDb implements QueDb {
       description: input.description?.trim() || undefined,
       dueAt: input.dueAt,
       category: input.category.trim(),
+    };
+    this.assertPaymentFields(fields);
+
+    const payment: PaymentRequest = {
+      id: this.nextId("pay"),
+      ...fields,
+      requesterId: actor.id,
       status: "waiting",
       createdAt: this.now(),
     };
@@ -2285,6 +2302,120 @@ export class MockQueDb implements QueDb {
       changeType: "create",
       afterValue: payment.title,
     });
+    return payment;
+  }
+
+  /**
+   * 결제 요청 내역 수정. status는 여기서 다루지 않는다(별도 updatePaymentStatus 소관).
+   * 정책(서버 강제):
+   *  ⑴ 대상이 waiting일 때만 — done·cancelled는 세무 반출·감사 기록 보호 위해 거부.
+   *  ⑵ 액터=등록자(requesterId) 또는 admin.
+   *  ⑶ 최소 1개 필드 변경 필수(전부 undefined면 거부).
+   * recipientName·description·dueAt은 빈 문자열 전달 시 필드 제거(옵셔널 클리어 관례).
+   * 감사 추적: ChangeLog에 변경 필드 요약을 남기되 계좌·은행 원본 값은 절대 남기지 않는다.
+   */
+  updatePaymentRequest(
+    ctx: ActorContext,
+    input: {
+      paymentId: string;
+      title?: string;
+      recipientName?: string;
+      bankName?: string;
+      accountNumber?: string;
+      amount?: number;
+      description?: string;
+      dueAt?: string;
+      category?: string;
+    },
+  ): PaymentRequest {
+    const actor = this.requireUser(ctx.actorId);
+    const payment = this.paymentRequests.find((p) => p.id === input.paymentId);
+    if (!payment) throw new QueRuleError("NOT_FOUND", `결제 요청 없음: ${input.paymentId}`);
+
+    // ⑵ 등록자 또는 관리자만. 클라이언트를 신뢰하지 않고 서버에서 재확인한다.
+    if (payment.requesterId !== actor.id && actor.role !== "admin") {
+      throw new QueRuleError("NOT_AUTHORIZED", "결제 요청은 등록자 또는 관리자만 수정할 수 있다");
+    }
+    // ⑴ 대기 상태에서만 수정 가능. 완료·취소분은 회계 반출·감사 기록이라 잠근다.
+    if (payment.status !== "waiting") {
+      throw new QueRuleError(
+        "INVALID_INPUT",
+        "완료·취소된 결제 요청은 수정할 수 없다 — 세무 반출·감사 기록 보호. 잘못 처리됐다면 관리자가 상태를 되돌린 뒤 수정하라",
+      );
+    }
+    // ⑶ 최소 1개 필드는 지정돼야 한다(전부 undefined면 거부).
+    const provided = [
+      input.title,
+      input.recipientName,
+      input.bankName,
+      input.accountNumber,
+      input.amount,
+      input.description,
+      input.dueAt,
+      input.category,
+    ];
+    if (provided.every((v) => v === undefined)) {
+      throw new QueRuleError("INVALID_INPUT", "수정할 필드를 최소 1개 지정해야 한다");
+    }
+
+    // 제공된 값만 반영해 "확정 필드"를 만든다. 필수값(제목·은행·계좌·분류)은 제공 시 트림.
+    // 옵셔널(수신자명·내용·마감일)은 빈 문자열이면 undefined로 클리어한다.
+    const fields = {
+      title: input.title !== undefined ? input.title.trim() : payment.title,
+      recipientName:
+        input.recipientName !== undefined
+          ? input.recipientName.trim() || undefined
+          : payment.recipientName,
+      bankName: input.bankName !== undefined ? input.bankName.trim() : payment.bankName,
+      accountNumber:
+        input.accountNumber !== undefined ? input.accountNumber.trim() : payment.accountNumber,
+      amount: input.amount !== undefined ? input.amount : payment.amount,
+      description:
+        input.description !== undefined
+          ? input.description.trim() || undefined
+          : payment.description,
+      dueAt: input.dueAt !== undefined ? input.dueAt.trim() || undefined : payment.dueAt,
+      category: input.category !== undefined ? input.category.trim() : payment.category,
+    };
+    this.assertPaymentFields(fields);
+
+    // 감사용 변경 요약 — 민감정보(은행·계좌)는 원본 값을 남기지 않는다.
+    const trunc = (s: string) => (s.length > 30 ? `${s.slice(0, 30)}…` : s);
+    const parts: string[] = [];
+    if (fields.title !== payment.title) {
+      parts.push(`제목 "${trunc(payment.title)}"→"${trunc(fields.title)}"`);
+    }
+    if (fields.amount !== payment.amount) {
+      // 금액은 감사 가치가 커 before→after를 콤마 표기로 남긴다.
+      parts.push(`금액 ${payment.amount.toLocaleString("en-US")}→${fields.amount.toLocaleString("en-US")}`);
+    }
+    // 은행·계좌는 원본 값 금지 — 변경 사실만 남긴다.
+    if (fields.bankName !== payment.bankName || fields.accountNumber !== payment.accountNumber) {
+      parts.push("입금 정보 변경");
+    }
+    if (fields.recipientName !== payment.recipientName) parts.push("수신자명");
+    if (fields.description !== payment.description) parts.push("내용");
+    if (fields.dueAt !== payment.dueAt) parts.push("마감일");
+    if (fields.category !== payment.category) parts.push("분류");
+
+    payment.title = fields.title;
+    payment.recipientName = fields.recipientName;
+    payment.bankName = fields.bankName;
+    payment.accountNumber = fields.accountNumber;
+    payment.amount = fields.amount;
+    payment.description = fields.description;
+    payment.dueAt = fields.dueAt;
+    payment.category = fields.category;
+    payment.lastChangedBy = actor.id;
+    payment.lastChangedAt = this.now();
+
+    this.logChange(ctx, {
+      entityType: "payment_request",
+      entityId: payment.id,
+      changeType: "update",
+      reason: parts.length > 0 ? `결제 요청 수정: ${parts.join(", ")}` : "결제 요청 수정 (동일 값)",
+    });
+    // 수정은 트랜잭셔널 신호가 아니라 Slack 알림을 보내지 않는다 — ChangeLog로 충분.
     return payment;
   }
 

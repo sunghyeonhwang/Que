@@ -1130,6 +1130,116 @@ describe("결제 상태 변경", () => {
   });
 });
 
+describe("결제 요청 내역 수정", () => {
+  it("등록자는 대기 상태 요청의 금액·제목을 수정하고 ChangeLog(update)가 남는다", () => {
+    const d = db();
+    // pay-stock-photo: 등록자 kim-riwon, waiting, 금액 264000
+    const updated = d.updatePaymentRequest(
+      { actorId: "kim-riwon", via: "web" },
+      { paymentId: "pay-stock-photo", amount: 300000, title: "스톡 이미지 연간 구독(갱신)" },
+    );
+    expect(updated.amount).toBe(300000);
+    expect(updated.title).toBe("스톡 이미지 연간 구독(갱신)");
+    expect(updated.lastChangedBy).toBe("kim-riwon");
+    const clog = d.changeLogs.at(-1)!;
+    expect(clog.entityType).toBe("payment_request");
+    expect(clog.changeType).toBe("update");
+    expect(clog.via).toBe("web");
+    // 금액은 before→after 콤마 표기로 감사 가치를 남긴다
+    expect(clog.reason).toContain("264,000→300,000");
+    expect(clog.reason).toContain("제목");
+  });
+
+  it("완료·취소된 요청은 수정할 수 없다(감사 기록 보호)", () => {
+    const d = db();
+    // pay-fonts: done, pay-cancel-sample: cancelled
+    expect(() =>
+      d.updatePaymentRequest(
+        { actorId: "hwang-sunghyeon", via: "web" },
+        { paymentId: "pay-fonts", amount: 1000 },
+      ),
+    ).toThrowError(/수정할 수 없다/);
+    expect(() =>
+      d.updatePaymentRequest(
+        { actorId: "kim-riwon", via: "web" },
+        { paymentId: "pay-cancel-sample", amount: 1000 },
+      ),
+    ).toThrowError(/수정할 수 없다/);
+  });
+
+  it("등록자도 관리자도 아니면 거부한다", () => {
+    const d = db();
+    // pay-stock-photo 등록자는 kim-riwon. lee-hyejin은 사원.
+    expect(() =>
+      d.updatePaymentRequest(
+        { actorId: "lee-hyejin", via: "web" },
+        { paymentId: "pay-stock-photo", amount: 1 },
+      ),
+    ).toThrowError(/등록자 또는 관리자/);
+  });
+
+  it("관리자는 타인 등록 요청도 수정할 수 있다", () => {
+    const d = db();
+    const updated = d.updatePaymentRequest(
+      { actorId: "hwang-sunghyeon", via: "web" },
+      { paymentId: "pay-stock-photo", category: "라이선스" },
+    );
+    expect(updated.category).toBe("라이선스");
+    expect(updated.lastChangedBy).toBe("hwang-sunghyeon");
+  });
+
+  it("변경 필드가 하나도 없으면 거부한다", () => {
+    const d = db();
+    expect(() =>
+      d.updatePaymentRequest({ actorId: "kim-riwon", via: "web" }, { paymentId: "pay-stock-photo" }),
+    ).toThrowError(/최소 1개/);
+  });
+
+  it("옵셔널 필드는 빈 문자열로 제거된다(수신자명·마감일)", () => {
+    const d = db();
+    const before = d.paymentRequests.find((p) => p.id === "pay-stock-photo")!;
+    expect(before.recipientName).toBeTruthy();
+    expect(before.dueAt).toBeTruthy();
+    const updated = d.updatePaymentRequest(
+      { actorId: "kim-riwon", via: "web" },
+      { paymentId: "pay-stock-photo", recipientName: "", dueAt: "" },
+    );
+    expect(updated.recipientName).toBeUndefined();
+    expect(updated.dueAt).toBeUndefined();
+  });
+
+  it("ChangeLog에 계좌·은행 원본 값을 남기지 않는다", () => {
+    const d = db();
+    d.updatePaymentRequest(
+      { actorId: "kim-riwon", via: "web" },
+      { paymentId: "pay-stock-photo", bankName: "카카오뱅크", accountNumber: "3333-99-8888888" },
+    );
+    const clog = d.changeLogs.at(-1)!;
+    expect(clog.reason).toContain("입금 정보 변경");
+    // 민감정보 원본은 절대 로그에 남지 않아야 한다
+    expect(clog.reason).not.toContain("카카오뱅크");
+    expect(clog.reason).not.toContain("3333-99-8888888");
+    expect(clog.reason).not.toContain("신한은행"); // before 계좌/은행도 금지
+    expect(clog.reason).not.toContain("110-123-456789");
+  });
+
+  it("길이 상한·금액 범위는 create와 동일하게 강제한다", () => {
+    const d = db();
+    expect(() =>
+      d.updatePaymentRequest(
+        { actorId: "kim-riwon", via: "web" },
+        { paymentId: "pay-stock-photo", amount: -1 },
+      ),
+    ).toThrowError(/0보다 크고/);
+    expect(() =>
+      d.updatePaymentRequest(
+        { actorId: "kim-riwon", via: "web" },
+        { paymentId: "pay-stock-photo", title: " " },
+      ),
+    ).toThrowError(/필수다/);
+  });
+});
+
 describe("회의록 업로드와 Action 추출", () => {
   const MD = [
     "# 주간 회의",

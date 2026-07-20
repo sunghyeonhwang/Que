@@ -22,6 +22,8 @@ export interface PaymentRow {
   category: string;
   description?: string;
   dueAt?: string;
+  /** 마감일의 KST 날짜 키(YYYY-MM-DD) — 수정 폼 프리필용. 마감일 없으면 undefined. */
+  dueDateKey?: string;
   status: PaymentStatus;
   /** 완료/취소일(상태 마지막 변경 시각) — 히스토리 정렬·표시용. */
   lastChangedAt?: string;
@@ -30,6 +32,8 @@ export interface PaymentRow {
   /** 현재 사용자가 이 요청의 상태를 바꿀 수 있는가 (관리자=전체, 요청자=취소만) */
   canComplete: boolean;
   canCancel: boolean;
+  /** 요청 내역을 수정할 수 있는가 — 대기 상태 + (관리자 또는 요청자 본인). 최종 강제는 서버. */
+  canEdit: boolean;
 }
 
 export interface PaymentData {
@@ -56,6 +60,16 @@ export async function getAllPaymentCategories(): Promise<PaymentCategory[]> {
 function maskAccount(accountNumber: string): string {
   const digits = accountNumber.replace(/\D/g, "");
   return `•••• ${digits.slice(-4)}`;
+}
+
+/** ISO 시각을 KST 날짜 키(YYYY-MM-DD)로 — 클라이언트 TZ 드리프트 없이 수정 폼 프리필에 쓴다. */
+function kstDateKey(iso: string): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date(iso));
 }
 
 export async function getPaymentData(viewer: User, now: Date = new Date()): Promise<PaymentData> {
@@ -92,6 +106,7 @@ export async function getPaymentData(viewer: User, now: Date = new Date()): Prom
         category: payment.category,
         description: payment.description,
         dueAt: payment.dueAt,
+        dueDateKey: payment.dueAt ? kstDateKey(payment.dueAt) : undefined,
         status: payment.status,
         lastChangedAt: payment.lastChangedAt,
         overdue,
@@ -102,6 +117,9 @@ export async function getPaymentData(viewer: User, now: Date = new Date()): Prom
           new Date(payment.dueAt) <= soonLimit,
         canComplete: viewer.role === "admin",
         canCancel: viewer.role === "admin" || payment.requesterId === viewer.id,
+        canEdit:
+          payment.status === "waiting" &&
+          (viewer.role === "admin" || payment.requesterId === viewer.id),
       };
     });
 

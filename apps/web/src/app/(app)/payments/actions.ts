@@ -56,6 +56,45 @@ export async function createPaymentRequestAction(input: {
   );
 }
 
+// 결제 요청 내역 수정 — 등록자 또는 관리자, 대기 상태 한정(최종 강제는 core updatePaymentRequest).
+// 상태(status) 변경은 별도 updatePaymentStatusAction 소관이라 여기서 다루지 않는다.
+// 옵셔널 클리어: recipientName·description은 빈 문자열("")로 넘기면 필드 제거된다.
+// dueDate: 값이 있으면 YYYY-MM-DD, 빈 문자열("")이면 마감일 제거, undefined면 미변경.
+export async function updatePaymentRequestAction(input: {
+  paymentId: string;
+  title?: string;
+  recipientName?: string;
+  bankName?: string;
+  accountNumber?: string;
+  amount?: number;
+  description?: string;
+  dueDate?: string; // YYYY-MM-DD | "" (제거) | undefined (미변경)
+  category?: string;
+}): Promise<ActionResult> {
+  const { dueDate, ...rest } = input;
+  let dueAt: string | undefined;
+  if (dueDate !== undefined) {
+    if (dueDate === "") {
+      dueAt = ""; // 빈 문자열 → core에서 마감일 제거
+    } else {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(dueDate)) {
+        return { ok: false, error: "유효하지 않은 마감일이다 (YYYY-MM-DD)" };
+      }
+      const parsed = new Date(`${dueDate}T17:00:00`);
+      if (Number.isNaN(parsed.getTime())) return { ok: false, error: "유효하지 않은 마감일이다" };
+      dueAt = parsed.toISOString();
+    }
+  }
+
+  const user = await getCurrentUser();
+  return toResult((db) =>
+    db.updatePaymentRequest(
+      { actorId: user.id, via: "web" },
+      { ...rest, ...(dueDate !== undefined ? { dueAt } : {}) },
+    ),
+  );
+}
+
 export async function updatePaymentStatusAction(input: {
   paymentId: string;
   to: PaymentStatus;

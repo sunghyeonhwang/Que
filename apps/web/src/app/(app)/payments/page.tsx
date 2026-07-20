@@ -102,6 +102,7 @@ export default async function PaymentsPage({
             <PaymentList
               rows={data.rows.filter((r) => r.status === "waiting")}
               highlightId={highlightPaymentId}
+              categories={activeCategories.map((c) => c.name)}
             />
           </div>
         </div>
