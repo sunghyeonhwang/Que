@@ -1,0 +1,630 @@
+- generic [active] [ref=f5e1]:
+  - generic [ref=f5e2]:
+    - generic [ref=f5e3]:
+      - heading "커맨드 팔레트" [level=2] [ref=f5e4]
+      - paragraph [ref=f5e5]: 작업·회의록·Action·결제·팀원을 검색하거나 화면으로 이동합니다.
+    - complementary [ref=f5e6]:
+      - link "GRIFF 홈" [ref=f5e8] [cursor=pointer]:
+        - /url: /home
+        - img "GRIFF" [ref=f5e9]
+      - generic [ref=f5e10]:
+        - 'button "클라이언트 필터: 전체 클라이언트" [ref=f5e12]':
+          - img
+          - generic [ref=f5e13]: 전체 클라이언트
+          - img
+        - navigation "주 메뉴" [ref=f5e14]:
+          - generic [ref=f5e15]:
+            - paragraph [ref=f5e16]: 메뉴
+            - link "홈" [ref=f5e18] [cursor=pointer]:
+              - /url: /home
+              - img [ref=f5e19]
+              - generic [ref=f5e22]: 홈
+            - generic [ref=f5e24]:
+              - link "데일리" [ref=f5e25] [cursor=pointer]:
+                - /url: /daily
+                - img [ref=f5e26]
+                - generic [ref=f5e29]: 데일리
+              - button "데일리 하위 메뉴 펼치기" [ref=f5e30]:
+                - img [ref=f5e31]
+            - generic [ref=f5e34]:
+              - link "작업 목록" [ref=f5e35] [cursor=pointer]:
+                - /url: /today
+                - img [ref=f5e36]
+                - generic [ref=f5e39]: 작업 목록
+              - button "작업 목록 하위 메뉴 펼치기" [ref=f5e40]:
+                - img [ref=f5e41]
+            - generic [ref=f5e43]:
+              - generic [ref=f5e44]:
+                - link "프로젝트" [ref=f5e45] [cursor=pointer]:
+                  - /url: /projects
+                  - img [ref=f5e46]
+                  - generic [ref=f5e48]: 프로젝트
+                - button "프로젝트 하위 메뉴 접기" [expanded] [ref=f5e49]:
+                  - img [ref=f5e50]
+              - list [ref=f5e52]:
+                - listitem [ref=f5e53]:
+                  - link "목록" [ref=f5e54] [cursor=pointer]:
+                    - /url: /projects?view=list
+                - listitem [ref=f5e55]:
+                  - link "보드" [ref=f5e56] [cursor=pointer]:
+                    - /url: /projects?view=board
+                - listitem [ref=f5e57]:
+                  - link "간트" [ref=f5e58] [cursor=pointer]:
+                    - /url: /projects
+            - link "일정" [ref=f5e60] [cursor=pointer]:
+              - /url: /schedule
+              - img [ref=f5e61]
+              - generic [ref=f5e63]: 일정
+            - generic [ref=f5e65]:
+              - link "회의록 3건" [ref=f5e66] [cursor=pointer]:
+                - /url: /meeting-notes
+                - img [ref=f5e67]
+                - generic [ref=f5e70]: 회의록
+                - generic "3건" [ref=f5e71]: "3"
+              - button "회의록 하위 메뉴 펼치기" [ref=f5e72]:
+                - img [ref=f5e73]
+            - link "Now" [ref=f5e76] [cursor=pointer]:
+              - /url: /now
+              - img [ref=f5e77]
+              - generic [ref=f5e79]: Now
+            - generic [ref=f5e81]:
+              - link "팀 현황" [ref=f5e82] [cursor=pointer]:
+                - /url: /team
+                - img [ref=f5e83]
+                - generic [ref=f5e88]: 팀 현황
+              - button "팀 현황 하위 메뉴 펼치기" [ref=f5e89]:
+                - img [ref=f5e90]
+            - generic [ref=f5e93]:
+              - link "반복·마일스톤" [ref=f5e94] [cursor=pointer]:
+                - /url: /planning
+                - img [ref=f5e95]
+                - generic [ref=f5e97]: 반복·마일스톤
+              - button "반복·마일스톤 하위 메뉴 펼치기" [ref=f5e98]:
+                - img [ref=f5e99]
+            - link "성과" [ref=f5e102] [cursor=pointer]:
+              - /url: /heatmap
+              - img [ref=f5e103]
+              - generic [ref=f5e105]: 성과
+            - link "멤버" [ref=f5e107] [cursor=pointer]:
+              - /url: /members
+              - img [ref=f5e108]
+              - generic [ref=f5e113]: 멤버
+          - generic "바로가기" [ref=f5e114]:
+            - link "간트 (새 탭에서 열림)" [ref=f5e115] [cursor=pointer]:
+              - /url: https://gant.griff.co.kr
+              - img [ref=f5e116]
+            - link "뷰 (새 탭에서 열림)" [ref=f5e117] [cursor=pointer]:
+              - /url: https://view.griff.co.kr
+              - img [ref=f5e118]
+            - link "투두 (새 탭에서 열림)" [ref=f5e121] [cursor=pointer]:
+              - /url: https://todo.griff.co.kr
+              - img [ref=f5e122]
+            - link "컬러 (새 탭에서 열림)" [ref=f5e125] [cursor=pointer]:
+              - /url: https://color.griff.co.kr
+              - img [ref=f5e126]
+            - link "폰트 (새 탭에서 열림)" [ref=f5e132] [cursor=pointer]:
+              - /url: https://font.griff.co.kr
+              - img [ref=f5e133]
+            - link "인터뷰 (새 탭에서 열림)" [ref=f5e135] [cursor=pointer]:
+              - /url: https://interview.griff.co.kr
+              - img [ref=f5e136]
+          - generic [ref=f5e139]:
+            - paragraph [ref=f5e140]: 기타
+            - link "클라이언트" [ref=f5e142] [cursor=pointer]:
+              - /url: /clients
+              - img [ref=f5e143]
+              - generic [ref=f5e147]: 클라이언트
+            - link "결제요청" [ref=f5e149] [cursor=pointer]:
+              - /url: /payments
+              - img [ref=f5e150]
+              - generic [ref=f5e153]: 결제요청
+            - link "수정사항" [ref=f5e155] [cursor=pointer]:
+              - /url: /revisions
+              - img [ref=f5e156]
+              - generic [ref=f5e165]: 수정사항
+            - link "MCP · CLI" [ref=f5e167] [cursor=pointer]:
+              - /url: /tools
+              - img [ref=f5e168]
+              - generic [ref=f5e170]: MCP · CLI
+            - link "온보딩" [ref=f5e172] [cursor=pointer]:
+              - /url: /onboard
+              - img [ref=f5e173]
+              - generic [ref=f5e178]: 온보딩
+            - link "도움말" [ref=f5e180] [cursor=pointer]:
+              - /url: /help
+              - img [ref=f5e181]
+              - generic [ref=f5e184]: 도움말
+            - link "설계 FAQ" [ref=f5e186] [cursor=pointer]:
+              - /url: /faq
+              - img [ref=f5e187]
+              - generic [ref=f5e190]: 설계 FAQ
+            - link "설정" [ref=f5e192] [cursor=pointer]:
+              - /url: /settings
+              - img [ref=f5e193]
+              - generic [ref=f5e196]: 설정
+    - generic [ref=f5e197]:
+      - banner [ref=f5e198]:
+        - generic [ref=f5e200]:
+          - img
+          - combobox "검색" [ref=f5e201]
+        - generic [ref=f5e202]:
+          - link "Que Copilot 열기" [ref=f5e203] [cursor=pointer]:
+            - /url: /copilot
+            - img
+            - generic [ref=f5e204]: Copilot
+          - button "작업 추가" [ref=f5e205]:
+            - img
+            - generic [ref=f5e206]: 작업 추가
+          - button "알림 — 새 알림 8건" [ref=f5e208]:
+            - img
+            - generic [ref=f5e209]: "8"
+          - button "황성현 메뉴" [ref=f5e210]:
+            - generic [ref=f5e212]: 성현
+            - generic [ref=f5e213]:
+              - generic [ref=f5e214]: 황성현
+              - generic [ref=f5e215]: 대표
+            - img
+          - button "전체화면" [ref=f5e817]:
+            - img
+          - button "라이트 모드로" [ref=f5e216]:
+            - img
+      - main [ref=f5e217]:
+        - generic [ref=f5e218]:
+          - generic [ref=f5e219]:
+            - generic [ref=f5e220]:
+              - combobox "클라이언트 필터" [ref=f5e221]:
+                - generic [ref=f5e222]: 전체 클라이언트
+                - img: ▼
+              - textbox [ref=f5e223]: all
+              - combobox "프로젝트 선택" [ref=f5e224]:
+                - generic [ref=f5e225]: 결제 개선
+                - img: ▼
+              - textbox [ref=f5e226]: prj-payment
+            - generic [ref=f5e227]:
+              - generic [ref=f5e228]:
+                - link "에픽게임즈" [ref=f5e229] [cursor=pointer]:
+                  - /url: /clients
+                  - img [ref=f5e230]
+                  - generic [ref=f5e234]: 에픽게임즈
+                - heading "결제 개선" [level=1] [ref=f5e235]
+              - generic [ref=f5e236]:
+                - generic [ref=f5e237]:
+                  - generic [ref=f5e239]: 리원
+                  - generic [ref=f5e241]: 승환
+                  - generic [ref=f5e243]: 수용
+                  - generic [ref=f5e245]: 승훈
+                  - generic [ref=f5e247]: 예진
+                  - generic "외 3명" [ref=f5e248]: "+3"
+                - button "공유" [ref=f5e249]:
+                  - img
+                - button "더보기" [ref=f5e250]:
+                  - img
+          - generic [ref=f5e251]:
+            - tablist "프로젝트 뷰" [ref=f5e252]:
+              - tab "목록" [ref=f5e253] [cursor=pointer]:
+                - img [ref=f5e254]
+                - text: 목록
+              - tab "보드" [selected] [ref=f5e257] [cursor=pointer]:
+                - img [ref=f5e258]
+                - text: 보드
+              - tab "간트" [ref=f5e263] [cursor=pointer]:
+                - img [ref=f5e264]
+                - text: 간트
+            - generic [ref=f5e266]:
+              - button "미완료만 보기" [ref=f5e267]
+              - button "새로 추가" [ref=f5e268]:
+                - img
+                - text: 새로 추가
+              - button "마일스톤 추가" [ref=f5e269]:
+                - img
+                - text: 마일스톤 추가
+          - generic [ref=f5e271]:
+            - generic [ref=f5e272]:
+              - img [ref=f5e273]
+              - text: 다가오는 마일스톤
+            - button "마일스톤 결제 QA 완료 · 주의 · 눌러서 수정" [ref=f5e276]:
+              - img [ref=f5e277]
+              - generic [ref=f5e279]: "마일스톤 주의:"
+              - generic [ref=f5e280]: 결제 QA 완료
+          - generic [ref=f5e282]:
+            - generic [ref=f5e283]:
+              - generic [ref=f5e284]:
+                - heading "예정" [level=2] [ref=f5e286]
+                - generic "1개" [ref=f5e287]: "1"
+                - button "예정 열에 태스크 추가" [ref=f5e289]:
+                  - img
+              - generic [ref=f5e292]:
+                - link "결제 API 응답 형식 확인 상세 열기" [ref=f5e293] [cursor=pointer]:
+                  - /url: /projects?view=board&project=prj-payment&task=task-api-schema
+                - generic [ref=f5e294]:
+                  - generic [ref=f5e295]:
+                    - button "결제 API 응답 형식 확인 완료로 표시" [ref=f5e296]:
+                      - img [ref=f5e298]
+                    - generic [ref=f5e300]:
+                      - img [ref=f5e301]
+                      - text: 높음
+                  - button "결제 API 응답 형식 확인 메뉴" [ref=f5e303]:
+                    - img [ref=f5e304]
+                - heading "결제 API 응답 형식 확인" [level=3] [ref=f5e308]
+                - generic [ref=f5e309]: "상태: 예정"
+                - generic [ref=f5e310]:
+                  - img [ref=f5e311]
+                  - generic [ref=f5e313]: 2026년 7월 21일 화요일
+                - generic [ref=f5e314]:
+                  - generic [ref=f5e317]: 승훈
+                  - generic "댓글 0개" [ref=f5e318]:
+                    - img [ref=f5e319]
+                    - text: "0"
+            - generic [ref=f5e321]:
+              - generic [ref=f5e322]:
+                - heading "진행중" [level=2] [ref=f5e324]
+                - generic "0개" [ref=f5e325]: "0"
+              - paragraph [ref=f5e327]: 태스크 없음
+            - generic [ref=f5e328]:
+              - generic [ref=f5e329]:
+                - heading "홀드·문제" [level=2] [ref=f5e331]
+                - generic "1개" [ref=f5e332]: "1"
+              - generic [ref=f5e335]:
+                - link "결제 페이지 QA 상세 열기" [ref=f5e336] [cursor=pointer]:
+                  - /url: /projects?view=board&project=prj-payment&task=task-payment-qa
+                - generic [ref=f5e337]:
+                  - generic [ref=f5e338]:
+                    - button "결제 페이지 QA 완료로 표시" [ref=f5e339]:
+                      - img [ref=f5e341]
+                    - generic [ref=f5e343]:
+                      - img [ref=f5e344]
+                      - text: 높음
+                  - button "결제 페이지 QA 메뉴" [ref=f5e346]:
+                    - img [ref=f5e347]
+                - heading "결제 페이지 QA" [level=3] [ref=f5e351]
+                - generic [ref=f5e353]:
+                  - img
+                  - text: 문제발생
+                - generic [ref=f5e354]:
+                  - img [ref=f5e355]
+                  - generic [ref=f5e357]: 2026년 7월 20일 월요일
+                  - generic [ref=f5e358]: (기한 초과)
+                - generic [ref=f5e359]:
+                  - generic [ref=f5e362]: 승환
+                  - generic "댓글 1개" [ref=f5e363]:
+                    - img [ref=f5e364]
+                    - text: "1"
+            - generic [ref=f5e366]:
+              - generic [ref=f5e367]:
+                - heading "완료" [level=2] [ref=f5e369]
+                - generic "15개" [ref=f5e370]: "15"
+              - generic [ref=f5e371]:
+                - generic [ref=f5e373]:
+                  - link "카피 교정 상세 열기" [ref=f5e374] [cursor=pointer]:
+                    - /url: /projects?view=board&project=prj-payment&task=task-h1
+                  - generic [ref=f5e375]:
+                    - generic [ref=f5e376]:
+                      - button "카피 교정 완료 해제" [pressed] [ref=f5e377]:
+                        - img [ref=f5e379]
+                      - generic [ref=f5e381]:
+                        - img [ref=f5e382]
+                        - text: 보통
+                    - button "카피 교정 메뉴" [ref=f5e383]:
+                      - img [ref=f5e384]
+                  - heading "카피 교정" [level=3] [ref=f5e388]
+                  - generic [ref=f5e389]: "상태: 완료"
+                  - generic [ref=f5e390]:
+                    - img [ref=f5e391]
+                    - generic [ref=f5e393]: 2026년 6월 8일 월요일
+                  - generic [ref=f5e394]:
+                    - generic [ref=f5e397]: 성진
+                    - generic "댓글 0개" [ref=f5e398]:
+                      - img [ref=f5e399]
+                      - text: "0"
+                - generic [ref=f5e402]:
+                  - link "이미지 리터칭 상세 열기" [ref=f5e403] [cursor=pointer]:
+                    - /url: /projects?view=board&project=prj-payment&task=task-h5
+                  - generic [ref=f5e404]:
+                    - generic [ref=f5e405]:
+                      - button "이미지 리터칭 완료 해제" [pressed] [ref=f5e406]:
+                        - img [ref=f5e408]
+                      - generic [ref=f5e410]:
+                        - img [ref=f5e411]
+                        - text: 보통
+                    - button "이미지 리터칭 메뉴" [ref=f5e412]:
+                      - img [ref=f5e413]
+                  - heading "이미지 리터칭" [level=3] [ref=f5e417]
+                  - generic [ref=f5e418]: "상태: 완료"
+                  - generic [ref=f5e419]:
+                    - img [ref=f5e420]
+                    - generic [ref=f5e422]: 2026년 6월 10일 수요일
+                  - generic [ref=f5e423]:
+                    - generic [ref=f5e426]: 리원
+                    - generic "댓글 0개" [ref=f5e427]:
+                      - img [ref=f5e428]
+                      - text: "0"
+                - generic [ref=f5e431]:
+                  - link "샘플 재확인 상세 열기" [ref=f5e432] [cursor=pointer]:
+                    - /url: /projects?view=board&project=prj-payment&task=task-h9
+                  - generic [ref=f5e433]:
+                    - generic [ref=f5e434]:
+                      - button "샘플 재확인 완료 해제" [pressed] [ref=f5e435]:
+                        - img [ref=f5e437]
+                      - generic [ref=f5e439]:
+                        - img [ref=f5e440]
+                        - text: 보통
+                    - button "샘플 재확인 메뉴" [ref=f5e441]:
+                      - img [ref=f5e442]
+                  - heading "샘플 재확인" [level=3] [ref=f5e446]
+                  - generic [ref=f5e447]: "상태: 완료"
+                  - generic [ref=f5e448]:
+                    - img [ref=f5e449]
+                    - generic [ref=f5e451]: 2026년 6월 12일 금요일
+                  - generic [ref=f5e452]:
+                    - generic [ref=f5e455]: 승환
+                    - generic "댓글 0개" [ref=f5e456]:
+                      - img [ref=f5e457]
+                      - text: "0"
+                - generic [ref=f5e460]:
+                  - link "결제 로그 분석 상세 열기" [ref=f5e461] [cursor=pointer]:
+                    - /url: /projects?view=board&project=prj-payment&task=task-h13
+                  - generic [ref=f5e462]:
+                    - generic [ref=f5e463]:
+                      - button "결제 로그 분석 완료 해제" [pressed] [ref=f5e464]:
+                        - img [ref=f5e466]
+                      - generic [ref=f5e468]:
+                        - img [ref=f5e469]
+                        - text: 보통
+                    - button "결제 로그 분석 메뉴" [ref=f5e470]:
+                      - img [ref=f5e471]
+                  - heading "결제 로그 분석" [level=3] [ref=f5e475]
+                  - generic [ref=f5e476]: "상태: 완료"
+                  - generic [ref=f5e477]:
+                    - img [ref=f5e478]
+                    - generic [ref=f5e480]: 2026년 6월 15일 월요일
+                  - generic [ref=f5e481]:
+                    - generic [ref=f5e484]: 성현
+                    - generic "댓글 0개" [ref=f5e485]:
+                      - img [ref=f5e486]
+                      - text: "0"
+                - generic [ref=f5e489]:
+                  - link "정산 대사 상세 열기" [ref=f5e490] [cursor=pointer]:
+                    - /url: /projects?view=board&project=prj-payment&task=task-h17
+                  - generic [ref=f5e491]:
+                    - generic [ref=f5e492]:
+                      - button "정산 대사 완료 해제" [pressed] [ref=f5e493]:
+                        - img [ref=f5e495]
+                      - generic [ref=f5e497]:
+                        - img [ref=f5e498]
+                        - text: 보통
+                    - button "정산 대사 메뉴" [ref=f5e499]:
+                      - img [ref=f5e500]
+                  - heading "정산 대사" [level=3] [ref=f5e504]
+                  - generic [ref=f5e505]: "상태: 완료"
+                  - generic [ref=f5e506]:
+                    - img [ref=f5e507]
+                    - generic [ref=f5e509]: 2026년 6월 18일 목요일
+                  - generic [ref=f5e510]:
+                    - generic [ref=f5e513]: 수용
+                    - generic "댓글 0개" [ref=f5e514]:
+                      - img [ref=f5e515]
+                      - text: "0"
+                - generic [ref=f5e518]:
+                  - link "카피 교정 상세 열기" [ref=f5e519] [cursor=pointer]:
+                    - /url: /projects?view=board&project=prj-payment&task=task-h21
+                  - generic [ref=f5e520]:
+                    - generic [ref=f5e521]:
+                      - button "카피 교정 완료 해제" [pressed] [ref=f5e522]:
+                        - img [ref=f5e524]
+                      - generic [ref=f5e526]:
+                        - img [ref=f5e527]
+                        - text: 보통
+                    - button "카피 교정 메뉴" [ref=f5e528]:
+                      - img [ref=f5e529]
+                  - heading "카피 교정" [level=3] [ref=f5e533]
+                  - generic [ref=f5e534]: "상태: 완료"
+                  - generic [ref=f5e535]:
+                    - img [ref=f5e536]
+                    - generic [ref=f5e538]: 2026년 6월 19일 금요일
+                  - generic [ref=f5e539]:
+                    - generic [ref=f5e542]: 승훈
+                    - generic "댓글 0개" [ref=f5e543]:
+                      - img [ref=f5e544]
+                      - text: "0"
+                - generic [ref=f5e547]:
+                  - link "이미지 리터칭 상세 열기" [ref=f5e548] [cursor=pointer]:
+                    - /url: /projects?view=board&project=prj-payment&task=task-h25
+                  - generic [ref=f5e549]:
+                    - generic [ref=f5e550]:
+                      - button "이미지 리터칭 완료 해제" [pressed] [ref=f5e551]:
+                        - img [ref=f5e553]
+                      - generic [ref=f5e555]:
+                        - img [ref=f5e556]
+                        - text: 보통
+                    - button "이미지 리터칭 메뉴" [ref=f5e557]:
+                      - img [ref=f5e558]
+                  - heading "이미지 리터칭" [level=3] [ref=f5e562]
+                  - generic [ref=f5e563]: "상태: 완료"
+                  - generic [ref=f5e564]:
+                    - img [ref=f5e565]
+                    - generic [ref=f5e567]: 2026년 6월 24일 수요일
+                  - generic [ref=f5e568]:
+                    - generic [ref=f5e571]: 예진
+                    - generic "댓글 0개" [ref=f5e572]:
+                      - img [ref=f5e573]
+                      - text: "0"
+                - generic [ref=f5e576]:
+                  - link "샘플 재확인 상세 열기" [ref=f5e577] [cursor=pointer]:
+                    - /url: /projects?view=board&project=prj-payment&task=task-h29
+                  - generic [ref=f5e578]:
+                    - generic [ref=f5e579]:
+                      - button "샘플 재확인 완료 해제" [pressed] [ref=f5e580]:
+                        - img [ref=f5e582]
+                      - generic [ref=f5e584]:
+                        - img [ref=f5e585]
+                        - text: 보통
+                    - button "샘플 재확인 메뉴" [ref=f5e586]:
+                      - img [ref=f5e587]
+                  - heading "샘플 재확인" [level=3] [ref=f5e591]
+                  - generic [ref=f5e592]: "상태: 완료"
+                  - generic [ref=f5e593]:
+                    - img [ref=f5e594]
+                    - generic [ref=f5e596]: 2026년 6월 25일 목요일
+                  - generic [ref=f5e597]:
+                    - generic [ref=f5e600]: 성진
+                    - generic "댓글 0개" [ref=f5e601]:
+                      - img [ref=f5e602]
+                      - text: "0"
+                - generic [ref=f5e605]:
+                  - link "결제 로그 분석 상세 열기" [ref=f5e606] [cursor=pointer]:
+                    - /url: /projects?view=board&project=prj-payment&task=task-h33
+                  - generic [ref=f5e607]:
+                    - generic [ref=f5e608]:
+                      - button "결제 로그 분석 완료 해제" [pressed] [ref=f5e609]:
+                        - img [ref=f5e611]
+                      - generic [ref=f5e613]:
+                        - img [ref=f5e614]
+                        - text: 보통
+                    - button "결제 로그 분석 메뉴" [ref=f5e615]:
+                      - img [ref=f5e616]
+                  - heading "결제 로그 분석" [level=3] [ref=f5e620]
+                  - generic [ref=f5e621]: "상태: 완료"
+                  - generic [ref=f5e622]:
+                    - img [ref=f5e623]
+                    - generic [ref=f5e625]: 2026년 6월 30일 화요일
+                  - generic [ref=f5e626]:
+                    - generic [ref=f5e629]: 리원
+                    - generic "댓글 0개" [ref=f5e630]:
+                      - img [ref=f5e631]
+                      - text: "0"
+                - generic [ref=f5e634]:
+                  - link "정산 대사 상세 열기" [ref=f5e635] [cursor=pointer]:
+                    - /url: /projects?view=board&project=prj-payment&task=task-h37
+                  - generic [ref=f5e636]:
+                    - generic [ref=f5e637]:
+                      - button "정산 대사 완료 해제" [pressed] [ref=f5e638]:
+                        - img [ref=f5e640]
+                      - generic [ref=f5e642]:
+                        - img [ref=f5e643]
+                        - text: 보통
+                    - button "정산 대사 메뉴" [ref=f5e644]:
+                      - img [ref=f5e645]
+                  - heading "정산 대사" [level=3] [ref=f5e649]
+                  - generic [ref=f5e650]: "상태: 완료"
+                  - generic [ref=f5e651]:
+                    - img [ref=f5e652]
+                    - generic [ref=f5e654]: 2026년 7월 2일 목요일
+                  - generic [ref=f5e655]:
+                    - generic [ref=f5e658]: 승환
+                    - generic "댓글 0개" [ref=f5e659]:
+                      - img [ref=f5e660]
+                      - text: "0"
+                - generic [ref=f5e663]:
+                  - link "카피 교정 상세 열기" [ref=f5e664] [cursor=pointer]:
+                    - /url: /projects?view=board&project=prj-payment&task=task-h41
+                  - generic [ref=f5e665]:
+                    - generic [ref=f5e666]:
+                      - button "카피 교정 완료 해제" [pressed] [ref=f5e667]:
+                        - img [ref=f5e669]
+                      - generic [ref=f5e671]:
+                        - img [ref=f5e672]
+                        - text: 보통
+                    - button "카피 교정 메뉴" [ref=f5e673]:
+                      - img [ref=f5e674]
+                  - heading "카피 교정" [level=3] [ref=f5e678]
+                  - generic [ref=f5e679]: "상태: 완료"
+                  - generic [ref=f5e680]:
+                    - img [ref=f5e681]
+                    - generic [ref=f5e683]: 2026년 7월 6일 월요일
+                  - generic [ref=f5e684]:
+                    - generic [ref=f5e687]: 성현
+                    - generic "댓글 0개" [ref=f5e688]:
+                      - img [ref=f5e689]
+                      - text: "0"
+                - generic [ref=f5e692]:
+                  - link "이미지 리터칭 상세 열기" [ref=f5e693] [cursor=pointer]:
+                    - /url: /projects?view=board&project=prj-payment&task=task-h45
+                  - generic [ref=f5e694]:
+                    - generic [ref=f5e695]:
+                      - button "이미지 리터칭 완료 해제" [pressed] [ref=f5e696]:
+                        - img [ref=f5e698]
+                      - generic [ref=f5e700]:
+                        - img [ref=f5e701]
+                        - text: 보통
+                    - button "이미지 리터칭 메뉴" [ref=f5e702]:
+                      - img [ref=f5e703]
+                  - heading "이미지 리터칭" [level=3] [ref=f5e707]
+                  - generic [ref=f5e708]: "상태: 완료"
+                  - generic [ref=f5e709]:
+                    - img [ref=f5e710]
+                    - generic [ref=f5e712]: 2026년 7월 7일 화요일
+                  - generic [ref=f5e713]:
+                    - generic [ref=f5e716]: 수용
+                    - generic "댓글 0개" [ref=f5e717]:
+                      - img [ref=f5e718]
+                      - text: "0"
+                - generic [ref=f5e721]:
+                  - link "샘플 재확인 상세 열기" [ref=f5e722] [cursor=pointer]:
+                    - /url: /projects?view=board&project=prj-payment&task=task-h49
+                  - generic [ref=f5e723]:
+                    - generic [ref=f5e724]:
+                      - button "샘플 재확인 완료 해제" [pressed] [ref=f5e725]:
+                        - img [ref=f5e727]
+                      - generic [ref=f5e729]:
+                        - img [ref=f5e730]
+                        - text: 보통
+                    - button "샘플 재확인 메뉴" [ref=f5e731]:
+                      - img [ref=f5e732]
+                  - heading "샘플 재확인" [level=3] [ref=f5e736]
+                  - generic [ref=f5e737]: "상태: 완료"
+                  - generic [ref=f5e738]:
+                    - img [ref=f5e739]
+                    - generic [ref=f5e741]: 2026년 7월 9일 목요일
+                  - generic [ref=f5e742]:
+                    - generic [ref=f5e745]: 승훈
+                    - generic "댓글 0개" [ref=f5e746]:
+                      - img [ref=f5e747]
+                      - text: "0"
+                - generic [ref=f5e750]:
+                  - link "결제 로그 분석 상세 열기" [ref=f5e751] [cursor=pointer]:
+                    - /url: /projects?view=board&project=prj-payment&task=task-h53
+                  - generic [ref=f5e752]:
+                    - generic [ref=f5e753]:
+                      - button "결제 로그 분석 완료 해제" [pressed] [ref=f5e754]:
+                        - img [ref=f5e756]
+                      - generic [ref=f5e758]:
+                        - img [ref=f5e759]
+                        - text: 보통
+                    - button "결제 로그 분석 메뉴" [ref=f5e760]:
+                      - img [ref=f5e761]
+                  - heading "결제 로그 분석" [level=3] [ref=f5e765]
+                  - generic [ref=f5e766]: "상태: 완료"
+                  - generic [ref=f5e767]:
+                    - img [ref=f5e768]
+                    - generic [ref=f5e770]: 2026년 7월 13일 월요일
+                  - generic [ref=f5e771]:
+                    - generic [ref=f5e774]: 예진
+                    - generic "댓글 0개" [ref=f5e775]:
+                      - img [ref=f5e776]
+                      - text: "0"
+                - generic [ref=f5e779]:
+                  - link "정산 대사 상세 열기" [ref=f5e780] [cursor=pointer]:
+                    - /url: /projects?view=board&project=prj-payment&task=task-h57
+                  - generic [ref=f5e781]:
+                    - generic [ref=f5e782]:
+                      - button "정산 대사 완료 해제" [pressed] [ref=f5e783]:
+                        - img [ref=f5e785]
+                      - generic [ref=f5e787]:
+                        - img [ref=f5e788]
+                        - text: 보통
+                    - button "정산 대사 메뉴" [ref=f5e789]:
+                      - img [ref=f5e790]
+                  - heading "정산 대사" [level=3] [ref=f5e794]
+                  - generic [ref=f5e795]: "상태: 완료"
+                  - generic [ref=f5e796]:
+                    - img [ref=f5e797]
+                    - generic [ref=f5e799]: 2026년 7월 15일 수요일
+                  - generic [ref=f5e800]:
+                    - generic [ref=f5e803]: 성진
+                    - generic "댓글 0개" [ref=f5e804]:
+                      - img [ref=f5e805]
+                      - text: "0"
+  - region "Notifications alt+T"
+  - button "Open Next.js Dev Tools" [ref=f5e812] [cursor=pointer]:
+    - img [ref=f5e813]
+  - alert [ref=f5e818]

@@ -41,6 +41,10 @@ mock 인증: 쿠키 `que-user=<id>` / PAT `que_pat_<id>` (예: `hwang-sunghyeon`
 
 **프로덕션은 GRIFF Pro 팀(`griff-fde0dc32/que`) · <https://que.griff.co.kr> · 실 DB(`QUE_DB=supabase`)+실 인증(Auth.js) 라이브.** 비밀값은 `data/.env`(gitignore). Vercel env로 기능 게이트(아래 참고).
 
+#### 🗓 /schedule 블록 드래그 이동·리사이즈 + 프로젝트 서브메뉴 3종 (2026-07-20 사용자 후속 2건)
+- **캘린더 드래그**(week-calendar.tsx 단독 수정, 백엔드 무추가): canEdit 블록 본문 드래그=시간 이동(30분 스냅·기간 보존·세로 08~21 clamp·가로 요일 이동 — 비연속 요일도 인덱스 매핑), **하단 10px ns-resize 핸들=endAt만 연장/단축**(30분 스냅·최소 30분·21:00 clamp). task→updateTaskScheduleAction·event→updateEventScheduleAction(core가 외부·비공개·타인 최종 거부), useOptimisticAction 오버라이드→layoutDay 재계산, 5px 임계 미만=클릭(팝오버) 공존, 드래그 확정 후 click은 onClickCapture로 삼킴. **터치(pointerType touch)는 이번 범위 제외**(touch-action 무변경으로 손가락 스크롤 보존 — 코드 주석 명시, 후속 후보). updater 안 부수효과 금지 규율 준수. 라이브 검증: 이동 1:00→1:30(기간 보존)·리사이즈 마감 3:30→4:00·클릭 팝오버·새로고침 영속 모두 확인.
+- **프로젝트 서브메뉴**: menu.ts children 간트 1개→**목록·보드·간트 3종**(사용자 "서브 메뉴 안 보임"). 간트 child href는 `/projects`(view 무지정=간트 기본이라 동작 동일 + matchChild score-0 폴백으로 기본 진입 시에도 하이라이트 — `view=gantt` 명시 href면 누락). CLAUDE.md 서브메뉴 규약 절 동기 갱신(간트 1개만 방침 폐기 기록). view=board에서 보드 child 활성 확인.
+
 #### 📋 테스트 피드백 일괄 처리 10건 (2026-07-20 사용자 목록) — ✅ 배포 완료
 `db/supabase/add-task-sort-order.sql`(tasks.sort_order, additive)을 사용자 허용 후 MCP로 실 DB 적용(컬럼 실재 확인) → `vercel --prod` 배포·라이브 확인(<https://que.griff.co.kr>). 마이그레이션→코드 배포 순서 규약 준수.
 - **① 간트에서 만든 작업 프로젝트 미설정**: 원인=전역 상단바 '작업 추가'(quick-add)가 프로젝트 컨텍스트를 모름. 처방: ProjectView가 선택 프로젝트를 URL로 정규화(`router.replace` `?project=<id>` — 공유 링크도 개선)하고 QuickAddForm이 `/projects`의 `?project=`를 확인 카드에 프리필. 프로젝트 헤더의 '새로 추가'는 원래 정상(projectId 고정).

@@ -1,9 +1,18 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type MouseEvent as ReactMouseEvent,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 import { format, isSameDay, isToday } from "date-fns";
 import { Lock } from "lucide-react";
 import type { CalendarMilestone, CalendarViewItem } from "@/lib/calendar-data";
+import { updateTaskScheduleAction } from "@/app/(app)/today/actions";
+import { updateEventScheduleAction } from "@/app/(app)/calendar/actions";
+import { useOptimisticAction } from "@/components/app/use-optimistic-action";
 import { cn } from "@/lib/utils";
 import { eventSwatch } from "./event-color";
 import { EventDetailPopover } from "./event-detail-popover";
@@ -21,6 +30,54 @@ import {
 
 /** 표시 타임존 라벨(디자인 GMT 표기 자리). 한국 팀 기준 고정 표기. */
 const TZ_LABEL = "GMT+9";
+
+/** 클릭(상세 팝오버)과 드래그(시간 이동)를 가르는 px 임계값 — 간트 DraggableMilestone과 동일. */
+const DRAG_THRESHOLD = 5;
+/** 30분 스냅 픽셀(HOUR_HEIGHT의 절반). 세로 드래그는 이 단위로 스냅한다. */
+const SNAP_PX = HOUR_HEIGHT / 2;
+
+/** 이동 대상 식별 키 — task/event id 공간이 겹칠 여지를 kind로 방어. */
+function keyOf(item: Pick<CalendarViewItem, "kind" | "id">): string {
+  return `${item.kind}-${item.id}`;
+}
+
+/** 드래그로 이동 가능한 항목인가 — 서버 판정(canEdit)만 신뢰 + task·event만(마일스톤은 items 밖). */
+function isDraggable(item: CalendarViewItem): boolean {
+  return item.canEdit === true && (item.kind === "task" || item.kind === "event");
+}
+
+/** 드래그 진행 상태(WeekCalendar 레벨). preview는 스냅된 새 위치(드롭 시 커밋 대상).
+ *  mode="move"=블록 본문 드래그(시간·요일 이동), mode="resize"=하단 핸들 드래그(끝시각만 연장/단축). */
+interface DragState {
+  key: string;
+  kind: "task" | "event";
+  id: string;
+  mode: "move" | "resize";
+  origStart: number;
+  origEnd: number;
+  dayIndex: number;
+  startX: number;
+  startY: number;
+  colWidth: number;
+  active: boolean;
+  previewStart: number;
+  previewEnd: number;
+  dayOffset: number;
+  dyPx: number;
+}
+
+/** 시간 시프트 오버라이드(id별 새 시각). 낙관 반영 + 겹침 레이아웃 재계산에 쓰인다. */
+type Overrides = Record<string, { startAt: string; endAt: string }>;
+
+/** DayColumn·EventBlock에 내려주는 드래그 배선. */
+interface BlockDnd {
+  drag: DragState | null;
+  onPointerDown: (e: ReactPointerEvent, item: CalendarViewItem) => void;
+  onResizePointerDown: (e: ReactPointerEvent, item: CalendarViewItem) => void;
+  onPointerMove: (e: ReactPointerEvent) => void;
+  onPointerUp: (e: ReactPointerEvent) => void;
+  onClickCapture: (e: ReactMouseEvent) => void;
+}
 
 /** "9:00 - 10:30 AM" / "11:10 AM - 1:00 PM" — AM/PM이 같으면 끝에 한 번만. */
 function timeRangeLabel(startAt: string, endAt: string): string {
@@ -45,6 +102,18 @@ export function WeekCalendar({
 }) {
   const [now, setNow] = useState<Date | null>(null);
 
+  // ── 블록 드래그로 시간 이동 ────────────────────────────────────────────────
+  // 오버라이드는 WeekCalendar 레벨 state. 커밋되면 items에 얹어 layoutDay에 넘겨
+  // 시간뿐 아니라 겹침 레이아웃도 다시 계산되게 한다(순수 함수라 오버라이드된 items만 주면 됨).
+  // 드래그 "진행 중" 블록은 재배치하지 않고 transform 미리보기만(어지러움 방지) — 드롭 후 오버라이드로 재배치.
+  const [overrides, setOverrides] = useState<Overrides>({});
+  const [drag, setDrag] = useState<DragState | null>(null);
+  // 드래그 확정 직후 뒤따르는 click을 삼켜 EventDetailPopover가 열리지 않게 하는 플래그(ref라 리렌더 무관).
+  const justDraggedRef = useRef(false);
+  // 요일 컬럼 컨테이너 — 드래그 시작 시 rect에서 컬럼 폭을 계산한다.
+  const columnsRef = useRef<HTMLDivElement>(null);
+  const { run } = useOptimisticAction();
+
   useEffect(() => {
     // 최초 값은 rAF로 지연 세팅해 하이드레이션 불일치를 피한다(효과 본문 동기 setState 회피).
     const raf = requestAnimationFrame(() => setNow(new Date()));
@@ -67,6 +136,184 @@ export function WeekCalendar({
   // 가로 스크롤 임계폭을 컬럼 수에 비례시킨다(시간축 4rem + 컬럼당 6.2rem).
   // 7일=약 760px로 기존 주간 레이아웃 유지, 3일/1일은 과하게 넓어지지 않음.
   const minWidth = `calc(4rem + ${days.length} * 6.2rem)`;
+
+  // 오버라이드가 얹힌 표시용 items — layoutDay가 시각·겹침을 다시 계산한다.
+  const effectiveItems =
+    Object.keys(overrides).length === 0
+      ? items
+      : items.map((it) => {
+          const ov = overrides[keyOf(it)];
+          return ov ? { ...it, startAt: ov.startAt, endAt: ov.endAt } : it;
+        });
+
+  // 포인터 위치 → 스냅된 새 시각. 미리보기·커밋이 같은 값을 쓰도록 한 곳에서 계산.
+  const computePreview = (s: DragState, clientX: number, clientY: number) => {
+    const gridStart = START_HOUR * 60;
+    const gridEnd = END_HOUR * 60;
+    const start = new Date(s.origStart);
+
+    // ── 리사이즈: startAt 고정, endAt만 30분 스냅으로 연장/단축. 최소 30분·끝은 21:00 clamp. ──
+    if (s.mode === "resize") {
+      const stepY = Math.round((clientY - s.startY) / SNAP_PX);
+      const minutesDelta = stepY * 30;
+      const end = new Date(s.origEnd);
+      const startMin = start.getHours() * 60 + start.getMinutes();
+      const endMin = end.getHours() * 60 + end.getMinutes();
+      const newEndMin = Math.max(startMin + 30, Math.min(endMin + minutesDelta, gridEnd));
+      const newEnd = new Date(s.origEnd);
+      newEnd.setTime(newEnd.getTime() + (newEndMin - endMin) * 60_000);
+      return {
+        previewStart: s.origStart,
+        previewEnd: newEnd.getTime(),
+        dayOffset: 0,
+        dyPx: 0,
+      };
+    }
+
+    // ── 이동: 세로 30분 스냅(기간 보존, 그리드 08:00~21:00 clamp) + 가로 컬럼 스냅. ──
+    const stepY = Math.round((clientY - s.startY) / SNAP_PX);
+    const minutesDelta = stepY * 30;
+    const durMin = (s.origEnd - s.origStart) / 60_000;
+    const startMin = start.getHours() * 60 + start.getMinutes();
+    const newStartMin = Math.max(gridStart, Math.min(startMin + minutesDelta, gridEnd - durMin));
+    const clampedDelta = newStartMin - startMin;
+
+    // 가로: 컬럼 폭 단위 스냅(days 2개 이상일 때만). 비연속 요일(주말 숨김)도 days 배열 인덱스로 정확히 매핑.
+    let dayOffset = 0;
+    if (days.length > 1 && s.colWidth > 0) {
+      const stepX = Math.round((clientX - s.startX) / s.colWidth);
+      const target = Math.min(Math.max(s.dayIndex + stepX, 0), days.length - 1);
+      dayOffset = target - s.dayIndex;
+    }
+    const targetDay = days[s.dayIndex + dayOffset];
+    const newStart = new Date(s.origStart);
+    newStart.setFullYear(targetDay.getFullYear(), targetDay.getMonth(), targetDay.getDate());
+    newStart.setTime(newStart.getTime() + clampedDelta * 60_000);
+    const newEnd = new Date(newStart.getTime() + (s.origEnd - s.origStart));
+    const dyPx = (clampedDelta / 60) * HOUR_HEIGHT;
+    return {
+      previewStart: newStart.getTime(),
+      previewEnd: newEnd.getTime(),
+      dayOffset,
+      dyPx,
+    };
+  };
+
+  const startDrag = (e: ReactPointerEvent, item: CalendarViewItem, mode: "move" | "resize") => {
+    if (!isDraggable(item)) return;
+    // 터치는 이번 범위에서 드래그 제외(데스크톱·태블릿 펜/마우스 우선). 손가락 세로 스크롤을 죽이지 않기
+    // 위해 touchAction도 건드리지 않는다 — pointerType "touch"면 여기서 빠져 기존 클릭/스크롤이 그대로 동작.
+    if (e.pointerType === "touch") return;
+    const rect = columnsRef.current?.getBoundingClientRect();
+    const colWidth = rect ? rect.width / days.length : 0;
+    const start = new Date(item.startAt);
+    const dayIndex = days.findIndex((d) => isSameDay(d, start));
+    if (dayIndex < 0) return;
+    justDraggedRef.current = false;
+    setDrag({
+      key: keyOf(item),
+      kind: item.kind as "task" | "event",
+      id: item.id,
+      mode,
+      origStart: start.getTime(),
+      origEnd: new Date(item.endAt).getTime(),
+      dayIndex,
+      startX: e.clientX,
+      startY: e.clientY,
+      colWidth,
+      active: false,
+      previewStart: start.getTime(),
+      previewEnd: new Date(item.endAt).getTime(),
+      dayOffset: 0,
+      dyPx: 0,
+    });
+  };
+
+  const onBlockPointerDown = (e: ReactPointerEvent, item: CalendarViewItem) =>
+    startDrag(e, item, "move");
+  const onResizePointerDown = (e: ReactPointerEvent, item: CalendarViewItem) => {
+    // 리사이즈 핸들은 블록 본문 위에 겹쳐 있어, 본문의 이동 드래그가 같이 시작되지 않게 전파를 끊는다.
+    e.stopPropagation();
+    startDrag(e, item, "resize");
+  };
+
+  // updater 안에서 부수효과(다른 setState/startTransition)를 부르지 않는다 — 핸들러 본문에서
+  // 현재 상태(drag)를 읽어 처리한다("Cannot call startTransition while rendering" 회피, 간트 선례).
+  const onBlockPointerMove = (e: ReactPointerEvent) => {
+    const s = drag;
+    if (!s) return;
+    if (!s.active) {
+      if (
+        Math.abs(e.clientX - s.startX) < DRAG_THRESHOLD &&
+        Math.abs(e.clientY - s.startY) < DRAG_THRESHOLD
+      ) {
+        return; // 임계값 미만 — 아직 클릭일 수 있어 팝오버 트리거를 살려둔다.
+      }
+      try {
+        (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+      } catch {
+        /* 캡처 미지원 무시 */
+      }
+    }
+    const p = computePreview(s, e.clientX, e.clientY);
+    setDrag({ ...s, active: true, ...p });
+  };
+
+  const onBlockPointerUp = (e: ReactPointerEvent) => {
+    const s = drag;
+    if (s?.active) {
+      try {
+        (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+      } catch {
+        /* noop */
+      }
+      justDraggedRef.current = true; // 뒤따르는 click을 삼켜 팝오버가 열리지 않게 한다.
+      if (s.previewStart !== s.origStart || s.previewEnd !== s.origEnd) {
+        commitMove(s);
+      }
+    }
+    setDrag(null);
+  };
+
+  // 드래그 확정 시 합성되는 click을 캡처 단계에서 차단 — Popover 트리거로 이벤트가 새지 않게.
+  const onBlockClickCapture = (e: ReactMouseEvent) => {
+    if (justDraggedRef.current) {
+      e.preventDefault();
+      e.stopPropagation();
+      justDraggedRef.current = false;
+    }
+  };
+
+  const commitMove = (s: DragState) => {
+    const startAt = new Date(s.previewStart).toISOString();
+    const endAt = new Date(s.previewEnd).toISOString();
+    const prev = overrides[s.key];
+    const action =
+      s.kind === "task"
+        ? () => updateTaskScheduleAction({ taskId: s.id, startAt, endAt })
+        : () => updateEventScheduleAction({ eventId: s.id, startAt, endAt });
+    run(action, {
+      apply: () => setOverrides((o) => ({ ...o, [s.key]: { startAt, endAt } })),
+      rollback: () =>
+        setOverrides((o) => {
+          const copy = { ...o };
+          if (prev === undefined) delete copy[s.key];
+          else copy[s.key] = prev;
+          return copy;
+        }),
+      success: s.mode === "resize" ? "기간을 조정했습니다." : "시간을 옮겼습니다.",
+      source: "schedule-drag",
+    });
+  };
+
+  const dnd: BlockDnd = {
+    drag,
+    onPointerDown: onBlockPointerDown,
+    onResizePointerDown,
+    onPointerMove: onBlockPointerMove,
+    onPointerUp: onBlockPointerUp,
+    onClickCapture: onBlockClickCapture,
+  };
 
   return (
     <div className="overflow-hidden rounded-xl border border-[var(--que-border)] bg-[var(--que-bg)]">
@@ -168,9 +415,9 @@ export function WeekCalendar({
             </div>
 
             {/* 요일 컬럼 영역 */}
-            <div className="relative flex flex-1" style={{ height: GRID_HEIGHT }}>
+            <div ref={columnsRef} className="relative flex flex-1" style={{ height: GRID_HEIGHT }}>
               {days.map((day) => (
-                <DayColumn key={day.toISOString()} day={day} items={items} />
+                <DayColumn key={day.toISOString()} day={day} items={effectiveItems} dnd={dnd} />
               ))}
               {showNow && (
                 <div
@@ -190,7 +437,7 @@ export function WeekCalendar({
   );
 }
 
-function DayColumn({ day, items }: { day: Date; items: CalendarViewItem[] }) {
+function DayColumn({ day, items, dnd }: { day: Date; items: CalendarViewItem[]; dnd: BlockDnd }) {
   const positioned = layoutDay(items, day);
   const today = isToday(day);
   return (
@@ -210,17 +457,33 @@ function DayColumn({ day, items }: { day: Date; items: CalendarViewItem[] }) {
       ))}
       {/* 이벤트 블록 */}
       {positioned.map((p) => (
-        <EventBlock key={`${p.item.kind}-${p.item.id}`} pos={p} />
+        <EventBlock key={`${p.item.kind}-${p.item.id}`} pos={p} dnd={dnd} />
       ))}
     </div>
   );
 }
 
-function EventBlock({ pos }: { pos: PositionedItem }) {
+function EventBlock({ pos, dnd }: { pos: PositionedItem; dnd: BlockDnd }) {
   const { item } = pos;
   const swatch = eventSwatch(item);
-  const range = timeRangeLabel(item.startAt, item.endAt);
   const compact = pos.height < 64;
+
+  const draggable = isDraggable(item);
+  // 이 블록이 지금 끌리는 중인가 — 그렇다면 미리보기 시각·transform으로만 그린다(레이아웃 재계산 X).
+  const dragging = dnd.drag?.active === true && dnd.drag.key === keyOf(item);
+  const resizing = dragging && dnd.drag!.mode === "resize";
+  const moving = dragging && dnd.drag!.mode === "move";
+  const previewStartIso = dragging ? new Date(dnd.drag!.previewStart).toISOString() : item.startAt;
+  const previewEndIso = dragging ? new Date(dnd.drag!.previewEnd).toISOString() : item.endAt;
+  const range = timeRangeLabel(previewStartIso, previewEndIso);
+  // 이동: 세로(dyPx) + 가로(요일 오프셋 × 컬럼 폭)를 transform으로 미리보기(겹침 레이아웃 유지).
+  const transform = moving
+    ? `translate(${dnd.drag!.dayOffset * dnd.drag!.colWidth}px, ${dnd.drag!.dyPx}px)`
+    : undefined;
+  // 리사이즈: top 고정, height만 미리보기 기간으로 갱신.
+  const height = resizing
+    ? Math.max(40, ((dnd.drag!.previewEnd - dnd.drag!.previewStart) / 3_600_000) * HOUR_HEIGHT) - 2
+    : pos.height - 2;
 
   return (
     <EventDetailPopover item={item}>
@@ -228,14 +491,24 @@ function EventBlock({ pos }: { pos: PositionedItem }) {
       role="button"
       tabIndex={0}
       aria-label={`${item.title}, ${range}`}
-      className="absolute overflow-hidden rounded-lg border px-2 py-1.5 text-left shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--que-brand)]"
+      onPointerDown={draggable ? (e) => dnd.onPointerDown(e, item) : undefined}
+      onPointerMove={draggable ? dnd.onPointerMove : undefined}
+      onPointerUp={draggable ? dnd.onPointerUp : undefined}
+      onClickCapture={draggable ? dnd.onClickCapture : undefined}
+      className={cn(
+        "group/block absolute overflow-hidden rounded-lg border px-2 py-1.5 text-left shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--que-brand)]",
+        draggable && (moving ? "cursor-grabbing" : "cursor-grab"),
+      )}
       style={{
         top: pos.top + 1,
-        height: pos.height - 2,
+        height,
         left: `calc(${pos.left * 100}% + 2px)`,
         width: `calc(${pos.width * 100}% - 4px)`,
         backgroundColor: swatch.bg,
         borderColor: swatch.border,
+        transform,
+        zIndex: dragging ? 40 : undefined,
+        boxShadow: dragging ? "0 6px 16px rgba(0,0,0,0.18)" : undefined,
       }}
     >
       <div className="flex items-center gap-1">
@@ -271,6 +544,27 @@ function EventBlock({ pos }: { pos: PositionedItem }) {
           aria-hidden
         >
           {item.ownerName.slice(1, 3) || item.ownerName.slice(0, 2)}
+        </span>
+      )}
+
+      {/* 하단 리사이즈 핸들 — 끝시각만 연장/단축. 블록 본문(이동) 위에 겹치므로 pointerdown 전파를 끊는다.
+          평상시엔 옅고, hover/드래그 시 중앙 짧은 바가 진해져 잡을 곳을 알린다(색 단독 아님·상태색 불변). */}
+      {draggable && (
+        <span
+          aria-hidden
+          onPointerDown={(e) => dnd.onResizePointerDown(e, item)}
+          onPointerMove={dnd.onPointerMove}
+          onPointerUp={dnd.onPointerUp}
+          onClickCapture={dnd.onClickCapture}
+          className="absolute inset-x-0 bottom-0 z-10 flex h-2.5 cursor-ns-resize items-end justify-center"
+        >
+          <span
+            className={cn(
+              "mb-0.5 h-1 w-6 rounded-full transition-opacity",
+              resizing ? "opacity-70" : "opacity-0 group-hover/block:opacity-40",
+            )}
+            style={{ backgroundColor: swatch.accent }}
+          />
         </span>
       )}
     </div>

@@ -116,15 +116,21 @@ export const MENU_SECTIONS: MenuSection[] = [
           { label: "입력", href: "/today?panel=input" },
         ],
       },
-      // 프로젝트 PM 도구 — 보드(status 4열)/목록/캘린더/간트. 카드=core Task. 전원 노출(쓰기는 카드별 권한).
-      // 하위는 간트 1개만(뷰 4종 전부는 과밀 — 간트만 "봐야 하는 화면"으로 진입점 승격, 2026-07-16 확정).
+      // 프로젝트 PM 도구 — 목록/보드/간트. 카드=core Task. 전원 노출(쓰기는 카드별 권한).
+      // 하위는 뷰 3종 전부(2026-07-20 사용자 "서브 메뉴 안 보임/목록·보드" — 종전 간트 1개만에서 확장).
+      // 간트 href는 view 파라미터 없는 기본 경로 — 기본 뷰=간트라 동작 동일하고, view 미지정 URL에서도
+      // matchChild score-0 폴백으로 활성 하이라이트가 붙는다(view=gantt 명시 href면 기본 진입 시 하이라이트 누락).
       {
         href: "/projects",
         label: "프로젝트",
         icon: FolderKanban,
         // 테마 반응 하이라이트(아이콘+텍스트) — 최빈 메뉴 4항목 통일. emphasized(볼드)는 안 붙임(볼드는 2개 한정).
         navAccent: true,
-        children: [{ label: "간트", href: "/projects?view=gantt" }],
+        children: [
+          { label: "목록", href: "/projects?view=list" },
+          { label: "보드", href: "/projects?view=board" },
+          { label: "간트", href: "/projects" },
+        ],
       },
       // 일정 — 테마 반응 하이라이트(아이콘+텍스트) 대상 4항목. 볼드는 미적용.
       { href: "/schedule", label: "일정", icon: Calendar, navAccent: true },
