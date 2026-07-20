@@ -43,13 +43,11 @@ export function RiskBoardGrid({ items }: { items: ViewRiskItem[] }) {
       <ul className={cn("flex flex-col", scale("gap-3", "gap-4", "gap-6", "gap-8"))}>
         {items.map((t) => {
           const meta = STATUS_META[t.status];
-          const border = t.status === "issue" ? "border-l-red-500" : "border-l-amber-500";
           return (
             <li
               key={t.id}
               className={cn(
-                "flex items-center gap-5 rounded-2xl border border-neutral-200 border-l-4 bg-white",
-                border,
+                "flex items-center gap-5 rounded-2xl border border-neutral-200 bg-white",
                 scale("px-6 py-4", "px-8 py-5", "px-12 py-7", "px-16 py-10"),
               )}
             >

@@ -483,6 +483,62 @@ export class MockQueDb implements QueDb {
     return task;
   }
 
+  /**
+   * 간트 작업 세로 순서(수동 정렬) 저장 — 프로젝트 내 표시 순서를 사용자가 드래그로 정한다.
+   * 규칙(UI가 아니라 여기서 강제, 웹/MCP/CLI 공통):
+   * - 프로젝트 실재. orderedTaskIds는 전부 그 프로젝트 소속 태스크여야 한다(아니면 INVALID_INPUT).
+   * - 중복 id 거부.
+   * - 권한: 관리자 또는 프로젝트 담당자(canManageProject). 그 외는 거부(NOT_AUTHORIZED).
+   * - sortOrder = (index+1)*10. 전달에 빠진 같은 프로젝트 태스크는 건드리지 않는다(부분 재정렬 허용 —
+   *   호출부가 화면에 보이는 행 전체를 넘길 것). 표시 속성이라 태스크별 lastChangedBy/lastChangedAt은
+   *   갱신하지 않는다(소음 방지). 감사 추적은 ChangeLog 1건(entityType "project")으로 충분하다.
+   */
+  reorderProjectTasks(
+    ctx: ActorContext,
+    input: { projectId: string; orderedTaskIds: string[] },
+  ): Task[] {
+    const actor = this.requireUser(ctx.actorId);
+    const project = this.projects.find((p) => p.id === input.projectId);
+    if (!project) throw new QueRuleError("NOT_FOUND", `프로젝트 없음: ${input.projectId}`);
+    if (!canManageProject(actor, project)) {
+      throw new QueRuleError(
+        "NOT_AUTHORIZED",
+        "작업 표시 순서는 관리자 또는 프로젝트 담당자만 변경할 수 있다",
+      );
+    }
+    const ids = input.orderedTaskIds;
+    if (!Array.isArray(ids) || ids.length === 0) {
+      throw new QueRuleError("INVALID_INPUT", "정렬할 작업 목록이 비어 있다");
+    }
+    if (new Set(ids).size !== ids.length) {
+      throw new QueRuleError("INVALID_INPUT", "정렬 목록에 중복된 작업이 있다");
+    }
+    // 전량 선검증 후 반영(부분 반영 없음). 모두 이 프로젝트 소속 태스크여야 한다.
+    const targets = ids.map((id) => {
+      const task = this.tasks.find((t) => t.id === id);
+      if (!task) throw new QueRuleError("NOT_FOUND", `작업 없음: ${id}`);
+      if (task.projectId !== project.id) {
+        throw new QueRuleError(
+          "INVALID_INPUT",
+          `이 프로젝트에 속하지 않은 작업은 함께 정렬할 수 없다: ${id}`,
+        );
+      }
+      return task;
+    });
+    const before = targets.map((t) => `${t.id}:${t.sortOrder ?? 0}`).join(",");
+    targets.forEach((task, index) => {
+      task.sortOrder = (index + 1) * 10;
+    });
+    this.logChange(ctx, {
+      entityType: "project",
+      entityId: project.id,
+      changeType: "update",
+      beforeValue: before,
+      afterValue: "작업 표시 순서 변경",
+    });
+    return targets;
+  }
+
   /** 작업 삭제 = 취소(cancelled) soft 전환. hard delete가 아니라 상태만 바꿔 데이터·이력을 보존한다.
    *  복구는 changeTaskStatus로 cancelled → 다른 상태로 되돌리면 된다(별도 제약 없음).
    *  이전 status를 함께 돌려줘 호출부의 실행취소(undo)에 쓸 수 있게 한다.

@@ -168,3 +168,13 @@ export async function setTaskPredecessorsAction(input: {
   const user = await getCurrentUser();
   return toResult((db) => db.setTaskPredecessors({ actorId: user.id, via: "web" }, input));
 }
+
+/** 간트 작업 세로 순서(수동 정렬) 저장 — 화면에 보이는 행 전체 순서를 넘긴다.
+ *  프로젝트 소속·중복·권한(관리자/담당자)은 core reorderProjectTasks가 강제하고 ChangeLog 1건을 남긴다. */
+export async function reorderTasksAction(input: {
+  projectId: string;
+  orderedTaskIds: string[];
+}): Promise<ActionResult> {
+  const user = await getCurrentUser();
+  return toResult((db) => db.reorderProjectTasks({ actorId: user.id, via: "web" }, input));
+}

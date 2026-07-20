@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
-import { usePathname, useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type {
   ProjectBoard,
   ProjectGantt,
@@ -53,9 +53,10 @@ export function ProjectView({
   /** 전체 프로젝트 보기 여부(?project=all). */
   isAllProjects: boolean;
   view?: string;
-  board: ProjectBoard;
-  list: ProjectList;
-  gantt: ProjectGantt;
+  /** 활성 뷰의 데이터만 서버가 채운다(비활성 뷰는 null — 불필요한 전체 계산 방지). */
+  board: ProjectBoard | null;
+  list: ProjectList | null;
+  gantt: ProjectGantt | null;
   /** 스코프 마일스톤(보드·목록 상단 띠용). 캘린더·간트는 각자 그리드에 배치. */
   milestones: ProjectMilestone[];
   /** 단일 보기의 프로젝트 메타. 전체 보기면 null(스코프 요약으로 대체). */
@@ -63,19 +64,30 @@ export function ProjectView({
   isAdmin: boolean;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
   const searchParams = useSearchParams();
   const view = resolveView(viewRaw);
+
+  // URL 정규화 — ?project 없이 진입하면 서버가 첫 프로젝트를 골라 주지만 URL에는 안 남아
+  // 전역 '작업 추가' 프리필·공유 링크가 현재 프로젝트를 알 수 없다. 선택 프로젝트를
+  // replace로 반영한다(히스토리 오염 없음, 전체 보기 ?project=all은 그대로).
+  useEffect(() => {
+    if (!selectedProjectId || searchParams.get("project")) return;
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("project", selectedProjectId);
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  }, [selectedProjectId, searchParams, pathname, router]);
 
   // 미완료만 보기 — 3개 뷰(보드·목록·간트) 공통 클라 필터(2026-07-14 사용자 요청:
   // 간트 전용에서 프로젝트 전체로 승격). 보드·목록은 완료 열 자체를 숨긴다.
   const [hideDone, setHideDone] = useState(false);
   const boardColumns = useMemo(
-    () => (hideDone ? board.columns.filter((c) => c.key !== "done") : board.columns),
-    [hideDone, board.columns],
+    () => (hideDone ? board?.columns.filter((c) => c.key !== "done") : board?.columns) ?? [],
+    [hideDone, board?.columns],
   );
   const listColumns = useMemo(
-    () => (hideDone ? list.columns.filter((c) => c.key !== "done") : list.columns),
-    [hideDone, list.columns],
+    () => (hideDone ? list?.columns.filter((c) => c.key !== "done") : list?.columns) ?? [],
+    [hideDone, list?.columns],
   );
 
   // 전체 보기 스코프 요약용 집계. 특정 클라이언트 스코프면 클라이언트명을 함께 표시.
@@ -169,7 +181,9 @@ export function ProjectView({
           allowCreate={!isAllProjects}
         />
       ) : view === "gantt" ? (
-        <GanttView data={gantt} taskHref={taskHref} showProject={isAllProjects} hideDone={hideDone} />
+        gantt && (
+          <GanttView data={gantt} taskHref={taskHref} showProject={isAllProjects} hideDone={hideDone} />
+        )
       ) : (
         <ListView
           columns={listColumns}

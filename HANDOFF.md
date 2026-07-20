@@ -1,6 +1,6 @@
 # Que 핸드오프 문서
 
-마지막 업데이트: 2026-07-15
+마지막 업데이트: 2026-07-20
 
 ---
 
@@ -40,6 +40,19 @@ mock 인증: 쿠키 `que-user=<id>` / PAT `que_pat_<id>` (예: `hwang-sunghyeon`
 ### 다음 할 일
 
 **프로덕션은 GRIFF Pro 팀(`griff-fde0dc32/que`) · <https://que.griff.co.kr> · 실 DB(`QUE_DB=supabase`)+실 인증(Auth.js) 라이브.** 비밀값은 `data/.env`(gitignore). Vercel env로 기능 게이트(아래 참고).
+
+#### 📋 테스트 피드백 일괄 처리 10건 (2026-07-20 사용자 목록) — ⚠️ **배포 대기: 마이그레이션 선적용 필요**
+**⚠️ 미배포.** `db/supabase/add-task-sort-order.sql`(tasks.sort_order, additive)을 **먼저 실 DB에 적용한 뒤** `vercel --prod` — 자동 적용은 권한 정책상 사용자 몫(세션이 시도했다 거부됨). 마이그레이션 없이 배포하면 간트 순서 드래그 저장만 실패(다른 기능 무영향).
+- **① 간트에서 만든 작업 프로젝트 미설정**: 원인=전역 상단바 '작업 추가'(quick-add)가 프로젝트 컨텍스트를 모름. 처방: ProjectView가 선택 프로젝트를 URL로 정규화(`router.replace` `?project=<id>` — 공유 링크도 개선)하고 QuickAddForm이 `/projects`의 `?project=`를 확인 카드에 프리필. 프로젝트 헤더의 '새로 추가'는 원래 정상(projectId 고정).
+- **② 로딩 개선**: /projects page가 board+list+gantt+milestones **전부** 계산하던 것을 활성 뷰만 페치(ProjectView props `| null`). `/projects`·`/schedule`에 loading.tsx 스켈레톤(첫 loading.tsx 도입), 스코프 필터 전환에 useTransition '불러오는 중' 스피너.
+- **③ 시작시각 +1h 자동**: DateRangePicker 시작 시각 선택 시 마감=+1시간 자동(마감이 비었거나 같은 날 마감≤시작일 때만 덮어씀·23:30 상한).
+- **④ 심야 시각 제외**: 시각 입력을 native time input→30분 슬롯 Select로 교체(00:00+06:00~23:30 — 01:00~05:30 목록 제외). 범위 밖 기존 값은 옵션에 동적 삽입(과거 데이터·파서 결과 보존). *네이티브 타임피커는 특정 시간대 제외 불가라 드롭다운 전환이 답.*
+- **⑤ 목록 뷰 시작일**: TaskCard.startAt/startLabel("M/d(EEE) HH:mm") + task-group-section md+ '시작' 컬럼.
+- **⑥ /schedule 담당자 색 통일**: eventSwatch가 task를 `kind+id` 해시→**ownerId 해시**로(같은 담당자=같은 파스텔). 상태색(문제 red·홀드 amber·완료 muted) 오버라이드는 유지. 이벤트(회의·외부)는 기존 id 해시. 5색 팔레트라 서로 다른 담당자 간 충돌은 허용(구분 목적 아님).
+- **⑦⑧ 간트 연결/해제**: 행 hover(터치=상시)에 연필(선행/후행 연결 Popover)·가위(현재 연결 해제 Popover — 연결 없으면 미노출). `setTaskPredecessorsAction` 전체 교체 재사용, 같은 프로젝트·canEdit(후행은 대상 canEdit) 필터, 순환·권한 최종 강제는 core. `predOverride` 낙관으로 화살표 즉시 반영. 라이브 검증 완료(연결→⚠주의 화살표→해제).
+- **⑨ 간트 세로 드래그 순서**: Task.sortOrder(domain)+`reorderProjectTasks` core mutation(권한 admin·프로젝트 담당, (i+1)*10, ChangeLog는 project entity 1건 — 표시 속성이라 태스크 lastChanged 미갱신)+`reorderTasksAction`. 간트 정렬 tie-break: 같은 프로젝트 내 sortOrder→startDay. **단일 프로젝트 보기 전용**(전체 보기·통합 간트는 그룹 경계 때문에 비활성). 드래그 핸들 GripVertical, 낙관+rollback. **교훈: setState updater 안에서 startTransition/다른 setState 호출 금지**("Cannot call startTransition while rendering" 스팸) — reorder·기존 마일스톤 드래그 둘 다 핸들러 본문으로 부수효과 이동, 라이브 재검증 클린.
+- **⑩ 병합 표시 border-l-4 제거**: task-status-sheet 병합 안내 2곳 violet-50+좌측 액센트 바→`bg-muted` 무테두리 박스, risk-board-grid(뷰 보드) 좌측 액센트도 제거(상태는 칩+아이콘이 이미 전달).
+- 검증: `pnpm -r typecheck`·lint·core 333 테스트·build 전부 통과, mock dev 라이브로 ①③④⑤⑥⑦⑧⑨ 실동작 확인(⑨는 새로고침 영속까지). Popover 안 DateRangePicker의 신규 Select 중첩도 정상(부모 안 닫힘).
 
 #### 🚪 로그아웃 회귀 수정 (2026-07-20 사용자 리포트 "로그아웃을 눌러도 안 됨")
 **근인**: 7/16 쿠키 도메인 확대(a0a6ea0) 이전 로그인 브라우저에 같은 이름 세션 쿠키 2개 공존(구형=호스트 전용·신형=Domain=.griff.co.kr) — signOut은 현 설정(도메인)만 소거해 구형 잔존(만료 7/23까지 증상 지속층). **1차 처방(서버 액션 소거) 글래도스 반려** — Next cookies() 저장소가 이름 키 대체라 같은 이름 두 변형을 한 응답에 못 실음(ResponseCookies 실증). **최종 처방**: 신규 `POST /api/auth/logout` Route Handler — headers.append로 존재하는 세션 쿠키 전부(청크·구명 포함)를 호스트 전용+도메인 두 변형 Set-Cookie로 발신(JWT 세션이라 쿠키 소거=로그아웃 완결·signOut 미경유, CSRF=비파괴+Lax). 소비처 이관: user-switcher(fetch 라우트)·change-password(액션 {ok}→클라 effect가 라우트+이동, 실패해도 mustChange 게이트 안전망). 서버 액션 logout(app/actions.ts) 삭제. **라이브 실증**: 가짜 쿠키 3종 POST→Set-Cookie 6개(글래도스 독립 재현 일치·재심사 승인). 교훈 기록: 쿠키 이름/도메인 전환 시 잔존 변형 소거 라우트가 상시 방어선.

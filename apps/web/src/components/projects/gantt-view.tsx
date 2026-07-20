@@ -1,12 +1,33 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 import { useAnimate } from "motion/react";
-import { TriangleAlert, Check, ChevronLeft, ChevronRight, LocateFixed } from "lucide-react";
+import {
+  TriangleAlert,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  LocateFixed,
+  Pencil,
+  Scissors,
+  GripVertical,
+  ArrowRight,
+  X,
+} from "lucide-react";
 import type { GanttMilestone, GanttTask, ProjectGantt } from "@/lib/projects-data";
 import { updateMilestoneAction } from "@/app/(app)/planning/actions";
+import { setTaskPredecessorsAction, reorderTasksAction } from "@/app/(app)/projects/pm-actions";
 import { useOptimisticAction } from "@/components/app/use-optimistic-action";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { TONE_STYLE, type StatusTone } from "@/lib/pm-columns";
 import type { TaskStatus } from "@que/core";
 import { MilestoneChip } from "@/components/milestones/milestone-chip";
@@ -95,10 +116,127 @@ export function GanttView({
   // 거르기만 하므로 즉시 반응. 선행 화살표는 rowIndexByTask 미스 가드가 있어 필터에 안전하다.
   const [hideDoneLocal, setHideDoneLocal] = useState(false);
   const hideDone = hideDoneProp ?? hideDoneLocal;
-  const visibleTasks = useMemo(
+  const filteredTasks = useMemo(
     () => (hideDone ? data.tasks.filter((t) => t.status !== "done") : data.tasks),
     [hideDone, data.tasks],
   );
+
+  // ── 선행/후행 연결(연필·가위) 낙관 반영 ─────────────────────────────────────
+  // taskId → 덮어쓴 predecessorIds. 서버 revalidate 전까지 화살표가 즉시 반영되도록 유지한다.
+  const [predOverride, setPredOverride] = useState<Record<string, string[]>>({});
+  const { run: runLink } = useOptimisticAction();
+  // 모든 작업(필터 무관) 기준 선행 조회 — 숨긴 완료 작업도 선행/후행 후보가 될 수 있다.
+  const tasksById = useMemo(() => new Map(data.tasks.map((t) => [t.taskId, t])), [data.tasks]);
+  const titleById = useMemo(() => {
+    const m = new Map<string, string>();
+    data.tasks.forEach((t) => m.set(t.taskId, t.title));
+    data.unscheduled.forEach((u) => m.set(u.taskId, u.title));
+    return m;
+  }, [data.tasks, data.unscheduled]);
+  const predsOf = (id: string): string[] =>
+    predOverride[id] ?? tasksById.get(id)?.predecessorIds ?? [];
+
+  /** 선행 배열 전체 교체(전체 교체 시맨틱). 낙관 반영 후 실패 시 롤백. */
+  const setPreds = (taskId: string, next: string[], success: string) => {
+    const prev = predOverride[taskId];
+    runLink(() => setTaskPredecessorsAction({ taskId, predecessorIds: next }), {
+      apply: () => setPredOverride((o) => ({ ...o, [taskId]: next })),
+      rollback: () =>
+        setPredOverride((o) => {
+          const copy = { ...o };
+          if (prev === undefined) delete copy[taskId];
+          else copy[taskId] = prev;
+          return copy;
+        }),
+      success,
+      source: "gantt-predecessors",
+    });
+  };
+
+  // ── 세로 순서 드래그(단일 프로젝트 보기 전용) ────────────────────────────────
+  // 표시 순서 낙관 오버라이드 — visibleTasks 위에 taskId 순서를 덮어쓴다. null이면 서버 순서.
+  const canReorder = !showProject;
+  const [orderOverride, setOrderOverride] = useState<string[] | null>(null);
+  const { run: runReorder } = useOptimisticAction();
+  const visibleTasks = useMemo(() => {
+    if (!orderOverride) return filteredTasks;
+    const byId = new Map(filteredTasks.map((t) => [t.taskId, t]));
+    const inOrder = orderOverride.map((id) => byId.get(id)).filter((t): t is GanttTask => !!t);
+    const seen = new Set(orderOverride);
+    // 오버라이드에 없는(새로 생긴) 작업은 뒤에 붙여 유실 방지.
+    filteredTasks.forEach((t) => {
+      if (!seen.has(t.taskId)) inOrder.push(t);
+    });
+    return inOrder;
+  }, [filteredTasks, orderOverride]);
+
+  // 드래그 상태 — 핸들에서만 시작. preview = 현재 미리보기 순서(드롭 시 커밋 대상).
+  const [reorderDrag, setReorderDrag] = useState<
+    { id: string; startY: number; base: string[]; fromIndex: number; active: boolean; preview: string[] } | null
+  >(null);
+
+  const commitReorder = (base: string[], next: string[]) => {
+    const changed = next.length !== base.length || next.some((id, i) => id !== base[i]);
+    if (!changed) {
+      setOrderOverride(null); // 위치 변화 없음 — 서버 순서로 복귀
+      return;
+    }
+    const projectId = visibleTasks[0]?.projectId;
+    if (!projectId) {
+      setOrderOverride(null);
+      return;
+    }
+    runReorder(() => reorderTasksAction({ projectId, orderedTaskIds: next }), {
+      apply: () => setOrderOverride(next),
+      rollback: () => setOrderOverride(base),
+      success: "작업 순서를 바꿨습니다.",
+      source: "gantt-reorder",
+    });
+  };
+
+  const onReorderPointerDown = (e: ReactPointerEvent, taskId: string) => {
+    if (!canReorder) return;
+    e.stopPropagation();
+    const base = visibleTasks.map((t) => t.taskId);
+    const fromIndex = base.indexOf(taskId);
+    if (fromIndex < 0) return;
+    setReorderDrag({ id: taskId, startY: e.clientY, base, fromIndex, active: false, preview: base });
+  };
+  // setState updater 안에서 다른 setState/startTransition을 부르면 React가
+  // "Cannot call startTransition while rendering"을 던진다 — 핸들러 본문에서
+  // 현재 상태(reorderDrag)를 직접 읽어 부수효과를 밖으로 뺀다.
+  const onReorderPointerMove = (e: ReactPointerEvent) => {
+    const s = reorderDrag;
+    if (!s) return;
+    const dy = e.clientY - s.startY;
+    if (!s.active && Math.abs(dy) < DRAG_THRESHOLD) return;
+    if (!s.active) {
+      try {
+        (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+      } catch {
+        /* 캡처 미지원 무시 */
+      }
+    }
+    const steps = Math.round(dy / ROW_H);
+    const target = Math.min(Math.max(s.fromIndex + steps, 0), s.base.length - 1);
+    const next = s.base.filter((id) => id !== s.id);
+    next.splice(target, 0, s.id);
+    setOrderOverride(next);
+    setReorderDrag({ ...s, active: true, preview: next });
+  };
+  const onReorderPointerUp = (e: ReactPointerEvent) => {
+    const s = reorderDrag;
+    if (s?.active) {
+      try {
+        (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+      } catch {
+        /* noop */
+      }
+      commitReorder(s.base, s.preview);
+    }
+    setReorderDrag(null);
+  };
+
   // 마일스톤 드래그 낙관 반영 — id → 덮어쓴 day(yyyy-MM-dd). 서버 확정 전까지 새 위치를 유지한다.
   const [dayOverride, setDayOverride] = useState<Record<string, string>>({});
   const { run: runMilestone } = useOptimisticAction();
@@ -314,34 +452,72 @@ export function GanttView({
                   </span>
                 </div>
               ) : (
-                <Link
+                // 행 = Link(상세 열기) + 그 위(z-20)에 드래그 핸들·연결/해제 컨트롤을 겹쳐 둔다.
+                // 컨트롤은 Link 밖 형제라서 클릭이 상세 이동으로 새지 않는다(보드 PmDoneCircle 선례).
+                <div
                   key={r.task.taskId}
-                  href={taskHref(r.task.taskId)}
-                  scroll={false}
-                  className="flex items-center gap-2 border-b border-[var(--que-bg-muted)] px-3.5 hover:bg-[var(--que-bg-muted)] focus-visible:outline-2 focus-visible:outline-[var(--que-brand)]"
+                  className="group relative border-b border-[var(--que-bg-muted)]"
                   style={{ height: ROW_H }}
                 >
-                  {r.task.assignee ? (
+                  <Link
+                    href={taskHref(r.task.taskId)}
+                    scroll={false}
+                    className={cn(
+                      "flex h-full items-center gap-2 pr-3.5 hover:bg-[var(--que-bg-muted)] focus-visible:outline-2 focus-visible:outline-[var(--que-brand)]",
+                      canReorder ? "pl-8" : "pl-3.5",
+                    )}
+                  >
+                    {r.task.assignee ? (
+                      <span
+                        aria-hidden
+                        className="flex size-6 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold text-white"
+                        style={{ background: r.task.assignee.avatarColor }}
+                      >
+                        {r.task.assignee.name.slice(0, 1)}
+                      </span>
+                    ) : (
+                      <span className="size-6 shrink-0 rounded-full bg-[var(--que-bg-muted)]" aria-hidden />
+                    )}
+                    <span className="min-w-0 flex-1">
+                      <span className={cn("block truncate text-[13px] font-medium text-[var(--que-text)]", r.task.status === "done" && "text-[var(--que-text-tertiary)] line-through")}>
+                        {r.task.title}
+                      </span>
+                      {/* 전체 보기에선 그룹 헤더가 프로젝트를 알려주므로 행 내 프로젝트 부제는 생략(중복 방지). */}
+                    </span>
+                    <span className="shrink-0 text-[11px] text-[var(--que-text-tertiary)]">
+                      {r.task.assignee?.name ?? ""}
+                    </span>
+                  </Link>
+
+                  {/* 드래그 핸들 — 단일 프로젝트 보기에서만. 세로 드래그로 순서 변경. */}
+                  {canReorder && (
                     <span
-                      aria-hidden
-                      className="flex size-6 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold text-white"
-                      style={{ background: r.task.assignee.avatarColor }}
+                      role="button"
+                      aria-label={`${r.task.title} 순서 이동 — 위아래로 끌어 놓으세요`}
+                      title="드래그해 순서 변경"
+                      onPointerDown={(e) => onReorderPointerDown(e, r.task.taskId)}
+                      onPointerMove={onReorderPointerMove}
+                      onPointerUp={onReorderPointerUp}
+                      className={cn(
+                        "absolute top-1/2 left-0.5 z-20 flex h-10 w-6 -translate-y-1/2 touch-none items-center justify-center rounded-md text-[var(--que-text-tertiary)] transition-opacity hover:bg-[var(--que-bg-muted)] hover:text-[var(--que-text-secondary)] focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-[var(--que-brand)]",
+                        reorderDrag?.id === r.task.taskId
+                          ? "cursor-grabbing opacity-100"
+                          : "cursor-grab pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto [@media(pointer:coarse)]:pointer-events-auto [@media(pointer:coarse)]:opacity-100",
+                      )}
                     >
-                      {r.task.assignee.name.slice(0, 1)}
+                      <GripVertical className="size-4" aria-hidden />
                     </span>
-                  ) : (
-                    <span className="size-6 shrink-0 rounded-full bg-[var(--que-bg-muted)]" aria-hidden />
                   )}
-                  <span className="min-w-0 flex-1">
-                    <span className={cn("block truncate text-[13px] font-medium text-[var(--que-text)]", r.task.status === "done" && "text-[var(--que-text-tertiary)] line-through")}>
-                      {r.task.title}
-                    </span>
-                    {/* 전체 보기에선 그룹 헤더가 프로젝트를 알려주므로 행 내 프로젝트 부제는 생략(중복 방지). */}
-                  </span>
-                  <span className="shrink-0 text-[11px] text-[var(--que-text-tertiary)]">
-                    {r.task.assignee?.name ?? ""}
-                  </span>
-                </Link>
+
+                  {/* 연결(연필)·해제(가위) — Link 위 z-20. hover/포커스/터치에서 노출. */}
+                  <RowControls
+                    task={r.task}
+                    allTasks={data.tasks}
+                    predsOf={predsOf}
+                    titleById={titleById}
+                    onSetPreds={setPreds}
+                  />
+                </div>
               ),
             )}
           </div>
@@ -436,7 +612,7 @@ export function GanttView({
                   </marker>
                 </defs>
                 {visibleTasks.flatMap((t, row) =>
-                  t.predecessorIds.map((pid) => {
+                  predsOf(t.taskId).map((pid) => {
                     const pRow = rowIndexByTask.get(pid);
                     if (pRow === undefined) return null; // 선행이 화면 밖(일정 없음 등)이면 생략
                     const p = visibleTasks[pRow];
@@ -570,6 +746,234 @@ export function GanttView({
   );
 }
 
+/** icon-only 트리거 공통 스타일(연필·가위) — 터치 40px. */
+const CTRL_BTN =
+  "flex size-10 items-center justify-center rounded-md text-[var(--que-text-secondary)] transition-colors hover:bg-[var(--que-bg)] hover:text-[var(--que-text)] focus-visible:outline-2 focus-visible:outline-[var(--que-brand)]";
+
+/**
+ * 작업 행의 연결(연필)·해제(가위) 컨트롤. 좌측 고정 열 행 Link 위(z-20)에 겹쳐 hover/포커스/터치에서 노출.
+ * - 연필: 같은 프로젝트의 다른 작업을 선행/후행으로 연결(setTaskPredecessors 전체 교체).
+ * - 가위: 현재 연결된 선행/후행을 목록에서 해제.
+ * 순환·권한은 core가 최종 강제하고, 규칙 위반은 액션 결과 → toast(useOptimisticAction)로 안내된다.
+ */
+function RowControls({
+  task,
+  allTasks,
+  predsOf,
+  titleById,
+  onSetPreds,
+}: {
+  task: GanttTask;
+  allTasks: GanttTask[];
+  predsOf: (id: string) => string[];
+  titleById: Map<string, string>;
+  onSetPreds: (taskId: string, next: string[], success: string) => void;
+}) {
+  const myPreds = predsOf(task.taskId);
+  const sameProject = (c: GanttTask) => c.projectId === task.projectId && c.taskId !== task.taskId;
+
+  // 선행 후보 = 같은 프로젝트·아직 내 선행이 아님·직접 상호참조(즉시 순환) 아님. 내 작업 편집권 필요.
+  const predCandidates = task.canEdit
+    ? allTasks.filter(
+        (c) => sameProject(c) && !myPreds.includes(c.taskId) && !predsOf(c.taskId).includes(task.taskId),
+      )
+    : [];
+  // 후행 후보 = 같은 프로젝트·그 작업이 내 작업을 선행으로 아직 안 가짐·그 작업 편집권 있음·즉시 순환 아님.
+  const succCandidates = allTasks.filter(
+    (c) => sameProject(c) && c.canEdit && !predsOf(c.taskId).includes(task.taskId) && !myPreds.includes(c.taskId),
+  );
+
+  const linkedPreds = myPreds.map((id) => ({ id, title: titleById.get(id) ?? id }));
+  const linkedSuccs = allTasks.filter((c) => predsOf(c.taskId).includes(task.taskId));
+
+  const canConnect = predCandidates.length > 0 || succCandidates.length > 0;
+  const hasConnections = linkedPreds.length > 0 || linkedSuccs.length > 0;
+  if (!canConnect && !hasConnections) return null;
+
+  return (
+    <div className="pointer-events-none absolute top-1/2 right-1 z-20 flex -translate-y-1/2 items-center gap-0.5 rounded-md opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:bg-[var(--que-bg-muted)] group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:bg-[var(--que-bg-muted)] group-focus-within:opacity-100 [@media(pointer:coarse)]:pointer-events-auto [@media(pointer:coarse)]:opacity-100">
+      {canConnect && (
+        <Popover>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <PopoverTrigger
+                  render={
+                    <button type="button" aria-label={`${task.title} 선행·후행 작업 연결`} className={CTRL_BTN} />
+                  }
+                />
+              }
+            >
+              <Pencil className="size-4" aria-hidden />
+            </TooltipTrigger>
+            <TooltipContent>선행·후행 연결</TooltipContent>
+          </Tooltip>
+          <PopoverContent align="start" className="w-72 gap-0 p-0">
+            <p className="border-b border-[var(--que-border)] px-3 py-2 text-xs font-semibold text-[var(--que-text)]">
+              연결 추가 — {task.title}
+            </p>
+            <div className="max-h-72 overflow-y-auto p-1.5">
+              {task.canEdit && (
+                <ConnectSection
+                  label="선행 작업 (이 작업 앞에 끝나야 함)"
+                  emptyText="연결할 선행 후보가 없습니다."
+                  candidates={predCandidates}
+                  onPick={(c) =>
+                    onSetPreds(task.taskId, [...myPreds, c.taskId], "선행 작업을 연결했습니다.")
+                  }
+                />
+              )}
+              <ConnectSection
+                label="후행 작업 (이 작업 뒤에 시작)"
+                emptyText="연결할 후행 후보가 없습니다."
+                candidates={succCandidates}
+                onPick={(c) =>
+                  onSetPreds(c.taskId, [...predsOf(c.taskId), task.taskId], "후행 작업을 연결했습니다.")
+                }
+              />
+            </div>
+          </PopoverContent>
+        </Popover>
+      )}
+
+      {hasConnections && (
+        <Popover>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <PopoverTrigger
+                  render={
+                    <button type="button" aria-label={`${task.title} 연결 해제`} className={CTRL_BTN} />
+                  }
+                />
+              }
+            >
+              <Scissors className="size-4" aria-hidden />
+            </TooltipTrigger>
+            <TooltipContent>연결 해제</TooltipContent>
+          </Tooltip>
+          <PopoverContent align="start" className="w-72 gap-0 p-0">
+            <p className="border-b border-[var(--que-border)] px-3 py-2 text-xs font-semibold text-[var(--que-text)]">
+              연결 해제 — {task.title}
+            </p>
+            <div className="max-h-72 overflow-y-auto p-1.5">
+              {linkedPreds.length > 0 && (
+                <DisconnectSection label="선행 작업">
+                  {linkedPreds.map((p) => (
+                    <DisconnectRow
+                      key={p.id}
+                      title={p.title}
+                      canRemove={task.canEdit}
+                      onRemove={() =>
+                        onSetPreds(
+                          task.taskId,
+                          myPreds.filter((x) => x !== p.id),
+                          "연결을 해제했습니다.",
+                        )
+                      }
+                    />
+                  ))}
+                </DisconnectSection>
+              )}
+              {linkedSuccs.length > 0 && (
+                <DisconnectSection label="후행 작업">
+                  {linkedSuccs.map((s) => (
+                    <DisconnectRow
+                      key={s.taskId}
+                      title={s.title}
+                      canRemove={s.canEdit}
+                      onRemove={() =>
+                        onSetPreds(
+                          s.taskId,
+                          predsOf(s.taskId).filter((x) => x !== task.taskId),
+                          "연결을 해제했습니다.",
+                        )
+                      }
+                    />
+                  ))}
+                </DisconnectSection>
+              )}
+            </div>
+          </PopoverContent>
+        </Popover>
+      )}
+    </div>
+  );
+}
+
+/** 연결 후보 섹션 — 후보 작업 목록을 버튼으로. 선택하면 onPick. */
+function ConnectSection({
+  label,
+  emptyText,
+  candidates,
+  onPick,
+}: {
+  label: string;
+  emptyText: string;
+  candidates: GanttTask[];
+  onPick: (c: GanttTask) => void;
+}) {
+  return (
+    <div className="mb-1 last:mb-0">
+      <p className="px-1.5 py-1 text-[11px] font-medium text-[var(--que-text-tertiary)]">{label}</p>
+      {candidates.length === 0 ? (
+        <p className="px-1.5 pb-1 text-[11px] text-[var(--que-text-tertiary)]">{emptyText}</p>
+      ) : (
+        candidates.map((c) => (
+          <button
+            key={c.taskId}
+            type="button"
+            onClick={() => onPick(c)}
+            className="flex min-h-9 w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-[13px] text-[var(--que-text)] hover:bg-[var(--que-bg-muted)] focus-visible:outline-2 focus-visible:outline-[var(--que-brand)]"
+          >
+            <ArrowRight className="size-3.5 shrink-0 text-[var(--que-text-tertiary)]" aria-hidden />
+            <span className="truncate">{c.title}</span>
+          </button>
+        ))
+      )}
+    </div>
+  );
+}
+
+function DisconnectSection({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="mb-1 last:mb-0">
+      <p className="px-1.5 py-1 text-[11px] font-medium text-[var(--que-text-tertiary)]">{label}</p>
+      {children}
+    </div>
+  );
+}
+
+/** 연결 해제 행 — 제목 + [해제] 버튼. 권한 없으면 버튼 대신 안내. */
+function DisconnectRow({
+  title,
+  canRemove,
+  onRemove,
+}: {
+  title: string;
+  canRemove: boolean;
+  onRemove: () => void;
+}) {
+  return (
+    <div className="flex min-h-9 items-center gap-2 rounded-md px-1.5 py-1">
+      <span className="min-w-0 flex-1 truncate text-[13px] text-[var(--que-text)]">{title}</span>
+      {canRemove ? (
+        <button
+          type="button"
+          onClick={onRemove}
+          aria-label={`${title} 연결 해제`}
+          className="flex min-h-8 shrink-0 items-center gap-1 rounded-md border border-[var(--que-border)] px-2 text-[11px] font-medium text-[var(--que-text-secondary)] hover:bg-[var(--que-bg-muted)] hover:text-[var(--que-text)] focus-visible:outline-2 focus-visible:outline-[var(--que-brand)]"
+        >
+          <X className="size-3.5" aria-hidden />
+          해제
+        </button>
+      ) : (
+        <span className="shrink-0 text-[11px] text-[var(--que-text-tertiary)]">권한 없음</span>
+      )}
+    </div>
+  );
+}
+
 /**
  * 마일스톤 레인 칩 + 가로 드래그(기한 이동). 관리 권한(canManage)이 있을 때만 드래그.
  * - 클릭(수정 Popover)과 공존: 이동 거리가 DRAG_THRESHOLD 미만이면 드래그로 보지 않아
@@ -622,30 +1026,31 @@ function DraggableMilestone({
       return { ...s, dx, active: true };
     });
   };
+  // updater 안에서 onCommit(→ startTransition)·animate를 부르지 않는다 — 핸들러 본문에서
+  // 현재 상태(drag)를 읽어 부수효과를 밖으로 뺀다(세로 순서 드래그와 같은 규율).
   const onPointerUp = (e: ReactPointerEvent) => {
-    setDrag((s) => {
-      if (s?.active) {
-        try {
-          (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
-        } catch {
-          /* noop */
-        }
-        const steps = Math.round(s.dx / colWidth);
-        if (steps !== 0) {
-          onCommit(baseIdx + steps);
-          // 드롭 순간 칩이 스냅 위치에 "물리로 안착"하는 피드백 — 살짝 오버슈트 후 스프링으로 1로.
-          // 위치(left)는 이미 스냅돼 있으므로 scale만 튕겨 "내가 놓은 게 반영됐다"를 전한다.
-          if (scope.current) {
-            animate(
-              scope.current,
-              { scale: [1.08, 1] },
-              { type: "spring", visualDuration: 0.25, bounce: 0.45 },
-            );
-          }
+    const s = drag;
+    if (s?.active) {
+      try {
+        (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+      } catch {
+        /* noop */
+      }
+      const steps = Math.round(s.dx / colWidth);
+      if (steps !== 0) {
+        onCommit(baseIdx + steps);
+        // 드롭 순간 칩이 스냅 위치에 "물리로 안착"하는 피드백 — 살짝 오버슈트 후 스프링으로 1로.
+        // 위치(left)는 이미 스냅돼 있으므로 scale만 튕겨 "내가 놓은 게 반영됐다"를 전한다.
+        if (scope.current) {
+          animate(
+            scope.current,
+            { scale: [1.08, 1] },
+            { type: "spring", visualDuration: 0.25, bounce: 0.45 },
+          );
         }
       }
-      return null;
-    });
+    }
+    setDrag(null);
   };
 
   return (

@@ -1,6 +1,8 @@
 "use client";
 
+import { useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { Loader2 } from "lucide-react";
 import type { ProjectListItem } from "@/lib/projects-data";
 import { ALL_CLIENTS, ALL_PROJECTS } from "@/lib/projects-scope";
 import {
@@ -44,6 +46,9 @@ export function ProjectScopeFilters({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  // 스코프 전환은 서버 재렌더(force-dynamic)라 한 박자 걸린다 — 전환 중임을 스피너로
+  // 즉시 알려 "눌렀는데 반응이 없다"는 체감 지연을 줄인다(2026-07-20 로딩 피드백).
+  const [isPending, startTransition] = useTransition();
 
   const selectClient = (value: string) => {
     if (!value || value === selectedClient) return;
@@ -52,7 +57,9 @@ export function ProjectScopeFilters({
     params.delete("project");
     params.delete("task");
     params.delete("month");
-    router.push(`${pathname}?${params.toString()}`, { scroll: false });
+    startTransition(() => {
+      router.push(`${pathname}?${params.toString()}`, { scroll: false });
+    });
   };
 
   // 현재 프로젝트 Select 값: 전체 보기면 sentinel, 아니면 선택 프로젝트 id.
@@ -64,7 +71,9 @@ export function ProjectScopeFilters({
     params.set("project", id);
     params.delete("task");
     params.delete("month");
-    router.push(`${pathname}?${params.toString()}`, { scroll: false });
+    startTransition(() => {
+      router.push(`${pathname}?${params.toString()}`, { scroll: false });
+    });
   };
 
   // base-ui Select는 items(value→label)로 트리거의 선택 라벨을 표시한다(필수).
@@ -149,6 +158,16 @@ export function ProjectScopeFilters({
               : projects.map((p) => <ProjectOption key={p.id} project={p} />)}
           </SelectContent>
         </Select>
+      )}
+      {isPending && (
+        <span
+          className="inline-flex items-center gap-1.5 text-xs text-[var(--que-text-tertiary)]"
+          role="status"
+          aria-live="polite"
+        >
+          <Loader2 className="size-3.5 animate-spin" aria-hidden />
+          불러오는 중
+        </span>
       )}
     </div>
   );

@@ -378,8 +378,8 @@ export function TaskStatusSheet({
 
         {/* 순방향 — 이 작업(A)이 어디로 흡수됐는지. 검색 등으로 merged 작업을 직접 열 때 대비. */}
         {statusDetail?.mergedIntoTaskId && (
-          <div className="mb-4 rounded-md border border-l-4 border-l-violet-500 bg-violet-50 p-3 text-sm dark:bg-violet-950/30">
-            <p className="font-medium text-violet-700 dark:text-violet-300">
+          <div className="mb-4 rounded-lg bg-muted p-3 text-sm">
+            <p className="font-medium">
               이 작업은{" "}
               {statusDetail.mergedIntoTitle ? (
                 <>&ldquo;{statusDetail.mergedIntoTitle}&rdquo; 작업</>
@@ -393,8 +393,8 @@ export function TaskStatusSheet({
 
         {/* 역방향 — 이 작업(B)으로 흡수된 작업들. merged 작업은 목록에서 숨겨지므로 살아남은 B에서 노출. */}
         {statusDetail?.mergedFrom && statusDetail.mergedFrom.length > 0 && (
-          <div className="mb-4 rounded-md border border-l-4 border-l-violet-500 bg-violet-50 p-3 text-sm dark:bg-violet-950/30">
-            <p className="font-medium text-violet-700 dark:text-violet-300">
+          <div className="mb-4 rounded-lg bg-muted p-3 text-sm">
+            <p className="font-medium">
               이 작업에 병합된 작업:{" "}
               {statusDetail.mergedFrom.map((m) => m.title).join(", ")}
             </p>

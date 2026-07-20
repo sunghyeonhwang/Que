@@ -103,6 +103,10 @@ export interface TaskCard {
   /** 소속 프로젝트명. 전체 보기에서 카드가 어느 프로젝트인지 표시하는 소형 라벨용. 없으면 null. */
   projectName: string | null;
   priority: TaskPriority;
+  /** 시작 ISO datetime. 없으면 null. */
+  startAt: string | null;
+  /** "9/8(월) 14:00" 콤팩트 포맷(목록 뷰 시작 컬럼용). 없으면 null. */
+  startLabel: string | null;
   /** 마감(종료) ISO datetime. 없으면 null. */
   endAt: string | null;
   /** "2025년 9월 8일 금요일" 포맷. 없으면 null. */
@@ -224,6 +228,12 @@ function resolveMember(id: string | undefined): ListViewMember | null {
 function formatDue(endAt: string | undefined): string | null {
   if (!endAt) return null;
   return format(new Date(endAt), "yyyy년 M월 d일 EEEE", { locale: ko });
+}
+
+/** 시작 일시 콤팩트 라벨 "9/8(월) 14:00" — 목록 뷰 시작 컬럼용(좁은 폭 대비 짧게). */
+function formatStart(startAt: string | undefined): string | null {
+  if (!startAt) return null;
+  return format(new Date(startAt), "M/d(EEE) HH:mm", { locale: ko });
 }
 
 /**
@@ -378,6 +388,8 @@ function toCard(
     assignee: resolveMember(task.assigneeId),
     projectName: project?.name ?? null,
     priority: task.priority,
+    startAt: task.startAt ?? null,
+    startLabel: formatStart(task.startAt),
     endAt: task.endAt ?? null,
     dueLabel: formatDue(task.endAt),
     isOverdue: isTaskOverdue(task),
@@ -778,6 +790,11 @@ export async function getProjectGantt(
       if (psoA !== psoB) return psoA - psoB;
       const pCmp = (pa?.name ?? "").localeCompare(pb?.name ?? "", "ko");
       if (pCmp !== 0) return pCmp;
+      // 같은 프로젝트 내부는 관리자/담당자가 간트에서 정한 수동 순서(sortOrder 오름차순) 우선.
+      // 미지정(과거 데이터)은 0으로 해석 → 기존 시작일/마감일 순으로 자연 귀결.
+      const soA = taskById.get(a.taskId)?.sortOrder ?? 0;
+      const soB = taskById.get(b.taskId)?.sortOrder ?? 0;
+      if (soA !== soB) return soA - soB;
       return a.startDay.localeCompare(b.startDay) || a.endDay.localeCompare(b.endDay);
     });
 

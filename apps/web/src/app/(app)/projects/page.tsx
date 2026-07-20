@@ -98,11 +98,17 @@ export default async function ProjectsPage({
     );
   }
 
+  // 활성 뷰의 데이터만 계산한다 — 세 뷰를 전부 만들면 프로젝트 전환·뷰 전환마다
+  // 불필요한 전체 재계산이 얹혀 로딩이 느려진다(2026-07-20 사용자 피드백).
+  // 마일스톤 띠는 보드·목록 전용(간트는 getProjectGantt가 자체 레인 데이터를 포함).
+  const view = ["list", "board", "gantt"].includes(params.view ?? "")
+    ? (params.view as "list" | "board" | "gantt")
+    : "gantt";
   const [board, list, gantt, milestones, taskDetail] = await Promise.all([
-    getProjectBoard(user, projectIds),
-    getProjectList(user, projectIds),
-    getProjectGantt(user, projectIds),
-    getProjectMilestones(user, projectIds),
+    view === "board" ? getProjectBoard(user, projectIds) : null,
+    view === "list" ? getProjectList(user, projectIds) : null,
+    view === "gantt" ? getProjectGantt(user, projectIds) : null,
+    view !== "gantt" ? getProjectMilestones(user, projectIds) : [],
     getTaskDetail(user, params.task),
   ]);
 

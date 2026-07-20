@@ -53,12 +53,16 @@ function hash(input: string): number {
   return Math.abs(h);
 }
 
-/** 항목 색 배정: 문제=red·홀드=amber·완료=흐리게, 그 외는 kind+id 해시로 파스텔 팔레트에서 안정 배정. */
+/** 항목 색 배정: 문제=red·홀드=amber·완료=흐리게. 그 외 작업은 **담당자(ownerId) 해시**로
+ *  배정해 같은 사람의 작업이 항상 같은 색이 되게 한다(2026-07-20 사용자 요청 — 같은 담당자의
+ *  두 작업이 다른 색으로 보이던 문제). 이벤트(회의·외부)는 기존대로 kind+id 해시. */
 export function eventSwatch(item: CalendarViewItem): EventSwatch {
   if (item.kind === "task") {
     if (item.taskStatus === "issue") return RED;
     if (item.taskStatus === "on_hold") return AMBER;
     if (item.taskStatus === "done") return DONE;
+    const idx = hash(`task-${item.ownerId || item.id}`) % PALETTE.length;
+    return PALETTE[idx];
   }
   const idx = hash(`${item.kind}-${item.id}`) % PALETTE.length;
   return PALETTE[idx];

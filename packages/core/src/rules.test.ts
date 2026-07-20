@@ -2630,6 +2630,87 @@ describe("프로젝트 표시 순서 변경 (reorderProjects)", () => {
   });
 });
 
+describe("간트 작업 세로 순서 변경 (reorderProjectTasks)", () => {
+  // prj-summer(담당 hwang=admin, client-mendix) 소속 태스크들. prj-payment 소속은 task-payment-qa.
+  const summerA = "task-landing-copy";
+  const summerB = "task-ad-review";
+  const summerC = "task-detail-qa";
+
+  it("전달 순서대로 sortOrder를 (index+1)*10으로 채우고 ChangeLog 1건(entityType project)을 남긴다", () => {
+    const d = db();
+    const before = d.changeLogs.length;
+    const next = [summerC, summerA, summerB];
+    const result = d.reorderProjectTasks(
+      { actorId: "hwang-sunghyeon", via: "web" },
+      { projectId: "prj-summer", orderedTaskIds: next },
+    );
+    expect(result.map((t) => t.id)).toEqual(next);
+    expect(d.tasks.find((t) => t.id === summerC)!.sortOrder).toBe(10);
+    expect(d.tasks.find((t) => t.id === summerA)!.sortOrder).toBe(20);
+    expect(d.tasks.find((t) => t.id === summerB)!.sortOrder).toBe(30);
+    // ChangeLog 1건만 — 태스크별 lastChangedBy/At은 갱신하지 않는다(표시 속성 소음 방지).
+    expect(d.changeLogs.length).toBe(before + 1);
+    const clog = d.changeLogs.at(-1)!;
+    expect(clog.entityType).toBe("project");
+    expect(clog.entityId).toBe("prj-summer");
+    expect(clog.changeType).toBe("update");
+    expect(clog.afterValue).toBe("작업 표시 순서 변경");
+    expect(d.tasks.find((t) => t.id === summerC)!.lastChangedBy).toBeUndefined();
+  });
+
+  it("전달에 빠진 같은 프로젝트 태스크는 건드리지 않는다(부분 재정렬)", () => {
+    const d = db();
+    const untouched = d.tasks.find((t) => t.id === "task-final-review")!.sortOrder;
+    d.reorderProjectTasks(
+      { actorId: "hwang-sunghyeon", via: "web" },
+      { projectId: "prj-summer", orderedTaskIds: [summerA, summerB] },
+    );
+    expect(d.tasks.find((t) => t.id === "task-final-review")!.sortOrder).toBe(untouched);
+  });
+
+  it("관리자도 담당자도 아니면 순서를 바꿀 수 없다", () => {
+    const d = db();
+    // prj-summer 담당은 hwang(관리자). kim-riwon은 관리자도 담당자도 아니다(태스크 배정 여부와 무관).
+    expect(() =>
+      d.reorderProjectTasks(
+        { actorId: "kim-riwon", via: "web" },
+        { projectId: "prj-summer", orderedTaskIds: [summerA] },
+      ),
+    ).toThrowError(/관리자 또는 프로젝트 담당자/);
+  });
+
+  it("다른 프로젝트의 작업을 섞으면 거부한다", () => {
+    const d = db();
+    // task-payment-qa는 prj-payment 소속 — prj-summer 정렬에 섞을 수 없다.
+    expect(() =>
+      d.reorderProjectTasks(
+        { actorId: "hwang-sunghyeon", via: "web" },
+        { projectId: "prj-summer", orderedTaskIds: [summerA, "task-payment-qa"] },
+      ),
+    ).toThrowError(/속하지 않은/);
+  });
+
+  it("중복 id는 거부한다", () => {
+    const d = db();
+    expect(() =>
+      d.reorderProjectTasks(
+        { actorId: "hwang-sunghyeon", via: "web" },
+        { projectId: "prj-summer", orderedTaskIds: [summerA, summerA] },
+      ),
+    ).toThrowError(/중복/);
+  });
+
+  it("없는 프로젝트는 거부한다", () => {
+    const d = db();
+    expect(() =>
+      d.reorderProjectTasks(
+        { actorId: "hwang-sunghyeon", via: "web" },
+        { projectId: "prj-nope", orderedTaskIds: [summerA] },
+      ),
+    ).toThrowError(/프로젝트 없음/);
+  });
+});
+
 describe("결제 분류(카테고리) — 관리자만 생성·수정·순서변경", () => {
   it("비관리자는 결제 분류를 만들 수 없다(아무것도 추가되지 않음)", () => {
     const d = db();

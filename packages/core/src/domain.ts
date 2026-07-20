@@ -142,6 +142,10 @@ export const taskSchema = z.object({
   recurringTemplateId: z.string().optional(),
   /** 연결된 월 KR(핵심결과) id — 단일(다대다는 8인 규모에 과설계, 기획 §2). 실재 검증은 mutation이 강제. */
   keyResultId: z.string().optional(),
+  /** 간트 수동 정렬 — 프로젝트 내 표시 순서(오름차순). 사용자가 간트에서 행을 드래그해 정한 순서를
+   *  reorderProjectTasks가 (index+1)*10으로 채운다. 미지정(과거 데이터)은 0으로 해석하고
+   *  시작일(startAt)로 tie-break한다 — 표시 속성이라 lastChangedBy/lastChangedAt은 갱신하지 않는다. */
+  sortOrder: z.number().int().optional(),
   lastChangedBy: z.string().optional(),
   lastChangedAt: isoDateTime.optional(),
 });

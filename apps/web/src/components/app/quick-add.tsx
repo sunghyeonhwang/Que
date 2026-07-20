@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePathname, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { type TaskDraft } from "@que/core";
 import { useRoster } from "@/components/app/roster-provider";
@@ -63,6 +64,8 @@ export function QuickAddForm({
 }) {
   const roster = useRoster();
   const { run, pending, startTransition } = useSafeAction();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [text, setText] = useState("");
   const [draft, setDraft] = useState<TaskDraft | null>(null);
   const [value, setValue] = useState<TaskFormValue>(emptyTaskFormValue());
@@ -82,6 +85,13 @@ export function QuickAddForm({
     };
   }, []);
 
+  // 프로젝트 화면(?project=<id>)에서 열었으면 확인 카드의 프로젝트를 그 프로젝트로 프리필한다.
+  // (간트 등 프로젝트 하에서 만든 작업이 '프로젝트 없음'으로 저장돼 두 번 수정하던 문제.)
+  // 목록에 없는 id(스코프 밖·all)는 무시 — 파서는 프로젝트를 해석하지 않으므로 여기서만 채운다.
+  const urlProject = pathname === "/projects" ? searchParams.get("project") : null;
+  const contextProjectId =
+    urlProject && projects.some((p) => p.id === urlProject) ? urlProject : undefined;
+
   const parse = () => {
     if (!text.trim()) return;
     startTransition(async () => {
@@ -92,6 +102,7 @@ export function QuickAddForm({
         setValue(
           emptyTaskFormValue({
             title: result.title,
+            projectId: contextProjectId ?? NO_PROJECT,
             assigneeId: result.assigneeId ?? currentUserId,
             startDate: toLocalDate(result.startAt),
             startTime: toLocalTime(result.startAt),

@@ -15,10 +15,10 @@ import { TaskCardMenu } from "./task-card-menu";
 import { AddTaskInline } from "./add-task-inline";
 import { cn } from "@/lib/utils";
 
-// 이름 | 마감일 | 우선순위 | 담당자 | ⋮.
-// 좁은 폭(태블릿 세로): 마감일을 숨겨 가로 스크롤 없이 유지.
+// 이름 | 시작 | 마감일 | 우선순위 | 담당자 | ⋮.
+// 좁은 폭(태블릿 세로): 시작·마감일을 숨겨 가로 스크롤 없이 유지.
 const GRID =
-  "grid grid-cols-[minmax(0,1fr)_92px_84px_40px] items-center gap-3 md:grid-cols-[minmax(0,1.6fr)_170px_92px_84px_40px]";
+  "grid grid-cols-[minmax(0,1fr)_92px_84px_40px] items-center gap-3 md:grid-cols-[minmax(0,1.6fr)_110px_170px_92px_84px_40px]";
 
 export function TaskGroupSection({
   column,
@@ -87,6 +87,7 @@ export function TaskGroupSection({
             )}
           >
             <span>이름</span>
+            <span className="hidden md:block">시작</span>
             <span className="hidden md:block">마감일</span>
             <span>우선순위</span>
             <span className="text-right">담당자</span>
@@ -168,6 +169,9 @@ export function TaskGroupSection({
                     </span>
                   ) : null}
                 </div>
+                <span className="hidden text-sm tabular-nums text-[var(--que-text-secondary)] md:block">
+                  {card.startLabel ?? "-"}
+                </span>
                 <span
                   className={cn(
                     "hidden items-center gap-1 text-sm md:flex",
