@@ -3,7 +3,6 @@
 import { useTransition } from "react";
 import { toast } from "sonner";
 import { type User } from "@que/core";
-import { logout } from "@/app/actions";
 import { reportError } from "@/lib/report-error";
 import { UNEXPECTED_ERROR_MESSAGE } from "./use-safe-action";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -61,7 +60,10 @@ export function UserSwitcher({ current, rank }: { current: User; rank: string })
             onClick={() =>
               startTransition(async () => {
                 try {
-                  await logout();
+                  // 로그아웃은 서버 액션이 아니라 전용 라우트로 — 같은 이름의 세션 쿠키
+                  // 두 변형(호스트 전용·도메인)을 한 응답에서 소거해야 해서다(라우트 주석 참고).
+                  const res = await fetch("/api/auth/logout", { method: "POST" });
+                  if (!res.ok) throw new Error(`logout ${res.status}`);
                   // 세션 정리 성공 → 로그인 화면으로 하드 내비게이션. 소프트 내비(router.push)와 달리
                   // 클라 메모리 상태를 전량 폐기하고, (app) 레이아웃 getCurrentUser·/login auth() 게이트가
                   // 소거된 세션으로 재평가된다(이 앱엔 인증 미들웨어가 없다 — proxy.ts는 view 호스트 라우팅만).

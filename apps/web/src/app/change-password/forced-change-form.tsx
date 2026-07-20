@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { PASSWORD_MIN_LENGTH } from "@/lib/auth/policy";
 import { forcedChangeAction, type ForcedChangeState } from "./actions";
@@ -9,6 +9,17 @@ const initial: ForcedChangeState = {};
 
 export function ForcedChangeForm() {
   const [state, formAction, pending] = useActionState(forcedChangeAction, initial);
+
+  // 변경 성공 → 세션 쿠키 전 변형 소거(전용 라우트) 후 로그인 화면으로.
+  // 서버 액션은 같은 이름의 쿠키 두 변형(호스트 전용·도메인)을 한 응답에 못 실어
+  // 소거를 클라이언트 발 라우트 호출로 옮겼다(/api/auth/logout 주석 참고).
+  // effect는 setState 없이 네트워크+하드 내비게이션만 수행한다.
+  useEffect(() => {
+    if (!state.ok) return;
+    void fetch("/api/auth/logout", { method: "POST" }).finally(() => {
+      window.location.replace("/login?changed=1");
+    });
+  }, [state.ok]);
 
   return (
     <form action={formAction} className="flex flex-col gap-3">
@@ -27,7 +38,7 @@ export function ForcedChangeForm() {
         disabled={pending}
         className="mt-1 flex h-12 items-center justify-center rounded-lg bg-[var(--que-brand)] text-base font-semibold text-[var(--que-on-brand)] transition-colors hover:bg-[var(--que-brand-hover)] disabled:opacity-60"
       >
-        {pending ? "바꾸는 중…" : "비밀번호 바꾸고 계속하기"}
+        {pending || state.ok ? "바꾸는 중…" : "비밀번호 바꾸고 계속하기"}
       </button>
       <p className="text-center text-xs text-[var(--que-text-tertiary)]">
         바꾸고 나면 새 비밀번호로 다시 로그인해요.

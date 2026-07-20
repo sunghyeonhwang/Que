@@ -3,9 +3,8 @@
 import { emailForUser } from "@que/core";
 import { getCurrentUser } from "@/lib/current-user";
 import { changeOwnPassword } from "@/lib/auth/password";
-import { signOut } from "@/auth";
 
-export type ForcedChangeState = { error?: string };
+export type ForcedChangeState = { error?: string; ok?: true };
 
 /**
  * 첫 로그인/재설정 후 강제 비밀번호 변경. 임시 비밀번호로 확인 → 새 비밀번호로 교체 →
@@ -31,7 +30,7 @@ export async function forcedChangeAction(
   });
   if (!res.ok) return { error: res.error };
 
-  // 성공 → 세션 종료 후 로그인 화면으로(새 비밀번호로 재로그인). signOut의 리다이렉트는 그대로 전파.
-  await signOut({ redirectTo: "/login?changed=1" });
-  return {};
+  // 성공 → 세션 종료는 클라이언트가 /api/auth/logout 라우트로 수행한다(같은 이름의 세션 쿠키
+  // 두 변형을 서버 액션 한 응답에 못 싣는 구조적 한계 — 라우트 주석 참고). 여기서는 ok만 반환.
+  return { ok: true };
 }
