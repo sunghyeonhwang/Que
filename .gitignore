@@ -5,6 +5,11 @@ node_modules/
 .playwright-mcp/
 *.png
 !apps/web/public/**
+# Next 파일 규약 브랜드 자산(파비콘·애플 아이콘·OG/트위터 썸네일)은 추적한다
+!apps/web/src/app/icon.png
+!apps/web/src/app/apple-icon.png
+!apps/web/src/app/opengraph-image.png
+!apps/web/src/app/twitter-image.png
 
 # 비밀값 — 절대 커밋 금지 (Supabase secret key 등)
 .env
