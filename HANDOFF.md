@@ -41,6 +41,9 @@ mock 인증: 쿠키 `que-user=<id>` / PAT `que_pat_<id>` (예: `hwang-sunghyeon`
 
 **프로덕션은 GRIFF Pro 팀(`griff-fde0dc32/que`) · <https://que.griff.co.kr> · 실 DB(`QUE_DB=supabase`)+실 인증(Auth.js) 라이브.** 비밀값은 `data/.env`(gitignore). Vercel env로 기능 게이트(아래 참고).
 
+#### 🎨 브랜드 파비콘·SEO 아이콘·공유 썸네일 (2026-07-21 사용자 제공 자산)
+Next 파일 규약으로 적용: `app/icon.png`(512·레이어드 GRIFF 마크)·`apple-icon.png`(180)·`favicon.ico`(16/32 **PNG 내장 ICO를 노드 스크립트로 직접 생성** — ImageMagick 없음)·`opengraph-image.png`/`twitter-image.png`(1200×630 옐로 GRIFF 배너). layout.tsx에 `metadataBase=https://que.griff.co.kr`+openGraph 기본 메타(다중 도메인 호스트 라우팅에서도 절대 URL 고정). **함정 기록: 루트 .gitignore `*.png` 전역 규칙에 브랜드 PNG가 걸려 커밋 누락** → `!apps/web/src/app/*.png` 예외 4줄 추가(첫 커밋 da08aa8은 ico·layout만 들어감, 8261880에서 보정). 원본은 사용자 데스크톱(image-17846299*.png) — 붙여넣기 이미지는 파일로 추출 불가라 경로 제공받아 처리. 프로덕션 head 태그·자산 200 확인.
+
 #### 🛠 드로어 시작일 수정 + 간트 주말 제외 (2026-07-21 사용자 리포트 2건)
 - **시작일 수정 불가**: 드로어 일정 편집이 마감 전용 DuePicker였고 TaskDetail에 시작 필드 자체가 없었다. TaskDetail에 startAt/startDate/startTime/dueTime 추가(projects-data), 드로어를 DateRangePicker(기간) 편집으로 교체 — 변경분만 patch(시작/마감 각각, 시각 기본 09:00/18:00·기존 시각 프리필 보존), updateTaskDetailsAction은 이미 startAt 지원이라 서버 무변경. 라이브: 마감만 있던 작업에 7/20~7/22 설정→간트 막대 즉시 반영.
 - **간트 [주말 제외] 토글**(gantt-view 내부 state — 통합 간트도 동작): buildDays에서 토·일 제거 + **idx()를 dayDiff 산술→dateKey Map 조회로 교체**(주말·범위 밖은 이진 탐색으로 직전 평일 스냅, 미제외 시 결과 동일=무회귀). 주말 음영·헤더·gridW 자동 축소, 오늘이 주말이면 기존 todayIdx<0 가드로 안전. 라이브: 7/10(금)→7/13(월) 스킵 확인.
