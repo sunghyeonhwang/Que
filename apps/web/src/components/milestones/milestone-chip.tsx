@@ -3,8 +3,11 @@
 import { useState } from "react";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
-import { AlertTriangle, Diamond } from "lucide-react";
-import { updateMilestoneAction } from "@/app/(app)/planning/actions";
+import { AlertTriangle, Check, Diamond } from "lucide-react";
+import {
+  setMilestoneAchievedAction,
+  updateMilestoneAction,
+} from "@/app/(app)/planning/actions";
 import { useSafeAction } from "@/components/app/use-safe-action";
 import { ToneBadge, type BadgeTone } from "@/components/app/tone-badge";
 import { Button } from "@/components/ui/button";
@@ -47,6 +50,9 @@ export interface MilestoneChipData {
   /** 중요 마일스톤(최종 런칭일 등) — 붉은 그라데이션으로 표기. */
   critical?: boolean;
   projectName: string;
+  /** 완료 시각(ISO). 있으면 달성 완료 — 칩은 그라데이션 대신 중립 muted + ✓로 물러난다.
+   *  완료면 위험 상태색을 숨긴다(완료가 위험 표기를 이긴다). null/undefined=미완료. */
+  achievedAt?: string | null;
   /** 현재 사용자가 이 마일스톤을 수정할 수 있는지(canManageMilestone). false면 조회 전용. */
   canManage: boolean;
 }
@@ -84,28 +90,43 @@ export function MilestoneChip({
 }) {
   const [open, setOpen] = useState(false);
   const risk = RISK[m.riskStatus] ?? RISK.on_track;
-  const overdue = new Date(m.dueAt) < new Date() && m.riskStatus !== "late";
+  const achieved = Boolean(m.achievedAt);
+  // 완료면 위험/기한초과 표기를 숨긴다(완료가 이긴다).
+  const overdue = !achieved && new Date(m.dueAt) < new Date() && m.riskStatus !== "late";
+  const kind = m.critical ? "중요 마일스톤" : "마일스톤";
+  const stateLabel = achieved ? "완료" : risk.label;
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
-        aria-label={`${m.critical ? "중요 마일스톤" : "마일스톤"} ${m.title} · ${risk.label}${m.canManage ? " · 눌러서 수정" : ""}`}
-        title={`${m.critical ? "중요 마일스톤" : "마일스톤"} · ${risk.label} · ${m.title} (${m.projectName})`}
+        aria-label={`${achieved ? "완료된 " : ""}${kind} ${m.title} · ${stateLabel}${m.canManage ? " · 눌러서 수정" : ""}`}
+        title={`${kind} · ${stateLabel} · ${m.title} (${m.projectName})`}
         className={cn(
-          "que-shimmer-btn flex items-center rounded font-semibold outline-none",
+          "flex items-center rounded font-semibold outline-none",
+          // 완료 = 중립 muted 톤(간트 완료 작업 선례 — 뒤로 물러나되 읽을 수 있게, 취소선 없음) /
           // 중요(critical) = 옐로→오렌지 그라데이션(최종 런칭일 등 — 2026-07-13 사용자 지정 색) /
           // 일반 = 시안→옐로(마일스톤 정체성).
-          m.critical
-            ? "bg-[linear-gradient(90deg,rgba(253,227,29,1)_0%,rgba(252,176,69,1)_100%)] text-[#5b2c00]"
-            : "bg-[linear-gradient(144deg,rgba(0,242,255,1)_0%,rgba(255,247,0,1)_100%)] text-[#004466]",
+          achieved
+            ? "border border-[var(--que-border-strong)] bg-[var(--que-bg-muted)] text-[var(--que-text-tertiary)]"
+            : m.critical
+              ? "que-shimmer-btn bg-[linear-gradient(90deg,rgba(253,227,29,1)_0%,rgba(252,176,69,1)_100%)] text-[#5b2c00]"
+              : "que-shimmer-btn bg-[linear-gradient(144deg,rgba(0,242,255,1)_0%,rgba(255,247,0,1)_100%)] text-[#004466]",
           "focus-visible:ring-2 focus-visible:ring-[var(--que-brand)] focus-visible:ring-offset-1",
           truncate ? "truncate" : "w-max whitespace-nowrap",
           SIZE_CLASS[size],
           className,
         )}
       >
-        <Diamond className={cn("size-3 shrink-0", m.critical && "fill-current")} aria-hidden />
-        <span className="sr-only">{m.critical ? "중요 마일스톤" : "마일스톤"} {risk.label}: </span>
+        {achieved ? (
+          // 색 단독 금지 — 완료는 ✓ 아이콘 병기(que-success 틴트).
+          <Check className="size-3 shrink-0 text-[var(--que-success)]" aria-hidden />
+        ) : (
+          <Diamond className={cn("size-3 shrink-0", m.critical && "fill-current")} aria-hidden />
+        )}
+        <span className="sr-only">
+          {achieved ? "완료된 " : ""}
+          {kind} {stateLabel}:{" "}
+        </span>
         <span className={truncate ? "truncate" : undefined}>{m.title}</span>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-80">
@@ -127,15 +148,29 @@ function MilestoneReadOnly({
   milestone: MilestoneChipData;
   overdue: boolean;
 }) {
+  const achieved = Boolean(m.achievedAt);
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-start justify-between gap-2">
         <p className="text-sm font-semibold text-[var(--que-text)]">{m.title}</p>
-        <ToneBadge tone={RISK[m.riskStatus].tone}>{RISK[m.riskStatus].label}</ToneBadge>
+        {achieved ? (
+          <ToneBadge tone="neutral">
+            <Check className="size-3 text-[var(--que-success)]" aria-hidden />
+            완료
+          </ToneBadge>
+        ) : (
+          <ToneBadge tone={RISK[m.riskStatus].tone}>{RISK[m.riskStatus].label}</ToneBadge>
+        )}
       </div>
       <p className="text-xs text-[var(--que-text-tertiary)]">
         {m.projectName} · 기한 {format(new Date(m.dueAt), "M월 d일 (E) HH:mm", { locale: ko })}
       </p>
+      {achieved && m.achievedAt && (
+        <span className="flex items-center gap-1 text-xs font-medium text-[var(--que-text-secondary)]">
+          <Check className="size-3.5 text-[var(--que-success)]" aria-hidden />
+          {format(new Date(m.achievedAt), "M월 d일 (E)", { locale: ko })} 완료
+        </span>
+      )}
       {overdue && (
         <span className="flex items-center gap-1 text-xs font-medium text-[var(--que-error)]">
           <AlertTriangle className="size-3.5" aria-hidden />
@@ -158,6 +193,7 @@ function MilestoneEditForm({
   onDone: () => void;
 }) {
   const { run, pending } = useSafeAction();
+  const achieved = Boolean(m.achievedAt);
   const [title, setTitle] = useState(m.title);
   const [dueAt, setDueAt] = useState(toLocalInput(m.dueAt));
   const [risk, setRisk] = useState<MilestoneRisk>(m.riskStatus);
@@ -177,12 +213,42 @@ function MilestoneEditForm({
     );
   };
 
+  const toggleAchieved = () => {
+    run(
+      () => setMilestoneAchievedAction({ milestoneId: m.id, achieved: !achieved }),
+      {
+        success: achieved ? "완료를 해제했습니다." : "마일스톤을 완료했습니다.",
+        onSuccess: onDone,
+      },
+    );
+  };
+
   return (
     <div className="flex flex-col gap-2.5">
       <div className="flex flex-col gap-0.5">
         <p className="text-sm font-semibold text-[var(--que-text)]">마일스톤 수정</p>
         <p className="text-xs text-[var(--que-text-tertiary)]">{m.projectName}</p>
       </div>
+      {/* 완료 상태에서는 기한 수정보다 완료 해제가 먼저 보이게 상단에 배치(운영 톤). */}
+      {achieved && (
+        <div className="flex flex-col gap-2 rounded-md border border-[var(--que-border)] bg-[var(--que-bg-muted)] p-2.5">
+          <span className="flex items-center gap-1.5 text-xs font-medium text-[var(--que-text-secondary)]">
+            <Check className="size-3.5 text-[var(--que-success)]" aria-hidden />
+            {m.achievedAt
+              ? `${format(new Date(m.achievedAt), "M월 d일 (E)", { locale: ko })} 완료`
+              : "완료"}
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-10 w-full"
+            disabled={pending}
+            onClick={toggleAchieved}
+          >
+            {pending ? "처리 중…" : "완료 해제"}
+          </Button>
+        </div>
+      )}
       <label className="flex flex-col gap-1 text-xs text-[var(--que-text-secondary)]">
         제목
         <Input className="h-10" value={title} onChange={(e) => setTitle(e.target.value)} />
@@ -233,6 +299,19 @@ function MilestoneEditForm({
         />
         중요 마일스톤 (붉은 표시 — 최종 런칭일 등)
       </label>
+      {/* 미완료일 때만 완료 처리 — 완료 상태 토글은 상단(완료 해제)에서 처리한다. */}
+      {!achieved && (
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-10 w-full gap-1.5"
+          disabled={pending}
+          onClick={toggleAchieved}
+        >
+          <Check className="size-4 text-[var(--que-success)]" aria-hidden />
+          {pending ? "처리 중…" : "완료 처리"}
+        </Button>
+      )}
       <div className="flex justify-end gap-2 pt-0.5">
         <Button variant="outline" size="sm" className="h-10" disabled={pending} onClick={onDone}>
           취소

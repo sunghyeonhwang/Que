@@ -22,6 +22,8 @@ export interface MilestoneRow {
   riskStatus: Milestone["riskStatus"];
   /** 중요 마일스톤(최종 런칭일 등) — 목록에 붉은 뱃지 표기. */
   critical?: boolean;
+  /** 완료 시각(ISO) — 있으면 달성 완료. 위험/재촉 판정에서 제외된다(null=미완료). */
+  achievedAt: string | null;
   canManage: boolean;
   /** OS-2a — 기한 초과·지연 종결로 회고가 필요한 상태인지(부록 B needsRetro). */
   needsRetro: boolean;
@@ -84,6 +86,7 @@ export async function getPlanningData(user: User): Promise<PlanningData> {
         dueAt: m.dueAt,
         riskStatus: m.riskStatus,
         critical: m.critical,
+        achievedAt: m.achievedAt ?? null,
         canManage: canManageMilestone(user, project),
         needsRetro: needsRetro(m, now),
         hasRetro: retroMilestoneIds.has(m.id),

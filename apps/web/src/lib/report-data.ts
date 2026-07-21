@@ -459,7 +459,8 @@ export async function getAdminReportData(
         (p) => p.status === "waiting" && p.dueAt && new Date(p.dueAt).getTime() < now2,
       ).length,
       atRiskMilestones: db.milestones.filter(
-        (m) => m.riskStatus === "at_risk" || m.riskStatus === "late",
+        // 완료 처리된 마일스톤은 위험 집계에서 제외한다(achievedAt 스킵).
+        (m) => !m.achievedAt && (m.riskStatus === "at_risk" || m.riskStatus === "late"),
       ).length,
     },
     completedInPeriod: doneLogs.length,

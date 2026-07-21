@@ -1833,6 +1833,72 @@ describe("마일스톤 안건 결정 기록", () => {
   });
 });
 
+describe("마일스톤 완료 처리 (setMilestoneAchieved)", () => {
+  it("프로젝트 담당자는 완료 처리할 수 있고 achievedAt·ChangeLog가 남는다", () => {
+    const d = db();
+    // ms-payment-qa는 prj-payment(담당 오승훈) 소속
+    const m = d.setMilestoneAchieved(
+      { actorId: "oh-seunghoon", via: "web" },
+      { milestoneId: "ms-payment-qa", achieved: true },
+    );
+    expect(m.achievedAt).toBeTruthy();
+    expect(m.lastChangedBy).toBe("oh-seunghoon");
+    const clog = d.changeLogs.at(-1)!;
+    expect(clog.entityType).toBe("milestone");
+    expect(clog.changeType).toBe("update");
+    expect(clog.afterValue).toBe("완료 처리");
+  });
+
+  it("무관한 팀원은 완료 처리할 수 없다", () => {
+    const d = db();
+    expect(() =>
+      d.setMilestoneAchieved(
+        { actorId: "lee-hyejin", via: "web" },
+        { milestoneId: "ms-payment-qa", achieved: true },
+      ),
+    ).toThrowError(/프로젝트 담당자 또는 관리자만/);
+  });
+
+  it("완료를 해제하면 achievedAt이 사라지고 해제 로그가 남는다", () => {
+    const d = db();
+    d.setMilestoneAchieved(
+      { actorId: "hwang-sunghyeon", via: "web" },
+      { milestoneId: "ms-payment-qa", achieved: true },
+    );
+    const off = d.setMilestoneAchieved(
+      { actorId: "hwang-sunghyeon", via: "web" },
+      { milestoneId: "ms-payment-qa", achieved: false },
+    );
+    expect(off.achievedAt).toBeUndefined();
+    expect(d.changeLogs.at(-1)!.afterValue).toBe("완료 해제");
+  });
+
+  it("같은 값 재설정은 no-op이다(ChangeLog 소음 방지)", () => {
+    const d = db();
+    d.setMilestoneAchieved(
+      { actorId: "hwang-sunghyeon", via: "web" },
+      { milestoneId: "ms-payment-qa", achieved: true },
+    );
+    const logCountAfterAchieve = d.changeLogs.length;
+    // 이미 완료된 마일스톤을 다시 완료 처리 — 아무 변화 없음.
+    d.setMilestoneAchieved(
+      { actorId: "hwang-sunghyeon", via: "web" },
+      { milestoneId: "ms-payment-qa", achieved: true },
+    );
+    expect(d.changeLogs.length).toBe(logCountAfterAchieve);
+  });
+
+  it("[우회 공격] achieved에 boolean 외 값을 주입하면 거부된다", () => {
+    const d = db();
+    expect(() =>
+      d.setMilestoneAchieved(
+        { actorId: "hwang-sunghyeon", via: "web" },
+        { milestoneId: "ms-payment-qa", achieved: "true" as never },
+      ),
+    ).toThrowError(/참\/거짓/);
+  });
+});
+
 describe("마일스톤 삭제", () => {
   it("무관한 팀원은 마일스톤을 삭제할 수 없다", () => {
     const d = db();

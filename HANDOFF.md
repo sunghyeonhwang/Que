@@ -41,6 +41,9 @@ mock 인증: 쿠키 `que-user=<id>` / PAT `que_pat_<id>` (예: `hwang-sunghyeon`
 
 **프로덕션은 GRIFF Pro 팀(`griff-fde0dc32/que`) · <https://que.griff.co.kr> · 실 DB(`QUE_DB=supabase`)+실 인증(Auth.js) 라이브.** 비밀값은 `data/.env`(gitignore). Vercel env로 기능 게이트(아래 참고).
 
+#### ✅ 마일스톤 완료 처리 (2026-07-21 사용자 "/projects에서 마일스톤은 완료 처리를 못하나?")
+종전엔 완료 개념 자체가 없었다(riskStatus 3종뿐). **`Milestone.achievedAt`(ISO, 있으면 완료)** 신설 — riskStatus enum 확장 대신 별도 필드(위험 의미와 분리·완료 시각 보존·해제 가능). core `setMilestoneAchieved`(canManageMilestone, no-op 단락, ChangeLog "완료 처리/해제") + `setMilestoneAchievedAction`(planning/actions — /planning·/projects·/schedule revalidate). **완료 마일스톤은 위험·재촉 전 경로에서 제외**: crisis 감지(긴급 결정 카드·재촉 DM 파생원), milestone-agenda·meeting-agenda 큐, report-data atRisk 집계, home-grade 위험 목록(needsRetro는 실패 분류 트리거라 의도적 미변경). UI: 공용 MilestoneChip 완료 스타일(그라데이션→muted+✓ --que-success, 위험·기한초과 표기 숨김) + 팝오버 [완료 처리]/[완료 해제](완료 상태에선 해제가 기한 수정보다 먼저), /planning 목록 완료 행 하단 정렬·위험 Select 숨김. 마이그레이션 `add-milestone-achieved.sql`(achieved_at timestamptz) **실 DB 적용 완료**(MCP·컬럼 확인). 테스트 +5(총 338). mock 라이브: 완료 토글→목록 하단 정렬·간트 칩 muted+✓ 확인.
+
 #### 🎨 브랜드 파비콘·SEO 아이콘·공유 썸네일 (2026-07-21 사용자 제공 자산)
 Next 파일 규약으로 적용: `app/icon.png`(512·레이어드 GRIFF 마크)·`apple-icon.png`(180)·`favicon.ico`(16/32 **PNG 내장 ICO를 노드 스크립트로 직접 생성** — ImageMagick 없음)·`opengraph-image.png`/`twitter-image.png`(1200×630 옐로 GRIFF 배너). layout.tsx에 `metadataBase=https://que.griff.co.kr`+openGraph 기본 메타(다중 도메인 호스트 라우팅에서도 절대 URL 고정). **함정 기록: 루트 .gitignore `*.png` 전역 규칙에 브랜드 PNG가 걸려 커밋 누락** → `!apps/web/src/app/*.png` 예외 4줄 추가(첫 커밋 da08aa8은 ico·layout만 들어감, 8261880에서 보정). 원본은 사용자 데스크톱(image-17846299*.png) — 붙여넣기 이미지는 파일로 추출 불가라 경로 제공받아 처리. 프로덕션 head 태그·자산 200 확인.
 

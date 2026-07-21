@@ -1605,6 +1605,47 @@ export class MockQueDb implements QueDb {
   }
 
   /**
+   * 마일스톤 완료 토글 — 프로젝트 담당자 또는 관리자만(canManageMilestone, updateMilestone 선례).
+   * achieved=true면 achievedAt=현재 시각, false면 필드 제거. 완료는 riskStatus(위험 의미)와 분리한
+   * 별도 개념이라(완료 시각 기록·해제 가능), 달성된 마일스톤은 위험·재촉·긴급 결정 로직에서 제외된다.
+   * 같은 값 재설정(이미 완료를 다시 완료 / 이미 미완료를 다시 해제)은 no-op — ChangeLog 소음을 막는다.
+   */
+  setMilestoneAchieved(
+    ctx: ActorContext,
+    input: { milestoneId: string; achieved: boolean },
+  ): Milestone {
+    const actor = this.requireUser(ctx.actorId);
+    const milestone = this.milestones.find((m) => m.id === input.milestoneId);
+    if (!milestone) {
+      throw new QueRuleError("NOT_FOUND", `마일스톤 없음: ${input.milestoneId}`);
+    }
+    // 서버 액션 인자는 직렬화값 — boolean 외 값(문자열 "true" 등)은 거부한다(critical 토글 선례).
+    if (typeof input.achieved !== "boolean") {
+      throw new QueRuleError("INVALID_INPUT", "완료 여부는 참/거짓이어야 한다");
+    }
+    const project = this.projects.find((p) => p.id === milestone.projectId);
+    if (!canManageMilestone(actor, project)) {
+      throw new QueRuleError(
+        "NOT_AUTHORIZED",
+        "마일스톤은 프로젝트 담당자 또는 관리자만 완료 처리할 수 있다",
+      );
+    }
+    const alreadyAchieved = milestone.achievedAt !== undefined;
+    if (alreadyAchieved === input.achieved) return milestone; // no-op(ChangeLog 소음 방지)
+    milestone.achievedAt = input.achieved ? this.now() : undefined;
+    milestone.lastChangedBy = actor.id;
+    milestone.lastChangedAt = this.now();
+    this.logChange(ctx, {
+      entityType: "milestone",
+      entityId: milestone.id,
+      changeType: "update",
+      beforeValue: milestone.title,
+      afterValue: input.achieved ? "완료 처리" : "완료 해제",
+    });
+    return milestone;
+  }
+
+  /**
    * 마일스톤 삭제(하드 삭제) — 프로젝트 담당자 또는 관리자만(canManageMilestone).
    * 회고(milestoneRetros)나 변경 접수(changeRequests)가 참조하면 삭제를 거부한다 — 이력 보존.
    * DB의 milestone_retros/change_requests.milestone_id는 ON DELETE CASCADE가 없어 참조가 남으면

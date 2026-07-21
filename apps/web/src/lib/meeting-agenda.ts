@@ -191,13 +191,14 @@ export async function buildWeeklyAgenda(
   // ⑶ 마일스톤 안건 — 위험(주의/지연) + 마감 임박(오늘~14일).
   const soonEnd = kstDateKey(new Date(now.getTime() + 14 * 864e5));
   const risky = db.milestones
-    .filter((m) => m.riskStatus === "at_risk" || m.riskStatus === "late")
+    // 완료 처리된 마일스톤은 위험 안건에서 제외한다(achievedAt 스킵).
+    .filter((m) => !m.achievedAt && (m.riskStatus === "at_risk" || m.riskStatus === "late"))
     .map((m) => milestoneRow(db, m))
     .sort((a, b) => a.dueDateKey.localeCompare(b.dueDateKey));
   const riskyIds = new Set(risky.map((m) => m.id));
   const dueSoon = db.milestones
     .filter((m) => {
-      if (riskyIds.has(m.id)) return false; // 위험 섹션과 중복 제거
+      if (riskyIds.has(m.id) || m.achievedAt) return false; // 위험 섹션·완료 제외
       const key = dateKeyOfIso(m.dueAt);
       return key >= date && key <= soonEnd;
     })

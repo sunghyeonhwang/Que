@@ -3,8 +3,12 @@
 import { useState } from "react";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
-import { AlertTriangle, ClipboardList, Trash2 } from "lucide-react";
-import { deleteMilestoneAction, updateMilestoneAction } from "@/app/(app)/planning/actions";
+import { AlertTriangle, Check, ClipboardList, Trash2 } from "lucide-react";
+import {
+  deleteMilestoneAction,
+  setMilestoneAchievedAction,
+  updateMilestoneAction,
+} from "@/app/(app)/planning/actions";
 import { useSafeAction } from "@/components/app/use-safe-action";
 import { ToneBadge, type BadgeTone } from "@/components/app/tone-badge";
 import { MilestoneRetroDialog } from "@/components/retro/milestone-retro-dialog";
@@ -33,6 +37,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { MilestoneRow } from "@/lib/planning-data";
+import { cn } from "@/lib/utils";
 
 type Risk = MilestoneRow["riskStatus"];
 const RISK: Record<Risk, { label: string; tone: BadgeTone }> = {
@@ -72,9 +77,13 @@ export function MilestoneList({
       </div>
     );
   }
+  // 완료 행은 목록 하단으로(표시용 정렬만 — 서버 정렬은 그대로 두고 완료 여부로 안정 정렬).
+  const ordered = [...milestones].sort(
+    (a, b) => Number(Boolean(a.achievedAt)) - Number(Boolean(b.achievedAt)),
+  );
   return (
     <div className="flex flex-col gap-2">
-      {milestones.map((m) => (
+      {ordered.map((m) => (
         <MilestoneRowItem key={m.id} milestone={m} manageableProjects={manageableProjects} />
       ))}
     </div>
@@ -97,14 +106,22 @@ function MilestoneRowItem({
   const [critical, setCritical] = useState(m.critical === true);
   const [projectId, setProjectId] = useState(m.projectId);
 
+  const achieved = Boolean(m.achievedAt);
+  // 완료면 위험/기한초과/회고 신호를 숨긴다(완료가 이긴다).
   // 기한이 지났는데 리스크가 아직 '지연'이 아니면 시각 힌트만 덧붙인다(리스크 값 자동 변경 안 함).
-  const overdue = new Date(m.dueAt) < new Date() && m.riskStatus !== "late";
+  const overdue = !achieved && new Date(m.dueAt) < new Date() && m.riskStatus !== "late";
   // OS-2a — 회고가 필요한데 아직 없는 마일스톤에 "회고 남기기" 강조(부록 B). 담당·관리자만.
-  const retroNeeded = m.needsRetro && !m.hasRetro;
+  const retroNeeded = m.needsRetro && !m.hasRetro && !achieved;
 
   const changeRisk = (risk: Risk) => {
     run(() => updateMilestoneAction({ milestoneId: m.id, riskStatus: risk }), {
       success: "위험 상태를 바꿨습니다.",
+    });
+  };
+
+  const toggleAchieved = () => {
+    run(() => setMilestoneAchievedAction({ milestoneId: m.id, achieved: !achieved }), {
+      success: achieved ? "완료를 해제했습니다." : "마일스톤을 완료했습니다.",
     });
   };
 
@@ -131,21 +148,47 @@ function MilestoneRowItem({
   };
 
   return (
-    <div className="rounded-lg border border-[var(--que-border)] px-3 py-2.5">
+    <div
+      className={cn(
+        "rounded-lg border border-[var(--que-border)] px-3 py-2.5",
+        // 완료 행은 뒤로 물러남(중립 배경) — 취소선 없이 읽을 수 있게.
+        achieved && "bg-[var(--que-bg-muted)]",
+      )}
+    >
       <div className="flex flex-wrap items-center gap-2">
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium text-[var(--que-text)]">{m.title}</p>
+          <p
+            className={cn(
+              "flex items-center gap-1.5 truncate text-sm font-medium",
+              achieved ? "text-[var(--que-text-tertiary)]" : "text-[var(--que-text)]",
+            )}
+          >
+            {achieved && (
+              <Check className="size-3.5 shrink-0 text-[var(--que-success)]" aria-hidden />
+            )}
+            <span className="truncate">{m.title}</span>
+          </p>
           <p className="truncate text-xs text-[var(--que-text-tertiary)]">
             {m.projectName} · 기한 {format(new Date(m.dueAt), "M월 d일 (E) HH:mm", { locale: ko })}
+            {achieved &&
+              m.achievedAt &&
+              ` · ${format(new Date(m.achievedAt), "M월 d일", { locale: ko })} 완료`}
           </p>
         </div>
-        {/* 중요 마일스톤(최종 런칭일 등) — 칩과 같은 옐로→오렌지 그라데이션 미니 뱃지. */}
-        {m.critical && (
+        {/* 중요 마일스톤(최종 런칭일 등) — 칩과 같은 옐로→오렌지 그라데이션 미니 뱃지(완료면 숨김). */}
+        {m.critical && !achieved && (
           <span className="rounded bg-[linear-gradient(90deg,rgba(253,227,29,1)_0%,rgba(252,176,69,1)_100%)] px-1.5 py-0.5 text-xs font-semibold text-[#5b2c00]">
             중요
           </span>
         )}
-        <ToneBadge tone={RISK[m.riskStatus].tone}>{RISK[m.riskStatus].label}</ToneBadge>
+        {achieved ? (
+          <ToneBadge tone="neutral">
+            <Check className="size-3 text-[var(--que-success)]" aria-hidden />
+            완료
+          </ToneBadge>
+        ) : (
+          <ToneBadge tone={RISK[m.riskStatus].tone}>{RISK[m.riskStatus].label}</ToneBadge>
+        )}
         {overdue && (
           <span className="flex items-center gap-1 text-xs font-medium text-[var(--que-error)]">
             <AlertTriangle className="size-3.5" aria-hidden />
@@ -170,24 +213,40 @@ function MilestoneRowItem({
         )}
         {m.canManage && (
           <div className="flex items-center gap-1.5">
-            <Select
-              items={Object.fromEntries(
-                (Object.keys(RISK) as Risk[]).map((r) => [r, RISK[r].label]),
-              )}
-              value={m.riskStatus}
-              onValueChange={(v) => v && v !== m.riskStatus && changeRisk(v as Risk)}
+            {/* 완료면 위험 상태 변경은 무의미 — 숨기고 완료 해제를 먼저 노출한다. */}
+            {!achieved && (
+              <Select
+                items={Object.fromEntries(
+                  (Object.keys(RISK) as Risk[]).map((r) => [r, RISK[r].label]),
+                )}
+                value={m.riskStatus}
+                onValueChange={(v) => v && v !== m.riskStatus && changeRisk(v as Risk)}
+              >
+                <SelectTrigger aria-label="위험 상태 변경" size="lg" className="w-24">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {(Object.keys(RISK) as Risk[]).map((r) => (
+                    <SelectItem key={r} value={r}>
+                      {RISK[r].label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-10 gap-1.5"
+              disabled={pending}
+              onClick={toggleAchieved}
             >
-              <SelectTrigger aria-label="위험 상태 변경" size="lg" className="w-24">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {(Object.keys(RISK) as Risk[]).map((r) => (
-                  <SelectItem key={r} value={r}>
-                    {RISK[r].label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              <Check
+                className={cn("size-4", !achieved && "text-[var(--que-success)]")}
+                aria-hidden
+              />
+              {achieved ? "완료 해제" : "완료"}
+            </Button>
             <Button
               variant="outline"
               size="sm"

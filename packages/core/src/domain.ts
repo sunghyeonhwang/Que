@@ -208,6 +208,10 @@ export const milestoneSchema = z.object({
   riskStatus: z.enum(["on_track", "at_risk", "late"]),
   /** 중요 마일스톤(최종 런칭일 등) — 켜면 전 화면 칩이 붉은 그라데이션으로 표기된다. */
   critical: z.boolean().optional(),
+  /** 완료 시각(ISO). 있으면 이 마일스톤은 달성됨 — riskStatus(위험 의미)와 분리한 완료 개념이다.
+   *  달성된 마일스톤은 위험·재촉·긴급 결정 로직에서 제외된다(각 판정 지점이 achievedAt를 스킵).
+   *  setMilestoneAchieved가 토글한다: 완료=현재 시각 기록, 해제=필드 제거(다시 위험 로직에 편입). */
+  achievedAt: isoDateTime.optional(),
   lastChangedBy: z.string().optional(),
   lastChangedAt: isoDateTime.optional(),
   /** 마지막 안건 결정(유지/연기/보류) — 긴급 결정 카드·재촉 DM의 당일 억제 근거.

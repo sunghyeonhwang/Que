@@ -79,14 +79,15 @@ export function buildMilestoneAgendaQueue(
   const weekEnd = kstDateKey(new Date(now.getTime() + 7 * 864e5));
 
   const risky = db.milestones
-    .filter((m) => m.riskStatus === "at_risk" || m.riskStatus === "late")
+    // 완료 처리된 마일스톤은 위험 안건에서 제외한다(achievedAt 스킵).
+    .filter((m) => !m.achievedAt && (m.riskStatus === "at_risk" || m.riskStatus === "late"))
     .map((m) => agendaItem(db, m, "risk"))
     .sort((a, b) => a.dueDateKey.localeCompare(b.dueDateKey));
 
   const riskyIds = new Set(risky.map((m) => m.id));
   const dueSoon = db.milestones
     .filter((m) => {
-      if (riskyIds.has(m.id)) return false;
+      if (riskyIds.has(m.id) || m.achievedAt) return false;
       const key = dateKeyOfIso(m.dueAt);
       return key >= today && key <= weekEnd;
     })

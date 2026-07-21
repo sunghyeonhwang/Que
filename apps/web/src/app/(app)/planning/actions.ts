@@ -95,6 +95,24 @@ export async function updateMilestoneAction(input: {
 }
 
 /**
+ * 마일스톤 완료 토글 — 프로젝트 담당·admin만(core canManageMilestone 강제).
+ * 완료 상태는 위험/재촉/긴급 결정 로직에서 제외되고, 간트·보드 띠·캘린더 칩이 공유하므로
+ * /planning(toResult 기본) 외에 /projects·/schedule도 갱신한다(updateMilestoneAction 관례).
+ */
+export async function setMilestoneAchievedAction(input: {
+  milestoneId: string;
+  achieved: boolean;
+}): Promise<ActionResult> {
+  const user = await getCurrentUser();
+  const result = await toResult((db) =>
+    db.setMilestoneAchieved({ actorId: user.id, via: "web" }, input),
+  );
+  revalidatePath("/projects");
+  revalidatePath("/schedule");
+  return result;
+}
+
+/**
  * 마일스톤 회고 남기기(OS-2a 실패 분류, 부록 B). 담당·admin만(core canManageMilestone 강제).
  * 회고=기록 그 자체라 ChangeLog는 남기지 않는다. 확인 카드(원인 2택 → 세부 유형 → 한 줄) 종결 경로.
  */

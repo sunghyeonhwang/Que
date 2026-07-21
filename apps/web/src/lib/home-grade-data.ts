@@ -607,7 +607,10 @@ async function getCeoHomeData(
       getTeamPriorityItems(user, now, opts.clientId),
     ]);
 
-  const riskMilestones = planning.milestones.filter((m) => m.riskStatus !== "on_track");
+  // 완료 처리된 마일스톤은 위험 목록에서 제외한다(achievedAt 스킵 — 집계 count와 일관).
+  const riskMilestones = planning.milestones.filter(
+    (m) => m.riskStatus !== "on_track" && !m.achievedAt,
+  );
   const nowMs = now.getTime();
   const clientTasks = db.tasksForClient(opts.clientId);
   const overdueCount = clientTasks.filter((t) => isOverdue(t, nowMs)).length;
