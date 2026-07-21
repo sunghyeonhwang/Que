@@ -39,9 +39,20 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+// 파비콘·애플 아이콘·OG/트위터 썸네일은 같은 폴더의 파일 규약(icon.png·apple-icon.png·
+// opengraph-image.png·twitter-image.png — 2026-07-21 사용자 제공 브랜드 자산)이 자동 주입한다.
+// metadataBase는 공유 썸네일 절대 URL의 기준 — 다중 도메인(view/gant/font 호스트 라우팅)에서도
+// 브랜드 대표 도메인으로 고정한다.
 export const metadata: Metadata = {
+  metadataBase: new URL("https://que.griff.co.kr"),
   title: "Que",
   description: "캘린더 UI를 가진 팀 작업 상태 관리 도구",
+  openGraph: {
+    title: "Que — GRIFF 팀 작업 상태 관리",
+    description: "캘린더 UI를 가진 팀 작업 상태 관리 도구",
+    siteName: "Que",
+    type: "website",
+  },
 };
 
 // 모바일 키보드 대응 — interactiveWidget=resizes-content로 키보드가 뜨면 뷰포트(및 dvh)가 줄어들어
